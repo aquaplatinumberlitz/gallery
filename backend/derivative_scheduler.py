@@ -39,6 +39,9 @@ from .metadata_store import _connect, initialize_database
 logger = logging.getLogger(__name__)
 _SUPERVISOR_INTERVAL_SECONDS = 30
 _MAX_ATTEMPTS = 3
+_CAPACITY_DEFERRED_AUTOMATIC_REASONS = frozenset(
+    {"periodic", "catalog_scan", "catalog_rebuild", "metadata_completion"}
+)
 
 
 def _lease_days() -> float:
@@ -115,6 +118,7 @@ class DerivativeScheduler:
         self._start_condition = threading.Condition(self._lifecycle_lock)
         self._start_in_progress = False
         self._stop_in_progress = False
+        self._active_stop_calls = 0
         self._file_lock = threading.RLock()
         self._generating_paths: set[str] = set()
         self._served_paths: set[str] = set()
@@ -204,10 +208,10 @@ class DerivativeScheduler:
             self._start_condition.notify_all()
 
     def stop(self) -> None:
-        """Stop workers and wait a bounded timeout per worker.
+        """Stop workers within one absolute bounded shutdown deadline.
 
         Sets the stop event so no new claims begin, wakes all workers, then joins
-        each worker (and the supervisor/reconciler) with a per-worker bounded
+        each worker (and the supervisor/reconciler) within the same absolute
         timeout. Records whether shutdown completed cleanly so callers can detect
         an incomplete stop that left in-flight renders running.
 
@@ -218,6 +222,7 @@ class DerivativeScheduler:
         """
         deadline = time.monotonic() + DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS
         with self._start_condition:
+            self._active_stop_calls += 1
             self._stop_in_progress = True
             threads = list(self._threads)
             supervisor = self._supervisor_thread
@@ -275,7 +280,8 @@ class DerivativeScheduler:
             if self._threads or self._supervisor_thread is not None or self._reconciler_thread is not None:
                 clean = False
             self._shutdown_clean = clean
-            self._stop_in_progress = False
+            self._active_stop_calls -= 1
+            self._stop_in_progress = self._active_stop_calls > 0
             self._start_condition.notify_all()
 
     def last_shutdown_clean(self) -> bool | None:
@@ -632,6 +638,7 @@ class DerivativeScheduler:
         priority: int,
         retry_failed: bool,
         deferrable: bool = False,
+        reconsider_deferred_capacity: bool = True,
         estimated_bytes: int | None = None,
     ) -> tuple[int, str]:
         """Create or repair one identity while the caller owns a write transaction.
@@ -639,7 +646,11 @@ class DerivativeScheduler:
         When ``deferrable`` is True (automatic background reconciliation), an
         identity that cannot reserve quota capacity is written as ``deferred_capacity``
         without creating a runnable job. Interactive/manual callers pass
-        ``deferrable=False`` and rely on post-render eviction instead.
+        ``deferrable=False`` and rely on post-render eviction instead. Automatic
+        periodic, catalog, and metadata-completion reconciliation sets
+        ``reconsider_deferred_capacity=False`` so an existing capacity-deferred
+        identity does not repeatedly evict a different ready variant; integrity,
+        startup, policy, and explicit generation triggers may reconsider it.
         """
         inserted = (
             conn.execute(
@@ -703,6 +714,12 @@ class DerivativeScheduler:
                     (priority, job["id"]),
                 )
             return derivative_id, "active"
+        if (
+            derivative["status"] in {"deferred_capacity", "evicted"}
+            and deferrable
+            and not reconsider_deferred_capacity
+        ):
+            return derivative_id, "deferred_capacity"
         if derivative["status"] in {"deferred_capacity", "evicted"} or deferrable:
             estimated_bytes = estimated_bytes or self._estimate_new_derivative_bytes(conn)
             if not self._capacity_available(conn, estimated_bytes):
@@ -1068,6 +1085,8 @@ class DerivativeScheduler:
                                 "priority": priority,
                                 "retry_failed": retry_failed,
                                 "deferrable": True,
+                                "reconsider_deferred_capacity": reason
+                                not in _CAPACITY_DEFERRED_AUTOMATIC_REASONS,
                                 "estimated_bytes": estimated_bytes,
                             }
                             _derivative_id, outcome = self._coalesce_derivative_job(conn, **coalesce_args)
@@ -1208,7 +1227,7 @@ class DerivativeScheduler:
             else:
                 derivative_rows = []
             ready = 0
-            used = 0
+            library_used = 0
             evicted = 0
             queued_without_job_by_kind = dict.fromkeys(DERIVATIVE_VARIANTS, 0)
             for kind, variants in DERIVATIVE_VARIANTS.items():
@@ -1218,7 +1237,7 @@ class DerivativeScheduler:
                 kind = str(row["kind"])
                 if row["status"] == "ready" and row["cache_path"] and Path(row["cache_path"]).is_file():
                     ready += 1
-                    used += row["byte_size"] or 0
+                    library_used += row["byte_size"] or 0
                     by_kind[kind]["ready_derivatives"] += 1
                 elif row["status"] == "queued":
                     by_kind[kind]["queued_derivatives"] += 1
@@ -1263,6 +1282,11 @@ class DerivativeScheduler:
                         job_counts[state] = int(row["count"])
                     if state == "running" and row["oldest_age"] is not None:
                         oldest_running_age_seconds = max(0.0, float(row["oldest_age"]))
+            global_used = int(
+                conn.execute(
+                    "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"
+                ).fetchone()[0]
+            )
             alive_workers = self.alive_worker_count()
         desired = total_assets * expected_derivatives_per_asset if warm_enabled else 0
         actionable_missing = 0
@@ -1292,9 +1316,10 @@ class DerivativeScheduler:
             "terminal_failed_derivatives": terminal_failed,
             "evicted_derivatives": evicted,
             "by_kind": by_kind,
+            "library_used_bytes": library_used,
             "quota_bytes": self.quota_bytes,
-            "quota_used_bytes": used,
-            "quota_utilization": used / self.quota_bytes if self.quota_bytes else 0.0,
+            "quota_used_bytes": global_used,
+            "quota_utilization": global_used / self.quota_bytes if self.quota_bytes else 0.0,
             "queued_jobs": job_counts["queued"],
             "running_jobs": job_counts["running"],
             "failed_jobs": job_counts["failed"],

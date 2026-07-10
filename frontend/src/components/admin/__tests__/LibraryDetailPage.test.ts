@@ -111,22 +111,23 @@ const mockGeneratedImages = {
       expected_derivatives: 100,
       desired_derivatives: 100,
       missing_derivatives: 25,
-      queued_derivatives: 0,
-      running_derivatives: 0,
-      failed_derivatives: 0,
-      deferred_derivatives: 0,
+      queued_derivatives: 2,
+      running_derivatives: 1,
+      failed_derivatives: 3,
+      deferred_derivatives: 4,
     },
     preview: {
       ready_derivatives: 74,
       expected_derivatives: 100,
       desired_derivatives: 100,
       missing_derivatives: 26,
-      queued_derivatives: 0,
-      running_derivatives: 0,
-      failed_derivatives: 0,
-      deferred_derivatives: 0,
+      queued_derivatives: 5,
+      running_derivatives: 6,
+      failed_derivatives: 7,
+      deferred_derivatives: 8,
     },
   },
+  library_used_bytes: 419430400,
   quota_used_bytes: 524288000,
   quota_bytes: 1073741824,
   quota_utilization: 0.488,
@@ -483,6 +484,16 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Generated images");
     expect(wrapper.text()).toContain("75/100 cached");
     expect(wrapper.text()).toContain("74/100 cached");
+    expect(wrapper.text()).toContain("Queued2");
+    expect(wrapper.text()).toContain("Running1");
+    expect(wrapper.text()).toContain("Failed3");
+    expect(wrapper.text()).toContain("Deferred4");
+    expect(wrapper.text()).toContain("Queued5");
+    expect(wrapper.text()).toContain("Running6");
+    expect(wrapper.text()).toContain("Failed7");
+    expect(wrapper.text()).toContain("Deferred8");
+    expect(wrapper.text()).toContain("This library400.0 MB");
+    expect(wrapper.text()).toContain("All libraries500.0 MB / 1.0 GB");
     expect(wrapper.text()).toContain("51 generated images missing");
     expect(wrapper.text()).toContain("Generate missing images");
     expect(wrapper.find(".bg-warning").exists()).toBe(true);

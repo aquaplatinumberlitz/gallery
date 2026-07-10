@@ -373,6 +373,7 @@ export interface GeneratedImagesStatus {
       }
     >
   >;
+  library_used_bytes: number;
   quota_bytes: number;
   quota_used_bytes: number;
   quota_utilization: number;

@@ -186,7 +186,49 @@ def test_library_status_excludes_legacy_variants(
     assert status["by_kind"]["thumbnail"]["ready_derivatives"] == len(DERIVATIVE_VARIANTS["thumbnail"])
     assert status["by_kind"]["preview"]["expected_derivatives"] == len(DERIVATIVE_VARIANTS["preview"])
     assert status["by_kind"]["preview"]["ready_derivatives"] == len(DERIVATIVE_VARIANTS["preview"])
-    assert status["quota_used_bytes"] == current_bytes
+    assert status["library_used_bytes"] == current_bytes
+    assert status["quota_used_bytes"] == current_bytes + legacy_file.stat().st_size
+
+
+def test_library_status_reports_library_and_global_quota_usage(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    first_root = isolated_gallery_root / "first"
+    second_root = isolated_gallery_root / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    first_image, first_asset = _catalog_image(first_root)
+    second_image, second_asset = _catalog_image(second_root)
+    scheduler = DerivativeScheduler(quota_bytes=1_000)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    first_id = scheduler.schedule_derivative(first_asset, "thumbnail", str(thumbnail["name"]))
+    second_id = scheduler.schedule_derivative(second_asset, "thumbnail", str(thumbnail["name"]))
+    first_cache = tmp_path / "first.webp"
+    second_cache = tmp_path / "second.webp"
+    first_cache.write_bytes(b"a" * 100)
+    second_cache.write_bytes(b"b" * 300)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 100 WHERE id = ?",
+            (str(first_cache), first_id),
+        )
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 300 WHERE id = ?",
+            (str(second_cache), second_id),
+        )
+
+    first_library_id = next(
+        int(library["id"]) for library in list_libraries() if library["root_path"] == str(first_image.parent)
+    )
+    status = scheduler.library_status(first_library_id)
+
+    assert second_image.is_file()
+    assert status["library_used_bytes"] == 100
+    assert status["quota_used_bytes"] == 400
+    assert status["quota_bytes"] == 1_000
+    assert status["quota_utilization"] == pytest.approx(0.4)
 
 
 def test_library_status_excludes_offline_assets(
@@ -938,6 +980,60 @@ def test_successful_capacity_finalization_queues_exactly_once(
     assert active_jobs == 1
 
 
+def test_periodic_reconcile_does_not_rotate_capacity_deferred_variants(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    """Periodic reconciliation keeps the ready victim until an explicit repair trigger."""
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler(quota_bytes=200)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    preview = DERIVATIVE_VARIANTS["preview"][0]
+    thumbnail_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
+    preview_id = scheduler.schedule_derivative(asset_id, "preview", str(preview["name"]))
+    cache_file = tmp_path / "stable-ready.webp"
+    cache_file.write_bytes(b"x" * 200)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
+            (str(cache_file), thumbnail_id),
+        )
+        conn.execute("UPDATE asset_derivatives SET status = 'deferred_capacity' WHERE id = ?", (preview_id,))
+        conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id = ?", (thumbnail_id,))
+        conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (preview_id,))
+
+    periodic = scheduler.reconcile_desired_derivatives(
+        asset_ids=[asset_id],
+        kinds=["preview"],
+        reason="periodic",
+    )
+
+    assert periodic.created_jobs == 0
+    assert periodic.deferred_capacity == 1
+    assert cache_file.is_file()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (thumbnail_id,)).fetchone() == (
+            "ready",
+        )
+
+    repaired = scheduler.reconcile_desired_derivatives(
+        asset_ids=[asset_id],
+        kinds=["preview"],
+        reason="integrity",
+    )
+
+    assert repaired.created_jobs == 1
+    assert not cache_file.exists()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (thumbnail_id,)).fetchone() == (
+            "evicted",
+        )
+        assert conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (preview_id,)).fetchone() == (
+            "queued",
+        )
+
+
 def test_interrupted_eviction_with_original_file_restores_ready(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
@@ -985,6 +1081,39 @@ def test_interrupted_eviction_with_original_file_restores_ready(
 
 
 class TestStartStopLinearizability:
+    def test_overlapping_stops_keep_start_blocked_until_both_finish(self, monkeypatch: pytest.MonkeyPatch):
+        import backend.derivative_scheduler as scheduler_module
+
+        scheduler = DerivativeScheduler(worker_count=1)
+        release_worker = threading.Event()
+        existing = threading.Thread(target=release_worker.wait, name="derivative-worker-1", daemon=True)
+        existing.start()
+        scheduler._threads = [existing]
+        monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 1.0)
+
+        first_stop = threading.Thread(target=scheduler.stop, daemon=True)
+        first_stop.start()
+        deadline = time.monotonic() + 1
+        while scheduler._active_stop_calls != 1 and time.monotonic() < deadline:
+            time.sleep(0.001)
+        assert scheduler._active_stop_calls == 1
+
+        with scheduler._start_condition:
+            scheduler._threads = []
+        scheduler.stop()
+
+        assert first_stop.is_alive()
+        assert scheduler._stop_in_progress is True
+        assert scheduler._active_stop_calls == 1
+        scheduler.start()
+        assert scheduler.alive_worker_count() == 0
+
+        release_worker.set()
+        first_stop.join(timeout=2)
+        assert not first_stop.is_alive()
+        assert scheduler._stop_in_progress is False
+        assert scheduler._active_stop_calls == 0
+
     def test_stop_during_hung_cold_start_is_bounded_and_unclean(self, monkeypatch: pytest.MonkeyPatch):
         import backend.derivative_scheduler as scheduler_module
 

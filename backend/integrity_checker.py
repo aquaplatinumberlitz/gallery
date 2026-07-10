@@ -80,7 +80,7 @@ class IntegrityChecker:
             repaired = (
                 results.get("job_done_asset_not_done", 0)
                 + results.get("derivative_done_repaired", 0)
-                + results.get("derivative_expected_row_missing", 0)
+                + results.get("derivative_expected_row_repaired", 0)
             )
             requeued = (
                 results.get("asset_done_but_no_metadata", 0)
@@ -207,6 +207,19 @@ class IntegrityChecker:
         )
         total["derivative_expected_row_missing"] = len(expected_ids)
         total["derivative_expected_row_created"] = expected_summary.created_derivative_rows if expected_summary else 0
+        total["derivative_expected_row_jobs_created"] = (
+            max(0, expected_summary.created_jobs - expected_summary.requeued_without_job) if expected_summary else 0
+        )
+        total["derivative_expected_row_requeued"] = expected_summary.requeued_without_job if expected_summary else 0
+        total["derivative_expected_row_ready"] = expected_summary.already_ready if expected_summary else 0
+        total["derivative_expected_row_repaired"] = (
+            min(
+                len(expected_ids),
+                expected_summary.created_jobs + expected_summary.already_ready,
+            )
+            if expected_summary
+            else 0
+        )
         total["derivative_queued_without_job"] = queued_repair.issues_considered if queued_repair else 0
         total["derivative_queued_without_job_repaired"] = queued_repair.jobs_created if queued_repair else 0
         total["derivative_queued_without_job_active"] = queued_repair.already_active if queued_repair else 0

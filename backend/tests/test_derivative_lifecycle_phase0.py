@@ -24,6 +24,8 @@ import sqlite3
 import time
 from pathlib import Path
 
+import pytest
+
 from backend import scan_worker as catalog_service
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler
@@ -131,6 +133,55 @@ def test_target_successful_scan_queues_thumbnail_and_preview(
     with sqlite3.connect(isolated_metadata_db) as conn:
         rows = conn.execute("SELECT kind, count(*) FROM asset_derivatives GROUP BY kind ORDER BY kind").fetchall()
     assert rows == [("preview", 1), ("thumbnail", 1)]
+
+
+@pytest.mark.xfail(
+    condition=False,
+    strict=True,
+    reason="Phase 7 owns scan-to-ready derivative convergence acceptance",
+)
+def test_phase_7_scan_converges_thumbnail_and_preview_files(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    isolated_thumbnail_cache: Path,
+):
+    """Phase 7 contract: scanning and one worker materialize both configured files."""
+    create_test_png(isolated_gallery_root / "source.png")
+    library_id = int(register_library(isolated_gallery_root)["id"])
+    catalog_service.queue_scan(library_id, trigger="manual")
+    assert catalog_service.run_once() is True
+
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        rows = conn.execute(
+            "SELECT kind, status FROM asset_derivatives ORDER BY kind"
+        ).fetchall()
+    assert rows == [("preview", "queued"), ("thumbnail", "queued")]
+
+    scheduler = DerivativeScheduler(worker_count=1)
+    scheduler.start()
+    try:
+        deadline = time.monotonic() + 5
+        ready_rows: list[tuple[str, str, str | None]] = []
+        while time.monotonic() < deadline:
+            with sqlite3.connect(isolated_metadata_db) as conn:
+                ready_rows = conn.execute(
+                    "SELECT kind, status, cache_path FROM asset_derivatives ORDER BY kind"
+                ).fetchall()
+            if len(ready_rows) == 2 and all(
+                status == "ready" and cache_path is not None and Path(cache_path).is_file()
+                for _kind, status, cache_path in ready_rows
+            ):
+                break
+            time.sleep(0.05)
+    finally:
+        scheduler.stop()
+
+    assert [(kind, status) for kind, status, _cache_path in ready_rows] == [
+        ("preview", "ready"),
+        ("thumbnail", "ready"),
+    ]
+    assert all(cache_path is not None and Path(cache_path).is_file() for _, _, cache_path in ready_rows)
+    assert any(isolated_thumbnail_cache.rglob("*"))
 
 
 def test_target_startup_catchup_repairs_absent_current_preview(

@@ -108,10 +108,16 @@ and never overwrites render state on a failed renewal. A healthy heartbeat keeps
 a long render from being duplicated by supervisor or startup recovery when the
 original lease would otherwise expire.
 
-The lifecycle states are `queued`, `running`, `done`, `skipped`, and `failed`.
-Inactive, missing, or superseded sources become `skipped` with a machine-readable
-result code. Invalid sources and exhausted or internal failures become
-`failed`. Transient SQLite/I/O failures retry at most three attempts.
+Derivative catalog rows use the full state machine `queued` → `running` →
+`ready`, with terminal or policy states `failed`, `skipped`, `evicted`, and
+`deferred_capacity`. `ready` means the cache path was published after a fenced
+job completion. Inactive, missing, or superseded sources become `skipped` with
+a machine-readable result code. Invalid sources and exhausted or internal
+failures become `failed`; transient SQLite/I/O failures retry at most three
+attempts. Quota eviction changes a replaceable `ready` row to `evicted` and
+unlinks its cache file. Automatic work that cannot reserve enough quota becomes
+`deferred_capacity` without a runnable job. Derivative job rows separately use
+`queued`, `running`, `done`, `skipped`, and `failed`.
 
 Every source-dependent operation, including cache-path calculation, is inside
 the job exception boundary. The worker loop has an additional catch-all, so one
@@ -120,12 +126,15 @@ recovers claims owned by dead workers or expired leases, and restores the
 configured worker count. Startup applies the same recovery policy before
 workers claim new jobs.
 
-`stop()` sets the stop event, wakes all workers, and joins each worker (and the
-supervisor/reconciler) with a per-worker bounded timeout. It records whether
-shutdown completed cleanly; a timeout leaves in-flight renders running rather
-than abandoning them. `start()` prunes stale dead worker thread objects left by
-an incomplete stop before restoring the configured worker count, so a prior
-incomplete stop never permanently refuses to restart.
+`stop()` sets the stop event, wakes all workers, and gives all workers plus the
+supervisor/reconciler one shared absolute shutdown deadline. Each join receives
+only the time remaining before that deadline, so total shutdown time is bounded
+by `GALLERY_DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS`, not multiplied by the thread
+count. Overlapping stop calls keep startup blocked until every stop caller has
+finished. A timeout records an incomplete shutdown and leaves in-flight renders
+running rather than abandoning them. `start()` prunes stale dead worker thread
+objects left by an incomplete stop before restoring the configured worker count,
+so a prior incomplete stop never permanently refuses to restart.
 
 This lifecycle assumes the maintained single-process deployment: one backend
 process owns the derivative workers, the SQLite queue, and all claim leases. It
@@ -136,6 +145,31 @@ Scheduling, claiming, status, and integrity repair all require an active image
 asset whose `mtime_ns` and size match the derivative source identity. The
 integrity checker requeues missing cache files only for current sources;
 inactive, missing, and superseded sources are skipped instead.
+
+Desired-state reconciliation has explicit trigger ownership:
+
+- The catalog worker reconciles the committed library or path scope after a
+  successful scan or rebuild. These automatic passes create missing identities
+  but preserve existing capacity-deferred/evicted identities.
+- Metadata completion reconciles that asset as a safety net after its durable
+  metadata state is committed; it also preserves existing capacity deferrals.
+- Scheduler startup reconciles all warm-enabled libraries; its periodic loop
+  later fills missing configured identities but does not reconsider existing
+  `deferred_capacity` or fully unlinked `evicted` rows, preventing quota-driven
+  thumbnail/preview rotation on every pass.
+- Integrity checks own repair of missing expected rows, queued rows without an
+  active job, and explicit reconsideration of capacity-deferred/evicted rows.
+- Enabling warm policy reconciles that library immediately. The admin
+  `Generate missing images` action is an explicit library-scoped trigger and may
+  retry failed or capacity-deferred work even when warm policy is off.
+- Cache clear deletes derivative jobs and catalog rows; later startup,
+  catalog, policy, integrity, or explicit generation triggers rebuild desired
+  state. A process restart after a configured quota increase uses startup
+  reconciliation to reconsider deferred work.
+
+`GET /api/derivatives/status` reports current configured coverage for one
+library, that library's ready bytes as `library_used_bytes`, and global quota
+accounting as `quota_used_bytes`, `quota_bytes`, and `quota_utilization`.
 
 ## Overview
 

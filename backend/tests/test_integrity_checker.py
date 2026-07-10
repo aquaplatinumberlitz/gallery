@@ -26,6 +26,7 @@ from pathlib import Path
 
 import pytest
 
+from backend.derivative_scheduler import DerivativeReconcileSummary
 from backend.integrity_checker import IntegrityChecker, integrity_checker
 from backend.metadata_store import (
     _DB_LOCK,
@@ -530,12 +531,66 @@ class TestEmptyDB:
             assert val == 0, f"{key} should be 0 but got {val}"
 
 
+def test_missing_expected_rows_are_not_repaired_when_reconcile_only_defers(
+    _checker: IntegrityChecker,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from backend.derivative_scheduler import scheduler
+
+    library = create_library([isolated_gallery_root], name="Deferred repair")
+    library_id = int(library["id"])
+    source = isolated_gallery_root / "deferred.png"
+    source.write_bytes(b"source")
+    stat = source.stat()
+    with _connect() as conn:
+        conn.execute("UPDATE libraries SET warm_enabled = 1 WHERE id = ?", (library_id,))
+        _asset_row(conn, str(source), library_id, stat.st_mtime_ns, stat.st_size)
+
+    monkeypatch.setattr(
+        scheduler,
+        "reconcile_desired_derivatives",
+        lambda **_kwargs: DerivativeReconcileSummary(
+            assets_considered=1,
+            desired_derivatives=2,
+            created_derivative_rows=2,
+            deferred_capacity=2,
+        ),
+    )
+
+    results = _checker.run_all_checks()
+
+    assert results["derivative_expected_row_missing"] == 1
+    assert results["derivative_expected_row_created"] == 2
+    assert results["derivative_expected_row_jobs_created"] == 0
+    assert results["derivative_expected_row_requeued"] == 0
+    assert results["derivative_expected_row_ready"] == 0
+    assert results["derivative_expected_row_repaired"] == 0
+
+
 # ---------------------------------------------------------------------------
 # Test 9: Persistence layer (Phase 3)
 # ---------------------------------------------------------------------------
 
 
 class TestRunAndPersist:
+    def test_expected_row_issue_uses_actual_reconcile_success(self, _checker, monkeypatch):
+        monkeypatch.setattr(
+            _checker,
+            "run_all_checks",
+            lambda: {
+                "derivative_expected_row_missing": 1,
+                "derivative_expected_row_created": 2,
+                "derivative_expected_row_repaired": 0,
+            },
+        )
+
+        summary = _checker.run_and_persist(trigger="manual")
+
+        assert summary["issues"]["generated_image_expected_row_missing"] == 1
+        assert summary["repairs"]["repaired"] == 0
+        assert summary["repairs"]["unchanged"] == 1
+
     def test_run_and_persist_creates_run_row(self, _checker):
         checker = _checker
         summary = checker.run_and_persist(trigger="manual")

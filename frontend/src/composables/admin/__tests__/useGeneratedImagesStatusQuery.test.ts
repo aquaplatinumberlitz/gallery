@@ -21,6 +21,7 @@ const mockStatus = {
   actionable_missing_derivatives: 155,
   deferred_derivatives: 0,
   terminal_failed_derivatives: 0,
+  library_used_bytes: 128_000_000,
   quota_bytes: 1_073_741_824,
   quota_used_bytes: 256_000_000,
   quota_utilization: 0.238,

@@ -262,6 +262,10 @@ const derivativeCoverageRows = computed(() => {
         ready: status.ready_derivatives,
         expected: status.expected_derivatives,
         ratio,
+        queued: status.queued_derivatives,
+        running: status.running_derivatives,
+        failed: status.failed_derivatives,
+        deferred: status.deferred_derivatives,
       };
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);
@@ -683,6 +687,24 @@ function estimatedAssets(): number | undefined {
                         class="h-2 bg-muted"
                         :indicator-class="row.ratio >= 1 ? 'bg-success' : 'bg-warning'"
                       />
+                      <dl class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
+                        <div class="flex items-center justify-between gap-2 sm:block">
+                          <dt class="text-muted-foreground">Queued</dt>
+                          <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.queued) }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 sm:block">
+                          <dt class="text-muted-foreground">Running</dt>
+                          <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.running) }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 sm:block">
+                          <dt class="text-muted-foreground">Failed</dt>
+                          <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.failed) }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 sm:block">
+                          <dt class="text-muted-foreground">Deferred</dt>
+                          <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.deferred) }}</dd>
+                        </div>
+                      </dl>
                     </div>
                   </div>
                   <div v-else class="rounded-md border border-border bg-muted/60 p-3">
@@ -696,12 +718,14 @@ function estimatedAssets(): number | undefined {
                   </p>
                   <div class="grid gap-3 text-sm sm:grid-cols-3">
                     <div class="rounded-md border border-border bg-muted/60 p-3">
-                      <p class="text-xs font-medium text-muted-foreground">Cache size</p>
-                      <p class="mt-1 font-semibold text-foreground">{{ formatBytes(thumbnails.quota_used_bytes) }}</p>
+                      <p class="text-xs font-medium text-muted-foreground">This library</p>
+                      <p class="mt-1 font-semibold text-foreground">{{ formatBytes(thumbnails.library_used_bytes) }}</p>
                     </div>
                     <div class="rounded-md border border-border bg-muted/60 p-3">
-                      <p class="text-xs font-medium text-muted-foreground">Limit</p>
-                      <p class="mt-1 font-semibold text-foreground">{{ formatBytes(thumbnails.quota_bytes) }}</p>
+                      <p class="text-xs font-medium text-muted-foreground">All libraries</p>
+                      <p class="mt-1 font-semibold text-foreground">
+                        {{ formatBytes(thumbnails.quota_used_bytes) }} / {{ formatBytes(thumbnails.quota_bytes) }}
+                      </p>
                     </div>
                     <div class="rounded-md border border-border bg-muted/60 p-3">
                       <p class="text-xs font-medium text-muted-foreground">{{ derivativeCacheState.label }}</p>
