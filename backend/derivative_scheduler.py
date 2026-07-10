@@ -249,6 +249,62 @@ class DerivativeScheduler:
             raise ValueError(f"Unsupported derivative kind: {unknown}")
         return [(kind, variant) for kind in selected_kinds for variant in DERIVATIVE_VARIANTS[kind]]
 
+    _ESTIMATED_DERIVATIVE_BYTES_FALLBACK = 64 * 1024
+
+    def _estimate_new_derivative_bytes(self, conn: sqlite3.Connection) -> int:
+        """Return a bounded estimate for one new derivative's on-disk size."""
+        average = conn.execute(
+            "SELECT COALESCE(avg(byte_size), 0) FROM asset_derivatives WHERE status = 'ready' AND byte_size > 0"
+        ).fetchone()[0]
+        if average and float(average) > 0:
+            return int(average)
+        return self._ESTIMATED_DERIVATIVE_BYTES_FALLBACK
+
+    def _reserve_capacity(self, conn: sqlite3.Connection, estimated_bytes: int) -> bool:
+        """Reserve capacity for one new derivative, evicting eligible cached files.
+
+        Returns True when the new derivative fits under the quota. Eligible LRU
+        ``ready`` files that are not currently served or generating are evicted to
+        make room. Evicted rows become ``evicted`` (a visible, non-ready state)
+        rather than a false ``queued`` row.
+        """
+        used = int(
+            conn.execute(
+                "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"
+            ).fetchone()[0]
+        )
+        if used + estimated_bytes <= self.quota_bytes:
+            return True
+        needed = (used + estimated_bytes) - self.quota_bytes
+        freed = 0
+        candidates = conn.execute(
+            """
+            SELECT id, cache_path, byte_size FROM asset_derivatives
+            WHERE status = 'ready' AND cache_path IS NOT NULL
+            ORDER BY COALESCE(last_accessed_at, created_at) ASC
+            """
+        ).fetchall()
+        for row in candidates:
+            if freed >= needed:
+                break
+            cache_path = str(row["cache_path"])
+            with self._file_lock:
+                if cache_path in self._served_paths or cache_path in self._generating_paths:
+                    continue
+                with suppress(OSError):
+                    Path(cache_path).unlink()
+            freed += int(row["byte_size"] or 0)
+            conn.execute(
+                """
+                UPDATE asset_derivatives
+                SET status = 'evicted', cache_path = NULL, byte_size = NULL,
+                    last_error = 'evicted: capacity reservation', updated_at = julianday('now')
+                WHERE id = ?
+                """,
+                (row["id"],),
+            )
+        return (used - freed) + estimated_bytes <= self.quota_bytes
+
     def _coalesce_derivative_job(
         self,
         conn: sqlite3.Connection,
@@ -263,8 +319,15 @@ class DerivativeScheduler:
         format: str,
         priority: int,
         retry_failed: bool,
+        deferrable: bool = False,
     ) -> tuple[int, str]:
-        """Create or repair one identity while the caller owns a write transaction."""
+        """Create or repair one identity while the caller owns a write transaction.
+
+        When ``deferrable`` is True (automatic background reconciliation), an
+        identity that cannot reserve quota capacity is written as ``deferred_capacity``
+        without creating a runnable job. Interactive/manual callers pass
+        ``deferrable=False`` and rely on post-render eviction instead.
+        """
         inserted = conn.execute(
             """
             INSERT INTO asset_derivatives (
@@ -302,9 +365,35 @@ class DerivativeScheduler:
             if priority < int(job["priority"]):
                 conn.execute(
                     "UPDATE derivative_jobs SET priority = ?, updated_at = julianday('now') WHERE id = ?",
-                    (priority, job["priority"]),
+                    (priority, job["id"]),
                 )
             return derivative_id, "active"
+        if derivative["status"] in {"deferred_capacity", "evicted"}:
+            reservable = self._reserve_capacity(conn, self._estimate_new_derivative_bytes(conn))
+            if not reservable:
+                conn.execute(
+                    """
+                    UPDATE asset_derivatives
+                    SET status = ?, last_error = 'deferred: capacity unavailable',
+                        updated_at = julianday('now')
+                    WHERE id = ?
+                    """,
+                    (derivative["status"], derivative_id),
+                )
+                return derivative_id, str(derivative["status"])
+        elif deferrable:
+            reservable = self._reserve_capacity(conn, self._estimate_new_derivative_bytes(conn))
+            if not reservable:
+                conn.execute(
+                    """
+                    UPDATE asset_derivatives
+                    SET status = 'deferred_capacity', last_error = 'deferred: capacity unavailable',
+                        updated_at = julianday('now')
+                    WHERE id = ?
+                    """,
+                    (derivative_id,),
+                )
+                return derivative_id, "deferred_capacity"
         conn.execute(
             "INSERT INTO derivative_jobs (derivative_id, priority, state) VALUES (?, ?, 'queued')",
             (derivative_id, priority),
@@ -368,8 +457,9 @@ class DerivativeScheduler:
                 format=format,
                 priority=priority,
                 retry_failed=True,
+                deferrable=False,
             )
-            self._wake_event.set()
+        self._wake_event.set()
         return derivative_id
 
     def get_derivative_status(self, asset_id: int, kind: str, variant: str) -> str | None:
@@ -423,6 +513,50 @@ class DerivativeScheduler:
                 (row["id"],),
             )
             return dict(row)
+
+    def get_derivative_outcome(self, derivative_id: int) -> dict[str, Any] | None:
+        """Return a bounded read model for one scheduled derivative by ID.
+
+        The read model exposes the derivative state, latest fenced job outcome,
+        result code, error, cache path, and whether the identity is still current.
+        Request waiters use this to branch on ready/failed/skipped/deferred outcomes
+        without polling by source identity or parsing error strings.
+        """
+        _ensure_database()
+        with _connect() as conn:
+            row = conn.execute(
+                """
+                SELECT d.id, d.status, d.cache_path, d.last_error,
+                  (SELECT j.state FROM derivative_jobs j WHERE j.derivative_id = d.id
+                     ORDER BY j.id DESC LIMIT 1) AS latest_job_state,
+                  (SELECT j.result_code FROM derivative_jobs j WHERE j.derivative_id = d.id
+                     ORDER BY j.id DESC LIMIT 1) AS result_code,
+                  (SELECT j.error FROM derivative_jobs j WHERE j.derivative_id = d.id
+                     ORDER BY j.id DESC LIMIT 1) AS error,
+                  a.id AS asset_id, a.mtime_ns, a.size, d.source_mtime_ns, d.source_size
+                FROM asset_derivatives d LEFT JOIN assets a ON a.id = d.asset_id
+                WHERE d.id = ?
+                """,
+                (derivative_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        is_current = (
+            row["asset_id"] is not None
+            and row["mtime_ns"] is not None
+            and row["size"] is not None
+            and float(row["mtime_ns"]) == float(row["source_mtime_ns"])
+            and int(row["size"]) == int(row["source_size"])
+        )
+        return {
+            "derivative_id": int(row["id"]),
+            "derivative_state": str(row["status"]),
+            "latest_job_state": str(row["latest_job_state"]) if row["latest_job_state"] is not None else None,
+            "result_code": row["result_code"],
+            "error": row["error"],
+            "cache_path": row["cache_path"],
+            "is_current": bool(is_current),
+        }
 
     def find_asset_id(self, path: Path) -> int | None:
         """Resolve a source path to its active asset ID."""
@@ -558,6 +692,7 @@ class DerivativeScheduler:
                             format="webp",
                             priority=priority,
                             retry_failed=retry_failed,
+                            deferrable=True,
                         )
                         if outcome == "ready":
                             summary.already_ready += 1
@@ -573,6 +708,8 @@ class DerivativeScheduler:
                             summary.terminal_failed += 1
                         elif outcome == "skipped":
                             summary.terminal_skipped += 1
+                        elif outcome == "deferred_capacity":
+                            summary.deferred_capacity += 1
             self._wake_event.set()
             if offset + DERIVATIVE_RECONCILE_BATCH_SIZE < len(candidates) and DERIVATIVE_RECONCILE_YIELD_SECONDS:
                 time.sleep(DERIVATIVE_RECONCILE_YIELD_SECONDS)
@@ -670,6 +807,7 @@ class DerivativeScheduler:
                 derivative_rows = []
             ready = 0
             used = 0
+            evicted = 0
             queued_without_job_by_kind = dict.fromkeys(DERIVATIVE_VARIANTS, 0)
             for kind, variants in DERIVATIVE_VARIANTS.items():
                 by_kind[kind]["expected_derivatives"] = total_assets * len(variants)
@@ -692,6 +830,8 @@ class DerivativeScheduler:
                     by_kind[kind]["failed_derivatives"] += 1
                 elif row["status"] == "deferred_capacity":
                     by_kind[kind]["deferred_derivatives"] += 1
+                elif row["status"] == "evicted":
+                    evicted += 1
             job_counts = {"queued": 0, "running": 0, "failed": 0, "skipped": 0}
             oldest_running_age_seconds: float | None = None
             if configured_variants:
@@ -748,6 +888,7 @@ class DerivativeScheduler:
             "actionable_missing_derivatives": actionable_missing,
             "deferred_derivatives": deferred,
             "terminal_failed_derivatives": terminal_failed,
+            "evicted_derivatives": evicted,
             "by_kind": by_kind,
             "quota_bytes": self.quota_bytes,
             "quota_used_bytes": used,
@@ -761,40 +902,6 @@ class DerivativeScheduler:
             "worker_healthy": alive_workers > 0,
             "oldest_running_age_seconds": oldest_running_age_seconds,
         }
-
-    def rebuild_stale(self) -> int:
-        """Queue replacement work for ready derivatives whose source changed."""
-        _ensure_database()
-        stale: list[sqlite3.Row] = []
-        with _connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT d.*, a.path FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id
-                WHERE d.status = 'ready' AND a.deleted_at IS NULL
-                """
-            ).fetchall()
-            for row in rows:
-                try:
-                    stat = Path(row["path"]).stat()
-                except OSError:
-                    continue
-                if float(stat.st_mtime_ns) != row["source_mtime_ns"] or stat.st_size != row["source_size"]:
-                    stale.append(row)
-                    conn.execute(
-                        "UPDATE asset_derivatives SET status = 'queued', updated_at = julianday('now') WHERE id = ?",
-                        (row["id"],),
-                    )
-        for row in stale:
-            self.schedule_derivative(
-                int(row["asset_id"]),
-                str(row["kind"]),
-                str(row["variant"]),
-                priority=3,
-                max_long_edge=int(row["max_long_edge"]),
-                quality=int(row["quality"]),
-                format=str(row["format"]),
-            )
-        return len(stale)
 
     def clear_all(self) -> dict[str, int]:
         """Clear derivative jobs/catalog rows and delete unserved cache files."""
@@ -1204,10 +1311,19 @@ class DerivativeScheduler:
                 total -= int(row["byte_size"] or 0)
                 conn.execute(
                     """
-                    UPDATE asset_derivatives SET status = 'queued', cache_path = NULL, byte_size = NULL,
-                      updated_at = julianday('now') WHERE id = ?
+                    UPDATE asset_derivatives
+                    SET status = 'evicted', cache_path = NULL, byte_size = NULL,
+                        last_error = 'evicted: quota capacity', updated_at = julianday('now')
+                    WHERE id = ?
                     """,
                     (row["id"],),
+                )
+            if total > self.quota_bytes:
+                logger.warning(
+                    "Derivative quota still exceeded after eviction (%s > %s bytes); "
+                    "a single derivative exceeds the configured quota",
+                    total,
+                    self.quota_bytes,
                 )
 
 

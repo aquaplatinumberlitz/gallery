@@ -32,3 +32,4 @@ class ErrorType:
     VIDEO_TOOL_UNAVAILABLE = "video_tool_unavailable"
     VIDEO_POSTER_FAILED = "video_poster_failed"
     SERVER_ERROR = "server_error"  # Internal server error
+    CAPACITY_EXCEEDED = "capacity_exceeded"  # Derivative quota/deferred capacity reached

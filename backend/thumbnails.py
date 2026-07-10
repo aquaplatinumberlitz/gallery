@@ -305,7 +305,7 @@ async def _serve_derivative(
         ready = await run_in_threadpool(scheduler.get_ready_derivative, asset_id, kind, variant)
         if ready is None:
             try:
-                await run_in_threadpool(
+                derivative_id = await run_in_threadpool(
                     scheduler.schedule_derivative,
                     asset_id,
                     kind,
@@ -318,22 +318,60 @@ async def _serve_derivative(
             except FileNotFoundError as exc:
                 raise APIError(404, ErrorType.NOT_FOUND, "Image file not found") from exc
 
-            def wait_for_derivative() -> dict | None:
+            def wait_for_derivative():
                 deadline = time.monotonic() + 10
+                current_derivative_id = derivative_id
+                rescheduled = False
                 while time.monotonic() < deadline:
-                    result = scheduler.get_ready_derivative(asset_id, kind, variant)
-                    if result is not None:
-                        return result
-                    if scheduler.get_derivative_status(asset_id, kind, variant) == "failed":
+                    outcome = scheduler.get_derivative_outcome(current_derivative_id)
+                    if outcome is None:
                         return None
+                    state = outcome["derivative_state"]
+                    if state == "ready" and outcome.get("cache_path") and Path(outcome["cache_path"]).is_file():
+                        return scheduler.get_ready_derivative(asset_id, kind, variant)
+                    if state == "failed":
+                        return ("failed", outcome)
+                    if state == "deferred_capacity":
+                        return ("deferred", outcome)
+                    if state == "skipped":
+                        result_code = outcome.get("result_code")
+                        if result_code == "source_changed" and not rescheduled:
+                            rescheduled = True
+                            new_id = scheduler.schedule_derivative(
+                                asset_id,
+                                kind,
+                                variant,
+                                0,
+                                max_long_edge=max_long_edge,
+                                quality=quality,
+                                format=normalized_format,
+                            )
+                            if new_id:
+                                current_derivative_id = new_id
+                                continue
+                        return ("skipped", outcome)
                     time.sleep(0.05)
                 return None
 
-            ready = await run_in_threadpool(wait_for_derivative)
+            wait_result = await run_in_threadpool(wait_for_derivative)
+            if isinstance(wait_result, tuple):
+                outcome_kind, outcome = wait_result
+                if outcome_kind == "failed":
+                    raise APIError(400, ErrorType.INVALID_FILE, failure_message)
+                if outcome_kind == "deferred":
+                    raise APIError(
+                        507,
+                        ErrorType.CAPACITY_EXCEEDED,
+                        "Derivative generation deferred: storage capacity limit reached",
+                    )
+                if outcome_kind == "skipped":
+                    result_code = outcome.get("result_code")
+                    if result_code in ("source_missing", "asset_inactive"):
+                        raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
+                    raise APIError(503, ErrorType.SERVER_ERROR, "Derivative generation timed out")
+                return None
+            ready = wait_result
         if ready is None:
-            status = await run_in_threadpool(scheduler.get_derivative_status, asset_id, kind, variant)
-            if status == "failed":
-                raise APIError(400, ErrorType.INVALID_FILE, failure_message)
             raise APIError(503, ErrorType.SERVER_ERROR, "Derivative generation timed out")
         cache_path = str(ready["cache_path"])
         scheduler.acquire_serving(cache_path)

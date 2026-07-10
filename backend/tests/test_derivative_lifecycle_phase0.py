@@ -11,8 +11,6 @@ import sqlite3
 import time
 from pathlib import Path
 
-import pytest
-
 from backend import scan_worker as catalog_service
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler
@@ -146,7 +144,6 @@ def test_target_startup_catchup_repairs_absent_current_preview(
         scheduler.stop()
 
 
-@pytest.mark.xfail(strict=True, reason="Phase 4 owns eviction state consistency")
 def test_target_quota_eviction_never_leaves_queued_derivative_without_job(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
@@ -173,7 +170,6 @@ def test_target_quota_eviction_never_leaves_queued_derivative_without_job(
     assert jobs == 0
 
 
-@pytest.mark.xfail(strict=True, reason="Phase 4 owns ID-based HTTP derivative outcomes")
 def test_target_scheduler_exposes_fenced_derivative_outcome(
     isolated_gallery_root: Path,
 ):
@@ -185,3 +181,5 @@ def test_target_scheduler_exposes_fenced_derivative_outcome(
     outcome = scheduler.get_derivative_outcome(derivative_id)
     assert outcome is not None
     assert outcome["derivative_state"] == "queued"
+    assert outcome["derivative_id"] == derivative_id
+    assert outcome["is_current"] is True

@@ -5,6 +5,7 @@ import threading
 import time
 from pathlib import Path
 
+from .config import DERIVATIVE_VARIANTS
 from .metadata_store import _DB_LOCK, _connect
 from .metadata_store.identity import (
     asset_matches_image_metadata_sql,
@@ -72,12 +73,21 @@ class IntegrityChecker:
                 "metadata_mismatch": results.get("asset_done_but_no_metadata", 0),
                 "orphaned_work_item": results.get("job_active_no_asset", 0),
                 "generated_image_job_mismatch": results.get("derivative_done_not_ready", 0),
+                "generated_image_expected_row_missing": results.get("derivative_expected_row_missing", 0),
+                "generated_image_queued_without_job": results.get("derivative_queued_without_job", 0),
+                "generated_image_policy_deferred": results.get("derivative_policy_deferred", 0),
             }
-            repaired = results.get("job_done_asset_not_done", 0) + results.get("derivative_done_repaired", 0)
+            repaired = (
+                results.get("job_done_asset_not_done", 0)
+                + results.get("derivative_done_repaired", 0)
+                + results.get("derivative_expected_row_missing", 0)
+            )
             requeued = (
                 results.get("asset_done_but_no_metadata", 0)
                 + results.get("derivative_ready_requeued", 0)
                 + results.get("derivative_abandoned_requeued", 0)
+                + results.get("derivative_queued_without_job", 0)
+                + results.get("derivative_policy_deferred", 0)
             )
             failed = (
                 results.get("job_active_no_asset", 0)
@@ -113,6 +123,9 @@ class IntegrityChecker:
                 "metadata_mismatch": 0,
                 "orphaned_work_item": 0,
                 "generated_image_job_mismatch": 0,
+                "generated_image_expected_row_missing": 0,
+                "generated_image_queued_without_job": 0,
+                "generated_image_policy_deferred": 0,
             }
             summary["repairs"] = {
                 "repaired": 0,
@@ -167,6 +180,9 @@ class IntegrityChecker:
             total["derivative_done_repaired"] = result["repaired"]
             total["derivative_done_failed"] = result["failed"]
             total["job_active_no_file"] = self._check_job_active_no_file(conn)
+            total["derivative_expected_row_missing"] = self._check_derivative_expected_row_missing(conn)
+            total["derivative_queued_without_job"] = self._check_derivative_queued_without_job(conn)
+            total["derivative_policy_deferred"] = self._check_derivative_policy_deferred(conn)
         return total
 
     def _check_asset_done_no_metadata(self, conn) -> int:
@@ -419,6 +435,88 @@ class IntegrityChecker:
                 )
                 failed += 1
         return {"repaired": repaired, "failed": failed}
+
+    def _check_derivative_expected_row_missing(self, conn) -> int:
+        """Close absent current derivative rows for warm-library assets via the reconciler.
+
+        This discovers active current images that lack a current derivative row for a
+        configured variant (a gap integrity repair from existing rows cannot see) and
+        repairs it through the same ``reconcile_desired_derivatives`` entrypoint used by
+        scan/startup/periodic producers. Returns the number of derivative rows created.
+        """
+        from .derivative_scheduler import DerivativeScheduler
+
+        expected_variants = sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+        created = 0
+        libraries = conn.execute("SELECT id FROM libraries WHERE warm_enabled = 1").fetchall()
+        for library in libraries:
+            rows = conn.execute(
+                """
+                SELECT a.id FROM assets a
+                WHERE a.library_id = ?
+                  AND a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
+                  AND a.mtime_ns IS NOT NULL AND a.size IS NOT NULL
+                  AND (
+                    SELECT count(*) FROM asset_derivatives d
+                    WHERE d.asset_id = a.id
+                      AND d.source_mtime_ns = a.mtime_ns AND d.source_size = a.size
+                  ) < ?
+                """,
+                (int(library["id"]), expected_variants),
+            ).fetchall()
+            if not rows:
+                continue
+            asset_ids = [int(row["id"]) for row in rows]
+            created += DerivativeScheduler().reconcile_desired_derivatives(
+                asset_ids=asset_ids, reason="integrity"
+            ).created_derivative_rows
+        return created
+
+    def _check_derivative_queued_without_job(self, conn) -> int:
+        """Repair ``queued`` derivatives whose latest job is not queued/running."""
+        from .derivative_scheduler import DerivativeScheduler
+
+        rows = conn.execute(
+            """
+            SELECT DISTINCT d.asset_id FROM asset_derivatives d
+            JOIN assets a ON a.id = d.asset_id
+            WHERE d.status = 'queued'
+              AND a.deleted_at IS NULL AND a.offline = 0 AND a.type = 'image'
+              AND NOT EXISTS (
+                SELECT 1 FROM derivative_jobs j
+                WHERE j.derivative_id = d.id AND j.state IN ('queued', 'running')
+              )
+            """
+        ).fetchall()
+        if not rows:
+            return 0
+        asset_ids = [int(row["asset_id"]) for row in rows]
+        return DerivativeScheduler().reconcile_desired_derivatives(
+            asset_ids=asset_ids, reason="integrity"
+        ).requeued_without_job
+
+    def _check_derivative_policy_deferred(self, conn) -> int:
+        """Reconsider ``deferred_capacity``/``evicted`` current derivatives when capacity allows.
+
+        A quota increase, cache clear, or periodic reconciliation should give deferred
+        work another chance; this uses the reconciler so capacity re-evaluation reuses the
+        single desired-state code path rather than duplicate SQL.
+        """
+        from .derivative_scheduler import DerivativeScheduler
+
+        rows = conn.execute(
+            """
+            SELECT DISTINCT d.asset_id FROM asset_derivatives d
+            JOIN assets a ON a.id = d.asset_id
+            WHERE d.status IN ('deferred_capacity', 'evicted')
+              AND a.deleted_at IS NULL AND a.offline = 0 AND a.type = 'image'
+            """
+        ).fetchall()
+        if not rows:
+            return 0
+        asset_ids = [int(row["asset_id"]) for row in rows]
+        summary = DerivativeScheduler().reconcile_desired_derivatives(asset_ids=asset_ids, reason="integrity")
+        return summary.created_jobs + summary.requeued_without_job
 
     def _check_job_active_no_file(self, conn) -> int:
         rows = conn.execute("""

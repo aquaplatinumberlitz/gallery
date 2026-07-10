@@ -549,6 +549,9 @@ class TestRunAndPersist:
             "metadata_mismatch",
             "orphaned_work_item",
             "generated_image_job_mismatch",
+            "generated_image_expected_row_missing",
+            "generated_image_queued_without_job",
+            "generated_image_policy_deferred",
         }
         assert set(summary["repairs"].keys()) == {
             "repaired",
@@ -574,6 +577,9 @@ class TestRunAndPersist:
             "metadata_mismatch",
             "orphaned_work_item",
             "generated_image_job_mismatch",
+            "generated_image_expected_row_missing",
+            "generated_image_queued_without_job",
+            "generated_image_policy_deferred",
         }
         repairs = json.loads(row["repairs_json"])
         assert set(repairs.keys()) == {"repaired", "requeued", "failed", "skipped", "recovered", "unchanged"}
