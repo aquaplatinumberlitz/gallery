@@ -551,6 +551,8 @@ class TestRunAllChecks:
             "derivative_expected_row_created",
             "derivative_queued_without_job",
             "derivative_queued_without_job_repaired",
+            "derivative_queued_without_job_active",
+            "derivative_queued_without_job_skipped",
             "derivative_policy_deferred",
             "derivative_policy_deferred_requeued",
         }

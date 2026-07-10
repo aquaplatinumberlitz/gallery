@@ -86,7 +86,7 @@ class IntegrityChecker:
                 results.get("asset_done_but_no_metadata", 0)
                 + results.get("derivative_ready_requeued", 0)
                 + results.get("derivative_abandoned_requeued", 0)
-                + results.get("derivative_queued_without_job", 0)
+                + results.get("derivative_queued_without_job_repaired", 0)
                 + results.get("derivative_policy_deferred", 0)
             )
             failed = (
@@ -95,7 +95,11 @@ class IntegrityChecker:
                 + results.get("derivative_done_failed", 0)
                 + results.get("derivative_abandoned_failed", 0)
             )
-            skipped = results.get("derivative_ready_skipped", 0) + results.get("derivative_abandoned_skipped", 0)
+            skipped = (
+                results.get("derivative_ready_skipped", 0)
+                + results.get("derivative_abandoned_skipped", 0)
+                + results.get("derivative_queued_without_job_skipped", 0)
+            )
             recovered = results.get("derivative_abandoned_jobs", 0)
             total_issues = sum(issues.values())
             unchanged = total_issues - repaired - requeued - failed - skipped
@@ -195,7 +199,7 @@ class IntegrityChecker:
             if expected_ids
             else None
         )
-        queued_repaired = scheduler.repair_derivative_consistency(queued_ids) if queued_ids else 0
+        queued_repair = scheduler.repair_derivative_consistency(queued_ids) if queued_ids else None
         deferred_summary = (
             scheduler.reconcile_desired_derivatives(asset_ids=deferred_ids, reason="integrity")
             if deferred_ids
@@ -203,8 +207,10 @@ class IntegrityChecker:
         )
         total["derivative_expected_row_missing"] = len(expected_ids)
         total["derivative_expected_row_created"] = expected_summary.created_derivative_rows if expected_summary else 0
-        total["derivative_queued_without_job"] = len(queued_ids)
-        total["derivative_queued_without_job_repaired"] = queued_repaired
+        total["derivative_queued_without_job"] = queued_repair.issues_considered if queued_repair else 0
+        total["derivative_queued_without_job_repaired"] = queued_repair.jobs_created if queued_repair else 0
+        total["derivative_queued_without_job_active"] = queued_repair.already_active if queued_repair else 0
+        total["derivative_queued_without_job_skipped"] = queued_repair.terminal_skipped if queued_repair else 0
         total["derivative_policy_deferred"] = len(deferred_ids)
         total["derivative_policy_deferred_requeued"] = (
             (deferred_summary.created_jobs + deferred_summary.requeued_without_job) if deferred_summary else 0

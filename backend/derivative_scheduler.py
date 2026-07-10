@@ -67,6 +67,18 @@ class DerivativeReconcileSummary:
         return asdict(self)
 
 
+@dataclass
+class DerivativeRepairSummary:
+    """Bounded counters from one exact derivative consistency repair pass."""
+
+    issues_considered: int = 0
+    jobs_created: int = 0
+    already_active: int = 0
+    terminal_skipped: int = 0
+    terminal_failed: int = 0
+    unchanged: int = 0
+
+
 def _ensure_database() -> None:
     """Initialize only when the derivative schema is not already present."""
     try:
@@ -123,7 +135,6 @@ class DerivativeScheduler:
         self._instance_id = uuid.uuid4().hex
         self._eviction_lock = threading.Lock()
         self._generation = 0
-        self._start_generation = 0
 
     def start(self) -> None:
         """Start workers and recover jobs interrupted by a prior process.
@@ -132,15 +143,22 @@ class DerivativeScheduler:
         missing worker slots because a stale thread object remains in ``_threads``.
         Dead thread objects are pruned first, then one worker thread is created per
         missing slot so the configured worker count is restored exactly.
+
+        Each invocation captures a request generation at entry.  If ``stop()``
+        increments the scheduler generation before startup finishes, the cancelled
+        start exits without launching any thread.
         """
+        my_generation = self._generation
         with self._start_condition:
+            if my_generation != self._generation:
+                return
             while self._start_in_progress:
                 self._start_condition.wait()
-            # Drop stale dead thread objects left behind by an incomplete stop.
+                if my_generation != self._generation:
+                    return
             self._threads = [thread for thread in self._threads if thread.is_alive()]
             cold_start = not self._threads
             self._start_in_progress = True
-            self._start_generation = self._generation
             if self._stop_event.is_set():
                 cold_start = False
         try:
@@ -149,7 +167,7 @@ class DerivativeScheduler:
                 self._reconcile_queued_jobs()
                 self._recover_running_jobs()
             with self._start_condition:
-                if self._start_generation != self._generation:
+                if my_generation != self._generation:
                     self._start_in_progress = False
                     self._start_condition.notify_all()
                     return
@@ -193,7 +211,13 @@ class DerivativeScheduler:
         each worker (and the supervisor/reconciler) with a per-worker bounded
         timeout. Records whether shutdown completed cleanly so callers can detect
         an incomplete stop that left in-flight renders running.
+
+        Uses an absolute monotonic deadline so that a hung cold-start recovery
+        cannot make shutdown unbounded.  After joining known threads, waits for
+        any in-progress ``start()`` to acknowledge cancellation against the same
+        deadline, then snapshots fresh references for final bookkeeping.
         """
+        deadline = time.monotonic() + DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS
         with self._lifecycle_lock:
             threads = list(self._threads)
             supervisor = self._supervisor_thread
@@ -204,28 +228,44 @@ class DerivativeScheduler:
             self._wake_event.set()
         clean = True
         for thread in threads:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                clean = False
+                break
             with suppress(RuntimeError):
-                thread.join(timeout=DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS)
+                thread.join(timeout=remaining)
             if thread.is_alive():
                 clean = False
         if supervisor is not None:
-            with suppress(RuntimeError):
-                supervisor.join(timeout=DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS)
-            if supervisor.is_alive():
-                clean = False
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                with suppress(RuntimeError):
+                    supervisor.join(timeout=remaining)
+                if supervisor.is_alive():
+                    clean = False
         if reconciler is not None:
-            with suppress(RuntimeError):
-                reconciler.join(timeout=DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS)
-            if reconciler.is_alive():
-                clean = False
-        # Wait for any in-progress start to acknowledge cancellation
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                with suppress(RuntimeError):
+                    reconciler.join(timeout=remaining)
+                if reconciler.is_alive():
+                    clean = False
+        # Wait for in-progress start to acknowledge (bounded by deadline)
         with self._start_condition:
             while self._start_in_progress:
-                self._start_condition.wait(timeout=DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._start_condition.wait(timeout=remaining)
+        # Take a fresh snapshot after acknowledgment
         with self._lifecycle_lock:
-            self._threads = [thread for thread in threads if thread.is_alive()]
-            self._supervisor_thread = supervisor if supervisor is not None and supervisor.is_alive() else None
-            self._reconciler_thread = reconciler if reconciler is not None and reconciler.is_alive() else None
+            self._threads = [t for t in self._threads if t.is_alive()]
+            self._supervisor_thread = (
+                self._supervisor_thread if self._supervisor_thread and self._supervisor_thread.is_alive() else None
+            )
+            self._reconciler_thread = (
+                self._reconciler_thread if self._reconciler_thread and self._reconciler_thread.is_alive() else None
+            )
             self._reconcile_status["running"] = bool(self._reconciler_thread)
             self._shutdown_clean = clean
 
@@ -345,22 +385,15 @@ class DerivativeScheduler:
             return int(average)
         return self._ESTIMATED_DERIVATIVE_BYTES_FALLBACK
 
-    def _reserve_capacity(
-        self, conn: sqlite3.Connection, estimated_bytes: int
-    ) -> tuple[bool, list[tuple[str, int, int]]]:
-        """Reserve capacity for one new derivative, evicting eligible cached files.
+    def _reserve_capacity(self, conn: sqlite3.Connection, estimated_bytes: int) -> bool:
+        """Reserve capacity for one new derivative, evicting and unlinking eligible files.
 
-        Returns ``(True, evicted_files)`` when the new derivative fits under the
-        quota after eviction.  ``evicted_files`` is a list of ``(cache_path,
-        derivative_id, byte_size)`` tuples that the caller MUST unlink after
-        its write transaction commits.
-
-        Eligible LRU ``ready`` files that are not currently served or generating
-        are evicted to make room.  Evicted rows become ``evicted`` (a visible,
-        non-ready state) rather than a false ``queued`` row.  The eviction
-        UPDATE happens inside the caller's write transaction so that a rollback
-        atomically restores the ``ready`` row — but only the caller can safely
-        unlink the cache file after the transaction commits.
+        Runs inside the caller's write transaction.  Eligible LRU ``ready`` files
+        that are not currently served or generating are evicted and unlinked
+        inline.  If an unlink fails or a file is protected between selection and
+        deletion, the ready row is restored and ``False`` is returned so the caller
+        defers the target derivative.  After a successful return the quota
+        equation is guaranteed to hold using actually-deleted bytes.
         """
         with self._eviction_lock:
             ready_used = int(
@@ -380,7 +413,7 @@ class DerivativeScheduler:
             )
             used = ready_used + reserved
             if used + estimated_bytes <= self.quota_bytes:
-                return True, []
+                return True
 
             needed = (used + estimated_bytes) - self.quota_bytes
             evict_ids: list[int] = []
@@ -404,9 +437,8 @@ class DerivativeScheduler:
                 evict_paths.append(cache_path)
                 evict_bytes.append(int(row["byte_size"] or 0))
 
-            # Workstream 2: reject partial/insufficient eviction
             if not evict_ids or sum(evict_bytes) < needed:
-                return False, []
+                return False
 
             placeholders = ",".join("?" for _ in evict_ids)
             conn.execute(
@@ -418,20 +450,54 @@ class DerivativeScheduler:
                 """,
                 evict_ids,
             )
-            evicted = list(zip(evict_paths, evict_ids, evict_bytes, strict=False))
-            return True, evicted
 
-    def repair_derivative_consistency(self, derivative_ids: list[int]) -> int:
+            actual_freed = 0
+            for cache_path, evict_id, byte_size in zip(evict_paths, evict_ids, evict_bytes, strict=False):
+                with self._file_lock:
+                    if cache_path in self._served_paths or cache_path in self._generating_paths:
+                        conn.execute(
+                            """UPDATE asset_derivatives
+                               SET status = 'ready', cache_path = ?, byte_size = ?,
+                                   last_error = NULL, updated_at = julianday('now')
+                               WHERE id = ? AND status = 'evicted'""",
+                            (cache_path, byte_size, evict_id),
+                        )
+                        continue
+                try:
+                    Path(cache_path).unlink()
+                    actual_freed += byte_size
+                except OSError:
+                    conn.execute(
+                        """UPDATE asset_derivatives
+                           SET status = 'ready', cache_path = ?, byte_size = ?,
+                               last_error = NULL, updated_at = julianday('now')
+                           WHERE id = ? AND status = 'evicted'""",
+                        (cache_path, byte_size, evict_id),
+                    )
+
+            fresh_ready = int(
+                conn.execute(
+                    "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"
+                ).fetchone()[0]
+            )
+            fresh_used = fresh_ready + reserved
+            return fresh_used + estimated_bytes <= self.quota_bytes
+
+    def repair_derivative_consistency(self, derivative_ids: list[int]) -> DerivativeRepairSummary:
         """Create a queued job for each current ``queued`` derivative without one.
 
         Unlike ``reconcile_desired_derivatives``, this repair overrides
         ``warm_enabled`` because an already-existing ``queued`` row must have a
         job regardless of library policy.  Historical or source-changed identities
         are terminalized with the appropriate skipped result code.
+
+        Returns a structured ``DerivativeRepairSummary`` with exact outcome
+        counters so callers can distinguish requeued from skipped from unchanged.
         """
+        summary = DerivativeRepairSummary()
         if not derivative_ids:
-            return 0
-        created = 0
+            return summary
+        summary.issues_considered = len(derivative_ids)
         _ensure_database()
         for offset in range(0, len(derivative_ids), DERIVATIVE_RECONCILE_BATCH_SIZE):
             batch = derivative_ids[offset : offset + DERIVATIVE_RECONCILE_BATCH_SIZE]
@@ -450,16 +516,18 @@ class DerivativeScheduler:
                         (did,),
                     ).fetchone()
                     if row is None:
+                        summary.unchanged += 1
                         continue
                     if row["status"] != "queued":
+                        summary.unchanged += 1
                         continue
                     latest_job = conn.execute(
                         "SELECT state FROM derivative_jobs WHERE derivative_id = ? ORDER BY id DESC LIMIT 1",
                         (did,),
                     ).fetchone()
                     if latest_job is not None and latest_job["state"] in ("queued", "running"):
+                        summary.already_active += 1
                         continue
-                    # Check if identity is still current
                     if row["a_id"] is None or row["type"] != "image" or row["deleted_at"] is not None or row["offline"]:
                         self._terminalize_derivative(
                             conn,
@@ -469,6 +537,7 @@ class DerivativeScheduler:
                             "asset_inactive",
                             "integrity: derivative asset is inactive",
                         )
+                        summary.terminal_skipped += 1
                         continue
                     try:
                         stat = Path(
@@ -483,6 +552,7 @@ class DerivativeScheduler:
                             "source_missing",
                             "integrity: derivative source file is missing",
                         )
+                        summary.terminal_skipped += 1
                         continue
                     if (
                         float(stat.st_mtime_ns) != float(row["source_mtime_ns"])
@@ -498,15 +568,15 @@ class DerivativeScheduler:
                             "source_changed",
                             "integrity: derivative source identity changed",
                         )
+                        summary.terminal_skipped += 1
                         continue
-                    # Valid current identity: create a queued job
                     conn.execute(
                         "INSERT INTO derivative_jobs (derivative_id, priority, state) VALUES (?, 3, 'queued')",
                         (did,),
                     )
-                    created += 1
+                    summary.jobs_created += 1
             self._wake_event.set()
-        return created
+        return summary
 
     @staticmethod
     def _terminalize_derivative(
@@ -548,7 +618,6 @@ class DerivativeScheduler:
         priority: int,
         retry_failed: bool,
         deferrable: bool = False,
-        _evictions: list | None = None,
     ) -> tuple[int, str]:
         """Create or repair one identity while the caller owns a write transaction.
 
@@ -609,11 +678,8 @@ class DerivativeScheduler:
                     (priority, job["id"]),
                 )
             return derivative_id, "active"
-        if derivative["status"] in {"deferred_capacity", "evicted"}:
-            reservable, evicted = self._reserve_capacity(conn, self._estimate_new_derivative_bytes(conn))
-            if _evictions is not None:
-                _evictions.extend(evicted)
-            if not reservable:
+        if derivative["status"] in {"deferred_capacity", "evicted"}:  # noqa: SIM102
+            if not self._reserve_capacity(conn, self._estimate_new_derivative_bytes(conn)):
                 conn.execute(
                     """
                     UPDATE asset_derivatives
@@ -624,11 +690,8 @@ class DerivativeScheduler:
                     (derivative["status"], derivative_id),
                 )
                 return derivative_id, str(derivative["status"])
-        elif deferrable:
-            reservable, evicted = self._reserve_capacity(conn, self._estimate_new_derivative_bytes(conn))
-            if _evictions is not None:
-                _evictions.extend(evicted)
-            if not reservable:
+        elif deferrable:  # noqa: SIM102
+            if not self._reserve_capacity(conn, self._estimate_new_derivative_bytes(conn)):
                 conn.execute(
                     """
                     UPDATE asset_derivatives
@@ -682,7 +745,6 @@ class DerivativeScheduler:
         if asset is None:
             raise KeyError(asset_id)
         stat = Path(asset["path"]).stat()
-        batch_evictions: list[tuple[str, int, int]] = []
         with _connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             current = conn.execute(
@@ -704,10 +766,8 @@ class DerivativeScheduler:
                 priority=priority,
                 retry_failed=True,
                 deferrable=False,
-                _evictions=batch_evictions,
             )
         self._wake_event.set()
-        _unlink_evictions(batch_evictions)
         return derivative_id
 
     def get_derivative_status(self, asset_id: int, kind: str, variant: str) -> str | None:
@@ -918,7 +978,6 @@ class DerivativeScheduler:
         for offset in range(0, len(candidates), DERIVATIVE_RECONCILE_BATCH_SIZE):
             if cancel_event is not None and cancel_event.is_set():
                 break
-            batch_evictions: list[tuple[str, int, int]] = []
             with _connect() as conn:
                 conn.execute("BEGIN IMMEDIATE")
                 for asset_id, mtime_ns, size in candidates[offset : offset + DERIVATIVE_RECONCILE_BATCH_SIZE]:
@@ -947,7 +1006,6 @@ class DerivativeScheduler:
                             priority=priority,
                             retry_failed=retry_failed,
                             deferrable=True,
-                            _evictions=batch_evictions,
                         )
                         if outcome == "ready":
                             summary.already_ready += 1
@@ -966,7 +1024,6 @@ class DerivativeScheduler:
                         elif outcome == "deferred_capacity":
                             summary.deferred_capacity += 1
             self._wake_event.set()
-            _unlink_evictions(batch_evictions)
             if offset + DERIVATIVE_RECONCILE_BATCH_SIZE < len(candidates):
                 if cancel_event is not None:
                     if cancel_event.wait(DERIVATIVE_RECONCILE_YIELD_SECONDS):
@@ -1635,33 +1692,6 @@ class DerivativeScheduler:
                     "a single derivative exceeds the configured quota",
                     total,
                     self.quota_bytes,
-                )
-
-
-def _unlink_evictions(evictions: list[tuple[str, int, int]]) -> None:
-    """Delete evicted cache files, restoring the ready row on failure.
-
-    Must be called after the write transaction that produced the eviction
-    has committed.  A deletion failure restores the ready row so no
-    ``ready`` row ever points to a deleted cache file.
-    """
-    if not evictions:
-        return
-    for cache_path, evict_id, byte_size in evictions:
-        try:
-            path = Path(cache_path)
-            if path.exists():
-                path.unlink()
-        except OSError:
-            with _connect() as conn:
-                conn.execute(
-                    """
-                    UPDATE asset_derivatives
-                    SET status = 'ready', cache_path = ?, byte_size = ?,
-                        last_error = NULL, updated_at = julianday('now')
-                    WHERE id = ? AND status = 'evicted'
-                    """,
-                    (cache_path, byte_size, evict_id),
                 )
 
 
