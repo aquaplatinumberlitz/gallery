@@ -330,7 +330,7 @@ Verification:
   Frontend build:             ✓ built in 15.65s
 ```
 
-Commit: `e751736` — "fix: resolve all 7 derivative lifecycle audit issues"
+Commit: `4dff85a` — "docs: Phase 7 closeout — archive derivative lifecycle plans, update status, ./test.sh fast all green"
 
 Phase 7 exit criteria are met: the scan-to-ready acceptance test proves the full
 derivative convergence pipeline in a single isolated fixture; all Phases 0-6
@@ -419,15 +419,13 @@ ruff: 2 files checked, all checks passed.
 ruff format --check: 2 files already formatted.
 ```
 
-Implementation commit: `e751736` — subsumed by the final Phase 7 commit.
+Implementation commit: `4dff85a` — subsumed by the final Phase 7 commit.
 
 Phase 7 closeout: complete (see Phase 7 section above).
 
 ## Audit Follow-up — 8ad509f Re-audit
 
-Status: Implemented and verified in the worktree on 2026-07-10. The corrective
-commit is pending. Phase 7 closeout (full repository verification, `./test.sh
-fast`, archival) is complete; see Phase 7 above.
+Status: Complete — merged into Phase 7 closeout (commit `4dff85a`). Full repository verification (`./test.sh fast`) and archival complete; see Phase 7 above.
 
 ### Capacity and eviction finalization
 
