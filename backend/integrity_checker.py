@@ -16,6 +16,10 @@ from .metadata_store.identity import (
 logger = logging.getLogger(__name__)
 
 
+class IntegrityCheckAlreadyRunning(RuntimeError):
+    """Raised when an integrity pass already owns the non-blocking run lock."""
+
+
 class IntegrityChecker:
     """Periodic background integrity checker for cross-table consistency."""
 
@@ -25,7 +29,20 @@ class IntegrityChecker:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
-        self.is_running: bool = False
+        self._run_lock = threading.Lock()
+
+    @property
+    def is_running(self) -> bool:
+        """Return whether the atomic run lock is currently held."""
+        return self._run_lock.locked()
+
+    @is_running.setter
+    def is_running(self, value: bool) -> None:
+        """Compatibility shim for tests; runtime ownership stays with the lock."""
+        if value and not self._run_lock.locked():
+            self._run_lock.acquire(blocking=False)
+        elif not value and self._run_lock.locked():
+            self._run_lock.release()
 
     def start(self) -> None:
         """Start the background checker daemon thread."""
@@ -55,7 +72,8 @@ class IntegrityChecker:
         """Run all checks and persist the summary to the integrity_check_runs table."""
         from .metadata_store.maintenance_store import insert_run
 
-        self.is_running = True
+        if not self._run_lock.acquire(blocking=False):
+            raise IntegrityCheckAlreadyRunning("check already running")
         started_at = time.time()
         summary = {
             "trigger": trigger,
@@ -152,7 +170,7 @@ class IntegrityChecker:
                 if summary["error"] is None:
                     summary["error"] = str(e)
             finally:
-                self.is_running = False
+                self._run_lock.release()
         return summary
 
     def run_all_checks(self) -> dict[str, int]:
@@ -176,23 +194,67 @@ class IntegrityChecker:
             total["asset_done_but_no_metadata"] = self._check_asset_done_no_metadata(conn)
             total["job_done_asset_not_done"] = self._check_job_done_asset_not_done(conn)
             total["job_active_no_asset"] = self._check_job_active_no_asset(conn)
-            derivative_ready = self._check_derivative_ready_no_file_details(conn)
+            ready_rows = conn.execute(
+                """SELECT d.id, d.cache_path, d.source_mtime_ns, d.source_size,
+                          a.id AS asset_id, a.path, a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
+                   FROM asset_derivatives d LEFT JOIN assets a ON a.id = d.asset_id
+                   WHERE d.status = 'ready'"""
+            ).fetchall()
+            abandoned_rows = conn.execute(
+                """SELECT j.id AS job_id, j.attempts, j.claim_token, d.id AS derivative_id,
+                          d.source_mtime_ns, d.source_size, a.id AS asset_id, a.path,
+                          a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
+                   FROM derivative_jobs j JOIN asset_derivatives d ON d.id = j.derivative_id
+                   LEFT JOIN assets a ON a.id = d.asset_id
+                   WHERE j.state = 'running'
+                     AND (j.lease_expires_at IS NULL OR j.lease_expires_at <= julianday('now'))"""
+            ).fetchall()
+            done_rows = conn.execute(
+                """SELECT ad.id, ad.cache_path, dj.id AS job_id FROM derivative_jobs dj
+                   JOIN asset_derivatives ad ON ad.id = dj.derivative_id
+                   WHERE dj.state = 'done' AND ad.status != 'ready'"""
+            ).fetchall()
+            active_file_rows = conn.execute(
+                "SELECT path FROM metadata_index_jobs WHERE state IN ('queued', 'running')"
+            ).fetchall()
+            expected_ids = self._find_expected_row_missing(conn)
+            queued_ids = self._find_queued_without_job(conn)
+            deferred_ids = self._find_policy_deferred(conn)
+
+        cache_exists = {
+            str(row["cache_path"]): Path(row["cache_path"]).is_file()
+            for row in [*ready_rows, *done_rows]
+            if row["cache_path"] is not None
+        }
+        source_stats = {}
+        for row in abandoned_rows:
+            if row["path"] is None:
+                continue
+            try:
+                source_stats[str(row["path"])] = Path(row["path"]).stat()
+            except OSError:
+                source_stats[str(row["path"])] = None
+        active_file_exists = {str(row["path"]): Path(row["path"]).is_file() for row in active_file_rows}
+
+        with _DB_LOCK, _connect() as conn:
+            derivative_ready = self._check_derivative_ready_no_file_details(
+                conn, rows=ready_rows, cache_exists=cache_exists
+            )
             total["derivative_ready_no_file"] = derivative_ready["requeued"] + derivative_ready["skipped"]
             total["derivative_ready_requeued"] = derivative_ready["requeued"]
             total["derivative_ready_skipped"] = derivative_ready["skipped"]
-            abandoned = self._check_abandoned_derivative_jobs(conn)
+            abandoned = self._check_abandoned_derivative_jobs(conn, rows=abandoned_rows, source_stats=source_stats)
             total["derivative_abandoned_jobs"] = sum(abandoned.values())
             total["derivative_abandoned_requeued"] = abandoned["requeued"]
             total["derivative_abandoned_skipped"] = abandoned["skipped"]
             total["derivative_abandoned_failed"] = abandoned["failed"]
-            result = self._check_derivative_job_done_not_ready(conn)
+            result = self._check_derivative_job_done_not_ready(conn, rows=done_rows, cache_exists=cache_exists)
             total["derivative_done_not_ready"] = result["repaired"] + result["failed"]
             total["derivative_done_repaired"] = result["repaired"]
             total["derivative_done_failed"] = result["failed"]
-            total["job_active_no_file"] = self._check_job_active_no_file(conn)
-            expected_ids = self._find_expected_row_missing(conn)
-            queued_ids = self._find_queued_without_job(conn)
-            deferred_ids = self._find_policy_deferred(conn)
+            total["job_active_no_file"] = self._check_job_active_no_file(
+                conn, rows=active_file_rows, file_exists=active_file_exists
+            )
 
         from .derivative_scheduler import scheduler
 
@@ -356,7 +418,7 @@ class IntegrityChecker:
         for row in rows:
             if row["mtime_ns"] is not None:
                 conn.execute(
-                    "UPDATE assets SET metadata_state = 'done' WHERE path = ? AND ABS(mtime_ns - ?) < 1000 AND size = ?",
+                    "UPDATE assets SET metadata_state = 'done' WHERE path = ? AND mtime_ns = ? AND size = ?",
                     (row["path"], row["mtime_ns"], row["size"]),
                 )
             else:
@@ -385,9 +447,9 @@ class IntegrityChecker:
         """Repair missing ready files and return the number requeued."""
         return self._check_derivative_ready_no_file_details(conn)["requeued"]
 
-    def _check_derivative_ready_no_file_details(self, conn) -> dict[str, int]:
+    def _check_derivative_ready_no_file_details(self, conn, *, rows=None, cache_exists=None) -> dict[str, int]:
         """Repair missing ready files and return outcome-specific counters."""
-        rows = conn.execute("""
+        rows = rows if rows is not None else conn.execute("""
             SELECT d.id, d.cache_path, d.source_mtime_ns, d.source_size,
                    a.id AS asset_id, a.path, a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
             FROM asset_derivatives d
@@ -396,7 +458,12 @@ class IntegrityChecker:
         """).fetchall()
         counts = {"requeued": 0, "skipped": 0}
         for row in rows:
-            if row["cache_path"] is None or not Path(row["cache_path"]).is_file():
+            exists = (
+                cache_exists.get(str(row["cache_path"]), False)
+                if cache_exists is not None
+                else row["cache_path"] is not None and Path(row["cache_path"]).is_file()
+            )
+            if not exists:
                 derivative_id = row["id"]
                 result_code = self._derivative_inapplicable_result(row)
                 if result_code is not None:
@@ -452,8 +519,8 @@ class IntegrityChecker:
                 counts["requeued"] += 1
         return counts
 
-    def _check_abandoned_derivative_jobs(self, conn) -> dict[str, int]:
-        rows = conn.execute(
+    def _check_abandoned_derivative_jobs(self, conn, *, rows=None, source_stats=None) -> dict[str, int]:
+        rows = rows if rows is not None else conn.execute(
             """
             SELECT j.id AS job_id, j.attempts, j.claim_token, d.id AS derivative_id,
                    d.source_mtime_ns, d.source_size, a.id AS asset_id, a.path,
@@ -467,7 +534,11 @@ class IntegrityChecker:
         ).fetchall()
         counts = {"requeued": 0, "skipped": 0, "failed": 0}
         for row in rows:
-            result_code = self._derivative_inapplicable_result(row)
+            result_code = (
+                self._derivative_inapplicable_result(row, source_stats=source_stats)
+                if source_stats is not None
+                else self._derivative_inapplicable_result(row)
+            )
             if result_code is not None:
                 state = "skipped"
             elif int(row["attempts"]) >= 3:
@@ -499,26 +570,31 @@ class IntegrityChecker:
         return counts
 
     @staticmethod
-    def _derivative_inapplicable_result(row) -> str | None:
+    def _derivative_inapplicable_result(row, *, source_stats=None) -> str | None:
         if row["asset_id"] is None or row["deleted_at"] is not None or row["offline"] or row["type"] != "image":
             return "asset_inactive"
-        try:
-            stat = Path(row["path"]).stat()
-        except OSError:
-            return "source_missing"
+        if source_stats is not None:
+            stat = source_stats.get(str(row["path"]))
+            if stat is None:
+                return "source_missing"
+        else:
+            try:
+                stat = Path(row["path"]).stat()
+            except OSError:
+                return "source_missing"
         if (
             row["mtime_ns"] is None
             or row["size"] is None
-            or float(stat.st_mtime_ns) != float(row["source_mtime_ns"])
+            or stat.st_mtime_ns != int(row["source_mtime_ns"])
             or stat.st_size != int(row["source_size"])
-            or float(row["mtime_ns"]) != float(row["source_mtime_ns"])
+            or int(row["mtime_ns"]) != int(row["source_mtime_ns"])
             or int(row["size"]) != int(row["source_size"])
         ):
             return "source_changed"
         return None
 
-    def _check_derivative_job_done_not_ready(self, conn) -> dict[str, int]:
-        rows = conn.execute("""
+    def _check_derivative_job_done_not_ready(self, conn, *, rows=None, cache_exists=None) -> dict[str, int]:
+        rows = rows if rows is not None else conn.execute("""
             SELECT ad.id, ad.cache_path, dj.id AS job_id
             FROM derivative_jobs dj
             JOIN asset_derivatives ad ON ad.id = dj.derivative_id
@@ -528,7 +604,12 @@ class IntegrityChecker:
         repaired = 0
         failed = 0
         for row in rows:
-            if row["cache_path"] is not None and Path(row["cache_path"]).is_file():
+            exists = (
+                cache_exists.get(str(row["cache_path"]), False)
+                if cache_exists is not None
+                else row["cache_path"] is not None and Path(row["cache_path"]).is_file()
+            )
+            if exists:
                 conn.execute(
                     "UPDATE asset_derivatives SET status = 'ready', updated_at = julianday('now') "
                     "WHERE id = ? AND status != 'ready'",
@@ -626,15 +707,20 @@ class IntegrityChecker:
         summary = DerivativeScheduler().reconcile_desired_derivatives(asset_ids=asset_ids, reason="integrity")
         return summary.created_jobs + summary.requeued_without_job
 
-    def _check_job_active_no_file(self, conn) -> int:
-        rows = conn.execute("""
+    def _check_job_active_no_file(self, conn, *, rows=None, file_exists=None) -> int:
+        rows = rows if rows is not None else conn.execute("""
             SELECT path FROM metadata_index_jobs
             WHERE state IN ('queued', 'running')
         """).fetchall()
         failed = 0
         now = time.time()
         for row in rows:
-            if not Path(row["path"]).is_file():
+            exists = (
+                file_exists.get(str(row["path"]), False)
+                if file_exists is not None
+                else Path(row["path"]).is_file()
+            )
+            if not exists:
                 conn.execute(
                     "UPDATE metadata_index_jobs SET state = 'failed', error = ?, finished_at = ?, updated_at = ? WHERE path = ? AND state IN ('queued', 'running')",
                     ("integrity: file missing from disk", now, now, row["path"]),

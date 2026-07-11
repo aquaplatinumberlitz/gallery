@@ -337,7 +337,7 @@ def test_browse_duplicate_metadata_does_not_duplicate_media(
     assert media[0]["height"] == 480
 
 
-def test_browse_tolerant_mtime_picks_closest_metadata(
+def test_browse_requires_exact_nanosecond_metadata_identity(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
@@ -350,11 +350,8 @@ def test_browse_tolerant_mtime_picks_closest_metadata(
     _insert_assets(
         _asset_row(library_id, image, parent_path=root, mtime_ns=1000, size=100, metadata_state="done"),
     )
-    # Insert farther row first (gap=500, mtime_ns=500, im.id becomes 1)
-    # then closer row second (gap=400, mtime_ns=600, im.id becomes 2).
-    # This ensures the test would FAIL if tie-break wrongly used im.id before ABS(diff).
     _insert_image_metadata(image, mtime_ns=500, size=100, width=100, height=100)
-    _insert_image_metadata(image, mtime_ns=600, size=100, width=200, height=200)
+    _insert_image_metadata(image, mtime_ns=1000, size=100, width=200, height=200)
 
     response = isolated_app.get("/api/browse", params={"library_id": library_id, "path": str(root)})
 
@@ -362,7 +359,6 @@ def test_browse_tolerant_mtime_picks_closest_metadata(
     media = response.json()["media"]
     assert len(media) == 1
     assert media[0]["path"] == str(image.resolve())
-    # Closest match: gap=400 (mtime_ns=600) vs gap=500 (mtime_ns=500)
     assert media[0]["width"] == 200
     assert media[0]["height"] == 200
 

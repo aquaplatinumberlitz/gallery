@@ -33,6 +33,7 @@ def _serialize_library_job(row: sqlite3.Row) -> dict[str, Any]:
         "id": int(row["id"]),
         "library_id": int(row["library_id"]) if row["library_id"] is not None else None,
         "parent_job_id": int(row["parent_job_id"]) if row["parent_job_id"] is not None else None,
+        "config_revision": int(row["config_revision"]) if row["config_revision"] is not None else None,
         "type": str(row["type"]),
         "state": str(row["state"]),
         "scope_path": row["scope_path"],
@@ -70,16 +71,21 @@ def create_job(
     now = time.time()
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
+        config_revision = None
+        if library_id is not None and job_type in CATALOG_WORK_JOB_TYPES:
+            library = conn.execute("SELECT config_revision FROM libraries WHERE id = ?", (library_id,)).fetchone()
+            config_revision = int(library["config_revision"]) if library is not None else None
         cursor = conn.execute(
             """
             INSERT INTO library_jobs (
-              library_id, parent_job_id, type, state, scope_path, trigger, priority, progress_current,
+              library_id, parent_job_id, config_revision, type, state, scope_path, trigger, priority, progress_current,
               progress_total, message, counters, created_at, updated_at
-            ) VALUES (?, ?, ?, 'queued', ?, ?, ?, 0, ?, ?, '{}', ?, ?)
+            ) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, 0, ?, ?, '{}', ?, ?)
             """,
             (
                 library_id,
                 parent_job_id,
+                config_revision,
                 job_type,
                 canonicalize_catalog_path(scope_path) if scope_path is not None else None,
                 trigger,
@@ -134,6 +140,19 @@ def create_or_coalesce_catalog_job(
     with _DB_LOCK, _connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
+            library = conn.execute("SELECT config_revision FROM libraries WHERE id = ?", (library_id,)).fetchone()
+            if library is None:
+                raise KeyError(library_id)
+            config_revision = int(library["config_revision"])
+
+            def _link_parent(child_job_id: int) -> None:
+                if parent_job_id is not None:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO catalog_job_dependencies "
+                        "(parent_job_id, child_job_id, created_at) VALUES (?, ?, ?)",
+                        (parent_job_id, child_job_id, now),
+                    )
+
             active_rows = conn.execute(
                 """
                 SELECT * FROM library_jobs
@@ -203,6 +222,7 @@ def create_or_coalesce_catalog_job(
                                 row = conn.execute(
                                     "SELECT * FROM library_jobs WHERE id = ?", (int(row["id"]),)
                                 ).fetchone()
+                            _link_parent(int(row["id"]))
                             conn.execute("COMMIT")
                             return _serialize_catalog_enqueue_result(row, False)
 
@@ -218,13 +238,14 @@ def create_or_coalesce_catalog_job(
             cursor = conn.execute(
                 """
                 INSERT INTO library_jobs (
-                  library_id, parent_job_id, type, state, scope_path, trigger, priority,
+                  library_id, parent_job_id, config_revision, type, state, scope_path, trigger, priority,
                   progress_current, progress_total, message, counters, created_at, updated_at
-                ) VALUES (?, ?, ?, 'queued', ?, ?, ?, 0, NULL, ?, '{}', ?, ?)
+                ) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, 0, NULL, ?, '{}', ?, ?)
                 """,
                 (
                     library_id,
                     parent_job_id,
+                    config_revision,
                     operation,
                     requested_scope,
                     trigger,
@@ -235,6 +256,7 @@ def create_or_coalesce_catalog_job(
                 ),
             )
             row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
+            _link_parent(int(row["id"]))
             conn.execute("COMMIT")
             return _serialize_catalog_enqueue_result(row, True)
         except Exception:
@@ -249,6 +271,18 @@ def claim_next_catalog_job(*, max_queue_wait_seconds: int = 600) -> dict[str, An
     with _DB_LOCK, _connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
+            conn.execute(
+                """UPDATE library_jobs
+                   SET state = 'cancelled', error = 'Library configuration changed before activation',
+                       message = 'Catalog job cancelled because library configuration changed',
+                       updated_at = ?, finished_at = ?
+                   WHERE state = 'queued' AND type IN ('scan', 'rebuild')
+                     AND library_id IS NOT NULL AND config_revision IS NOT NULL
+                     AND config_revision != (
+                       SELECT config_revision FROM libraries WHERE id = library_jobs.library_id
+                     )""",
+                (now, now),
+            )
             rows = conn.execute(
                 """
                 SELECT *
@@ -256,6 +290,11 @@ def claim_next_catalog_job(*, max_queue_wait_seconds: int = 600) -> dict[str, An
                 WHERE queued.state = 'queued'
                   AND queued.type IN ('scan', 'rebuild')
                   AND queued.library_id IS NOT NULL
+                  AND (
+                    queued.config_revision IS NULL OR queued.config_revision = (
+                      SELECT config_revision FROM libraries WHERE id = queued.library_id
+                    )
+                  )
                   AND NOT EXISTS (
                     SELECT 1 FROM library_jobs AS running
                     WHERE running.library_id = queued.library_id
@@ -281,6 +320,9 @@ def claim_next_catalog_job(*, max_queue_wait_seconds: int = 600) -> dict[str, An
                 """
                 UPDATE library_jobs
                 SET state = 'running',
+                    config_revision = COALESCE(
+                      config_revision, (SELECT config_revision FROM libraries WHERE id = library_jobs.library_id)
+                    ),
                     started_at = COALESCE(started_at, ?),
                     updated_at = ?,
                     message = COALESCE(message, 'Catalog job running')
@@ -425,7 +467,18 @@ def update_parent_aggregate_job(parent_job_id: int) -> dict[str, Any] | None:
             return None
         if parent["state"] not in {"queued", "running"}:
             return None
-        children = conn.execute("SELECT state FROM library_jobs WHERE parent_job_id = ?", (parent_job_id,)).fetchall()
+        children = conn.execute(
+            """SELECT child.state FROM catalog_job_dependencies dep
+               JOIN library_jobs child ON child.id = dep.child_job_id
+               WHERE dep.parent_job_id = ?
+               UNION ALL
+               SELECT state FROM library_jobs
+               WHERE parent_job_id = ?
+                 AND NOT EXISTS (
+                   SELECT 1 FROM catalog_job_dependencies WHERE parent_job_id = ?
+                 )""",
+            (parent_job_id, parent_job_id, parent_job_id),
+        ).fetchall()
         total = len(children)
         succeeded = sum(1 for child in children if child["state"] == "succeeded")
         failed = sum(1 for child in children if child["state"] == "failed")
@@ -492,6 +545,19 @@ def update_parent_aggregate_job(parent_job_id: int) -> dict[str, Any] | None:
         )
         row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (parent_job_id,)).fetchone()
         return _serialize_library_job(row)
+
+
+def list_parent_aggregate_job_ids(child_job_id: int) -> list[int]:
+    """Return every aggregate parent linked to a catalog child."""
+    _initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        rows = conn.execute(
+            """SELECT parent_job_id FROM catalog_job_dependencies WHERE child_job_id = ?
+               UNION SELECT parent_job_id FROM library_jobs
+               WHERE id = ? AND parent_job_id IS NOT NULL""",
+            (child_job_id, child_job_id),
+        )
+        return [int(row["parent_job_id"]) for row in rows]
 
 
 def create_or_get_active_scan_job(

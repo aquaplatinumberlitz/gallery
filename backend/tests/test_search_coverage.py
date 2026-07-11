@@ -126,7 +126,10 @@ def test_search_filters_stale_rows_and_triggers_cleanup(
 
     resp = isolated_app.get("/api/search", params={"q": "ghost", "scope": "all"})
     assert resp.status_code == 200
-    # cleanup should have been called because a stale row was detected
+    for _ in range(50):
+        if cleanup_called:
+            break
+        time.sleep(0.01)
     assert len(cleanup_called) >= 1
 
 

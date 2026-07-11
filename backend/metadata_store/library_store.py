@@ -7,10 +7,38 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..config import THUMBNAIL_CACHE_DIR
 from ..files import is_index_excluded_path
 from ._db import _DB_LOCK, _active_asset_where, _connect
 from .path_utils import _catalog_paths_overlap, _path_is_within
-from .types import LibraryOverlapError
+from .types import LibraryBusyError, LibraryOverlapError
+
+
+def _unlink_generated_cache_files(cache_paths: list[str]) -> None:
+    cache_root = THUMBNAIL_CACHE_DIR.resolve()
+    for value in cache_paths:
+        path = Path(value)
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(cache_root)
+            resolved.unlink(missing_ok=True)
+        except (OSError, ValueError):
+            continue
+
+
+def _delete_path_owned_rows_conn(conn: sqlite3.Connection, paths: set[str]) -> None:
+    if not paths:
+        return
+    values = [(path,) for path in paths]
+    for table in (
+        "image_resources",
+        "image_metadata",
+        "metadata_index_jobs",
+        "file_index_fts",
+        "file_index",
+        "folder_index_state",
+    ):
+        conn.executemany(f"DELETE FROM {table} WHERE path = ?", values)
 
 
 def _initialize_database() -> None:
@@ -157,6 +185,8 @@ def list_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
 def forget_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
     """Delete unavailable media tombstones without touching source files."""
     _initialize_database()
+    cache_paths: list[str] = []
+    result: list[dict[str, Any]] = []
     with _DB_LOCK, _connect() as conn:
         if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
             raise KeyError(library_id)
@@ -174,6 +204,17 @@ def forget_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
         ).fetchall()
         if not rows:
             return []
+        paths = {str(row["path"]) for row in rows}
+        cache_paths = [
+            str(row["cache_path"])
+            for row in conn.execute(
+                """SELECT d.cache_path FROM asset_derivatives d
+                   JOIN assets a ON a.id = d.asset_id
+                   WHERE a.library_id = ? AND a.offline = 1
+                     AND a.deleted_at IS NULL AND d.cache_path IS NOT NULL""",
+                (library_id,),
+            )
+        ]
         conn.execute(
             """
             DELETE FROM derivative_jobs
@@ -212,7 +253,8 @@ def forget_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
             """,
             (library_id,),
         )
-        return [
+        _delete_path_owned_rows_conn(conn, paths)
+        result = [
             {
                 "id": int(row["id"]),
                 "name": str(row["name"]),
@@ -223,6 +265,8 @@ def forget_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
             }
             for row in rows
         ]
+    _unlink_generated_cache_files(cache_paths)
+    return result
 
 
 def get_gallery_stats() -> dict[str, int]:
@@ -459,9 +503,9 @@ def create_library(
             cursor = conn.execute(
                 """
                 INSERT INTO library_jobs (
-                  library_id, type, state, scope_path, trigger, priority,
+                  library_id, config_revision, type, state, scope_path, trigger, priority,
                   progress_current, progress_total, message, counters, created_at, updated_at
-                ) VALUES (?, 'scan', 'queued', NULL, 'initial', 100, 0, NULL, 'Initial update queued', '{}', ?, ?)
+                ) VALUES (?, 1, 'scan', 'queued', NULL, 'initial', 100, 0, NULL, 'Initial update queued', '{}', ?, ?)
                 """,
                 (library_id, now, now),
             )
@@ -496,6 +540,15 @@ def update_library(
         row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
         if row is None:
             return None
+        if canonical_paths is not None or patterns is not None:
+            active = conn.execute(
+                """SELECT 1 FROM library_jobs
+                   WHERE library_id = ? AND type IN ('scan', 'rebuild')
+                     AND state IN ('queued', 'running') LIMIT 1""",
+                (library_id,),
+            ).fetchone()
+            if active is not None:
+                raise LibraryBusyError("Library update or rebuild is active")
         if canonical_paths is not None:
             _assert_no_import_path_overlap_conn(conn, canonical_paths, exclude_library_id=library_id)
             _replace_library_paths_conn(conn, library_id, canonical_paths, now=now)
@@ -512,6 +565,10 @@ def update_library(
                 (int(warm_enabled), now, library_id),
             )
         if canonical_paths is not None or patterns is not None:
+            conn.execute(
+                "UPDATE libraries SET config_revision = config_revision + 1, updated_at = ? WHERE id = ?",
+                (now, library_id),
+            )
             _reconcile_library_configuration_conn(conn, library_id)
         row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
         return _serialize_library_conn(conn, row)
@@ -525,9 +582,36 @@ def register_library(root_path: str | Path, name: str | None = None) -> dict[str
 def unregister_library(library_id: int) -> bool:
     """Delete catalog records for a library without touching source files."""
     _initialize_database()
+    cache_paths: list[str] = []
     with _DB_LOCK, _connect() as conn:
         if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
             return False
+        active = conn.execute(
+            """SELECT 1 FROM library_jobs WHERE library_id = ?
+               AND type IN ('scan', 'rebuild') AND state IN ('queued', 'running') LIMIT 1""",
+            (library_id,),
+        ).fetchone()
+        if active is not None:
+            raise LibraryBusyError("Library update or rebuild is active")
+        roots = [
+            str(row["path"])
+            for row in conn.execute("SELECT path FROM library_import_paths WHERE library_id = ?", (library_id,))
+        ]
+        paths = {
+            str(row["path"])
+            for table in ("assets", "file_index", "image_metadata", "metadata_index_jobs", "image_resources")
+            for row in conn.execute(f"SELECT path FROM {table}")
+            if any(_path_is_within(str(row["path"]), root) for root in roots)
+        }
+        cache_paths = [
+            str(row["cache_path"])
+            for row in conn.execute(
+                """SELECT d.cache_path FROM asset_derivatives d
+                   JOIN assets a ON a.id = d.asset_id
+                   WHERE a.library_id = ? AND d.cache_path IS NOT NULL""",
+                (library_id,),
+            )
+        ]
         conn.execute(
             "DELETE FROM derivative_jobs WHERE derivative_id IN "
             "(SELECT d.id FROM asset_derivatives d JOIN assets a ON a.id = d.asset_id WHERE a.library_id = ?)",
@@ -538,8 +622,10 @@ def unregister_library(library_id: int) -> bool:
             (library_id,),
         )
         conn.execute("DELETE FROM assets WHERE library_id = ?", (library_id,))
+        _delete_path_owned_rows_conn(conn, paths)
         conn.execute("DELETE FROM libraries WHERE id = ?", (library_id,))
-        return True
+    _unlink_generated_cache_files(cache_paths)
+    return True
 
 
 def update_library_state(

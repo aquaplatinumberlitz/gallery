@@ -2,6 +2,7 @@
 
 import os
 import time
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,9 +46,11 @@ def _get_cors_origins() -> list[str]:
     port = os.getenv("FRONTEND_PORT")
 
     origins: list[str] = []
+    configured = os.getenv("GALLERY_CORS_ORIGINS", "")
+    origins.extend(value.strip().rstrip("/") for value in configured.split(",") if value.strip())
     if origin:
         origins.append(origin.rstrip("/"))
-    if port:
+    if port and port.isdigit() and 1 <= int(port) <= 65535:
         origins.extend(
             [
                 f"http://localhost:{port}",
@@ -58,11 +61,22 @@ def _get_cors_origins() -> list[str]:
     if not origins:
         origins = ["http://localhost:4702", "http://127.0.0.1:4702"]
 
-    return origins
-
-
-VPS_IP = "http://150.230.56.153"
-VPS_ORIGINS = [VPS_IP, f"{VPS_IP}:4701", f"{VPS_IP}:4702"]
+    validated: list[str] = []
+    for value in origins:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme in {"http", "https"}
+            and parsed.hostname
+            and not parsed.username
+            and not parsed.password
+            and not parsed.query
+            and not parsed.fragment
+            and parsed.path in {"", "/"}
+        ):
+            normalized = value.rstrip("/")
+            if normalized not in validated:
+                validated.append(normalized)
+    return validated
 
 app = FastAPI(title="Museum Art Gallery API")
 
@@ -78,9 +92,9 @@ if ENABLE_METRICS:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_get_cors_origins() + VPS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=_get_cors_origins(),
+    allow_credentials=os.getenv("GALLERY_CORS_ALLOW_CREDENTIALS", "0").lower() in {"1", "true", "yes"},
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

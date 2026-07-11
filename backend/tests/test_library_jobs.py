@@ -18,6 +18,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from backend import scan_worker as catalog_service
 from backend.library_events import event_payload, format_sse
 from backend.metadata_store import (
@@ -27,7 +29,9 @@ from backend.metadata_store import (
     recover_stale_jobs,
     register_library,
     update_job_state,
+    update_library,
 )
+from backend.metadata_store.types import LibraryBusyError
 from tests.conftest import create_test_png
 
 
@@ -91,19 +95,56 @@ def test_scan_all_creates_parent_and_linked_children(
     response = isolated_app.post("/api/libraries/scan-all")
     assert response.status_code == 202
     body = response.json()
-    assert body["state"] == "succeeded"
+    assert body["state"] == "running"
     assert body["count"] == 2
     assert len(body["child_job_ids"]) == 2
     parent = isolated_app.get(f"/api/jobs/{body['job_id']}").json()
     children = [isolated_app.get(f"/api/jobs/{job_id}").json() for job_id in body["child_job_ids"]]
 
     assert parent["type"] == "scan_all"
-    assert parent["state"] == "succeeded"
-    assert parent["counters"] == {"total": 2, "succeeded": 0, "failed": 0, "coalesced": 0}
+    assert parent["state"] == "running"
+    assert parent["counters"] == {"total": 2, "succeeded": 0, "failed": 0, "cancelled": 0, "coalesced": 0}
     assert {job["library_id"] for job in children} == {first_id, second_id}
     assert all(job["parent_job_id"] == parent["id"] for job in children)
     assert all(job["state"] == "queued" for job in children)
     assert all(job["trigger"] == "manual" for job in children)
+
+
+def test_library_configuration_change_rechecks_active_job_atomically(
+    isolated_gallery_root: Path,
+):
+    library = register_library(isolated_gallery_root)
+    create_job("scan", library_id=int(library["id"]))
+    with pytest.raises(LibraryBusyError):
+        update_library(int(library["id"]), exclusion_patterns=["*.tmp"])
+
+
+def test_claim_rejects_job_from_stale_library_revision(isolated_metadata_db: Path, isolated_gallery_root: Path):
+    from backend.metadata_store import _DB_LOCK, _connect, claim_next_catalog_job
+
+    library = register_library(isolated_gallery_root)
+    job = create_job("scan", library_id=int(library["id"]))
+    with _DB_LOCK, _connect() as conn:
+        conn.execute("UPDATE libraries SET config_revision = config_revision + 1 WHERE id = ?", (library["id"],))
+    assert claim_next_catalog_job() is None
+    assert get_job(int(job["id"]))["state"] == "cancelled"
+
+
+def test_scan_all_tracks_coalesced_child_until_terminal(
+    isolated_gallery_root: Path,
+    isolated_app,
+):
+    library = register_library(isolated_gallery_root)
+    existing, _created = catalog_service.queue_scan(int(library["id"]), trigger="manual")
+
+    response = isolated_app.post("/api/libraries/scan-all")
+    body = response.json()
+    assert body["state"] == "running"
+    assert body["child_job_ids"] == [existing["id"]]
+    assert get_job(int(body["job_id"]))["counters"]["coalesced"] == 1
+
+    assert catalog_service.run_once() is True
+    assert get_job(int(body["job_id"]))["state"] == "succeeded"
 
 
 def test_stats_and_job_history_endpoints(isolated_metadata_db: Path, isolated_gallery_root: Path, isolated_app):

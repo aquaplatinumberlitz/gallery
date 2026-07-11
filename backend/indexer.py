@@ -385,7 +385,7 @@ class MetadataLifecycleWorker:
         except OSError:
             return False
         if job.mtime_ns is not None:
-            return abs(stat.st_mtime_ns - job.mtime_ns) < 1000 and stat.st_size == job.size
+            return stat.st_mtime_ns == job.mtime_ns and stat.st_size == job.size
         return stat.st_mtime == job.mtime and stat.st_size == job.size
 
 
@@ -426,7 +426,7 @@ def recover_metadata_index_jobs() -> dict[str, int]:
                         """
                         UPDATE metadata_index_jobs
                         SET state='failed', error=?, finished_at=?, updated_at=?
-                        WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=? AND state='running'
+                        WHERE path=? AND mtime_ns = ? AND size=? AND state='running'
                         """,
                         ("exhausted recovery attempts", now, now, path, mtime_ns, size),
                     )

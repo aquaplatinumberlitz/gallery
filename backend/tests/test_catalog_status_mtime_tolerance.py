@@ -186,7 +186,7 @@ def test_tolerant_mtime_ns_join_for_ready_assets(
     isolated_gallery_root: Path,
     monkeypatch,
 ):
-    """ready_assets counts asset when mtime_ns differs by <1000 ns from image_metadata."""
+    """ready_assets excludes a different nanosecond image metadata version."""
     _enable_metadata_status(monkeypatch)
     root = isolated_gallery_root / "library"
     root.mkdir()
@@ -202,9 +202,9 @@ def test_tolerant_mtime_ns_join_for_ready_assets(
     batch = _batch_metadata(isolated_app, library_id)
 
     assert single["total_assets"] == 1
-    assert single["ready_assets"] == 1, "Should count as ready when mtime_ns differs by 500ns (< 1000)"
+    assert single["ready_assets"] == 0
     assert batch["total_assets"] == 1
-    assert batch["ready_assets"] == 1
+    assert batch["ready_assets"] == 0
 
 
 def test_tolerant_mtime_ns_join_exact_differ_by_999_ns(
@@ -212,7 +212,7 @@ def test_tolerant_mtime_ns_join_exact_differ_by_999_ns(
     isolated_gallery_root: Path,
     monkeypatch,
 ):
-    """ready_assets counts asset when mtime_ns differs by 999 ns (boundary just under 1000)."""
+    """A one-nanosecond-or-greater difference is a different version."""
     _enable_metadata_status(monkeypatch)
     root = isolated_gallery_root / "library"
     root.mkdir()
@@ -225,7 +225,7 @@ def test_tolerant_mtime_ns_join_exact_differ_by_999_ns(
     _insert_image_metadata(image, mtime_ns=999, size=100)
 
     single = _single_scope_metadata(isolated_app, library_id)
-    assert single["ready_assets"] == 1, "999ns diff should still match (< 1000)"
+    assert single["ready_assets"] == 0
 
 
 def test_mtime_ns_difference_of_1000_ns_does_not_match(
@@ -272,9 +272,9 @@ def test_tolerant_mtime_ns_join_for_queued_job(
     single = _single_scope_metadata(isolated_app, library_id)
     batch = _batch_metadata(isolated_app, library_id)
 
-    assert single["queued_assets"] == 1, "Queued job should match via tolerant mtime_ns"
+    assert single["queued_assets"] == 0
     assert single["total_assets"] == 1
-    assert batch["queued_assets"] == 1
+    assert batch["queued_assets"] == 0
 
 
 def test_tolerant_mtime_ns_join_for_running_job(
@@ -295,7 +295,7 @@ def test_tolerant_mtime_ns_join_for_running_job(
     _insert_metadata_job(image, mtime_ns=1500, size=100, state="running", root=root)
 
     single = _single_scope_metadata(isolated_app, library_id)
-    assert single["running_assets"] == 1, "Running job should match via tolerant mtime_ns"
+    assert single["running_assets"] == 0
 
 
 def test_tolerant_mtime_ns_join_for_failed_job_with_metadata_issue(
@@ -317,10 +317,9 @@ def test_tolerant_mtime_ns_join_for_failed_job_with_metadata_issue(
 
     status = _single_scope_status(isolated_app, library_id)
 
-    assert status["metadata"]["failed_assets"] == 1, "Failed job should match via tolerant mtime_ns"
-    assert status["issues"]["metadata"] == 1
-    assert status["latest_issue"] is not None
-    assert status["latest_issue"]["source"] == "metadata"
+    assert status["metadata"]["failed_assets"] == 0
+    assert status["issues"]["metadata"] == 0
+    assert status["latest_issue"] is None
 
 
 def test_legacy_image_metadata_with_null_mtime_ns_matches_asset_mtime_ns(
@@ -410,7 +409,7 @@ def test_batch_tolerant_mtime_ns_join_for_ready(
 
     batch = _batch_metadata(isolated_app, library_id)
     assert batch["total_assets"] == 1
-    assert batch["ready_assets"] == 1
+    assert batch["ready_assets"] == 0
 
 
 def test_batch_legacy_null_mtime_ns(

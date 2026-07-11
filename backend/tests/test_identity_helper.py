@@ -5,7 +5,7 @@ Validate the SQL fragments and tolerance constants that define metadata
 identity matching across lifecycle, status, browse, and integrity paths.
 
 Guarantees:
-Identity helper fragments keep the canonical tolerant mtime_ns rule, legacy
+Identity helper fragments keep exact nanosecond matching, legacy
 seconds bridge, alias substitution, and exported tolerance constants stable.
 
 Run when:
@@ -28,7 +28,7 @@ from backend.metadata_store.identity import (
 
 
 def test_constants_are_exported() -> None:
-    assert MTIME_NS_TOLERANCE == 1000
+    assert MTIME_NS_TOLERANCE == 0
     assert MTIME_SEC_TOLERANCE == 1e-3
 
 
@@ -59,9 +59,9 @@ class TestAssetMatchesImageMetadataSql:
         assert sql.count("OR") == 1
         assert sql.count("AND") == 4  # 2 branches × 2 AND per branch
 
-    def test_includes_tolerance_constant(self) -> None:
+    def test_includes_exact_match_and_seconds_tolerance(self) -> None:
         sql = asset_matches_image_metadata_sql()
-        assert str(MTIME_NS_TOLERANCE) in sql
+        assert "im.mtime_ns = a.mtime_ns" in sql
         assert str(MTIME_SEC_TOLERANCE) in sql
 
     def test_includes_nanos_per_sec(self) -> None:
@@ -92,9 +92,9 @@ class TestAssetMatchesMetadataJobSql:
         sql = asset_matches_metadata_job_sql()
         assert sql.count("OR") == 1
 
-    def test_includes_tolerance_constant(self) -> None:
+    def test_includes_exact_match_and_seconds_tolerance(self) -> None:
         sql = asset_matches_metadata_job_sql()
-        assert str(MTIME_NS_TOLERANCE) in sql
+        assert "mj.mtime_ns = a.mtime_ns" in sql
         assert str(MTIME_SEC_TOLERANCE) in sql
 
 
@@ -115,7 +115,7 @@ class TestJobMatchesImageMetadataSql:
         sql = job_matches_image_metadata_sql()
         assert sql.count("OR") == 2
 
-    def test_includes_tolerance_constant(self) -> None:
+    def test_includes_exact_match_and_seconds_tolerance(self) -> None:
         sql = job_matches_image_metadata_sql()
-        assert str(MTIME_NS_TOLERANCE) in sql
+        assert "im.mtime_ns = mj.mtime_ns" in sql
         assert str(MTIME_SEC_TOLERANCE) in sql

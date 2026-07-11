@@ -1,8 +1,8 @@
-"""Shared identity matching helpers for tolerant mtime_ns comparison.
+"""Shared identity matching helpers for exact nanosecond comparison.
 
 Gallery's identity rule for matching a file across tables is:
 
-    path + size + tolerant mtime_ns
+    path + size + exact mtime_ns
 
 The tolerance accounts for filesystem timestamp aliasing / precision loss
 across reads. For rows that store mtime in seconds only (legacy), a seconds
@@ -27,8 +27,8 @@ Notes:
 
 from __future__ import annotations
 
-MTIME_NS_TOLERANCE = 1000
-"""Nanosecond tolerance for mtime_ns comparison (1000 ns = 1 µs)."""
+MTIME_NS_TOLERANCE = 0
+"""Nanosecond identities are exact whenever both sides provide them."""
 
 MTIME_SEC_TOLERANCE = 1e-3
 """Second tolerance for legacy mtime comparison (0.001 s = 1 ms)."""
@@ -40,13 +40,13 @@ def asset_matches_image_metadata_sql(*, asset_alias: str = "a", im_alias: str = 
 
     Two branches (assets has no ``mtime`` column):
 
-    1. both sides have ``mtime_ns`` → ns tolerance match.
+    1. both sides have ``mtime_ns`` → exact match.
     2. ``image_metadata.mtime_ns`` is NULL → convert ``assets.mtime_ns`` to
        seconds and compare with ``image_metadata.mtime``.
     """
     return (
         f"(({im_alias}.mtime_ns IS NOT NULL AND {asset_alias}.mtime_ns IS NOT NULL "
-        f"AND ABS({im_alias}.mtime_ns - {asset_alias}.mtime_ns) < {MTIME_NS_TOLERANCE})"
+        f"AND {im_alias}.mtime_ns = {asset_alias}.mtime_ns)"
         f" OR ({im_alias}.mtime_ns IS NULL AND {asset_alias}.mtime_ns IS NOT NULL "
         f"AND ABS({asset_alias}.mtime_ns / {_NANOS_PER_SEC} - {im_alias}.mtime) < {MTIME_SEC_TOLERANCE}))"
     )
@@ -63,7 +63,7 @@ def asset_matches_metadata_job_sql(*, asset_alias: str = "a", job_alias: str = "
     """
     return (
         f"(({job_alias}.mtime_ns IS NOT NULL AND {asset_alias}.mtime_ns IS NOT NULL "
-        f"AND ABS({job_alias}.mtime_ns - {asset_alias}.mtime_ns) < {MTIME_NS_TOLERANCE})"
+        f"AND {job_alias}.mtime_ns = {asset_alias}.mtime_ns)"
         f" OR ({job_alias}.mtime_ns IS NULL AND {asset_alias}.mtime_ns IS NOT NULL "
         f"AND ABS({asset_alias}.mtime_ns / {_NANOS_PER_SEC} - {job_alias}.mtime) < {MTIME_SEC_TOLERANCE}))"
     )
@@ -79,7 +79,7 @@ def image_metadata_params_match_sql() -> str:
     Parameter order (6 ``?`` placeholders): ``mtime_ns x5``, ``mtime x1``.
     """
     return (
-        f"(? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})"
+        "(? IS NOT NULL AND mtime_ns IS NOT NULL AND mtime_ns = ?)"
         f" OR (? IS NOT NULL AND mtime_ns IS NULL AND ABS(? / {_NANOS_PER_SEC} - mtime) < {MTIME_SEC_TOLERANCE})"
         f" OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / {_NANOS_PER_SEC} - ?) < {MTIME_SEC_TOLERANCE})"
     )
@@ -95,7 +95,7 @@ def asset_params_match_sql() -> str:
     Parameter order (4 ``?`` placeholders): ``mtime_ns x3``, ``mtime x1``.
     """
     return (
-        f"(? IS NOT NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns - ?) < {MTIME_NS_TOLERANCE})"
+        "(? IS NOT NULL AND mtime_ns IS NOT NULL AND mtime_ns = ?)"
         f" OR (? IS NULL AND mtime_ns IS NOT NULL AND ABS(mtime_ns / {_NANOS_PER_SEC} - ?) < {MTIME_SEC_TOLERANCE})"
     )
 
@@ -115,7 +115,7 @@ def job_matches_image_metadata_sql(*, job_alias: str = "mj", im_alias: str = "im
     """
     return (
         f"(({job_alias}.mtime_ns IS NOT NULL AND {im_alias}.mtime_ns IS NOT NULL "
-        f"AND ABS({im_alias}.mtime_ns - {job_alias}.mtime_ns) < {MTIME_NS_TOLERANCE})"
+        f"AND {im_alias}.mtime_ns = {job_alias}.mtime_ns)"
         f" OR ({job_alias}.mtime_ns IS NULL AND {im_alias}.mtime_ns IS NOT NULL "
         f"AND ABS({im_alias}.mtime_ns / {_NANOS_PER_SEC} - {job_alias}.mtime) < {MTIME_SEC_TOLERANCE})"
         f" OR ({im_alias}.mtime_ns IS NULL AND {job_alias}.mtime_ns IS NOT NULL "

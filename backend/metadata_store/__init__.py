@@ -326,6 +326,9 @@ from .types import (
     LibraryOverlapError as LibraryOverlapError,
 )
 from .types import (
+    LibraryBusyError as LibraryBusyError,
+)
+from .types import (
     MetadataIndexJob as MetadataIndexJob,
 )
 from .types import (

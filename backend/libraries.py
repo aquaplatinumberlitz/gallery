@@ -17,6 +17,7 @@ from .library_events import event_payload, event_stream, publish
 from .metadata_store import (
     CatalogJobConflict,
     CatalogMaintenanceBusy,
+    LibraryBusyError,
     LibraryOverlapError,
     catalog_path_contains,
     create_job,
@@ -36,6 +37,7 @@ from .metadata_store import (
     update_job_state,
     update_library,
     update_library_state,
+    update_parent_aggregate_job,
 )
 from .metadata_store.status_store import CatalogStatusScopeError, build_catalog_status, build_library_status_batch
 from .paths import is_path_safe, resolve_path
@@ -406,18 +408,10 @@ async def api_scan_all_libraries():
         message="Queueing library updates",
         counters=counters,
     )
-    await run_in_threadpool(
-        _set_job_state,
-        int(parent["id"]),
-        "succeeded",
-        progress_current=len(children),
-        progress_total=len(children),
-        message="Update all libraries queued",
-        counters=counters,
-    )
+    parent = await run_in_threadpool(update_parent_aggregate_job, int(parent["id"]))
     return {
         "job_id": parent["id"],
-        "state": "succeeded",
+        "state": parent["state"],
         "child_job_ids": [child[0] for child in children],
         "count": len(children),
     }
@@ -537,6 +531,8 @@ async def _api_update_library(library_id: int, payload: LibraryUpdate):
         )
     except LibraryOverlapError as exc:
         raise APIError(409, "library_overlap", str(exc)) from exc
+    except LibraryBusyError as exc:
+        raise APIError(409, "library_busy", str(exc)) from exc
     if updated is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
     if payload.import_paths is not None:
@@ -692,7 +688,11 @@ async def api_unregister_library(
     active = await run_in_threadpool(_active_library_job, library_id, "scan", "rebuild")
     if active is not None:
         raise APIError(409, "library_busy", "Library update or rebuild is active")
-    if not await run_in_threadpool(unregister_library, library_id):
+    try:
+        removed = await run_in_threadpool(unregister_library, library_id)
+    except LibraryBusyError as exc:
+        raise APIError(409, "library_busy", str(exc)) from exc
+    if not removed:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
     await run_in_threadpool(file_watcher.reconcile_watcher)
     return {"library_id": library_id, "unregistered": True, "source_files_deleted": False}

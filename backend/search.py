@@ -1,6 +1,8 @@
 """Search indexed gallery files, metadata, and library inspector rows."""
 
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Literal
 
@@ -23,6 +25,9 @@ from .metadata_store import (
 from .paths import is_path_safe, resolve_path
 
 router = APIRouter()
+_STALE_CLEANUP_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="search-stale-cleanup")
+_STALE_CLEANUP_LOCK = threading.Lock()
+_STALE_CLEANUP_ROOTS: set[str] = set()
 
 
 def _registered_or_requested_root(path: str | None) -> Path:
@@ -46,22 +51,47 @@ def _require_visible_registered_path(path: Path) -> None:
         raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
 
 
-def _cleanup_registered_library_roots() -> int:
+def _cleanup_registered_library_roots(stale_paths: set[str]) -> int:
     from .metadata_store import list_libraries
 
-    removed = 0
+    affected_roots: set[str] = set()
     for library in list_libraries():
         import_paths = library.get("import_paths") or [{"path": library["root_path"]}]
         for import_path in import_paths:
-            removed += int(
-                cleanup_stale_index(
-                    None,
-                    import_path["path"],
-                    remove_outside_scope=False,
-                )
-                or 0
-            )
+            root = str(Path(import_path["path"]).resolve())
+            for stale_path in stale_paths:
+                try:
+                    Path(stale_path).resolve().relative_to(root)
+                    affected_roots.add(root)
+                    break
+                except ValueError:
+                    continue
+    removed = 0
+    for root in sorted(affected_roots)[:4]:
+        removed += int(
+            cleanup_stale_index(None, root, remove_outside_scope=False, max_candidates=250) or 0
+        )
     return removed
+
+
+def _schedule_stale_cleanup(stale_paths: set[str]) -> None:
+    """Deduplicate affected roots and keep bounded cleanup off request workers."""
+    if not stale_paths:
+        return
+    key = "\0".join(sorted(stale_paths))
+    with _STALE_CLEANUP_LOCK:
+        if key in _STALE_CLEANUP_ROOTS:
+            return
+        _STALE_CLEANUP_ROOTS.add(key)
+
+    def run() -> None:
+        try:
+            _cleanup_registered_library_roots(stale_paths)
+        finally:
+            with _STALE_CLEANUP_LOCK:
+                _STALE_CLEANUP_ROOTS.discard(key)
+
+    _STALE_CLEANUP_EXECUTOR.submit(run)
 
 
 @router.get("/api/search-metadata")
@@ -136,6 +166,7 @@ async def api_search(
         raise APIError(500, ErrorType.SERVER_ERROR, f"Search failed: {exc}") from exc
 
     stale_detected = False
+    stale_paths: set[str] = set()
 
     def safe_section(section: list[dict]) -> list[dict]:
         nonlocal stale_detected
@@ -145,11 +176,13 @@ async def api_search(
                 resolved = resolve_path(result["path"])
             except (OSError, RuntimeError):
                 stale_detected = True
+                stale_paths.add(str(result["path"]))
                 continue
             if os.path.exists(resolved) and is_path_safe(resolved):
                 safe_results.append(result)
             else:
                 stale_detected = True
+                stale_paths.add(str(result["path"]))
         return safe_results
 
     albums = safe_section(data["albums"])
@@ -159,7 +192,7 @@ async def api_search(
     media = safe_section(data.get("media", []))
 
     if stale_detected:
-        await run_in_threadpool(_cleanup_registered_library_roots)
+        _schedule_stale_cleanup(stale_paths)
 
     return {
         "query": data["query"],
@@ -200,20 +233,23 @@ async def api_library_inspector(
             raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
         await run_in_threadpool(_require_visible_registered_path, root_path)
 
-    def _filter_safe_rows(rows: list[dict]) -> tuple[list[dict], bool]:
+    def _filter_safe_rows(rows: list[dict]) -> tuple[list[dict], bool, set[str]]:
         stale = False
         safe: list[dict] = []
+        stale_paths: set[str] = set()
         for row in rows:
             try:
                 resolved = resolve_path(row["path"])
             except (OSError, RuntimeError):
                 stale = True
+                stale_paths.add(str(row["path"]))
                 continue
             if os.path.exists(resolved) and is_path_safe(resolved):
                 safe.append(row)
             else:
                 stale = True
-        return safe, stale
+                stale_paths.add(str(row["path"]))
+        return safe, stale, stale_paths
 
     try:
         data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, limit, sort, cursor)
@@ -223,7 +259,7 @@ async def api_library_inspector(
         raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
 
     query_truncated = bool(data.get("truncated"))
-    safe_rows, stale_detected = _filter_safe_rows(data["rows"])
+    safe_rows, stale_detected, stale_paths = _filter_safe_rows(data["rows"])
     # Overscan once if stale rows were detected and the current page is not full,
     # or if the query was truncated and may contain stale entries just past the page.
     if stale_detected and (len(safe_rows) < limit or query_truncated):
@@ -242,14 +278,15 @@ async def api_library_inspector(
             raise APIError(400, ErrorType.BAD_REQUEST, "Invalid pagination cursor") from exc
         except Exception as exc:  # noqa: BLE001
             raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
-        overscan_safe_rows, overscan_stale_detected = _filter_safe_rows(overscan_data["rows"])
+        overscan_safe_rows, overscan_stale_detected, overscan_stale_paths = _filter_safe_rows(overscan_data["rows"])
         data = overscan_data
         query_truncated = bool(overscan_data.get("truncated")) or len(overscan_safe_rows) > limit
         safe_rows = overscan_safe_rows[:limit]
         stale_detected = stale_detected or overscan_stale_detected
+        stale_paths.update(overscan_stale_paths)
 
     if stale_detected:
-        await run_in_threadpool(_cleanup_registered_library_roots)
+        _schedule_stale_cleanup(stale_paths)
 
     data["rows"] = safe_rows
     data["returned"] = len(safe_rows)

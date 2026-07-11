@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from .imported_data_maintenance import clear_imported_data, rebuild_imported_data, reset_catalog_database
 from .indexer import get_metadata_lifecycle_status
-from .integrity_checker import integrity_checker
+from .integrity_checker import IntegrityCheckAlreadyRunning, integrity_checker
 from .metadata_store import _DB_LOCK, _connect
 from .metadata_store.maintenance_store import get_latest_run
 from .metadata_store.status_store import build_global_runtime
@@ -120,9 +120,10 @@ async def get_file_health():
 @router.post("/file-health/check")
 async def post_file_health_check():
     """Trigger a new file-health check run."""
-    if integrity_checker.is_running:
+    try:
+        summary = await run_in_threadpool(integrity_checker.run_and_persist, trigger="manual")
+    except IntegrityCheckAlreadyRunning:
         return JSONResponse(status_code=409, content={"run": None, "error": "check already running"})
-    summary = integrity_checker.run_and_persist(trigger="manual")
     return FileHealthResponse(
         run=FileHealthRun(
             id=summary["id"],

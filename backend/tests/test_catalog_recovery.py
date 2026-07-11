@@ -349,3 +349,35 @@ def test_scan_worker_ensure_running_recovers_running_job_when_workers_dead(
             assert row["error"] == "Catalog worker stopped before completing the job"
     finally:
         stop()
+
+
+def test_scan_worker_incomplete_stop_retains_live_thread_and_blocks_restart(monkeypatch):
+    import backend.scan_worker as worker
+
+    class StillRunning:
+        def __init__(self):
+            self.alive = True
+            self.join_calls = 0
+
+        def is_alive(self):
+            return self.alive
+
+        def join(self, timeout=None):
+            self.join_calls += 1
+
+    thread = StillRunning()
+    monkeypatch.setattr(worker, "_worker_threads", [thread])
+    monkeypatch.setattr(worker, "CATALOG_SHUTDOWN_TIMEOUT_SECONDS", 0.01)
+    recovered = []
+    monkeypatch.setattr(worker, "recover_stale_jobs", lambda **kwargs: recovered.append(kwargs) or [])
+
+    worker.stop()
+    assert worker._worker_threads == [thread]
+    assert worker.runtime_status()["shutdown_incomplete"] == 1
+
+    worker.start()
+    assert worker._worker_threads == [thread]
+    assert recovered == []
+
+    thread.alive = False
+    worker._stop_event.clear()

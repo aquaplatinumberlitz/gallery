@@ -61,5 +61,9 @@ class LibraryOverlapError(ValueError):
     """Raised when an import path overlaps another registered library."""
 
 
+class LibraryBusyError(RuntimeError):
+    """Raised when configuration mutation conflicts with catalog work."""
+
+
 class CatalogBrowseScopeError(ValueError):
     """Raised when a browse request points outside the selected library."""

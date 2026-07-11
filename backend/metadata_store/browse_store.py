@@ -8,7 +8,6 @@ from typing import Any
 
 from ..models import FileNode, VideoFileNode
 from ._db import _DB_LOCK, _active_asset_where, _connect
-from .identity import MTIME_NS_TOLERANCE
 from .library_store import _find_library_for_path_conn
 from .path_utils import canonicalize_catalog_path, catalog_path_contains
 from .types import CatalogBrowseScopeError
@@ -247,7 +246,7 @@ def _catalog_browse_path_conn(
               ON im.path = a.path AND im.size = a.size
               AND im.mtime_ns IS NOT NULL
               AND a.mtime_ns IS NOT NULL
-              AND ABS(im.mtime_ns - a.mtime_ns) < {MTIME_NS_TOLERANCE}
+              AND im.mtime_ns = a.mtime_ns
             WHERE a.library_id = ? AND a.parent_path = ?
               AND {visibility_sql}
         )
@@ -425,7 +424,7 @@ def get_asset_folder_listing(
                   ON im.path = a.path AND im.size = a.size
                   AND im.mtime_ns IS NOT NULL
                   AND a.mtime_ns IS NOT NULL
-                  AND ABS(im.mtime_ns - a.mtime_ns) < {MTIME_NS_TOLERANCE}
+                  AND im.mtime_ns = a.mtime_ns
                 WHERE a.library_id = ? AND a.parent_path = ?
                   AND {_active_asset_where("a")}
             )

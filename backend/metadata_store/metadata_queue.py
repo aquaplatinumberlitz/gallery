@@ -214,7 +214,7 @@ def _persist_metadata_index_jobs(
 
             if existing:
                 if existing["mtime_ns"] is not None and job.mtime_ns is not None:
-                    same_version = abs(existing["mtime_ns"] - job.mtime_ns) < 1000 and existing["size"] == job.size
+                    same_version = existing["mtime_ns"] == job.mtime_ns and existing["size"] == job.size
                 else:
                     same_version = existing["mtime"] == job.mtime and existing["size"] == job.size
                 if not same_version:
@@ -272,7 +272,7 @@ def _persist_metadata_index_jobs(
                   state='queued',
                   attempts=CASE
                     WHEN metadata_index_jobs.mtime_ns IS NOT NULL AND excluded.mtime_ns IS NOT NULL
-                      AND ABS(metadata_index_jobs.mtime_ns - excluded.mtime_ns) < 1000
+                      AND metadata_index_jobs.mtime_ns = excluded.mtime_ns
                       AND metadata_index_jobs.size = excluded.size
                     THEN metadata_index_jobs.attempts
                     WHEN metadata_index_jobs.mtime_ns IS NULL AND excluded.mtime_ns IS NULL
@@ -334,7 +334,7 @@ def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
                         started_at=?,
                         finished_at=NULL,
                         updated_at=?
-                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    WHERE path=? AND mtime_ns = ? AND size=?
                     """,
                     (now, now, job.path, job.mtime_ns, job.size),
                 )
@@ -377,7 +377,7 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
                             error=NULL,
                             finished_at=?,
                             updated_at=?
-                        WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                        WHERE path=? AND mtime_ns = ? AND size=?
                         """,
                         (now, now, job.path, job.mtime_ns, job.size),
                     )
@@ -403,7 +403,7 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
                         error=NULL,
                         finished_at=?,
                         updated_at=?
-                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    WHERE path=? AND mtime_ns = ? AND size=?
                     """,
                     (now, now, job.path, job.mtime_ns, job.size),
                 )
@@ -439,7 +439,7 @@ def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
                         error=NULL,
                         finished_at=?,
                         updated_at=?
-                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    WHERE path=? AND mtime_ns = ? AND size=?
                     """,
                     (now, now, job.path, job.mtime_ns, job.size),
                 )
@@ -474,7 +474,7 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
                         error=?,
                         finished_at=?,
                         updated_at=?
-                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    WHERE path=? AND mtime_ns = ? AND size=?
                     """,
                     (error, now, now, job.path, job.mtime_ns, job.size),
                 )
@@ -533,7 +533,7 @@ def claim_next_metadata_job(
                     started_at=?,
                     finished_at=NULL,
                     updated_at=?
-                WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                WHERE path=? AND mtime_ns = ? AND size=?
                 """,
                 (attempts, now, now, row["path"], row["mtime_ns"], row["size"]),
             )
@@ -657,7 +657,7 @@ def fail_metadata_job(
                 error=?,
                 finished_at=?,
                 updated_at=?
-            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+            WHERE path=? AND mtime_ns = ? AND size=?
             """,
             (error[:1000], now, now, job.path, job.mtime_ns, job.size),
         )
@@ -689,7 +689,7 @@ def mark_metadata_job_stale(
                 error=NULL,
                 finished_at=?,
                 updated_at=?
-            WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+            WHERE path=? AND mtime_ns = ? AND size=?
             """,
             (now, now, job.path, job.mtime_ns, job.size),
         )
@@ -755,7 +755,7 @@ def reset_running_jobs_to_queued(
                     started_at=NULL,
                     finished_at=NULL,
                     updated_at=?
-                WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=? AND state='running'
+                WHERE path=? AND mtime_ns = ? AND size=? AND state='running'
                 """,
                 (now, path, mtime_ns, size),
             )
@@ -881,7 +881,7 @@ def repair_inconsistent_asset_states(
                     SET state='skipped',
                         finished_at=?,
                         updated_at=?
-                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=? AND state='done'
+                    WHERE path=? AND mtime_ns = ? AND size=? AND state='done'
                     """,
                     (now, now, path, mtime_ns, size),
                 )
@@ -922,7 +922,7 @@ def repair_inconsistent_asset_states(
                     """
                     UPDATE assets
                     SET metadata_state='done'
-                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=?
+                    WHERE path=? AND mtime_ns = ? AND size=?
                     """,
                     (path, mtime_ns, size),
                 )
@@ -950,7 +950,7 @@ def repair_inconsistent_asset_states(
                         started_at=NULL,
                         finished_at=NULL,
                         updated_at=?
-                    WHERE path=? AND ABS(mtime_ns - ?) < 1000 AND size=? AND state='done'
+                    WHERE path=? AND mtime_ns = ? AND size=? AND state='done'
                     """,
                     (now, path, mtime_ns, size),
                 )

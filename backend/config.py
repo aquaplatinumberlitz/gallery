@@ -56,6 +56,10 @@ DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS = max(
     1,
     int(os.getenv("GALLERY_DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", "30")),
 )
+CATALOG_SHUTDOWN_TIMEOUT_SECONDS = max(
+    1,
+    int(os.getenv("GALLERY_CATALOG_SHUTDOWN_TIMEOUT_SECONDS", "30")),
+)
 SCAN_PERF_LOGS_ENABLED = os.getenv("SCAN_PERF_LOGS", "1" if os.getenv("PRODUCTION") != "1" else "0").lower() not in {
     "0",
     "false",

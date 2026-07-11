@@ -576,9 +576,9 @@ class DerivativeScheduler:
                         summary.terminal_skipped += 1
                         continue
                     if (
-                        float(stat.st_mtime_ns) != float(row["source_mtime_ns"])
+                        stat.st_mtime_ns != int(row["source_mtime_ns"])
                         or stat.st_size != int(row["source_size"])
-                        or float(row["mtime_ns"]) != float(row["source_mtime_ns"])
+                        or int(row["mtime_ns"]) != int(row["source_mtime_ns"])
                         or int(row["size"]) != int(row["source_size"])
                     ):
                         self._terminalize_derivative(
@@ -631,7 +631,7 @@ class DerivativeScheduler:
         asset_id: int,
         kind: str,
         variant: str,
-        source_mtime_ns: float,
+        source_mtime_ns: int,
         source_size: int,
         max_long_edge: int,
         quality: int,
@@ -778,7 +778,7 @@ class DerivativeScheduler:
             "asset_id": asset_id,
             "kind": kind,
             "variant": variant,
-            "source_mtime_ns": float(stat.st_mtime_ns),
+            "source_mtime_ns": stat.st_mtime_ns,
             "source_size": stat.st_size,
             "max_long_edge": max_long_edge,
             "quality": quality,
@@ -832,7 +832,7 @@ class DerivativeScheduler:
                   AND source_mtime_ns = ? AND source_size = ?
                 ORDER BY id DESC LIMIT 1
                 """,
-                (asset_id, kind, variant, float(stat.st_mtime_ns), stat.st_size),
+                (asset_id, kind, variant, stat.st_mtime_ns, stat.st_size),
             ).fetchone()
         if row is None:
             return None
@@ -856,7 +856,7 @@ class DerivativeScheduler:
                   AND source_size = ? AND status = 'ready'
                 ORDER BY id DESC LIMIT 1
                 """,
-                (asset_id, kind, variant, float(stat.st_mtime_ns), stat.st_size),
+                (asset_id, kind, variant, stat.st_mtime_ns, stat.st_size),
             ).fetchone()
             if row is None or not row["cache_path"] or not Path(row["cache_path"]).is_file():
                 return None
@@ -905,7 +905,7 @@ class DerivativeScheduler:
             row["asset_id"] is not None
             and row["mtime_ns"] is not None
             and row["size"] is not None
-            and float(row["mtime_ns"]) == float(row["source_mtime_ns"])
+            and int(row["mtime_ns"]) == int(row["source_mtime_ns"])
             and int(row["size"]) == int(row["source_size"])
         )
         return {
@@ -1043,11 +1043,11 @@ class DerivativeScheduler:
             if (
                 asset["mtime_ns"] is None
                 or asset["size"] is None
-                or (float(asset["mtime_ns"]) != float(stat.st_mtime_ns) or int(asset["size"]) != stat.st_size)
+                or (int(asset["mtime_ns"]) != stat.st_mtime_ns or int(asset["size"]) != stat.st_size)
             ):
                 summary.source_unavailable += len(variants)
                 continue
-            candidates.append((int(asset["id"]), float(stat.st_mtime_ns), stat.st_size))
+            candidates.append((int(asset["id"]), stat.st_mtime_ns, stat.st_size))
         summary.desired_derivatives = len(candidates) * len(variants)
 
         for offset in range(0, len(candidates), DERIVATIVE_RECONCILE_BATCH_SIZE):
@@ -1589,11 +1589,11 @@ class DerivativeScheduler:
         except OSError:
             return "source_missing"
         if (
-            float(stat.st_mtime_ns) != float(row["source_mtime_ns"])
+            stat.st_mtime_ns != int(row["source_mtime_ns"])
             or stat.st_size != int(row["source_size"])
             or row["mtime_ns"] is None
             or row["size"] is None
-            or float(row["mtime_ns"]) != float(row["source_mtime_ns"])
+            or int(row["mtime_ns"]) != int(row["source_mtime_ns"])
             or int(row["size"]) != int(row["source_size"])
         ):
             return "source_changed"
@@ -1708,7 +1708,7 @@ class DerivativeScheduler:
             raise _DerivativeSkip("source_missing", f"source file is missing: {source}") from exc
         if (
             str(asset["path"]) != str(source)
-            or float(stat.st_mtime_ns) != float(job["source_mtime_ns"])
+            or stat.st_mtime_ns != int(job["source_mtime_ns"])
             or stat.st_size != int(job["source_size"])
         ):
             raise _DerivativeSkip("source_changed", "source identity changed after derivative was queued")

@@ -21,6 +21,70 @@ from .library_store import _find_library_for_path_conn, _library_exclusion_patte
 from .metadata_persist import index_images
 
 logger = logging.getLogger(__name__)
+_INDEX_WRITE_BATCH_SIZE = 500
+
+
+def _bulk_index_records(records: list[tuple[Any, ...]], library_id: int | None) -> None:
+    """Persist one scan's already-statted rows using bounded shared transactions."""
+    if not records:
+        return
+    _initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        for start in range(0, len(records), _INDEX_WRITE_BATCH_SIZE):
+            batch = records[start : start + _INDEX_WRITE_BATCH_SIZE]
+            conn.executemany(
+                """INSERT INTO file_index (
+                     path, name, parent_path, type, mtime, mtime_ns, size, width,
+                     height, indexed_at, library_id
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(path) DO UPDATE SET name=excluded.name,
+                     parent_path=excluded.parent_path, type=excluded.type, mtime=excluded.mtime,
+                     mtime_ns=excluded.mtime_ns, size=excluded.size, width=excluded.width,
+                     height=excluded.height, indexed_at=excluded.indexed_at,
+                     library_id=excluded.library_id""",
+                (record[:10] + (library_id,) for record in batch),
+            )
+            conn.executemany("DELETE FROM file_index_fts WHERE path = ?", ((record[0],) for record in batch))
+            conn.executemany(
+                "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
+                ((record[1], record[0], record[3], record[2]) for record in batch),
+            )
+            if library_id is not None:
+                conn.executemany(
+                    """INSERT INTO assets (
+                         library_id, path, parent_path, name, type, mtime_ns, size,
+                         width, height, indexed_at, metadata_state, offline, deleted_at,
+                         mime_type, duration_ms, codec
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?, ?)
+                       ON CONFLICT(library_id, path) DO UPDATE SET
+                         parent_path=excluded.parent_path, name=excluded.name, type=excluded.type,
+                         mtime_ns=COALESCE(excluded.mtime_ns, assets.mtime_ns),
+                         size=COALESCE(excluded.size, assets.size),
+                         width=COALESCE(excluded.width, assets.width),
+                         height=COALESCE(excluded.height, assets.height),
+                         indexed_at=excluded.indexed_at,
+                         mime_type=COALESCE(excluded.mime_type, assets.mime_type),
+                         duration_ms=COALESCE(excluded.duration_ms, assets.duration_ms),
+                         codec=COALESCE(excluded.codec, assets.codec), offline=0, deleted_at=NULL""",
+                    (
+                        (
+                            library_id,
+                            record[0],
+                            record[2],
+                            record[1],
+                            record[3],
+                            record[5],
+                            record[6],
+                            record[7],
+                            record[8],
+                            record[9],
+                            record[10],
+                            record[11],
+                            record[12],
+                        )
+                        for record in batch
+                    ),
+                )
 
 
 def _initialize_database() -> None:
@@ -146,11 +210,23 @@ def _cleanup_stale_index_conn(
     root_path: str | Path | None = None,
     *,
     remove_outside_scope: bool = True,
+    max_candidates: int | None = None,
 ) -> int:
     root = Path(root_path).resolve() if root_path is not None else None
     candidate_paths: set[str] = set()
     for table in ("file_index", "file_index_fts", "image_metadata", "metadata_index_jobs"):
-        candidate_paths.update(row["path"] for row in conn.execute(f"SELECT path FROM {table}"))
+        params: list[Any] = []
+        query = f"SELECT path FROM {table}"
+        if root is not None and not remove_outside_scope:
+            where, params = _scoped_path_where(root)
+            query += f" WHERE {where}"
+        if max_candidates is not None:
+            remaining = max(0, max_candidates - len(candidate_paths))
+            if remaining == 0:
+                break
+            query += " LIMIT ?"
+            params.append(remaining)
+        candidate_paths.update(row["path"] for row in conn.execute(query, params))
 
     stale_paths: list[str] = []
 
@@ -200,6 +276,7 @@ def cleanup_stale_index(
     root_path: str | Path | None = None,
     *,
     remove_outside_scope: bool = True,
+    max_candidates: int | None = None,
 ) -> int:
     """Remove stale database rows for missing or out-of-root paths.
 
@@ -207,10 +284,14 @@ def cleanup_stale_index(
     """
     _initialize_database()
     if isinstance(state, sqlite3.Connection):
-        return _cleanup_stale_index_conn(state, root_path, remove_outside_scope=remove_outside_scope)
+        return _cleanup_stale_index_conn(
+            state, root_path, remove_outside_scope=remove_outside_scope, max_candidates=max_candidates
+        )
 
     with _DB_LOCK, _connect() as conn:
-        return _cleanup_stale_index_conn(conn, root_path, remove_outside_scope=remove_outside_scope)
+        return _cleanup_stale_index_conn(
+            conn, root_path, remove_outside_scope=remove_outside_scope, max_candidates=max_candidates
+        )
 
 
 def cleanup_ignored_index(root_path: str | Path | None = None) -> int:
@@ -256,10 +337,12 @@ def index_directory_tree(
     """
     root_path = Path(root).resolve()
     indexed = 0
+    records: list[tuple[Any, ...]] = []
     local_image_paths: list[Path] = [] if include_metadata else None  # type: ignore[assignment]
     library = get_library_for_path(root_path)
     import_root = library["matched_import_path"] if library is not None else None
     exclusion_patterns = library["exclusion_patterns"] if library is not None else []
+    library_id = int(library["id"]) if library is not None else None
 
     def visit(folder: Path, visited_inodes: set[tuple[int, int]]) -> None:
         nonlocal indexed
@@ -275,8 +358,13 @@ def index_directory_tree(
             return
 
         try:
-            if index_file(folder, folder.name or str(folder), folder.parent, "folder", stat.st_mtime, None, None, None):
-                indexed += 1
+            records.append(
+                (
+                    str(folder), folder.name or str(folder), str(folder.parent), "folder",
+                    stat.st_mtime, stat.st_mtime_ns, None, None, None, time.time(), None, None, None,
+                )
+            )
+            indexed += 1
             if collected_asset_paths is not None:
                 collected_asset_paths.add(str(folder.resolve()))
         except OSError:
@@ -341,20 +429,14 @@ def index_directory_tree(
                                     height = parse_int(video_stream.get("height"))
                         except (OSError, subprocess.SubprocessError, TypeError, ValueError, json.JSONDecodeError):
                             logger.debug("Could not probe video metadata for %s", entry, exc_info=True)
-                    if index_file(
-                        entry,
-                        entry.name,
-                        entry.parent,
-                        asset_type or "folder",
-                        stat.st_mtime,
-                        stat.st_size,
-                        width,
-                        height,
-                        mime_type=mime_type,
-                        duration_ms=duration_ms,
-                        codec=codec,
-                    ):
-                        indexed += 1
+                    records.append(
+                        (
+                            str(entry.resolve()), entry.name, str(entry.parent.resolve()), asset_type or "folder",
+                            stat.st_mtime, stat.st_mtime_ns, stat.st_size, width, height, time.time(),
+                            mime_type, duration_ms, codec,
+                        )
+                    )
+                    indexed += 1
                     if collected_asset_paths is not None:
                         collected_asset_paths.add(str(entry.resolve()))
                     if include_metadata and asset_type == "image":
@@ -365,6 +447,7 @@ def index_directory_tree(
                 continue
 
     visit(root_path, set())
+    _bulk_index_records(records, library_id)
     if include_metadata and local_image_paths:
         indexed += index_images(local_image_paths)
     return indexed

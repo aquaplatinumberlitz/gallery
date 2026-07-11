@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 from .catalog_maintenance_gate import release_maintenance_gate, try_acquire_maintenance_gate
 from .config import (
+    CATALOG_SHUTDOWN_TIMEOUT_SECONDS,
     DERIVATIVE_RECONCILE_ENABLED,
     GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS,
     GALLERY_CATALOG_SERVICE_ENABLED,
@@ -41,6 +43,7 @@ _worker_threads: list[threading.Thread] = []
 _service_lock = threading.RLock()
 _wake_event = threading.Event()
 _stop_event = threading.Event()
+_shutdown_incomplete = False
 
 TRIGGER_PRIORITIES = {
     "initial": 100,
@@ -69,11 +72,13 @@ def _transition_job(job_id: int, state: str, **changes: Any) -> dict[str, Any]:
     elif state == "cancelled":
         event_type = "job.cancelled"
     _emit_job(job, event_type)
-    if job.get("parent_job_id") is not None and job.get("type") in {"scan", "rebuild"}:
-        from .metadata_store.job_store import update_parent_aggregate_job
+    if job.get("type") in {"scan", "rebuild"}:
+        from .metadata_store.job_store import list_parent_aggregate_job_ids, update_parent_aggregate_job
 
-        parent = update_parent_aggregate_job(int(job["parent_job_id"]))
-        if parent is not None:
+        for parent_job_id in list_parent_aggregate_job_ids(int(job["id"])):
+            parent = update_parent_aggregate_job(parent_job_id)
+            if parent is None:
+                continue
             parent_event = (
                 "job.completed"
                 if parent["state"] == "succeeded"
@@ -107,10 +112,14 @@ def _prune_worker_threads_locked() -> list[threading.Thread]:
 
 
 def _spawn_missing_workers_locked() -> None:
+    global _shutdown_incomplete
+    if _stop_event.is_set() and any(thread.is_alive() for thread in _worker_threads):
+        return
     missing = max(0, GALLERY_CATALOG_WORKERS - len(_worker_threads))
     if missing == 0:
         return
     _stop_event.clear()
+    _shutdown_incomplete = False
     start_index = len(_worker_threads)
     for offset in range(missing):
         thread = threading.Thread(
@@ -482,6 +491,9 @@ def start() -> None:
     """Start bounded in-process catalog workers."""
     with _service_lock:
         alive = _prune_worker_threads_locked()
+        if _stop_event.is_set() and alive:
+            LOGGER.warning("Catalog worker restart deferred until incomplete shutdown finishes")
+            return
         if alive:
             _spawn_missing_workers_locked()
             return
@@ -505,6 +517,13 @@ def ensure_running(*, service_enabled: bool = GALLERY_CATALOG_SERVICE_ENABLED) -
     with _service_lock:
         alive = _prune_worker_threads_locked()
         recovered_count = 0
+        if _stop_event.is_set() and alive:
+            return {
+                "worker_count": GALLERY_CATALOG_WORKERS,
+                "alive_workers": len(alive),
+                "recovered_jobs": 0,
+                "shutdown_incomplete": 1,
+            }
         if service_enabled and not alive:
             recovered_jobs = recover_stale_jobs(reason="Catalog worker stopped before completing the job")
             recovered_count = len(recovered_jobs)
@@ -522,18 +541,27 @@ def ensure_running(*, service_enabled: bool = GALLERY_CATALOG_SERVICE_ENABLED) -
             "worker_count": GALLERY_CATALOG_WORKERS,
             "alive_workers": len(alive),
             "recovered_jobs": recovered_count,
+            "shutdown_incomplete": int(_shutdown_incomplete),
         }
 
 
 def stop() -> None:
-    """Signal catalog workers to stop."""
+    """Signal workers to stop within one shared absolute deadline."""
+    global _shutdown_incomplete
     _stop_event.set()
     _wake_event.set()
+    deadline = time.monotonic() + CATALOG_SHUTDOWN_TIMEOUT_SECONDS
     with _service_lock:
         threads = list(_worker_threads)
         for thread in threads:
-            thread.join(timeout=1)
-        _worker_threads.clear()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            thread.join(timeout=remaining)
+        alive = _prune_worker_threads_locked()
+        _shutdown_incomplete = bool(alive)
+        if alive:
+            LOGGER.warning("Catalog shutdown timed out with %s worker(s) still running", len(alive))
 
 
 def runtime_status() -> dict[str, int]:
@@ -543,4 +571,5 @@ def runtime_status() -> dict[str, int]:
         return {
             "worker_count": GALLERY_CATALOG_WORKERS,
             "alive_workers": len(active),
+            "shutdown_incomplete": int(_shutdown_incomplete),
         }
