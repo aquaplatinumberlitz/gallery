@@ -8,6 +8,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
 from ..metadata_extract import contains_cjk
 from ._db import _DB_LOCK, _connect
 from ._schema import initialize_database
@@ -621,14 +622,12 @@ def _prefix_sql_params(sql: str, params: dict[str, Any], prefix: str) -> tuple[s
 
 def _search_fielded_media_page(
     conn: sqlite3.Connection,
-    parsed: Any,
+    parsed: ParsedQuery,
     scope: str,
     root_path: str | Path | None,
     limit: int,
     cursor: int,
 ) -> tuple[list[sqlite3.Row], Path, bool]:
-    from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
-
     scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
     named_scope_sql = ""
     params: dict[str, Any] = {"page_limit": limit + 1, "page_offset": cursor}

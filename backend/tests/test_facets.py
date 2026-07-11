@@ -234,6 +234,15 @@ def test_facets_scope_prefix_is_windows_safe():
     assert win_params["scope_prefix"] is not None
 
 
+def test_facets_scope_prefix_escapes_like_wildcards(tmp_path: Path):
+    from backend.facets import _build_scope
+
+    scope = tmp_path / r"percent%_back\slash"
+    _where, params = _build_scope(str(scope))
+
+    assert params["scope_prefix"].endswith("percent\\%\\_back\\\\slash/%")
+
+
 def test_facets_lora_facet(tmp_path: Path):
     album = tmp_path / "album"
     album.mkdir()

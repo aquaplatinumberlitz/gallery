@@ -250,8 +250,7 @@ class TestDerivativeReadyNoFile:
                    VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'ready', ?, 512, 'webp', 85)""",
                 (asset_id, mtime_ns, size, missing_path),
             )
-        with _DB_LOCK, _connect() as conn:
-            count = _checker._check_derivative_ready_no_file(conn)
+        count = _checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 1
         with _DB_LOCK, _connect() as conn:
             row = conn.execute(
@@ -289,7 +288,8 @@ class TestDerivativeReadyNoFile:
                 """,
                 (asset_id, stat.st_mtime_ns, stat.st_size),
             )
-            assert _checker._check_derivative_ready_no_file(conn) == 0
+        assert _checker.run_all_checks()["derivative_ready_requeued"] == 0
+        with _DB_LOCK, _connect() as conn:
             derivative = conn.execute("SELECT status FROM asset_derivatives").fetchone()
             jobs = conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0]
         assert derivative["status"] == "skipped"
@@ -322,8 +322,7 @@ class TestDerivativeReadyNoFile:
                 "INSERT INTO derivative_jobs (derivative_id, priority, state) VALUES (?, 3, 'queued')",
                 (ad_id,),
             )
-        with _DB_LOCK, _connect() as conn:
-            count = _checker._check_derivative_ready_no_file(conn)
+        count = _checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 1
         with _DB_LOCK, _connect() as conn:
             # Only one queued/running derivative_jobs row should exist
@@ -352,8 +351,7 @@ class TestDerivativeReadyNoFile:
                    VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'ready', NULL, 512, 'webp', 85)""",
                 (asset_id, mtime_ns, size),
             )
-        with _DB_LOCK, _connect() as conn:
-            count = _checker._check_derivative_ready_no_file(conn)
+        count = _checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 1
         with _DB_LOCK, _connect() as conn:
             row = conn.execute(
@@ -380,8 +378,7 @@ class TestDerivativeReadyNoFile:
                    VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'ready', ?, 512, 'webp', 85)""",
                 (asset_id, mtime_ns, size, str(cache_file)),
             )
-        with _DB_LOCK, _connect() as conn:
-            count = _checker._check_derivative_ready_no_file(conn)
+        count = _checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 0
 
 
@@ -724,12 +721,11 @@ class TestRunAndPersist:
         assert checker.is_running is False
 
 
-class TestDeadMethodCoverage:
-    """Cover integrity checker helper methods not called from run_all_checks."""
+class TestRunAllChecksDerivativeContracts:
+    """Cover derivative repairs through the production integrity entrypoint."""
 
     def test_check_derivative_queued_without_job_empty(self, _checker, _init_db):
-        conn = _connect()
-        assert _checker._check_derivative_queued_without_job(conn) == 0
+        assert _checker.run_all_checks()["derivative_queued_without_job"] == 0
 
     def test_check_abandoned_skips_inapplicable(self, _checker, isolated_gallery_root: Path):
         root = isolated_gallery_root
@@ -795,13 +791,16 @@ class TestDeadMethodCoverage:
                    VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'queued', 512, 'webp', 85)""",
                 (asset_id, mtime_ns, size),
             )
-        with _DB_LOCK, _connect() as conn:
-            result = _checker._check_derivative_queued_without_job(conn)
-        assert result.jobs_created == 1
+        result = _checker.run_all_checks()
+        assert result["derivative_queued_without_job"] == 1
+        assert (
+            result["derivative_queued_without_job_repaired"]
+            + result["derivative_queued_without_job_active"]
+            == 1
+        )
 
     def test_check_derivative_policy_deferred_empty(self, _checker, _init_db):
-        conn = _connect()
-        assert _checker._check_derivative_policy_deferred(conn) == 0
+        assert _checker.run_all_checks()["derivative_policy_deferred"] == 0
 
     def test_check_derivative_policy_deferred_with_evicted(self, _checker, isolated_gallery_root: Path):
         root = isolated_gallery_root
@@ -820,14 +819,15 @@ class TestDeadMethodCoverage:
                    VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'evicted', 512, 'webp', 85)""",
                 (asset_id, mtime_ns, size),
             )
-        with _DB_LOCK, _connect() as conn:
-            result = _checker._check_derivative_policy_deferred(conn)
-        assert result >= 1
+        result = _checker.run_all_checks()
+        assert result["derivative_policy_deferred"] == 1
+        with _connect() as conn:
+            assert conn.execute(
+                "SELECT count(*) FROM derivative_jobs WHERE state IN ('queued', 'running')"
+            ).fetchone()[0] >= 1
 
     def test_check_derivative_expected_row_missing_no_warm_libraries(self, _checker, _init_db):
-        conn = _connect()
-        result = _checker._check_derivative_expected_row_missing(conn)
-        assert result == 0
+        assert _checker.run_all_checks()["derivative_expected_row_missing"] == 0
 
     def test_check_derivative_expected_row_missing_with_warm_library(self, _checker, isolated_gallery_root: Path):
         root = isolated_gallery_root
@@ -842,6 +842,6 @@ class TestDeadMethodCoverage:
         mtime_ns = source_stat.st_mtime_ns
         with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
-        with _DB_LOCK, _connect() as conn:
-            result = _checker._check_derivative_expected_row_missing(conn)
-        assert result >= 1
+        result = _checker.run_all_checks()
+        assert result["derivative_expected_row_missing"] >= 1
+        assert result["derivative_expected_row_repaired"] >= 1

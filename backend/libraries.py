@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from fastapi import APIRouter, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -77,6 +77,190 @@ class LibraryScanRequest(BaseModel):
     scope_path: str | None = None
 
 
+class ValidationItem(TypedDict):
+    """One normalized path or exclusion-pattern validation result."""
+
+    value: str
+    normalized_value: str | None
+    is_valid: bool
+    message: str | None
+    warnings: list[str]
+
+
+class _APIResponse(BaseModel):
+    """Allow additive response fields while validating documented fields."""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class LibraryImportPathResponse(_APIResponse):
+    """Ordered import path serialized with millisecond timestamps."""
+
+    id: int
+    library_id: int
+    path: str
+    position: int
+    created_at: int
+    updated_at: int
+
+
+class LibraryResponse(_APIResponse):
+    """Registered library returned by management routes."""
+
+    id: int
+    name: str
+    state: str
+    watch_enabled: int
+    warm_enabled: int
+    created_at: int
+    updated_at: int
+    last_scan_at: int | None = None
+    last_error: str | None = None
+    config_revision: int
+    import_paths: list[LibraryImportPathResponse]
+    exclusion_patterns: list[str]
+    root_path: str
+    asset_count: int
+
+
+class ValidationItemResponse(_APIResponse):
+    """Validation result for one path or exclusion pattern."""
+
+    value: str
+    normalized_value: str | None
+    is_valid: bool
+    message: str | None
+    warnings: list[str]
+
+
+class LibraryValidationResponse(_APIResponse):
+    """Non-mutating validation response for library settings."""
+
+    is_valid: bool
+    import_paths: list[ValidationItemResponse]
+    exclusion_patterns: list[ValidationItemResponse]
+
+
+class LibraryJobResponse(_APIResponse):
+    """Durable catalog job returned by job routes."""
+
+    id: int
+    library_id: int | None
+    parent_job_id: int | None
+    config_revision: int | None
+    type: str
+    state: str
+    scope_path: str | None
+    trigger: str
+    priority: int
+    progress_current: int
+    progress_total: int | None
+    message: str | None
+    error: str | None
+    counters: dict[str, Any]
+    created_at: int
+    updated_at: int
+    started_at: int | None
+    finished_at: int | None
+
+
+class GalleryStatsResponse(_APIResponse):
+    """Aggregate catalog statistics across registered libraries."""
+
+    photos: int
+    videos: int
+    total_assets: int
+    active_assets: int
+    offline_assets: int
+    usage_bytes: int
+    library_count: int
+
+
+class LibraryStatsResponse(_APIResponse):
+    """Aggregate catalog statistics for one library."""
+
+    photos: int
+    videos: int
+    total_assets: int
+    active_assets: int
+    offline_assets: int
+    usage_bytes: int
+    import_path_count: int
+
+
+class LibraryProgressResponse(_APIResponse):
+    """Progressive discovery and metadata coverage for one library."""
+
+    indexed_assets: int
+    estimated_assets: int
+    discovery_complete: bool
+    library_state: str
+    active_job_id: int | None
+
+
+class OfflineAssetResponse(_APIResponse):
+    """Unavailable asset tombstone exposed for administration."""
+
+    id: int
+    name: str
+    path: str
+    type: str
+    size: int | None
+    indexed_at: int | None
+
+
+class OfflineAssetsResponse(_APIResponse):
+    """Collection of unavailable assets for one library."""
+
+    items: list[OfflineAssetResponse]
+    total: int
+
+
+class ForgetOfflineAssetsResponse(_APIResponse):
+    """Result of forgetting unavailable catalog rows."""
+
+    forgotten: int
+    items: list[OfflineAssetResponse]
+
+
+class ScanAllResponse(_APIResponse):
+    """Parent and child job identifiers queued by scan-all."""
+
+    job_id: int
+    state: str
+    child_job_ids: list[int]
+    count: int
+
+
+class LibraryScanResponse(_APIResponse):
+    """Catalog scan enqueue result for one library."""
+
+    job_id: int
+    library_id: int
+    scope_path: str | None
+    operation: str
+    trigger: str
+    state: str
+    coalesced: bool
+
+
+class UnregisterLibraryResponse(_APIResponse):
+    """Confirmation that only catalog records were removed."""
+
+    library_id: int
+    unregistered: bool
+    source_files_deleted: bool
+
+
+class DerivativeWarmResponse(_APIResponse):
+    """Derivative generation enqueue summary."""
+
+    library_id: int
+    state: str
+    assets: int
+    derivatives_considered: int
+
+
 def _trim_value(value: str) -> str:
     trimmed = value.strip()
     if len(trimmed) >= 2 and trimmed[0] == trimmed[-1] and trimmed[0] in {"'", '"'}:
@@ -94,7 +278,7 @@ def _effective_create_paths(payload: LibraryCreate) -> list[str]:
     return []
 
 
-def _validation_item(value: str) -> dict[str, Any]:
+def _validation_item(value: str) -> ValidationItem:
     return {
         "value": value,
         "normalized_value": None,
@@ -104,16 +288,10 @@ def _validation_item(value: str) -> dict[str, Any]:
     }
 
 
-def _validate_settings(
-    import_paths: list[str],
-    exclusion_patterns: list[str],
-    *,
-    existing_library_id: int | None = None,
-) -> dict[str, Any]:
-    libraries = list_libraries()
+def _validate_import_paths(import_paths: list[str]) -> tuple[list[ValidationItem], list[str | None]]:
+    """Normalize import paths and validate their filesystem boundaries."""
     path_items = [_validation_item(value) for value in import_paths]
     canonical_paths: list[str | None] = []
-
     for item in path_items:
         value = _trim_value(item["value"])
         if not value:
@@ -148,7 +326,25 @@ def _validate_settings(
                     pass
             except (OSError, PermissionError):
                 item.update(is_valid=False, message="Import path is not readable")
+    return path_items, canonical_paths
 
+
+def _validate_path_overlaps(
+    path_items: list[ValidationItem],
+    canonical_paths: list[str | None],
+    libraries: list[dict[str, Any]],
+    existing_library_id: int | None,
+) -> None:
+    """Mark duplicate and overlapping normalized import paths invalid."""
+    _validate_duplicate_paths(path_items, canonical_paths)
+    _validate_same_library_overlaps(path_items, canonical_paths)
+    _validate_registered_path_overlaps(path_items, canonical_paths, libraries, existing_library_id)
+
+
+def _validate_duplicate_paths(
+    path_items: list[ValidationItem],
+    canonical_paths: list[str | None],
+) -> None:
     seen_paths: set[str] = set()
     for item, canonical in zip(path_items, canonical_paths, strict=True):
         if canonical is None:
@@ -157,6 +353,11 @@ def _validate_settings(
             item.update(is_valid=False, message="Duplicate import path")
         seen_paths.add(canonical)
 
+
+def _validate_same_library_overlaps(
+    path_items: list[ValidationItem],
+    canonical_paths: list[str | None],
+) -> None:
     for index, (item, canonical) in enumerate(zip(path_items, canonical_paths, strict=True)):
         if canonical is None:
             continue
@@ -167,6 +368,17 @@ def _validate_settings(
                 item["is_valid"] = False
                 item["message"] = "This import path overlaps another path in the same library"
                 break
+
+
+def _validate_registered_path_overlaps(
+    path_items: list[ValidationItem],
+    canonical_paths: list[str | None],
+    libraries: list[dict[str, Any]],
+    existing_library_id: int | None,
+) -> None:
+    for item, canonical in zip(path_items, canonical_paths, strict=True):
+        if canonical is None:
+            continue
         for library in libraries:
             if existing_library_id is not None and int(library["id"]) == existing_library_id:
                 continue
@@ -182,6 +394,9 @@ def _validate_settings(
                 item.update(is_valid=False, message=f"Import path overlaps registered path: {overlap}")
                 break
 
+
+def _validate_exclusion_patterns(exclusion_patterns: list[str]) -> list[ValidationItem]:
+    """Normalize and compile exclusion patterns independently of path checks."""
     pattern_items = [_validation_item(value) for value in exclusion_patterns]
     seen_patterns: set[str] = set()
     if len(pattern_items) > 128:
@@ -204,6 +419,19 @@ def _validate_settings(
             glob.compile(pattern, flags=glob.GLOBSTAR)
         except Exception:  # noqa: BLE001
             item.update(is_valid=False, message="Invalid exclusion pattern")
+    return pattern_items
+
+
+def _validate_settings(
+    import_paths: list[str],
+    exclusion_patterns: list[str],
+    *,
+    existing_library_id: int | None = None,
+) -> dict[str, Any]:
+    libraries = list_libraries()
+    path_items, canonical_paths = _validate_import_paths(import_paths)
+    _validate_path_overlaps(path_items, canonical_paths, libraries, existing_library_id)
+    pattern_items = _validate_exclusion_patterns(exclusion_patterns)
 
     return {
         "is_valid": bool(path_items)
@@ -287,19 +515,19 @@ def _queue_scan(library_id: int, *, parent_job_id: int | None = None) -> tuple[d
 
 
 @router.get("/api/libraries")
-async def api_list_libraries():
+async def api_list_libraries() -> list[LibraryResponse]:
     """List registered libraries."""
     return await run_in_threadpool(list_libraries)
 
 
 @router.get("/api/libraries/status")
-async def api_library_status_batch():
+async def api_library_status_batch() -> dict[str, Any]:
     """Return one unified status per library for admin list rendering."""
     return await run_in_threadpool(build_library_status_batch)
 
 
 @router.post("/api/libraries", status_code=201)
-async def api_register_library(payload: LibraryCreate):
+async def api_register_library(payload: LibraryCreate) -> LibraryResponse:
     """Register one library with ordered import paths and exclusions."""
     import_paths = _effective_create_paths(payload)
     validation = await run_in_threadpool(
@@ -328,7 +556,7 @@ async def api_register_library(payload: LibraryCreate):
 
 
 @router.post("/api/libraries/validate")
-async def api_validate_library_create(payload: LibraryCreate):
+async def api_validate_library_create(payload: LibraryCreate) -> LibraryValidationResponse:
     """Validate create settings without writing them."""
     try:
         import_paths = _effective_create_paths(payload)
@@ -344,7 +572,7 @@ async def api_validate_library_create(payload: LibraryCreate):
 
 
 @router.post("/api/libraries/scan-all", status_code=202)
-async def api_scan_all_libraries():
+async def api_scan_all_libraries() -> ScanAllResponse:
     """Queue a parent scan-all job and one child scan per library."""
     libraries = await run_in_threadpool(list_libraries)
     parent = await run_in_threadpool(
@@ -418,19 +646,19 @@ async def api_scan_all_libraries():
 
 
 @router.get("/api/stats")
-async def api_gallery_stats():
+async def api_gallery_stats() -> GalleryStatsResponse:
     """Return aggregate statistics across registered libraries."""
     return await run_in_threadpool(get_gallery_stats)
 
 
 @router.get("/api/jobs")
-async def api_list_jobs(limit: int = Query(100, ge=1, le=500)):
+async def api_list_jobs(limit: int = Query(100, ge=1, le=500)) -> list[LibraryJobResponse]:
     """Return recent library-management jobs."""
     return await run_in_threadpool(list_jobs, limit=limit)
 
 
 @router.get("/api/jobs/{job_id}")
-async def api_get_job(job_id: int):
+async def api_get_job(job_id: int) -> LibraryJobResponse:
     """Return one library-management job."""
     job = await run_in_threadpool(get_job, job_id)
     if job is None:
@@ -439,7 +667,7 @@ async def api_get_job(job_id: int):
 
 
 @router.get("/api/events")
-async def api_events(request: Request):
+async def api_events(request: Request) -> StreamingResponse:
     """Stream best-effort library job and progress events."""
     return StreamingResponse(
         event_stream(request),
@@ -453,7 +681,7 @@ async def api_events(request: Request):
 
 
 @router.get("/api/libraries/{library_id}")
-async def api_get_library(library_id: int):
+async def api_get_library(library_id: int) -> LibraryResponse:
     """Return library details."""
     library = await run_in_threadpool(get_library, library_id)
     if library is None:
@@ -462,7 +690,7 @@ async def api_get_library(library_id: int):
 
 
 @router.post("/api/libraries/{library_id}/validate")
-async def api_validate_library_update(library_id: int, payload: LibraryUpdate):
+async def api_validate_library_update(library_id: int, payload: LibraryUpdate) -> LibraryValidationResponse:
     """Validate replacement settings for an existing library without writing."""
     library = await run_in_threadpool(get_library, library_id)
     if library is None:
@@ -483,7 +711,7 @@ async def api_validate_library_update(library_id: int, payload: LibraryUpdate):
     )
 
 
-async def _api_update_library(library_id: int, payload: LibraryUpdate):
+async def _api_update_library(library_id: int, payload: LibraryUpdate) -> LibraryResponse:
     if not payload.model_fields_set:
         raise APIError(400, ErrorType.BAD_REQUEST, "At least one update field is required")
     if any(getattr(payload, field) is None for field in payload.model_fields_set):
@@ -547,19 +775,19 @@ async def _api_update_library(library_id: int, payload: LibraryUpdate):
 
 
 @router.patch("/api/libraries/{library_id}")
-async def api_patch_library(library_id: int, payload: LibraryUpdate):
+async def api_patch_library(library_id: int, payload: LibraryUpdate) -> LibraryResponse:
     """Replace supplied library settings."""
     return await _api_update_library(library_id, payload)
 
 
 @router.put("/api/libraries/{library_id}")
-async def api_put_library(library_id: int, payload: LibraryUpdate):
+async def api_put_library(library_id: int, payload: LibraryUpdate) -> LibraryResponse:
     """Compatibility alias for PATCH library settings."""
     return await _api_update_library(library_id, payload)
 
 
 @router.get("/api/libraries/{library_id}/progress")
-async def api_library_progress(library_id: int):
+async def api_library_progress(library_id: int) -> LibraryProgressResponse:
     """Return progressive discovery and metadata coverage."""
     try:
         return await run_in_threadpool(get_library_progress, library_id)
@@ -568,7 +796,7 @@ async def api_library_progress(library_id: int):
 
 
 @router.get("/api/libraries/{library_id}/status")
-async def api_library_status(library_id: int, scope_path: str | None = Query(None)):
+async def api_library_status(library_id: int, scope_path: str | None = Query(None)) -> dict[str, Any]:
     """Return contract-v1 unified catalog status for a library or scoped path."""
     try:
         return await run_in_threadpool(build_catalog_status, library_id, scope_path)
@@ -579,7 +807,7 @@ async def api_library_status(library_id: int, scope_path: str | None = Query(Non
 
 
 @router.get("/api/libraries/{library_id}/stats")
-async def api_library_stats(library_id: int):
+async def api_library_stats(library_id: int) -> LibraryStatsResponse:
     """Return aggregate media statistics for one library."""
     try:
         return await run_in_threadpool(get_library_stats, library_id)
@@ -588,7 +816,7 @@ async def api_library_stats(library_id: int):
 
 
 @router.get("/api/libraries/{library_id}/offline-assets")
-async def api_list_offline_library_assets(library_id: int):
+async def api_list_offline_library_assets(library_id: int) -> OfflineAssetsResponse:
     """List unavailable media tombstones so an administrator can identify them."""
     try:
         items = await run_in_threadpool(list_offline_library_assets, library_id)
@@ -601,7 +829,7 @@ async def api_list_offline_library_assets(library_id: int):
 async def api_forget_offline_library_assets(
     library_id: int,
     confirm: bool = Query(False, description="Must be true; source files are never deleted"),
-):
+) -> ForgetOfflineAssetsResponse:
     """Permanently forget unavailable media catalog rows, never source files."""
     if not confirm:
         raise APIError(400, "confirmation_required", "Forgetting unavailable files requires explicit confirmation")
@@ -613,7 +841,7 @@ async def api_forget_offline_library_assets(
 
 
 @router.get("/api/libraries/{library_id}/jobs")
-async def api_library_jobs(library_id: int, limit: int = Query(50, ge=1, le=200)):
+async def api_library_jobs(library_id: int, limit: int = Query(50, ge=1, le=200)) -> list[LibraryJobResponse]:
     """Return recent jobs for one library."""
     if await run_in_threadpool(get_library, library_id) is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
@@ -621,7 +849,7 @@ async def api_library_jobs(library_id: int, limit: int = Query(50, ge=1, le=200)
 
 
 @router.post("/api/libraries/{library_id}/scan", status_code=202)
-async def api_scan_library(library_id: int, payload: LibraryScanRequest | None = None):
+async def api_scan_library(library_id: int, payload: LibraryScanRequest | None = None) -> LibraryScanResponse:
     """Trigger background discovery/import for a registered library."""
     library = await run_in_threadpool(get_library, library_id)
     if library is None:
@@ -681,7 +909,7 @@ async def api_scan_library(library_id: int, payload: LibraryScanRequest | None =
 async def api_unregister_library(
     library_id: int,
     confirm: bool = Query(False, description="Must be true; source files are never deleted"),
-):
+) -> UnregisterLibraryResponse:
     """Unregister a library and delete only its catalog rows."""
     if not confirm:
         raise APIError(400, "confirmation_required", "Unregister requires explicit confirmation")
@@ -699,7 +927,7 @@ async def api_unregister_library(
 
 
 @router.get("/api/derivatives/status")
-async def api_derivative_status(library_id: int = Query(..., ge=1)):
+async def api_derivative_status(library_id: int = Query(..., ge=1)) -> dict[str, Any]:
     """Return derivative warm coverage and global quota utilization."""
     try:
         return await run_in_threadpool(scheduler.library_status, library_id)
@@ -711,7 +939,7 @@ async def api_derivative_status(library_id: int = Query(..., ge=1)):
 async def api_warm_derivatives(
     library_id: int = Query(..., ge=1),
     kind: str | None = Query(None, pattern="^(thumbnail|preview)$"),
-):
+) -> DerivativeWarmResponse:
     """Queue default derivatives for a library."""
     if await run_in_threadpool(get_library, library_id) is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")

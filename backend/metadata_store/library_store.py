@@ -5,13 +5,44 @@ from __future__ import annotations
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict, cast
 
 from ..config import THUMBNAIL_CACHE_DIR
 from ..files import is_index_excluded_path
 from ._db import _DB_LOCK, _active_asset_where, _connect
 from .path_utils import _catalog_paths_overlap, _path_is_within
 from .types import LibraryBusyError, LibraryOverlapError
+
+
+class LibraryImportPathRecord(TypedDict):
+    """Serialized import-path row exposed by library APIs."""
+
+    id: int
+    library_id: int
+    path: str
+    position: int
+    created_at: int
+    updated_at: int
+
+
+class LibraryRecord(TypedDict, total=False):
+    """Serialized library row shared by store and API boundaries."""
+
+    id: int
+    name: str
+    state: str
+    watch_enabled: int
+    warm_enabled: int
+    created_at: int
+    updated_at: int
+    last_scan_at: int | None
+    last_error: str | None
+    config_revision: int
+    import_paths: list[LibraryImportPathRecord]
+    exclusion_patterns: list[str]
+    root_path: str
+    asset_count: int
+    initial_scan_job_id: int
 
 
 def _unlink_generated_cache_files(cache_paths: list[str]) -> None:
@@ -75,15 +106,40 @@ def _library_exclusion_patterns_conn(conn: sqlite3.Connection, library_id: int) 
     ]
 
 
-def _serialize_library_conn(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
+def _serialize_import_path(row: sqlite3.Row) -> LibraryImportPathRecord:
+    import_path = dict(row)
+    for key in ("created_at", "updated_at"):
+        if import_path.get(key) is not None:
+            import_path[key] = int(import_path[key] * 1000)
+    return cast(LibraryImportPathRecord, import_path)
+
+
+def _serialize_library_row(
+    row: sqlite3.Row,
+    *,
+    import_paths: list[LibraryImportPathRecord],
+    exclusion_patterns: list[str],
+    asset_count: int,
+) -> LibraryRecord:
     library = dict(row)
     # Convert timestamps to milliseconds
     for key in ("created_at", "updated_at", "last_scan_at"):
         if key in library and library[key] is not None:
             library[key] = int(library[key] * 1000)
+    library["import_paths"] = import_paths
+    library["exclusion_patterns"] = exclusion_patterns
+    row_keys = set(row.keys())
+    library["root_path"] = (
+        import_paths[0]["path"] if import_paths else str(row["root_path"]) if "root_path" in row_keys else ""
+    )
+    library["asset_count"] = asset_count
+    return cast(LibraryRecord, library)
+
+
+def _serialize_library_conn(conn: sqlite3.Connection, row: sqlite3.Row) -> LibraryRecord:
     library_id = int(row["id"])
     import_paths = [
-        dict(import_path)
+        _serialize_import_path(import_path)
         for import_path in conn.execute(
             """
             SELECT id, library_id, path, position, created_at, updated_at
@@ -94,18 +150,7 @@ def _serialize_library_conn(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[
             (library_id,),
         )
     ]
-    # Convert import_path timestamps to milliseconds
-    for ip in import_paths:
-        for key in ("created_at", "updated_at"):
-            if ip.get(key) is not None:
-                ip[key] = int(ip[key] * 1000)
-    library["import_paths"] = import_paths
-    library["exclusion_patterns"] = _library_exclusion_patterns_conn(conn, library_id)
-    row_keys = set(row.keys())
-    library["root_path"] = (
-        import_paths[0]["path"] if import_paths else str(row["root_path"]) if "root_path" in row_keys else ""
-    )
-    library["asset_count"] = int(
+    asset_count = int(
         conn.execute(
             f"""
             SELECT count(*) FROM assets
@@ -114,7 +159,12 @@ def _serialize_library_conn(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[
             (library_id,),
         ).fetchone()[0]
     )
-    return library
+    return _serialize_library_row(
+        row,
+        import_paths=import_paths,
+        exclusion_patterns=_library_exclusion_patterns_conn(conn, library_id),
+        asset_count=asset_count,
+    )
 
 
 def get_library_stats(library_id: int) -> dict[str, int]:
@@ -297,14 +347,54 @@ def get_gallery_stats() -> dict[str, int]:
         }
 
 
-def list_libraries() -> list[dict[str, Any]]:
+def list_libraries() -> list[LibraryRecord]:
     """Return all registered libraries in stable ID order."""
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
-        return [_serialize_library_conn(conn, row) for row in conn.execute("SELECT * FROM libraries ORDER BY id")]
+        rows = conn.execute("SELECT * FROM libraries ORDER BY id").fetchall()
+        import_paths_by_library: dict[int, list[LibraryImportPathRecord]] = {int(row["id"]): [] for row in rows}
+        for import_path in conn.execute(
+            """
+            SELECT id, library_id, path, position, created_at, updated_at
+            FROM library_import_paths
+            ORDER BY library_id, position, id
+            """
+        ):
+            import_paths_by_library[int(import_path["library_id"])].append(_serialize_import_path(import_path))
+
+        patterns_by_library: dict[int, list[str]] = {int(row["id"]): [] for row in rows}
+        for pattern in conn.execute(
+            """
+            SELECT library_id, pattern
+            FROM library_exclusion_patterns
+            ORDER BY library_id, position, id
+            """
+        ):
+            patterns_by_library[int(pattern["library_id"])].append(str(pattern["pattern"]))
+
+        asset_counts = {
+            int(asset_count["library_id"]): int(asset_count["asset_count"])
+            for asset_count in conn.execute(
+                f"""
+                SELECT library_id, count(*) AS asset_count
+                FROM assets
+                WHERE type IN ('image', 'video') AND {_active_asset_where()}
+                GROUP BY library_id
+                """
+            )
+        }
+        return [
+            _serialize_library_row(
+                row,
+                import_paths=import_paths_by_library[int(row["id"])],
+                exclusion_patterns=patterns_by_library[int(row["id"])],
+                asset_count=asset_counts.get(int(row["id"]), 0),
+            )
+            for row in rows
+        ]
 
 
-def get_library(library_id: int) -> dict[str, Any] | None:
+def get_library(library_id: int) -> LibraryRecord | None:
     """Return one registered library."""
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
@@ -312,7 +402,7 @@ def get_library(library_id: int) -> dict[str, Any] | None:
         return _serialize_library_conn(conn, row) if row else None
 
 
-def get_library_for_path(path: str | Path) -> dict[str, Any] | None:
+def get_library_for_path(path: str | Path) -> LibraryRecord | None:
     """Return the most-specific registered library containing path."""
     _initialize_database()
     with _DB_LOCK, _connect() as conn:

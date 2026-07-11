@@ -65,6 +65,49 @@ def test_no_implicit_library_on_fresh_startup(isolated_metadata_db: Path):
         assert "root_path" not in columns
 
 
+def test_library_listing_batches_child_queries(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    monkeypatch,
+):
+    from backend.metadata_store import library_store
+
+    first = isolated_gallery_root / "first"
+    second = isolated_gallery_root / "second"
+    first.mkdir()
+    second.mkdir()
+    library_store.create_library([first], exclusion_patterns=["cache/**"])
+    library_store.create_library([second], exclusion_patterns=["tmp/**"])
+
+    statements: list[str] = []
+    real_connect = library_store._connect
+
+    class RecordingConnection:
+        def __init__(self):
+            self.connection = real_connect()
+
+        def __enter__(self):
+            self.connection.__enter__()
+            return self
+
+        def __exit__(self, *args):
+            return self.connection.__exit__(*args)
+
+        def execute(self, statement, parameters=()):
+            statements.append(" ".join(statement.split()))
+            return self.connection.execute(statement, parameters)
+
+    monkeypatch.setattr(library_store, "_connect", RecordingConnection)
+
+    libraries = library_store.list_libraries()
+
+    assert len(libraries) == 2
+    assert len(statements) == 4
+    assert sum("FROM library_import_paths" in statement for statement in statements) == 1
+    assert sum("FROM library_exclusion_patterns" in statement for statement in statements) == 1
+    assert sum("GROUP BY library_id" in statement for statement in statements) == 1
+
+
 def test_scan_and_metadata_dual_write_assets(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,

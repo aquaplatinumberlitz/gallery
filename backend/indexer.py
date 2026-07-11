@@ -42,6 +42,7 @@ from .metadata_store import (
     repair_legacy_asset_mtime_ns,
     reset_running_jobs_to_queued,
 )
+from .metadata_store.search_store import _like_escape
 
 try:  # prometheus-fastapi-instrumentator depends on prometheus_client.
     from prometheus_client import Counter, Gauge, Histogram
@@ -92,7 +93,10 @@ def _is_path_in_scope(path: str | Path | None, scope_root: str | Path | None) ->
     return path_text.startswith(f"{root_text.rstrip(os.sep)}{os.sep}")
 
 
-def _metadata_runtime_scope_sql(scope_path: str | Path | None) -> tuple[str, list[str]]:
+def _metadata_runtime_scope_sql(
+    scope_path: str | Path | None,
+    column: str = "path",
+) -> tuple[str, list[str]]:
     if scope_path is None:
         return "", []
 
@@ -100,8 +104,8 @@ def _metadata_runtime_scope_sql(scope_path: str | Path | None) -> tuple[str, lis
     if not scope_text or scope_text == os.sep:
         return "", []
 
-    prefix = f"{scope_text.rstrip(os.sep)}{os.sep}%"
-    return " AND (path = ? OR path LIKE ?)", [scope_text, prefix]
+    prefix = f"{scope_text.rstrip(os.sep)}{os.sep}"
+    return f" AND ({column} = ? OR {column} LIKE ? ESCAPE '\\')", [scope_text, f"{_like_escape(prefix)}%"]
 
 
 def get_indexer_runtime_status(scope_path: str | Path | None = None) -> dict[str, Any]:
@@ -478,15 +482,8 @@ def get_metadata_lifecycle_status(scope_path: str | Path | None = None) -> dict[
     now = time.time()
     result: dict[str, Any] = {}
 
-    mj_scope = ""
-    a_scope = ""
-    scope_params: list[Any] = []
-    if scope_path is not None:
-        resolved = str(Path(scope_path).resolve())
-        prefix = f"{resolved.rstrip(os.sep)}/"
-        mj_scope = "AND (mj.path = ? OR mj.path LIKE ?)"
-        a_scope = "AND (a.path = ? OR a.path LIKE ?)"
-        scope_params = [resolved, f"{prefix}%"]
+    mj_scope, scope_params = _metadata_runtime_scope_sql(scope_path, "mj.path")
+    a_scope, _asset_scope_params = _metadata_runtime_scope_sql(scope_path, "a.path")
 
     with _DB_LOCK, _connect() as conn:
         # Job state counts

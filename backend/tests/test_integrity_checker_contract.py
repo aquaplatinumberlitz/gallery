@@ -302,7 +302,7 @@ class TestCheckJobActiveNoAsset:
 
 
 # ===================================================================
-# Check 4: _check_derivative_ready_no_file
+# Check 4: ready derivative cache contract through run_all_checks
 # ===================================================================
 
 
@@ -310,8 +310,7 @@ class TestCheckDerivativeReadyNoFile:
     """Contract: ready derivatives must have a valid cache_path file on disk."""
 
     def test_empty_db_returns_zero(self) -> None:
-        with _DB_LOCK, _connect() as conn:
-            count = integrity_checker._check_derivative_ready_no_file(conn)
+        count = integrity_checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 0
 
     def test_missing_source_is_skipped_when_cache_is_missing(self, tmp_path: Path) -> None:
@@ -320,8 +319,7 @@ class TestCheckDerivativeReadyNoFile:
             _asset_row(conn, str(tmp_path / "asset.png"))
             asset_id = conn.execute("SELECT id FROM assets").fetchone()[0]
             _derivative_row(conn, asset_id, cache_path=missing, status="ready")
-        with _DB_LOCK, _connect() as conn:
-            count = integrity_checker._check_derivative_ready_no_file(conn)
+        count = integrity_checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 0
         with _DB_LOCK, _connect() as conn:
             row = conn.execute("SELECT status, cache_path, byte_size FROM asset_derivatives").fetchone()
@@ -337,8 +335,7 @@ class TestCheckDerivativeReadyNoFile:
             asset_id = conn.execute("SELECT id FROM assets").fetchone()[0]
             good_id = _derivative_row(conn, asset_id, cache_path=str(existing), status="ready", source_mtime_ns=1)
             bad_id = _derivative_row(conn, asset_id, cache_path=missing, status="ready", source_mtime_ns=2)
-        with _DB_LOCK, _connect() as conn:
-            count = integrity_checker._check_derivative_ready_no_file(conn)
+        count = integrity_checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 0
         with _DB_LOCK, _connect() as conn:
             assert (

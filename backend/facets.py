@@ -12,6 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from .errors import APIError, ErrorType
 from .metadata_store import _DB_LOCK, _connect, initialize_database
+from .metadata_store.search_store import _like_escape
 from .paths import is_path_safe, resolve_path
 
 try:
@@ -62,7 +63,7 @@ def _build_scope(folder_path: str | None) -> tuple[str, dict]:
         prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
         return "AND (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\')", {
             "scope_root": resolved,
-            "scope_prefix": f"{prefix}%",
+            "scope_prefix": f"{_like_escape(prefix)}%",
         }
     except OSError:
         return "", {}

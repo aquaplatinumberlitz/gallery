@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 _SUPERVISOR_INTERVAL_SECONDS = 30
 _MAX_ATTEMPTS = 3
 _CAPACITY_DEFERRED_AUTOMATIC_REASONS = frozenset({"periodic", "catalog_scan", "catalog_rebuild", "metadata_completion"})
+ReconcileCandidate = tuple[int, int, int]
+PendingCapacity = tuple[dict[str, Any], int, bool]
 
 
 def _lease_days() -> float:
@@ -949,6 +951,176 @@ class DerivativeScheduler:
         with self._file_lock:
             self._served_paths.discard(cache_path)
 
+    def _select_reconcile_assets(
+        self,
+        *,
+        library_id: int | None,
+        scope_path: str | None,
+        asset_ids: Sequence[int] | None,
+        respect_warm_policy: bool,
+    ) -> list[sqlite3.Row]:
+        """Select the active image assets belonging to one reconciliation scope."""
+        with _connect() as conn:
+            scope_clause = ""
+            scope_params: list[Any] = []
+            if scope_path is not None:
+                from .metadata_store import get_library_for_path
+
+                library = get_library_for_path(scope_path)
+                if library is None:
+                    raise KeyError(scope_path)
+                library_id = int(library["id"])
+                path = str(Path(scope_path).resolve())
+                escaped_path = path.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                scope_clause = " AND (a.path = ? OR a.path LIKE ? ESCAPE '\\')"
+                scope_params = [path, escaped_path.rstrip("/") + "/%"]
+            if library_id is not None:
+                library = conn.execute("SELECT warm_enabled FROM libraries WHERE id = ?", (library_id,)).fetchone()
+                if library is None:
+                    raise KeyError(library_id)
+                if respect_warm_policy and not bool(library["warm_enabled"]):
+                    return []
+                where = "a.library_id = ?"
+                params: list[Any] = [library_id, *scope_params]
+            else:
+                requested_ids = [int(asset_id) for asset_id in asset_ids or ()]
+                if not requested_ids:
+                    return []
+                where = f"a.id IN ({', '.join('?' for _ in requested_ids)})"
+                if respect_warm_policy:
+                    where += " AND EXISTS (SELECT 1 FROM libraries l WHERE l.id = a.library_id AND l.warm_enabled = 1)"
+                params = [*requested_ids, *scope_params]
+            return conn.execute(
+                f"""
+                SELECT a.id, a.path, a.mtime_ns, a.size
+                FROM assets a
+                WHERE {where} AND a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
+                {scope_clause}
+                ORDER BY a.id
+                """,
+                params,
+            ).fetchall()
+
+    @staticmethod
+    def _validated_reconcile_candidates(
+        assets: Sequence[sqlite3.Row],
+        variant_count: int,
+        summary: DerivativeReconcileSummary,
+    ) -> list[ReconcileCandidate]:
+        """Validate on-disk source identity before scheduling derivative candidates."""
+        candidates: list[ReconcileCandidate] = []
+        for asset in assets:
+            try:
+                stat = Path(asset["path"]).stat()
+            except OSError:
+                summary.source_unavailable += variant_count
+                continue
+            if (
+                asset["mtime_ns"] is None
+                or asset["size"] is None
+                or int(asset["mtime_ns"]) != stat.st_mtime_ns
+                or int(asset["size"]) != stat.st_size
+            ):
+                summary.source_unavailable += variant_count
+                continue
+            candidates.append((int(asset["id"]), stat.st_mtime_ns, stat.st_size))
+        return candidates
+
+    @staticmethod
+    def _record_reconcile_outcome(summary: DerivativeReconcileSummary, outcome: str) -> None:
+        """Account for one coalescing outcome in the public reconciliation summary."""
+        if outcome == "ready":
+            summary.already_ready += 1
+        elif outcome == "active":
+            summary.already_active += 1
+        elif outcome == "created":
+            summary.created_derivative_rows += 1
+            summary.created_jobs += 1
+        elif outcome == "requeued":
+            summary.requeued_without_job += 1
+            summary.created_jobs += 1
+        elif outcome == "failed":
+            summary.terminal_failed += 1
+        elif outcome == "skipped":
+            summary.terminal_skipped += 1
+        elif outcome == "capacity_needed_created":
+            summary.created_derivative_rows += 1
+            summary.deferred_capacity += 1
+        elif outcome in {"capacity_needed", "deferred_capacity"}:
+            summary.deferred_capacity += 1
+
+    def _coalesce_reconcile_candidates(
+        self,
+        candidates: Sequence[ReconcileCandidate],
+        variants: Sequence[tuple[str, dict[str, Any]]],
+        *,
+        priority: int,
+        retry_failed: bool,
+        reason: str,
+        summary: DerivativeReconcileSummary,
+    ) -> list[PendingCapacity]:
+        """Revalidate identities transactionally and collect capacity-dependent work."""
+        pending_capacity: list[PendingCapacity] = []
+        with _connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            estimated_bytes = self._estimate_new_derivative_bytes(conn)
+            for asset_id, mtime_ns, size in candidates:
+                current = conn.execute(
+                    """
+                    SELECT 1 FROM assets
+                    WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0
+                      AND mtime_ns = ? AND size = ?
+                    """,
+                    (asset_id, mtime_ns, size),
+                ).fetchone()
+                if current is None:
+                    summary.source_unavailable += len(variants)
+                    continue
+                for kind, variant in variants:
+                    coalesce_args: dict[str, Any] = {
+                        "asset_id": asset_id,
+                        "kind": kind,
+                        "variant": str(variant["name"]),
+                        "source_mtime_ns": mtime_ns,
+                        "source_size": size,
+                        "max_long_edge": int(variant["max_long_edge"]),
+                        "quality": int(variant["quality"]),
+                        "format": "webp",
+                        "priority": priority,
+                        "retry_failed": retry_failed,
+                        "deferrable": True,
+                        "reconsider_deferred_capacity": reason not in _CAPACITY_DEFERRED_AUTOMATIC_REASONS,
+                        "estimated_bytes": estimated_bytes,
+                    }
+                    _derivative_id, outcome = self._coalesce_derivative_job(conn, **coalesce_args)
+                    if outcome in {"capacity_needed", "capacity_needed_created"}:
+                        pending_capacity.append((coalesce_args, estimated_bytes, outcome == "capacity_needed_created"))
+                    else:
+                        self._record_reconcile_outcome(summary, outcome)
+        return pending_capacity
+
+    def _apply_reconcile_capacity_policy(
+        self,
+        pending_capacity: Sequence[PendingCapacity],
+        summary: DerivativeReconcileSummary,
+        cancel_event: threading.Event | None,
+    ) -> None:
+        """Reserve quota for deferred candidates and account for final outcomes."""
+        for coalesce_args, estimated_bytes, created_pending in pending_capacity:
+            pending_outcome = "capacity_needed_created" if created_pending else "capacity_needed"
+            if cancel_event is not None and cancel_event.is_set():
+                self._record_reconcile_outcome(summary, pending_outcome)
+                continue
+            if not self._reserve_capacity(estimated_bytes):
+                self._record_reconcile_outcome(summary, pending_outcome)
+                continue
+            with _connect() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                _derivative_id, outcome = self._coalesce_derivative_job(conn, **coalesce_args)
+            if created_pending and outcome == "requeued":
+                outcome = "created"
+            self._record_reconcile_outcome(summary, outcome)
+
     @maintenance_producer
     def reconcile_desired_derivatives(
         self,
@@ -969,145 +1141,30 @@ class DerivativeScheduler:
         variants = self._configured_variants(kinds)
         priority = max(0, min(priority, 3))
         _ensure_database()
-        with _connect() as conn:
-            scope_clause = ""
-            scope_params: list[Any] = []
-            if scope_path is not None:
-                from .metadata_store import get_library_for_path
-
-                library = get_library_for_path(scope_path)
-                if library is None:
-                    raise KeyError(scope_path)
-                library_id = int(library["id"])
-                path = str(Path(scope_path).resolve())
-                escaped_path = path.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-                scope_clause = " AND (a.path = ? OR a.path LIKE ? ESCAPE '\\')"
-                scope_params = [path, escaped_path.rstrip("/") + "/%"]
-            if library_id is not None:
-                library = conn.execute("SELECT warm_enabled FROM libraries WHERE id = ?", (library_id,)).fetchone()
-                if library is None:
-                    raise KeyError(library_id)
-                if respect_warm_policy and not bool(library["warm_enabled"]):
-                    return DerivativeReconcileSummary()
-                where = "a.library_id = ?"
-                params: list[Any] = [library_id, *scope_params]
-            else:
-                requested_ids = [int(asset_id) for asset_id in asset_ids or ()]
-                if not requested_ids:
-                    return DerivativeReconcileSummary()
-                where = f"a.id IN ({', '.join('?' for _ in requested_ids)})"
-                if respect_warm_policy:
-                    where += " AND EXISTS (SELECT 1 FROM libraries l WHERE l.id = a.library_id AND l.warm_enabled = 1)"
-                params = [*requested_ids, *scope_params]
-            assets = conn.execute(
-                f"""
-                SELECT a.id, a.path, a.mtime_ns, a.size
-                FROM assets a
-                WHERE {where} AND a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
-                {scope_clause}
-                ORDER BY a.id
-                """,
-                params,
-            ).fetchall()
-
+        assets = self._select_reconcile_assets(
+            library_id=library_id,
+            scope_path=scope_path,
+            asset_ids=asset_ids,
+            respect_warm_policy=respect_warm_policy,
+        )
         summary = DerivativeReconcileSummary(assets_considered=len(assets))
-
-        def record_outcome(outcome: str) -> None:
-            if outcome == "ready":
-                summary.already_ready += 1
-            elif outcome == "active":
-                summary.already_active += 1
-            elif outcome == "created":
-                summary.created_derivative_rows += 1
-                summary.created_jobs += 1
-            elif outcome == "requeued":
-                summary.requeued_without_job += 1
-                summary.created_jobs += 1
-            elif outcome == "failed":
-                summary.terminal_failed += 1
-            elif outcome == "skipped":
-                summary.terminal_skipped += 1
-            elif outcome == "capacity_needed_created":
-                summary.created_derivative_rows += 1
-                summary.deferred_capacity += 1
-            elif outcome in {"capacity_needed", "deferred_capacity"}:
-                summary.deferred_capacity += 1
-
-        candidates: list[tuple[int, float, int]] = []
-        for asset in assets:
-            try:
-                stat = Path(asset["path"]).stat()
-            except OSError:
-                summary.source_unavailable += len(variants)
-                continue
-            if (
-                asset["mtime_ns"] is None
-                or asset["size"] is None
-                or (int(asset["mtime_ns"]) != stat.st_mtime_ns or int(asset["size"]) != stat.st_size)
-            ):
-                summary.source_unavailable += len(variants)
-                continue
-            candidates.append((int(asset["id"]), stat.st_mtime_ns, stat.st_size))
+        candidates = self._validated_reconcile_candidates(assets, len(variants), summary)
         summary.desired_derivatives = len(candidates) * len(variants)
 
         for offset in range(0, len(candidates), DERIVATIVE_RECONCILE_BATCH_SIZE):
             if cancel_event is not None and cancel_event.is_set():
                 break
             jobs_before = summary.created_jobs
-            pending_capacity: list[tuple[dict[str, Any], int, bool]] = []
             with self._eviction_lock:
-                with _connect() as conn:
-                    conn.execute("BEGIN IMMEDIATE")
-                    estimated_bytes = self._estimate_new_derivative_bytes(conn)
-                    for asset_id, mtime_ns, size in candidates[offset : offset + DERIVATIVE_RECONCILE_BATCH_SIZE]:
-                        current = conn.execute(
-                            """
-                            SELECT 1 FROM assets
-                            WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0
-                              AND mtime_ns = ? AND size = ?
-                            """,
-                            (asset_id, mtime_ns, size),
-                        ).fetchone()
-                        if current is None:
-                            summary.source_unavailable += len(variants)
-                            continue
-                        for kind, variant in variants:
-                            coalesce_args: dict[str, Any] = {
-                                "asset_id": asset_id,
-                                "kind": kind,
-                                "variant": str(variant["name"]),
-                                "source_mtime_ns": mtime_ns,
-                                "source_size": size,
-                                "max_long_edge": int(variant["max_long_edge"]),
-                                "quality": int(variant["quality"]),
-                                "format": "webp",
-                                "priority": priority,
-                                "retry_failed": retry_failed,
-                                "deferrable": True,
-                                "reconsider_deferred_capacity": reason not in _CAPACITY_DEFERRED_AUTOMATIC_REASONS,
-                                "estimated_bytes": estimated_bytes,
-                            }
-                            _derivative_id, outcome = self._coalesce_derivative_job(conn, **coalesce_args)
-                            if outcome in {"capacity_needed", "capacity_needed_created"}:
-                                pending_capacity.append(
-                                    (coalesce_args, estimated_bytes, outcome == "capacity_needed_created")
-                                )
-                            else:
-                                record_outcome(outcome)
-
-                for coalesce_args, estimated_bytes, created_pending in pending_capacity:
-                    if cancel_event is not None and cancel_event.is_set():
-                        record_outcome("capacity_needed_created" if created_pending else "capacity_needed")
-                        continue
-                    if not self._reserve_capacity(estimated_bytes):
-                        record_outcome("capacity_needed_created" if created_pending else "capacity_needed")
-                        continue
-                    with _connect() as conn:
-                        conn.execute("BEGIN IMMEDIATE")
-                        _derivative_id, outcome = self._coalesce_derivative_job(conn, **coalesce_args)
-                    if created_pending and outcome == "requeued":
-                        outcome = "created"
-                    record_outcome(outcome)
+                pending_capacity = self._coalesce_reconcile_candidates(
+                    candidates[offset : offset + DERIVATIVE_RECONCILE_BATCH_SIZE],
+                    variants,
+                    priority=priority,
+                    retry_failed=retry_failed,
+                    reason=reason,
+                    summary=summary,
+                )
+                self._apply_reconcile_capacity_policy(pending_capacity, summary, cancel_event)
             if summary.created_jobs > jobs_before:
                 self._wake_event.set()
             if offset + DERIVATIVE_RECONCILE_BATCH_SIZE < len(candidates):

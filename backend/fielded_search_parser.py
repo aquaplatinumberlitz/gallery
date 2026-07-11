@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
@@ -186,12 +187,15 @@ def _read_field_value(state: ParserState) -> tuple[str, str]:
     return "".join(value_parts).rstrip(), ""
 
 
+def _escape_like_literal(raw_value: str) -> str:
+    return raw_value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _like_value(raw_value: str) -> str:
     if raw_value.endswith("*") and not raw_value.endswith("\\*"):
         base = raw_value[:-1]
-        escaped = base.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        return f"{escaped}%"
-    escaped = raw_value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        return f"{_escape_like_literal(base)}%"
+    escaped = _escape_like_literal(raw_value)
     if "*" not in raw_value:
         return escaped
     return escaped.replace("*", "%")
@@ -295,167 +299,167 @@ def _or_values(ft: FieldToken) -> list[str]:
     return _split_unquoted(ft.value, "|")
 
 
-def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, Any]]:
-    """Build WHERE conditions and params from ParsedQuery.
+@dataclass
+class _ConditionBuilder:
+    conditions: list[str] = field(default_factory=list)
+    params: dict[str, Any] = field(default_factory=dict)
+    param_idx: int = 0
 
-    Returns (conditions_list, params_dict) suitable for AND'ing into a WHERE clause.
-    """
-    conditions: list[str] = []
-    params: dict[str, Any] = {}
-    param_idx = 0
-
-    def next_param(value: Any) -> str:
-        nonlocal param_idx
-        name = f"p{param_idx}"
-        param_idx += 1
-        params[name] = value
+    def next_param(self, value: Any) -> str:
+        name = f"p{self.param_idx}"
+        self.param_idx += 1
+        self.params[name] = value
         return f":{name}"
 
+
+def _append_residual_condition(builder: _ConditionBuilder, residual_text: str) -> None:
+    try:
+        fts_query = _unicode_match_query(residual_text)
+        builder.conditions.append(
+            "m.id IN (SELECT rowid FROM image_metadata_fts WHERE image_metadata_fts MATCH "
+            + builder.next_param(fts_query)
+            + ")"
+        )
+    except Exception:  # noqa: BLE001
+        pattern = f"%{residual_text}%"
+        builder.conditions.append(
+            "("
+            + " OR ".join(
+                f"m.{col} LIKE {builder.next_param(pattern)} ESCAPE '\\'"
+                for col in ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
+            )
+            + ")"
+        )
+
+
+def _handle_raw(builder: _ConditionBuilder, ft: FieldToken) -> None:
+    like_val = _like_value(ft.value)
+    builder.conditions.append(f"m.raw_metadata_text LIKE {builder.next_param(f'%{like_val}%')} ESCAPE '\\'")
+
+
+def _handle_json_field(builder: _ConditionBuilder, ft: FieldToken) -> None:
+    if ft.key:
+        json_path = json.dumps(ft.key)
+        path_param = builder.next_param(f"$.{json_path}")
+        comparison = f") = {builder.next_param(ft.value)}" if ft.value else ") IS NOT NULL"
+        builder.conditions.append(
+            "json_valid(m.metadata_json) AND json_extract(m.metadata_json, "
+            + path_param
+            + comparison
+        )
+        return
+    like_val = f'%"{ft.value}%'
+    builder.conditions.append(f"m.metadata_json LIKE {builder.next_param(like_val)} ESCAPE '\\\\'")
+
+
+def _handle_model_or_hash(builder: _ConditionBuilder, ft: FieldToken) -> None:
+    if "=" in ft.value:
+        builder.conditions.append(
+            f"(m.model = {builder.next_param(ft.value)} OR m.model_hash = {builder.next_param(ft.value)})"
+        )
+        return
+    escaped = _escape_like_literal(ft.value)
+    builder.conditions.append(
+        f"(m.model LIKE {builder.next_param(f'%{escaped}%')} ESCAPE '\\' "
+        f"OR m.model_hash LIKE {builder.next_param(f'%{escaped}%')} ESCAPE '\\')"
+    )
+
+
+def _handle_size(builder: _ConditionBuilder, ft: FieldToken) -> None:
+    size_match = re.match(r"(\d+)\s*x\s*(\d+)", ft.value, re.IGNORECASE)
+    if size_match:
+        width, height = (int(size_match.group(index)) for index in (1, 2))
+        builder.conditions.append(
+            f"m.width = {builder.next_param(width)} AND m.height = {builder.next_param(height)}"
+        )
+
+
+def _handle_path(builder: _ConditionBuilder, ft: FieldToken) -> None:
+    likes = [
+        f"m.path LIKE {builder.next_param(f'%{_like_value(value)}%')} ESCAPE '\\'"
+        for value in (_or_values(ft) or [ft.value])
+    ]
+    builder.conditions.append("(" + " OR ".join(likes) + ")")
+
+
+def _handle_resource_hash(builder: _ConditionBuilder, ft: FieldToken) -> None:
+    pattern = f"%{_escape_like_literal(ft.value)}%"
+    builder.conditions.append(
+        "EXISTS (SELECT 1 FROM image_resources ir WHERE ir.path = m.path AND ("
+        f"ir.resource_hash LIKE {builder.next_param(pattern)} ESCAPE '\\' OR "
+        f"ir.hash LIKE {builder.next_param(pattern)} ESCAPE '\\'))"
+    )
+
+
+def _handle_lora(builder: _ConditionBuilder, ft: FieldToken) -> None:
+    pattern = f"%{_escape_like_literal(ft.value)}%"
+    builder.conditions.append(
+        "EXISTS (SELECT 1 FROM image_resources ir WHERE ir.path = m.path AND ir.kind = 'lora' AND ("
+        f"ir.name LIKE {builder.next_param(pattern)} ESCAPE '\\' OR "
+        f"ir.resource_hash LIKE {builder.next_param(pattern)} ESCAPE '\\' OR "
+        f"ir.hash LIKE {builder.next_param(pattern)} ESCAPE '\\'))"
+    )
+
+
+def _numeric_value(value: str) -> int | float | None:
+    try:
+        return int(value)
+    except ValueError:
+        with suppress(ValueError):
+            return float(value)
+    return None
+
+
+def _handle_standard_field(builder: _ConditionBuilder, ft: FieldToken) -> None:
+    col = COLUMN_MAP.get(ft.field, "raw_metadata_text")
+    if ft.operator in (">", ">=", "<", "<="):
+        numeric_value = _numeric_value(ft.value)
+        if numeric_value is not None:
+            builder.conditions.append(
+                f"m.{col} IS NOT NULL AND m.{col} {ft.operator} {builder.next_param(numeric_value)}"
+            )
+        return
+    if ft.field in TEXT_LIKE_FIELDS:
+        values = (
+            [term.strip() for term in ft.value.split(",") if term.strip()]
+            if ft.quote_char and "," in ft.value
+            else (_or_values(ft) or [ft.value])
+        )
+        joiner = " AND " if ft.quote_char and "," in ft.value else " OR "
+        likes = [
+            f"m.{col} LIKE {builder.next_param(f'%{_escape_like_literal(value)}%')} ESCAPE '\\'"
+            for value in values
+        ]
+        builder.conditions.append("(" + joiner.join(likes) + ")")
+        return
+    if _like_value(ft.value) != ft.value or "*" in ft.value:
+        builder.conditions.append(f"m.{col} LIKE {builder.next_param(_like_value(ft.value))} ESCAPE '\\'")
+        return
+    equals = [f"m.{col} = {builder.next_param(value)}" for value in (_or_values(ft) or [ft.value])]
+    builder.conditions.append("(" + " OR ".join(equals) + ")")
+
+
+FieldHandler = Callable[[_ConditionBuilder, FieldToken], None]
+_FIELD_HANDLERS: dict[str, FieldHandler] = {
+    "raw": _handle_raw,
+    "param": _handle_json_field,
+    "advanced": _handle_json_field,
+    "model_or_hash": _handle_model_or_hash,
+    "size": _handle_size,
+    "path": _handle_path,
+    "resource_hash": _handle_resource_hash,
+    "lora": _handle_lora,
+}
+
+
+def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, Any]]:
+    """Build WHERE conditions and params from a parsed field-handler table."""
+    builder = _ConditionBuilder()
     if parsed.residual_text:
-        try:
-            fts_query = _unicode_match_query(parsed.residual_text)
-            conditions.append(
-                "m.id IN (SELECT rowid FROM image_metadata_fts WHERE image_metadata_fts MATCH "
-                + next_param(fts_query)
-                + ")"
-            )
-        except Exception:  # noqa: BLE001
-            pattern = f"%{parsed.residual_text}%"
-            conditions.append(
-                "("
-                + " OR ".join(
-                    f"m.{col} LIKE {next_param(pattern)} ESCAPE '\\'"
-                    for col in ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
-                )
-                + ")"
-            )
-
-    for ft in parsed.fields:
-        if ft.field == "raw":
-            like_val = _like_value(ft.value)
-            conditions.append(f"m.raw_metadata_text LIKE {next_param(f'%{like_val}%')} ESCAPE '\\'")
-            continue
-
-        if ft.field == "param" or ft.field == "advanced":
-            if ft.key:
-                json_path = json.dumps(ft.key)
-                if ft.value:
-                    conditions.append(
-                        "json_valid(m.metadata_json) AND json_extract(m.metadata_json, "
-                        + next_param(f"$.{json_path}")
-                        + ") = "
-                        + next_param(ft.value)
-                    )
-                else:
-                    conditions.append(
-                        "json_valid(m.metadata_json) AND json_extract(m.metadata_json, "
-                        + next_param(f"$.{json_path}")
-                        + ") IS NOT NULL"
-                    )
-            else:
-                like_val = f'%"{ft.value}%'
-                conditions.append(f"m.metadata_json LIKE {next_param(like_val)} ESCAPE '\\\\'")
-            continue
-
-        if ft.field == "model_or_hash":
-            like_val = _like_value(ft.value)
-            # Contains search on both model and model_hash, unless exact-match chars present
-            if "=" in ft.value:
-                # Exact match
-                conditions.append(f"(m.model = {next_param(ft.value)} OR m.model_hash = {next_param(ft.value)})")
-            else:
-                # Contains search
-                escaped = ft.value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-                conditions.append(
-                    f"(m.model LIKE {next_param(f'%{escaped}%')} ESCAPE '\\' "
-                    f"OR m.model_hash LIKE {next_param(f'%{escaped}%')} ESCAPE '\\')"
-                )
-            continue
-
-        if ft.field == "size":
-            size_match = re.match(r"(\d+)\s*x\s*(\d+)", ft.value, re.IGNORECASE)
-            if size_match:
-                w = int(size_match.group(1))
-                h = int(size_match.group(2))
-                conditions.append(f"m.width = {next_param(w)} AND m.height = {next_param(h)}")
-            continue
-
-        if ft.field == "path":
-            values = _or_values(ft) or [ft.value]
-            path_conditions = []
-            for value in values:
-                like_val = _like_value(value)
-                path_conditions.append(f"m.path LIKE {next_param(f'%{like_val}%')} ESCAPE '\\'")
-            conditions.append("(" + " OR ".join(path_conditions) + ")")
-            continue
-
-        if ft.field == "resource_hash":
-            escaped = ft.value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            pattern = f"%{escaped}%"
-            conditions.append(
-                "EXISTS ("
-                "SELECT 1 FROM image_resources ir "
-                "WHERE ir.path = m.path AND ("
-                f"ir.resource_hash LIKE {next_param(pattern)} ESCAPE '\\' OR "
-                f"ir.hash LIKE {next_param(pattern)} ESCAPE '\\'"
-                ")"
-                ")"
-            )
-            continue
-
-        if ft.field == "lora":
-            escaped = ft.value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            pattern = f"%{escaped}%"
-            conditions.append(
-                "EXISTS ("
-                "SELECT 1 FROM image_resources ir "
-                "WHERE ir.path = m.path AND ir.kind = 'lora' AND ("
-                f"ir.name LIKE {next_param(pattern)} ESCAPE '\\' OR "
-                f"ir.resource_hash LIKE {next_param(pattern)} ESCAPE '\\' OR "
-                f"ir.hash LIKE {next_param(pattern)} ESCAPE '\\'"
-                ")"
-                ")"
-            )
-            continue
-
-        col = COLUMN_MAP.get(ft.field)
-        if col is None:
-            col = "raw_metadata_text"
-
-        if ft.operator in (">", ">=", "<", "<="):
-            numeric_value = None
-            try:
-                numeric_value = int(ft.value)
-            except ValueError:
-                with suppress(ValueError):
-                    numeric_value = float(ft.value)
-            if numeric_value is not None:
-                conditions.append(f"m.{col} IS NOT NULL AND m.{col} {ft.operator} {next_param(numeric_value)}")
-        elif ft.field in TEXT_LIKE_FIELDS:
-            # Contains semantics: always wrap with % for substring match
-            if ft.quote_char and "," in ft.value:
-                terms = [t.strip() for t in ft.value.split(",") if t.strip()]
-                likes = []
-                for term in terms:
-                    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-                    likes.append(f"m.{col} LIKE {next_param(f'%{escaped}%')} ESCAPE '\\'")
-                conditions.append("(" + " AND ".join(likes) + ")")
-            else:
-                values = _or_values(ft) or [ft.value]
-                likes = []
-                for value in values:
-                    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-                    likes.append(f"m.{col} LIKE {next_param(f'%{escaped}%')} ESCAPE '\\'")
-                conditions.append("(" + " OR ".join(likes) + ")")
-        elif _like_value(ft.value) != ft.value or "*" in ft.value:
-            like_val = _like_value(ft.value)
-            conditions.append(f"m.{col} LIKE {next_param(like_val)} ESCAPE '\\'")
-        else:
-            values = _or_values(ft) or [ft.value]
-            equals = [f"m.{col} = {next_param(value)}" for value in values]
-            conditions.append("(" + " OR ".join(equals) + ")")
-
-    return conditions, params
+        _append_residual_condition(builder, parsed.residual_text)
+    for token in parsed.fields:
+        _FIELD_HANDLERS.get(token.field, _handle_standard_field)(builder, token)
+    return builder.conditions, builder.params
 
 
 def build_fielded_search_sql(parsed: ParsedQuery, limit: int = 50, offset: int = 0) -> tuple[str, dict[str, Any]]:

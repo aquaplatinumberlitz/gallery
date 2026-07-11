@@ -1433,6 +1433,16 @@ def test_legacy_mtime_ns_null_matching_through_persist(
 # ---------------------------------------------------------------------------
 
 
+def test_metadata_runtime_scope_escapes_like_wildcards(tmp_path: Path):
+    from backend.indexer import _metadata_runtime_scope_sql
+
+    scope = tmp_path / r"percent%_back\slash"
+    sql, params = _metadata_runtime_scope_sql(scope)
+
+    assert "ESCAPE '\\'" in sql
+    assert params[1].endswith("percent\\%\\_back\\\\slash/%")
+
+
 def test_get_metadata_lifecycle_status_returns_counters(
     isolated_metadata_db: Path,
     tmp_path: Path,

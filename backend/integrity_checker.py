@@ -1,9 +1,13 @@
 """Periodic background integrity checker for cross-table consistency."""
 
 import logging
+import os
+import sqlite3
 import threading
 import time
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from .catalog_maintenance_gate import maintenance_producer
 from .config import DERIVATIVE_RECONCILE_BATCH_SIZE, DERIVATIVE_VARIANTS
@@ -68,7 +72,7 @@ class IntegrityChecker:
                 logger.exception("Integrity checker crashed")
 
     @maintenance_producer
-    def run_and_persist(self, trigger: str = "manual") -> dict:
+    def run_and_persist(self, trigger: str = "manual") -> dict[str, Any]:
         """Run all checks and persist the summary to the integrity_check_runs table."""
         from .metadata_store.maintenance_store import insert_run
 
@@ -295,7 +299,7 @@ class IntegrityChecker:
         return total
 
     @staticmethod
-    def _find_expected_row_missing(conn) -> list[int]:
+    def _find_expected_row_missing(conn: sqlite3.Connection) -> list[int]:
         """Find a bounded batch missing an exact configured kind/variant identity."""
         configured = [
             (kind, str(variant["name"])) for kind, variants in DERIVATIVE_VARIANTS.items() for variant in variants
@@ -328,7 +332,7 @@ class IntegrityChecker:
         return [int(row["id"]) for row in rows]
 
     @staticmethod
-    def _find_queued_without_job(conn) -> list[int]:
+    def _find_queued_without_job(conn: sqlite3.Connection) -> list[int]:
         return [
             int(row["id"])
             for row in conn.execute(
@@ -342,7 +346,7 @@ class IntegrityChecker:
         ]
 
     @staticmethod
-    def _find_policy_deferred(conn) -> list[int]:
+    def _find_policy_deferred(conn: sqlite3.Connection) -> list[int]:
         return [
             int(row["asset_id"])
             for row in conn.execute(
@@ -355,7 +359,7 @@ class IntegrityChecker:
             ).fetchall()
         ]
 
-    def _check_asset_done_no_metadata(self, conn) -> int:
+    def _check_asset_done_no_metadata(self, conn: sqlite3.Connection) -> int:
         rows = conn.execute(f"""
             SELECT a.path, a.library_id, a.mtime_ns, a.size
             FROM assets a
@@ -401,7 +405,7 @@ class IntegrityChecker:
             )
         return len(rows)
 
-    def _check_job_done_asset_not_done(self, conn) -> int:
+    def _check_job_done_asset_not_done(self, conn: sqlite3.Connection) -> int:
         rows = conn.execute(f"""
             SELECT mj.path, mj.mtime_ns, mj.size
             FROM metadata_index_jobs mj
@@ -428,7 +432,7 @@ class IntegrityChecker:
                 )
         return len(rows)
 
-    def _check_job_active_no_asset(self, conn) -> int:
+    def _check_job_active_no_asset(self, conn: sqlite3.Connection) -> int:
         rows = conn.execute("""
             SELECT mj.path
             FROM metadata_index_jobs mj
@@ -443,11 +447,13 @@ class IntegrityChecker:
             )
         return len(rows)
 
-    def _check_derivative_ready_no_file(self, conn) -> int:
-        """Repair missing ready files and return the number requeued."""
-        return self._check_derivative_ready_no_file_details(conn)["requeued"]
-
-    def _check_derivative_ready_no_file_details(self, conn, *, rows=None, cache_exists=None) -> dict[str, int]:
+    def _check_derivative_ready_no_file_details(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        rows: Sequence[sqlite3.Row] | None = None,
+        cache_exists: Mapping[str, bool] | None = None,
+    ) -> dict[str, int]:
         """Repair missing ready files and return outcome-specific counters."""
         rows = rows if rows is not None else conn.execute("""
             SELECT d.id, d.cache_path, d.source_mtime_ns, d.source_size,
@@ -519,7 +525,13 @@ class IntegrityChecker:
                 counts["requeued"] += 1
         return counts
 
-    def _check_abandoned_derivative_jobs(self, conn, *, rows=None, source_stats=None) -> dict[str, int]:
+    def _check_abandoned_derivative_jobs(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        rows: Sequence[sqlite3.Row] | None = None,
+        source_stats: Mapping[str, os.stat_result | None] | None = None,
+    ) -> dict[str, int]:
         rows = rows if rows is not None else conn.execute(
             """
             SELECT j.id AS job_id, j.attempts, j.claim_token, d.id AS derivative_id,
@@ -570,7 +582,11 @@ class IntegrityChecker:
         return counts
 
     @staticmethod
-    def _derivative_inapplicable_result(row, *, source_stats=None) -> str | None:
+    def _derivative_inapplicable_result(
+        row: sqlite3.Row,
+        *,
+        source_stats: Mapping[str, os.stat_result | None] | None = None,
+    ) -> str | None:
         if row["asset_id"] is None or row["deleted_at"] is not None or row["offline"] or row["type"] != "image":
             return "asset_inactive"
         if source_stats is not None:
@@ -593,7 +609,13 @@ class IntegrityChecker:
             return "source_changed"
         return None
 
-    def _check_derivative_job_done_not_ready(self, conn, *, rows=None, cache_exists=None) -> dict[str, int]:
+    def _check_derivative_job_done_not_ready(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        rows: Sequence[sqlite3.Row] | None = None,
+        cache_exists: Mapping[str, bool] | None = None,
+    ) -> dict[str, int]:
         rows = rows if rows is not None else conn.execute("""
             SELECT ad.id, ad.cache_path, dj.id AS job_id
             FROM derivative_jobs dj
@@ -625,89 +647,13 @@ class IntegrityChecker:
                 failed += 1
         return {"repaired": repaired, "failed": failed}
 
-    def _check_derivative_expected_row_missing(self, conn) -> int:
-        """Close absent current derivative rows for warm-library assets via the reconciler.
-
-        This discovers active current images that lack a current derivative row for a
-        configured variant (a gap integrity repair from existing rows cannot see) and
-        repairs it through the same ``reconcile_desired_derivatives`` entrypoint used by
-        scan/startup/periodic producers. Returns the number of derivative rows created.
-        """
-        from .derivative_scheduler import DerivativeScheduler
-
-        expected_variants = sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
-        created = 0
-        libraries = conn.execute("SELECT id FROM libraries WHERE warm_enabled = 1").fetchall()
-        for library in libraries:
-            rows = conn.execute(
-                """
-                SELECT a.id FROM assets a
-                WHERE a.library_id = ?
-                  AND a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
-                  AND a.mtime_ns IS NOT NULL AND a.size IS NOT NULL
-                  AND (
-                    SELECT count(*) FROM asset_derivatives d
-                    WHERE d.asset_id = a.id
-                      AND d.source_mtime_ns = a.mtime_ns AND d.source_size = a.size
-                  ) < ?
-                """,
-                (int(library["id"]), expected_variants),
-            ).fetchall()
-            if not rows:
-                continue
-            asset_ids = [int(row["id"]) for row in rows]
-            created += (
-                DerivativeScheduler()
-                .reconcile_desired_derivatives(asset_ids=asset_ids, reason="integrity")
-                .created_derivative_rows
-            )
-        return created
-
-    def _check_derivative_queued_without_job(self, conn) -> int:
-        """Repair ``queued`` derivatives whose latest job is not queued/running."""
-        from .derivative_scheduler import scheduler
-
-        derivative_ids = [
-            int(row["id"])
-            for row in conn.execute(
-                """SELECT d.id FROM asset_derivatives d
-               JOIN assets a ON a.id = d.asset_id
-               WHERE d.status = 'queued'
-                 AND a.deleted_at IS NULL AND a.offline = 0 AND a.type = 'image'
-                 AND NOT EXISTS (
-                   SELECT 1 FROM derivative_jobs j
-                   WHERE j.derivative_id = d.id AND j.state IN ('queued', 'running')
-                 )"""
-            ).fetchall()
-        ]
-        if not derivative_ids:
-            return 0
-        return scheduler.repair_derivative_consistency(derivative_ids)
-
-    def _check_derivative_policy_deferred(self, conn) -> int:
-        """Reconsider ``deferred_capacity``/``evicted`` current derivatives when capacity allows.
-
-        A quota increase, cache clear, or periodic reconciliation should give deferred
-        work another chance; this uses the reconciler so capacity re-evaluation reuses the
-        single desired-state code path rather than duplicate SQL.
-        """
-        from .derivative_scheduler import DerivativeScheduler
-
-        rows = conn.execute(
-            """
-            SELECT DISTINCT d.asset_id FROM asset_derivatives d
-            JOIN assets a ON a.id = d.asset_id
-            WHERE d.status IN ('deferred_capacity', 'evicted')
-              AND a.deleted_at IS NULL AND a.offline = 0 AND a.type = 'image'
-            """
-        ).fetchall()
-        if not rows:
-            return 0
-        asset_ids = [int(row["asset_id"]) for row in rows]
-        summary = DerivativeScheduler().reconcile_desired_derivatives(asset_ids=asset_ids, reason="integrity")
-        return summary.created_jobs + summary.requeued_without_job
-
-    def _check_job_active_no_file(self, conn, *, rows=None, file_exists=None) -> int:
+    def _check_job_active_no_file(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        rows: Sequence[sqlite3.Row] | None = None,
+        file_exists: Mapping[str, bool] | None = None,
+    ) -> int:
         rows = rows if rows is not None else conn.execute("""
             SELECT path FROM metadata_index_jobs
             WHERE state IN ('queued', 'running')
