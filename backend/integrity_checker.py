@@ -5,7 +5,7 @@ import threading
 import time
 from pathlib import Path
 
-from .config import DERIVATIVE_VARIANTS
+from .config import DERIVATIVE_RECONCILE_BATCH_SIZE, DERIVATIVE_VARIANTS
 from .metadata_store import _DB_LOCK, _connect
 from .metadata_store.identity import (
     asset_matches_image_metadata_sql,
@@ -232,29 +232,36 @@ class IntegrityChecker:
 
     @staticmethod
     def _find_expected_row_missing(conn) -> list[int]:
-        """Find assets missing an exact configured kind/variant identity."""
+        """Find a bounded batch missing an exact configured kind/variant identity."""
         configured = [
             (kind, str(variant["name"])) for kind, variants in DERIVATIVE_VARIANTS.items() for variant in variants
         ]
+        if not configured:
+            return []
+        configured_values = ", ".join("(?, ?)" for _ in configured)
+        configured_params = [value for identity in configured for value in identity]
         rows = conn.execute(
-            """SELECT a.id, a.mtime_ns, a.size FROM assets a
+            f"""WITH configured(kind, variant) AS (VALUES {configured_values})
+               SELECT a.id FROM assets a
                JOIN libraries l ON l.id = a.library_id
                WHERE l.warm_enabled = 1 AND a.type = 'image'
                  AND a.deleted_at IS NULL AND a.offline = 0
-                 AND a.mtime_ns IS NOT NULL AND a.size IS NOT NULL"""
+                 AND a.mtime_ns IS NOT NULL AND a.size IS NOT NULL
+                 AND EXISTS (
+                   SELECT 1 FROM configured c
+                   WHERE NOT EXISTS (
+                     SELECT 1 FROM asset_derivatives d
+                     WHERE d.asset_id = a.id
+                       AND d.source_mtime_ns = a.mtime_ns
+                       AND d.source_size = a.size
+                       AND d.kind = c.kind AND d.variant = c.variant
+                   )
+                 )
+               ORDER BY a.id
+               LIMIT ?""",
+            (*configured_params, DERIVATIVE_RECONCILE_BATCH_SIZE),
         ).fetchall()
-        missing: list[int] = []
-        for row in rows:
-            present = {
-                (d["kind"], d["variant"])
-                for d in conn.execute(
-                    "SELECT kind, variant FROM asset_derivatives WHERE asset_id = ? AND source_mtime_ns = ? AND source_size = ?",
-                    (row["id"], row["mtime_ns"], row["size"]),
-                ).fetchall()
-            }
-            if any(identity not in present for identity in configured):
-                missing.append(int(row["id"]))
-        return missing
+        return [int(row["id"]) for row in rows]
 
     @staticmethod
     def _find_queued_without_job(conn) -> list[int]:

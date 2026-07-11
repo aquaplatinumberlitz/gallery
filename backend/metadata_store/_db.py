@@ -71,6 +71,7 @@ def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
     conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
     if set_journal_mode:
         conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
