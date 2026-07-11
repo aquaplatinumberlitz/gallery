@@ -141,6 +141,10 @@ const mockGeneratedImages = {
   oldest_running_age_seconds: null,
 };
 
+type MockGeneratedImages = Omit<typeof mockGeneratedImages, "policy"> & {
+  policy: "warm" | "on_demand";
+};
+
 let mockLibraryData: typeof mockLibrary | null = mockLibrary;
 let mockLibraryIsPending = false;
 let mockLibraryIsError = false;
@@ -150,7 +154,7 @@ let mockStatusData: Record<string, unknown> | null = {
 };
 let mockContractError: Error | null = null;
 let mockJobsData: unknown[] = [];
-let mockGeneratedImagesData: typeof mockGeneratedImages | null = null;
+let mockGeneratedImagesData: MockGeneratedImages | null = null;
 let routerPushMock = vi.fn();
 let copyTextMock = vi.fn();
 let copyStatusMock: Record<string, boolean> = {};
@@ -257,6 +261,10 @@ function mountSubject(propsId = 1) {
         LibraryStatusBadge: { template: "<span class='status-badge'><slot /></span>" },
         LibraryEditDialog: { props: ["open"], template: "<div class='edit-dialog' :data-open='open' />" },
         LibraryDeleteConfirmDialog: { template: "<div class='delete-dialog' />" },
+        OfflineFilesDialog: {
+          props: ["open", "libraryId", "expectedCount"],
+          template: "<div class='offline-files-dialog' :data-open='open' :data-count='expectedCount' />",
+        },
       },
     },
   });
@@ -304,23 +312,35 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Overview");
     expect(wrapper.text()).toContain("Status");
-    expect(wrapper.text()).toContain("Generated images");
-    expect(wrapper.text()).toContain("All systems available");
+    expect(wrapper.text()).toContain("Generated image cache");
+    expect(wrapper.text()).toContain("5 cataloged files unavailable");
+    expect(wrapper.text()).toContain("Ready");
+    expect(wrapper.text()).not.toContain("Ready with issues");
+    expect(wrapper.text()).toContain("Check again");
+    expect(wrapper.text()).toContain("View files");
+    expect(wrapper.text()).not.toContain("Review");
     expect(wrapper.text()).toContain("File catalog is current");
     expect(wrapper.text()).toContain("80");
     expect(wrapper.text()).toContain("20");
     expect(wrapper.text()).toContain("95 available");
     expect(wrapper.text()).toContain("5 unavailable");
+    expect(wrapper.find('[aria-label="About available with issues"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("previously cataloged files are unavailable");
+    expect(wrapper.text()).toContain("moved, deleted, excluded by the library configuration");
+    expect(wrapper.text()).toContain("then choose Check again");
     expect(wrapper.text()).toContain("95/100 assets");
     expect(wrapper.text()).toContain("Available: indexed images/videos currently available on disk.");
     expect(wrapper.text()).toContain(
       "Unavailable: cataloged files not available in the latest scan or under unavailable import paths.",
     );
     expect(wrapper.text()).toContain("Configuration");
-    expect(wrapper.text()).toContain("Library folder");
-    expect(wrapper.text()).toContain("Excluded paths");
-    expect(wrapper.text()).toContain("None configured");
-    expect(wrapper.text()).toContain("Add pattern");
+    expect(wrapper.text()).toContain("Source folders");
+    expect(wrapper.text()).toContain("1 folder");
+    expect(wrapper.text()).toContain("Exclusion patterns");
+    expect(wrapper.text()).toContain("0 patterns");
+    expect(wrapper.text()).toContain("No exclusion patterns");
+    expect(wrapper.text()).toContain("All files under the source folders are included during library updates.");
+    expect(wrapper.text()).toContain("Add exclusion pattern");
     expect(wrapper.text()).toContain("Danger zone");
     expect(wrapper.text()).toContain("Recent job history");
     expect(wrapper.text()).toContain("Latest 8 jobs");
@@ -428,7 +448,7 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("/path/to/file");
   });
 
-  it("shows fix action when the library is unavailable", async () => {
+  it("shows check-again action when the library is unavailable", async () => {
     mockStatusData = {
       status: {
         ...baseMockStatus,
@@ -442,10 +462,33 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Unavailable");
     expect(wrapper.text()).toContain("Library unavailable");
-    const fixButton = wrapper.findAll("button").find((button) => button.text().includes("Fix now"));
-    expect(fixButton).not.toBeUndefined();
-    await fixButton!.trigger("click");
+    const checkButton = wrapper.findAll("button").find((button) => button.text().includes("Check again"));
+    expect(checkButton).not.toBeUndefined();
+    await checkButton!.trigger("click");
     expect(scanMutateMock).toHaveBeenCalledWith({ id: 1 });
+  });
+
+  it("checks again without showing an empty issue breakdown for offline assets", async () => {
+    const wrapper = mountSubject();
+
+    expect(wrapper.text()).toContain("5 cataloged files unavailable");
+    expect(wrapper.text()).not.toContain("Review");
+    expect(wrapper.text()).not.toContain("Hide details");
+
+    const checkButton = wrapper.findAll("button").find((button) => button.text().includes("Check again"));
+    expect(checkButton).not.toBeUndefined();
+    await checkButton!.trigger("click");
+
+    expect(scanMutateMock).toHaveBeenCalledWith({ id: 1 });
+  });
+
+  it("opens the unavailable-file list with the current count", async () => {
+    const wrapper = mountSubject();
+    const viewFiles = wrapper.findAll("button").find((button) => button.text().includes("View files"));
+    expect(viewFiles).not.toBeUndefined();
+    await viewFiles!.trigger("click");
+    expect(wrapper.get(".offline-files-dialog").attributes("data-open")).toBe("true");
+    expect(wrapper.get(".offline-files-dialog").attributes("data-count")).toBe("5");
   });
 
   it("copies import path on copy button click", async () => {
@@ -465,7 +508,7 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
     await wrapper
       .findAll("button")
-      .find((button) => button.text().includes("Add pattern"))!
+      .find((button) => button.text().includes("Add exclusion pattern"))!
       .trigger("click");
     expect(wrapper.find(".edit-dialog").attributes("data-open")).toBe("true");
   });
@@ -481,7 +524,11 @@ describe("LibraryDetailPage", () => {
   it("renders derivative cache with full data", () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Generated images");
+    expect(wrapper.text()).toContain("Generated image cache");
+    expect(wrapper.text()).toContain("Thumbnails are small cached images used in gallery grids and lists.");
+    expect(wrapper.text()).toContain(
+      "Previews are larger cached images used when opening an image in the lightbox or detail view.",
+    );
     expect(wrapper.text()).toContain("75/100 cached");
     expect(wrapper.text()).toContain("74/100 cached");
     expect(wrapper.text()).toContain("Queued2");
@@ -494,16 +541,66 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Deferred8");
     expect(wrapper.text()).toContain("This library400.0 MB");
     expect(wrapper.text()).toContain("All libraries500.0 MB / 1.0 GB");
-    expect(wrapper.text()).toContain("51 generated images missing");
-    expect(wrapper.text()).toContain("Generate missing images");
+    expect(wrapper.text()).toContain("51 image cache files missing");
+    expect(wrapper.text()).toContain("Prepare 51 image cache files now");
     expect(wrapper.find(".bg-warning").exists()).toBe(true);
     expect(wrapper.find(".bg-primary").exists()).toBe(false);
+  });
+
+  it("separates on-demand policy from a fully ready cache", () => {
+    mockGeneratedImagesData = {
+      ...mockGeneratedImages,
+      policy: "on_demand",
+      converged: true,
+      ready_derivatives: 200,
+      actionable_missing_derivatives: 0,
+      by_kind: {
+        thumbnail: {
+          ...mockGeneratedImages.by_kind.thumbnail,
+          ready_derivatives: 100,
+          expected_derivatives: 100,
+          missing_derivatives: 0,
+          queued_derivatives: 0,
+          running_derivatives: 0,
+          failed_derivatives: 0,
+          deferred_derivatives: 0,
+        },
+        preview: {
+          ...mockGeneratedImages.by_kind.preview,
+          ready_derivatives: 100,
+          expected_derivatives: 100,
+          missing_derivatives: 0,
+          queued_derivatives: 0,
+          running_derivatives: 0,
+          failed_derivatives: 0,
+          deferred_derivatives: 0,
+        },
+      },
+    };
+    const wrapper = mountSubject();
+
+    expect(wrapper.text()).toContain("On demand");
+    expect(wrapper.text()).toContain("Cache statusReady");
+    expect(wrapper.text()).toContain("All thumbnails and previews are cached");
+    expect(wrapper.find(".text-success").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("Cached coverage is informational");
+  });
+
+  it("keeps on-demand as the cache state while coverage is incomplete", () => {
+    mockGeneratedImagesData = { ...mockGeneratedImages, policy: "on_demand" };
+    const wrapper = mountSubject();
+
+    expect(wrapper.text()).toContain("Cache statusOn demand");
+    expect(wrapper.text()).toContain("51 image cache files will be created on first view");
+    expect(wrapper.text()).not.toContain("Cache statusReady");
   });
 
   it("queues all missing generated images from the shared action", async () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    const buildButton = wrapper.findAll("button").find((button) => button.text().includes("Generate missing images"));
+    const buildButton = wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Prepare 51 image cache files now"));
     expect(buildButton).not.toBeUndefined();
 
     await buildButton!.trigger("click");
@@ -515,7 +612,7 @@ describe("LibraryDetailPage", () => {
     mockGeneratedImagesData = { ...mockGeneratedImages, alive_worker_count: 0, worker_healthy: false };
     const wrapper = mountSubject();
 
-    expect(wrapper.get('[role="alert"]').text()).toContain("No generated-image worker is available");
+    expect(wrapper.get('[role="alert"]').text()).toContain("No image cache worker is available");
   });
 
   it("shows preview-only coverage and generated-image actionability", () => {
@@ -532,8 +629,8 @@ describe("LibraryDetailPage", () => {
 
     expect(wrapper.text()).toContain("100/100 cached");
     expect(wrapper.text()).toContain("25/100 cached");
-    expect(wrapper.text()).toContain("75 generated images missing");
-    expect(wrapper.text()).toContain("Generate missing images");
+    expect(wrapper.text()).toContain("75 image cache files missing");
+    expect(wrapper.text()).toContain("Prepare 75 image cache files now");
   });
 
   it("Phase 3: makes a preview-only generated-image gap actionable", () => {
@@ -548,7 +645,7 @@ describe("LibraryDetailPage", () => {
     };
     const wrapper = mountSubject();
 
-    expect(wrapper.text()).toContain("Generate missing images");
+    expect(wrapper.text()).toContain("Prepare 75 image cache files now");
   });
 
   it("renders jobs with actual data", () => {

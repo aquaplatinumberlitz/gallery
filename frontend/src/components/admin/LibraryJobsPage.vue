@@ -63,7 +63,7 @@ const jobs = computed(() => jobsQuery.data.value ?? []);
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top" align="end" class="max-w-[220px]">
-              Reload this library's scan, metadata, and generated-image jobs.
+              Reload this library's scan, metadata, and image cache jobs.
             </TooltipContent>
           </Tooltip>
         </header>

@@ -38,6 +38,8 @@ import {
   fetchLibraryInspectorMetadata,
   fetchLibraryJobs,
   fetchLibraryStats,
+  fetchOfflineLibraryAssets,
+  forgetOfflineLibraryAssets,
   fetchLibraryStatusBatch,
   fetchMaintenanceRuntime,
   fetchMetadata,
@@ -418,6 +420,22 @@ describe("fetchLibraryStats", () => {
     const r = await fetchLibraryStats(4);
     expect(r).toEqual({ photos: 5 });
     expect(mockApi.get).toHaveBeenCalledWith("/api/libraries/4/stats");
+  });
+});
+
+describe("offline library assets", () => {
+  it("GETs the exact unavailable catalog rows", async () => {
+    mockApi.get.mockResolvedValueOnce({ data: { items: [{ id: 2, name: "missing.png" }], total: 1 } });
+    const result = await fetchOfflineLibraryAssets(4);
+    expect(result.total).toBe(1);
+    expect(mockApi.get).toHaveBeenCalledWith("/api/libraries/4/offline-assets");
+  });
+
+  it("DELETEs unavailable catalog rows with explicit confirmation", async () => {
+    mockApi.delete.mockResolvedValueOnce({ data: { forgotten: 2, items: [] } });
+    const result = await forgetOfflineLibraryAssets(4);
+    expect(result.forgotten).toBe(2);
+    expect(mockApi.delete).toHaveBeenCalledWith("/api/libraries/4/offline-assets", { params: { confirm: true } });
   });
 });
 

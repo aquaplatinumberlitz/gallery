@@ -1,21 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { computed, shallowRef } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import {
-  ArrowRight,
-  Bug,
-  File,
-  FileChartColumn,
-  FileWarning,
-  HardDrive,
-  Images,
-  Info,
-  Loader2,
-  RefreshCw,
-  ScanLine,
-  Trash2,
-  Wrench,
-} from "lucide-vue-next";
+import { File, FileChartColumn, Info, RefreshCw, Trash2 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
@@ -29,12 +15,15 @@ import { useJobsQuery } from "@/composables/admin/useJobsQuery";
 import { useMaintenanceRuntimeQuery } from "@/composables/admin/useMaintenanceRuntimeQuery";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import JobList from "./JobList.vue";
+import MaintenanceFileHealth from "./MaintenanceFileHealth.vue";
+import MaintenanceImageCache from "./MaintenanceImageCache.vue";
+import MaintenancePipelineFlow from "./MaintenancePipelineFlow.vue";
 import GeneratedImagesClearDialog from "./dialogs/GeneratedImagesClearDialog.vue";
 import GeneratedImagesRebuildDialog from "./dialogs/GeneratedImagesRebuildDialog.vue";
 
 const RECENT_JOB_LIMIT = 8;
-const rebuildOpen = ref(false);
-const clearOpen = ref(false);
+const rebuildOpen = shallowRef(false);
+const clearOpen = shallowRef(false);
 const { rebuildMutation, clearMutation } = useGeneratedImagesGlobalMutations();
 const jobsQuery = useJobsQuery(RECENT_JOB_LIMIT);
 
@@ -62,72 +51,6 @@ const totalExpected = computed(() => {
 
 const fileHealthQuery = useFileHealthQuery();
 const fileHealthMutation = useFileHealthMutation();
-
-const fileIssueKeys = [
-  {
-    key: "missing_source_files" as const,
-    label: "Missing source files",
-    description: "Queued or running metadata jobs whose source file no longer exists on disk.",
-  },
-  {
-    key: "generated_image_missing" as const,
-    label: "Missing thumbnail file",
-    description: "Thumbnail cache records marked ready while the cached file is missing.",
-  },
-  {
-    key: "generated_image_abandoned" as const,
-    label: "Abandoned generated-image jobs",
-    description: "Running thumbnail or preview jobs whose worker claim expired.",
-  },
-  {
-    key: "metadata_mismatch" as const,
-    label: "Metadata mismatch",
-    description: "Cataloged assets marked done but missing a matching extracted metadata row.",
-  },
-  {
-    key: "orphaned_work_item" as const,
-    label: "Orphaned work item",
-    description: "Metadata jobs that no longer have a matching catalog asset.",
-  },
-  {
-    key: "generated_image_job_mismatch" as const,
-    label: "Thumbnail job mismatch",
-    description: "Finished thumbnail jobs whose cache record is not ready.",
-  },
-] as const;
-
-const repairKeys = [
-  {
-    key: "repaired" as const,
-    label: "Repaired",
-    description: "Rows corrected immediately because the expected catalog or cache state could be confirmed.",
-  },
-  {
-    key: "requeued" as const,
-    label: "Requeued",
-    description: "Work sent back to metadata extraction or thumbnail building.",
-  },
-  {
-    key: "failed" as const,
-    label: "Marked failed",
-    description: "Work items marked failed because the source asset or generated file could not be found.",
-  },
-  {
-    key: "skipped" as const,
-    label: "Marked skipped",
-    description: "Generated-image work made inapplicable by an offline, missing, or changed source.",
-  },
-  {
-    key: "recovered" as const,
-    label: "Recovered claims",
-    description: "Expired generated-image claims returned to a durable queued, skipped, or failed state.",
-  },
-  {
-    key: "unchanged" as const,
-    label: "Unchanged",
-    description: "Problems that were counted but did not need a state change in this run.",
-  },
-] as const;
 
 async function confirmClear() {
   try {
@@ -169,7 +92,8 @@ const needsRefreshCount = computed(() => {
         <div class="flex flex-shrink-0 flex-wrap gap-2">
           <Button
             variant="outline"
-            class="h-9 border-border bg-card px-4 py-2 text-sm text-foreground shadow-sm transition-all has-[>svg]:px-3 hover:bg-muted/70"
+            size="lg"
+            class="border-border bg-card px-4 text-sm text-foreground shadow-sm hover:bg-muted/70"
             :disabled="rebuildMutation.isPending.value"
             @click="rebuildOpen = true"
           >
@@ -179,7 +103,8 @@ const needsRefreshCount = computed(() => {
             <TooltipTrigger as-child>
               <Button
                 variant="destructive"
-                class="[--destructive:oklch(63.7%_.237_25.331)] h-9 border border-transparent px-4 py-2 text-white shadow-none transition-all has-[>svg]:px-3 hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:[--destructive:oklch(39.6%_.141_25.723)] dark:bg-destructive/60 dark:focus-visible:ring-destructive/40"
+                size="lg"
+                class="px-4"
                 :disabled="clearMutation.isPending.value"
                 @click="clearOpen = true"
               >
@@ -194,308 +119,20 @@ const needsRefreshCount = computed(() => {
         </div>
       </header>
 
-      <Card class="gap-0 py-0">
-        <CardContent class="p-4">
-          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 class="text-sm font-semibold text-foreground">Imported data flow</h3>
-              <p class="mt-1 text-sm text-muted-foreground">
-                Files are discovered first, then details are extracted, then thumbnails are cached.
-              </p>
-            </div>
-            <ol class="flex flex-wrap items-center gap-2 text-sm" aria-label="Imported data flow">
-              <li class="inline-flex items-center gap-1.5 font-medium">
-                <File class="size-4 text-muted-foreground" />
-                File catalog
-              </li>
-              <li class="text-muted-foreground" aria-hidden="true">
-                <ArrowRight class="size-4" />
-              </li>
-              <li class="inline-flex items-center gap-1.5 font-medium">
-                <FileChartColumn class="size-4 text-muted-foreground" />
-                Metadata extraction
-              </li>
-              <li class="text-muted-foreground" aria-hidden="true">
-                <ArrowRight class="size-4" />
-              </li>
-              <li class="inline-flex items-center gap-1.5 font-medium">
-                <HardDrive class="size-4 text-muted-foreground" />
-                Thumbnails cache
-              </li>
-            </ol>
-          </div>
-        </CardContent>
-      </Card>
+      <MaintenancePipelineFlow />
+
+      <MaintenanceFileHealth
+        :run="fileHealthQuery.data.value?.run"
+        :pending="fileHealthMutation.isPending.value"
+        @run-checks="fileHealthMutation.mutateAsync()"
+      />
 
       <div class="grid gap-4 md:grid-cols-2">
         <Card class="gap-0 py-0">
           <CardContent class="p-5">
             <div class="space-y-1">
               <div class="flex items-center gap-2">
-                <FileWarning class="size-5 text-foreground/70" />
-                <h3 class="font-semibold text-foreground">File issues</h3>
-              </div>
-              <p class="text-sm text-muted-foreground">
-                Counts consistency problems found in catalog, metadata, and thumbnail records.
-              </p>
-            </div>
-            <div class="mt-4 space-y-3">
-              <dl class="grid gap-3 text-sm">
-                <div v-for="item in fileIssueKeys" :key="item.key" class="flex items-center justify-between gap-3">
-                  <dt class="flex flex-wrap items-center gap-1 text-muted-foreground">
-                    {{ item.label }}
-                    <Tooltip>
-                      <TooltipTrigger as-child>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          class="size-4 text-muted-foreground hover:text-foreground -my-1"
-                          :aria-label="`About ${item.label}`"
-                        >
-                          <Info class="size-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" align="start" class="max-w-[240px]">
-                        {{ item.description }}
-                      </TooltipContent>
-                    </Tooltip>
-                  </dt>
-                  <dd class="font-semibold tabular-nums text-foreground">
-                    {{ fileHealthQuery.data.value?.run?.issues[item.key] ?? "—" }}
-                  </dd>
-                </div>
-              </dl>
-              <Separator />
-              <div class="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Latest run</span>
-                <span>{{
-                  fileHealthQuery.data.value?.run?.finished_at
-                    ? new Date(fileHealthQuery.data.value.run.finished_at * 1000).toLocaleString()
-                    : "—"
-                }}</span>
-              </div>
-            </div>
-            <p v-if="!fileHealthQuery.data.value?.run" class="mt-4 text-sm text-muted-foreground">No run yet.</p>
-          </CardContent>
-        </Card>
-
-        <Card class="gap-0 py-0">
-          <CardContent class="p-5">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <ScanLine class="size-5 text-foreground/70" />
-                <h3 class="font-semibold text-foreground">Check files</h3>
-              </div>
-              <p class="text-sm text-muted-foreground">
-                Runs the same backend integrity pass used by the scheduled checker.
-              </p>
-            </div>
-            <p class="mt-4 text-sm text-muted-foreground">
-              Verifies source files, extracted metadata, queued work, and thumbnail cache state across all registered
-              libraries.
-            </p>
-            <div class="mt-4">
-              <Button
-                variant="outline"
-                class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
-                :disabled="fileHealthMutation.isPending.value"
-                @click="fileHealthMutation.mutateAsync()"
-              >
-                <Loader2 v-if="fileHealthMutation.isPending.value" class="animate-spin" />
-                <Bug v-else /> Run checks
-              </Button>
-            </div>
-            <p class="mt-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-              May repair confirmed mismatches, requeue stale work, or mark invalid jobs failed.
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="size-4 text-muted-foreground hover:text-foreground -my-1"
-                    aria-label="About file checks"
-                  >
-                    <Info class="size-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" align="start" class="max-w-[260px]">
-                  The check persists a summary run and updates repair counters shown below. It does not remove
-                  registered libraries or source files.
-                </TooltipContent>
-              </Tooltip>
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card class="gap-0 py-0">
-          <CardContent class="p-5">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <Images class="size-5 text-foreground/70" />
-                <h3 class="font-semibold text-foreground">Generated images</h3>
-              </div>
-              <p class="text-sm text-muted-foreground">Thumbnail and preview queue health.</p>
-            </div>
-            <dl v-if="runtimeQuery.data.value" class="mt-4 grid gap-3 text-sm">
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Workers</dt>
-                <dd class="font-semibold tabular-nums text-foreground">
-                  {{ runtimeQuery.data.value.global_runtime.derivative_worker_count }}/{{
-                    runtimeQuery.data.value.global_runtime.derivative_configured_worker_count
-                  }}
-                </dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Active jobs</dt>
-                <dd class="font-semibold tabular-nums text-foreground">
-                  {{ runtimeQuery.data.value.global_runtime.derivative_active_jobs }}
-                </dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Queue depth</dt>
-                <dd class="font-semibold tabular-nums text-foreground">
-                  {{ runtimeQuery.data.value.global_runtime.derivative_queue_depth }}
-                </dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Failed jobs</dt>
-                <dd
-                  class="font-semibold tabular-nums"
-                  :class="
-                    runtimeQuery.data.value.global_runtime.derivative_failed_jobs > 0
-                      ? 'text-destructive'
-                      : 'text-foreground'
-                  "
-                >
-                  {{ runtimeQuery.data.value.global_runtime.derivative_failed_jobs }}
-                </dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Stale running jobs</dt>
-                <dd
-                  class="font-semibold tabular-nums"
-                  :class="
-                    runtimeQuery.data.value.global_runtime.derivative_stale_running_jobs > 0
-                      ? 'text-destructive'
-                      : 'text-foreground'
-                  "
-                >
-                  {{ runtimeQuery.data.value.global_runtime.derivative_stale_running_jobs }}
-                </dd>
-              </div>
-            </dl>
-            <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-32 w-full" />
-            <p v-else class="mt-4 text-sm text-muted-foreground">Generated-image diagnostics unavailable.</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card class="gap-0 py-0">
-        <CardContent class="p-5">
-          <div class="space-y-1">
-            <div class="flex items-center gap-2">
-              <Wrench class="size-5 text-foreground/70" />
-              <h3 class="font-semibold text-foreground">Repair results</h3>
-            </div>
-            <p class="text-sm text-muted-foreground">
-              Shows what the latest file-health run changed or left untouched.
-            </p>
-          </div>
-          <div class="mt-4 grid gap-4 text-sm sm:grid-cols-4">
-            <div v-for="item in repairKeys" :key="item.key" class="rounded-md border border-border bg-muted/60 p-3">
-              <p class="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-                {{ item.label }}
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      class="size-4 text-muted-foreground hover:text-foreground -my-1"
-                      :aria-label="`About ${item.label}`"
-                    >
-                      <Info class="size-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" align="start" class="max-w-[240px]">
-                    {{ item.description }}
-                  </TooltipContent>
-                </Tooltip>
-              </p>
-              <p class="mt-1 text-sm font-semibold tabular-nums text-foreground">
-                {{ fileHealthQuery.data.value?.run?.repairs[item.key] ?? "—" }}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card class="gap-0 py-0">
-        <CardContent class="p-5">
-          <div class="flex items-center justify-between">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <HardDrive class="size-5 text-foreground/70" />
-                <h3 class="font-semibold text-foreground">Thumbnails cache</h3>
-              </div>
-              <p class="text-sm text-muted-foreground">Cached thumbnails and previews used for faster browsing.</p>
-            </div>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Refresh thumbnails summary"
-                  :disabled="globalSummaryQuery.isFetching.value"
-                  @click="globalSummaryQuery.refetch()"
-                >
-                  <RefreshCw :class="globalSummaryQuery.isFetching.value ? 'animate-spin' : ''" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="end" class="max-w-[220px]">
-                Reload cached and required thumbnail cache counts.
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <div v-if="globalSummaryQuery.data.value" class="mt-4">
-            <dl class="grid gap-3 text-sm sm:grid-cols-2">
-              <div class="flex items-center justify-between gap-3">
-                <dt class="text-muted-foreground">Cached files</dt>
-                <dd class="font-semibold tabular-nums text-foreground">{{ totalReady ?? "\u2014" }}</dd>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <dt class="flex items-center gap-1 text-muted-foreground">
-                  Required files
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        class="size-4 text-muted-foreground hover:text-foreground -my-1"
-                        aria-label="About required files"
-                      >
-                        <Info class="size-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" align="start" class="max-w-[220px]">
-                      Total thumbnail and preview files required for cataloged photos.
-                    </TooltipContent>
-                  </Tooltip>
-                </dt>
-                <dd class="font-semibold tabular-nums text-foreground">{{ totalExpected ?? "\u2014" }}</dd>
-              </div>
-            </dl>
-          </div>
-          <Skeleton v-else-if="globalSummaryQuery.isPending.value" class="mt-4 h-16 w-full" />
-          <p v-else class="mt-4 text-sm text-muted-foreground">No data available.</p>
-        </CardContent>
-      </Card>
-
-      <div class="grid gap-4 md:grid-cols-2">
-        <Card class="gap-0 py-0">
-          <CardContent class="p-5">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <File class="size-5 text-foreground/70" />
+                <File class="size-5 text-foreground/70" aria-hidden="true" />
                 <h3 class="font-semibold text-foreground">File catalog</h3>
               </div>
               <p class="text-sm text-muted-foreground">Tracks which source files exist in registered libraries.</p>
@@ -507,7 +144,11 @@ const needsRefreshCount = computed(() => {
                   <dd
                     class="font-medium"
                     :class="
-                      runtimeQuery.data.value.global_runtime.watcher_healthy ? 'text-green-600' : 'text-destructive'
+                      !runtimeQuery.data.value.global_runtime.watcher_enabled
+                        ? 'text-muted-foreground'
+                        : runtimeQuery.data.value.global_runtime.watcher_healthy
+                          ? 'text-success'
+                          : 'text-destructive'
                     "
                   >
                     {{
@@ -554,8 +195,8 @@ const needsRefreshCount = computed(() => {
                       <TooltipTrigger as-child>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                          size="icon-lg"
+                          class="-my-2 text-muted-foreground hover:text-foreground"
                           aria-label="About File catalog queue depth"
                         >
                           <Info class="size-3.5" />
@@ -581,7 +222,7 @@ const needsRefreshCount = computed(() => {
           <CardContent class="p-5">
             <div class="space-y-1">
               <div class="flex items-center gap-2">
-                <FileChartColumn class="size-5 text-foreground/70" />
+                <FileChartColumn class="size-5 text-foreground/70" aria-hidden="true" />
                 <h3 class="font-semibold text-foreground">Metadata extraction</h3>
               </div>
               <p class="text-sm text-muted-foreground">Reads file details after files are cataloged.</p>
@@ -607,8 +248,8 @@ const needsRefreshCount = computed(() => {
                       <TooltipTrigger as-child>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                          size="icon-lg"
+                          class="-my-2 text-muted-foreground hover:text-foreground"
                           aria-label="About Metadata queue depth"
                         >
                           <Info class="size-3.5" />
@@ -628,8 +269,8 @@ const needsRefreshCount = computed(() => {
                       <TooltipTrigger as-child>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                          size="icon-lg"
+                          class="-my-2 text-muted-foreground hover:text-foreground"
                           aria-label="About Metadata staged queue depth"
                         >
                           <Info class="size-3.5" />
@@ -664,8 +305,8 @@ const needsRefreshCount = computed(() => {
                       <TooltipTrigger as-child>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                          size="icon-lg"
+                          class="-my-2 text-muted-foreground hover:text-foreground"
                           aria-label="About Failed jobs"
                         >
                           <Info class="size-3.5" />
@@ -694,8 +335,8 @@ const needsRefreshCount = computed(() => {
                       <TooltipTrigger as-child>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                          size="icon-lg"
+                          class="-my-2 text-muted-foreground hover:text-foreground"
                           aria-label="About Old or missing metadata"
                         >
                           <Info class="size-3.5" />
@@ -706,7 +347,7 @@ const needsRefreshCount = computed(() => {
                       </TooltipContent>
                     </Tooltip>
                   </dt>
-                  <dd class="font-medium tabular-nums" :class="needsRefreshCount > 0 ? 'text-amber-600' : ''">
+                  <dd class="font-medium tabular-nums" :class="needsRefreshCount > 0 ? 'text-warning' : ''">
                     {{ runtimeQuery.data.value.metadata_lifecycle ? needsRefreshCount : "\u2014" }}
                   </dd>
                 </div>
@@ -716,7 +357,7 @@ const needsRefreshCount = computed(() => {
                     class="font-medium tabular-nums"
                     :class="
                       (runtimeQuery.data.value.metadata_lifecycle?.repairable_metadata_assets ?? 0) > 0
-                        ? 'text-amber-600'
+                        ? 'text-warning'
                         : ''
                     "
                   >
@@ -730,8 +371,8 @@ const needsRefreshCount = computed(() => {
                       <TooltipTrigger as-child>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          class="size-4 text-muted-foreground hover:text-foreground -my-1"
+                          size="icon-lg"
+                          class="-my-2 text-muted-foreground hover:text-foreground"
                           aria-label="About Jobs without catalog item"
                         >
                           <Info class="size-3.5" />
@@ -754,13 +395,24 @@ const needsRefreshCount = computed(() => {
         </Card>
       </div>
 
+      <MaintenanceImageCache
+        :runtime="runtimeQuery.data.value?.global_runtime"
+        :runtime-pending="runtimeQuery.isPending.value"
+        :total-ready="totalReady"
+        :total-expected="totalExpected"
+        :summary-available="Boolean(globalSummaryQuery.data.value)"
+        :summary-pending="globalSummaryQuery.isPending.value"
+        :summary-fetching="globalSummaryQuery.isFetching.value"
+        @refresh="globalSummaryQuery.refetch()"
+      />
+
       <Card class="gap-0 py-0">
         <CardContent class="p-5">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 class="font-semibold text-foreground">Recent job history</h3>
               <p class="mt-1 text-sm text-muted-foreground">
-                Latest {{ RECENT_JOB_LIMIT }} file catalog, metadata, and thumbnail jobs.
+                Latest {{ RECENT_JOB_LIMIT }} file catalog, metadata, and image cache jobs.
               </p>
             </div>
             <div class="flex items-center gap-2">
@@ -776,7 +428,8 @@ const needsRefreshCount = computed(() => {
                 <TooltipTrigger as-child>
                   <Button
                     variant="ghost"
-                    size="icon"
+                    size="icon-lg"
+                    class="-my-2 -me-2"
                     aria-label="Refresh recent jobs"
                     :disabled="jobsQuery.isFetching.value"
                     @click="jobsQuery.refetch()"
@@ -785,7 +438,7 @@ const needsRefreshCount = computed(() => {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top" align="end" class="max-w-[220px]">
-                  Reload recent file catalog, metadata, and thumbnail jobs.
+                  Reload recent file catalog, metadata, and image cache jobs.
                 </TooltipContent>
               </Tooltip>
             </div>

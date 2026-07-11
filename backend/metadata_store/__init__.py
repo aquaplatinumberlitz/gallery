@@ -170,6 +170,9 @@ from .job_store import (
     update_parent_aggregate_job as update_parent_aggregate_job,
 )
 from .library_store import (
+    forget_offline_library_assets as forget_offline_library_assets,
+)
+from .library_store import (
     create_library as create_library,
 )
 from .library_store import (
@@ -192,6 +195,9 @@ from .library_store import (
 )
 from .library_store import (
     list_libraries as list_libraries,
+)
+from .library_store import (
+    list_offline_library_assets as list_offline_library_assets,
 )
 from .library_store import (
     register_library as register_library,

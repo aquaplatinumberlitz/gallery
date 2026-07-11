@@ -63,6 +63,8 @@ export interface MockApiModule {
   fetchLibraries: ReturnType<typeof vi.fn>;
   fetchLibrary: ReturnType<typeof vi.fn>;
   fetchLibraryStats: ReturnType<typeof vi.fn>;
+  fetchOfflineLibraryAssets: ReturnType<typeof vi.fn>;
+  forgetOfflineLibraryAssets: ReturnType<typeof vi.fn>;
   fetchLibraryJobs: ReturnType<typeof vi.fn>;
   fetchGalleryStats: ReturnType<typeof vi.fn>;
   fetchJobs: ReturnType<typeof vi.fn>;
@@ -106,6 +108,8 @@ export function useMockApiModule(): { mockApiModule: MockApiModule } {
       fetchLibraries: vi.fn(),
       fetchLibrary: vi.fn(),
       fetchLibraryStats: vi.fn(),
+      fetchOfflineLibraryAssets: vi.fn(),
+      forgetOfflineLibraryAssets: vi.fn(),
       fetchLibraryJobs: vi.fn(),
       fetchGalleryStats: vi.fn(),
       fetchJobs: vi.fn(),

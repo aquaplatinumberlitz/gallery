@@ -13,7 +13,7 @@ export function useGeneratedImagesMutations(libraryId: MaybeRefOrGetter<number |
   const baseWarmMutation = useMutation({
     mutationFn: (kind: GeneratedImageKind | undefined) => generateMissingImages(resolvedId.value, kind),
     onSuccess: () => {
-      toast.success("Generated images queued");
+      toast.success("Image cache preparation queued");
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.generatedImages(resolvedId.value) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.statusLibrary(resolvedId.value) }),
@@ -21,7 +21,7 @@ export function useGeneratedImagesMutations(libraryId: MaybeRefOrGetter<number |
         queryClient.invalidateQueries({ queryKey: queryKeys.jobsRoot() }),
       ]);
     },
-    onError: (error) => toast.error("Could not queue generated images", String(error)),
+    onError: (error) => toast.error("Could not queue image cache preparation", String(error)),
   });
   const warmMutation = {
     ...baseWarmMutation,

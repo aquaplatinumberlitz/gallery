@@ -222,6 +222,7 @@ gallery-repo/
 | `GET`                  | `/api/landing-pages`                            | List intro page templates                                                                       |
 | `GET/POST`             | `/api/libraries`                                | List or register libraries                                                                      |
 | `GET`                  | `/api/libraries/{id}/status`                    | Unified catalog status for a library or scoped path                                             |
+| `GET/DELETE`           | `/api/libraries/{id}/offline-assets`            | Find unavailable media tombstones or forget them with `confirm=true`; never deletes source files |
 | `POST`                 | `/api/libraries/{id}/scan`                      | Queue a background update for a registered library                                              |
 | `GET/PATCH/PUT/DELETE` | `/api/libraries/{id}`                           | Read, update, or unregister a library                                                           |
 

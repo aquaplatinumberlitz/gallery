@@ -199,7 +199,7 @@ Vue 3 is the app framework. Vue Router defines:
 - `/`: gallery route through `GalleryRoute.vue`.
 - `/metadata`: desktop Library Inspector route.
 - `/admin/libraries`: registered-library administration.
-- `/admin/libraries/:id`: library detail, status, generated images, live status, problems, jobs, and scan/edit/delete actions.
+- `/admin/libraries/:id`: library detail, status, generated image cache, live status, problems, jobs, and scan/edit/delete actions.
 - `/admin/maintenance`: file-health sections, global generated-file actions, and active jobs.
 - fallback: redirect to `/`.
 

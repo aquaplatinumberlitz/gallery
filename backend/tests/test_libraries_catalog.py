@@ -354,6 +354,69 @@ def test_scan_reconciles_assets_without_deleting_derivatives(
         assert conn.execute("SELECT count(*) FROM asset_derivatives WHERE asset_id = ?", (asset_id,)).fetchone()[0] >= 1
 
 
+def test_offline_asset_api_finds_and_forgets_only_media_tombstones(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    library_id = _register_library(isolated_gallery_root)
+    missing = isolated_gallery_root / "missing image.png"
+    restored_before_check = isolated_gallery_root / "present but stale.png"
+    active = isolated_gallery_root / "active.png"
+    for path in (missing, restored_before_check, active):
+        create_test_png(path)
+    _run_scan(library_id)
+
+    missing.unlink()
+    _run_scan(library_id)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute("UPDATE assets SET offline = 1 WHERE path = ?", (str(restored_before_check.resolve()),))
+        missing_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(missing.resolve()),)).fetchone()[0]
+        derivative_id = conn.execute(
+            """
+            INSERT INTO asset_derivatives (
+              asset_id, kind, variant, source_mtime_ns, source_size, status, max_long_edge
+            ) VALUES (?, 'thumbnail', 'thumb_512', 1, 1, 'queued', 512)
+            RETURNING id
+            """,
+            (missing_id,),
+        ).fetchone()[0]
+        conn.execute("INSERT INTO derivative_jobs (derivative_id) VALUES (?)", (derivative_id,))
+
+    with TestClient(app) as client:
+        found = client.get(f"/api/libraries/{library_id}/offline-assets")
+        assert found.status_code == 200
+        assert found.json()["total"] == 2
+        assert [(item["name"], item["path"]) for item in found.json()["items"]] == [
+            ("missing image.png", str(missing.resolve())),
+            ("present but stale.png", str(restored_before_check.resolve())),
+        ]
+
+        unconfirmed = client.delete(f"/api/libraries/{library_id}/offline-assets")
+        assert unconfirmed.status_code == 400
+
+        forgotten = client.delete(
+            f"/api/libraries/{library_id}/offline-assets",
+            params={"confirm": "true"},
+        )
+        assert forgotten.status_code == 200
+        assert forgotten.json()["forgotten"] == 2
+        assert client.get(f"/api/libraries/{library_id}/stats").json()["offline_assets"] == 0
+        assert client.get(f"/api/libraries/{library_id}/offline-assets").json() == {"items": [], "total": 0}
+
+    assert restored_before_check.exists(), "Forgetting a catalog row must never delete a source file"
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(active.resolve()),)).fetchone()[0] == 1
+        assert conn.execute("SELECT count(*) FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0] == 0
+
+
+def test_offline_asset_api_returns_not_found_for_unknown_library(isolated_metadata_db: Path):
+    initialize_database()
+    with TestClient(app) as client:
+        assert client.get("/api/libraries/999/offline-assets").status_code == 404
+        assert client.delete("/api/libraries/999/offline-assets", params={"confirm": "true"}).status_code == 404
+
+
 def test_rebuild_reconciles_deleted_assets(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,

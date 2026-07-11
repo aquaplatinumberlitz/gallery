@@ -12,7 +12,7 @@ const props = withDefaults(
     label?: string;
     copiedLabel?: string;
     variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
-    size?: "default" | "sm" | "lg" | "icon" | "icon-sm";
+    size?: "default" | "sm" | "lg" | "icon" | "icon-sm" | "icon-lg";
     class?: HTMLAttributes["class"];
   }>(),
   {

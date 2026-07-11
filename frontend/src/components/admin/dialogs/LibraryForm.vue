@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 import { ArrowDown, ArrowUp, CircleCheck, Info, Plus, TriangleAlert, Trash2 } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Button from "@/components/ui/Button.vue";
+import { Checkbox } from "@/components/ui/checkbox";
 import IconTooltipButton from "@/components/ui/IconTooltipButton.vue";
 import Input from "@/components/ui/Input.vue";
 import { Separator } from "@/components/ui/separator";
@@ -23,7 +24,7 @@ const exclusionPatterns = ref<string[]>([]);
 const warmEnabled = ref(true);
 const serverError = ref("");
 const validation = ref<LibraryValidationResult | null>(null);
-const submitAndScan = ref(false);
+const scanAfterAdd = shallowRef(true);
 const { createMutation, updateMutation, validateMutation, scanMutation } = useLibraryMutations();
 
 watch(
@@ -46,6 +47,14 @@ const pending = computed(
     validateMutation.isPending.value ||
     scanMutation.isPending.value,
 );
+
+const submitLabel = computed(() => {
+  if (validateMutation.isPending.value) return "Checking…";
+  if (createMutation.isPending.value) return "Adding…";
+  if (updateMutation.isPending.value) return "Saving…";
+  if (scanMutation.isPending.value) return "Starting scan…";
+  return props.library ? "Save changes" : "Add library";
+});
 
 function cleanValue(value: string): string {
   const trimmed = value.trim();
@@ -216,25 +225,22 @@ async function validate(): Promise<boolean> {
   }
 }
 
-async function submit(scanAfterCreate = false) {
-  submitAndScan.value = scanAfterCreate;
+async function submit() {
   if (!(await validate())) return;
   try {
     const saved = props.library
       ? await updateMutation.mutateAsync({ id: props.library.id, payload: payload() })
       : await createMutation.mutateAsync(payload());
-    if (scanAfterCreate) await scanMutation.mutateAsync({ id: saved.id });
+    if (!props.library && scanAfterAdd.value) await scanMutation.mutateAsync({ id: saved.id });
     emit("saved", saved);
   } catch (error) {
     serverError.value = describeError(error);
-  } finally {
-    submitAndScan.value = false;
   }
 }
 </script>
 
 <template>
-  <form @submit.prevent="submit(false)">
+  <form @submit.prevent="submit">
     <FieldGroup class="gap-6">
       <Field>
         <div class="flex items-center gap-2">
@@ -426,18 +432,38 @@ async function submit(scanAfterCreate = false) {
       <Separator />
 
       <FieldSet>
-        <FieldLegend variant="label">Generated images</FieldLegend>
-        <Field>
-          <div class="flex items-start justify-between gap-4 rounded-md border p-3">
-            <FieldContent class="gap-1">
-              <FieldLabel for="library-warm-enabled">Prepare generated images in background</FieldLabel>
-              <p class="text-xs text-muted-foreground">
-                Creates thumbnails and previews after updates. This uses storage and CPU in the background.
-              </p>
-            </FieldContent>
-            <input id="library-warm-enabled" v-model="warmEnabled" type="checkbox" class="mt-1 size-4" />
-          </div>
-        </Field>
+        <FieldLegend variant="label">Processing options</FieldLegend>
+        <FieldGroup class="gap-3">
+          <Field>
+            <label
+              for="library-warm-enabled"
+              class="flex cursor-pointer items-start justify-between gap-4 rounded-md border border-border bg-muted/30 p-3 transition-colors hover:bg-muted/50 has-[[aria-checked=true]]:border-primary/40 has-[[aria-checked=true]]:bg-primary/5"
+            >
+              <span class="min-w-0">
+                <span class="block text-sm font-medium text-foreground">Prepare image cache in background</span>
+                <span class="mt-0.5 block text-xs text-muted-foreground">
+                  Creates thumbnails and previews after updates. This uses storage and CPU in the background.
+                </span>
+              </span>
+              <Checkbox id="library-warm-enabled" v-model="warmEnabled" class="mt-0.5" />
+            </label>
+          </Field>
+
+          <Field v-if="!library">
+            <label
+              for="library-scan-after-add"
+              class="flex cursor-pointer items-start justify-between gap-4 rounded-md border border-border bg-muted/30 p-3 transition-colors hover:bg-muted/50 has-[[aria-checked=true]]:border-primary/40 has-[[aria-checked=true]]:bg-primary/5"
+            >
+              <span class="min-w-0">
+                <span class="block text-sm font-medium text-foreground">Scan library after adding</span>
+                <span class="mt-0.5 block text-xs text-muted-foreground">
+                  Queues the initial file catalog and metadata update as soon as the library is registered.
+                </span>
+              </span>
+              <Checkbox id="library-scan-after-add" v-model="scanAfterAdd" class="mt-0.5" />
+            </label>
+          </Field>
+        </FieldGroup>
       </FieldSet>
 
       <Alert v-if="serverError" variant="destructive">
@@ -477,21 +503,8 @@ async function submit(scanAfterCreate = false) {
           Cancel
         </Button>
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="outline" :disabled="pending" class="sm:min-w-24" @click="validate">
-            Validate
-          </Button>
-          <Button
-            v-if="!library"
-            type="button"
-            variant="secondary"
-            :disabled="pending"
-            class="sm:min-w-32"
-            @click="submit(true)"
-          >
-            {{ submitAndScan && pending ? "Adding…" : "Add and update" }}
-          </Button>
           <Button type="submit" :disabled="pending" class="sm:min-w-32">
-            {{ pending ? "Saving…" : library ? "Save changes" : "Add library" }}
+            {{ submitLabel }}
           </Button>
         </div>
       </div>

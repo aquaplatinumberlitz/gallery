@@ -191,25 +191,12 @@ onMounted(() => {
   });
 });
 
-function getFilterFieldKey(filter: FieldFilter) {
-  return filter.field.toLowerCase();
-}
-
 function getAdvancedSearchInitialFilters() {
   const parsedFilters = parseFieldedQuery(props.searchQuery);
 
-  if (parsedFilters.length === 0) {
-    return [...fieldedFilters.value];
-  }
-
-  const mergedByField = new Map<string, FieldFilter>();
-  for (const filter of parsedFilters) {
-    mergedByField.set(getFilterFieldKey(filter), filter);
-  }
-  for (const filter of fieldedFilters.value) {
-    mergedByField.set(getFilterFieldKey(filter), filter);
-  }
-  return Array.from(mergedByField.values());
+  // The visible query is authoritative when it contains fielded tokens. Keeping
+  // the parsed sequence intact preserves repeated fields for Advanced Search.
+  return parsedFilters.length > 0 ? parsedFilters : [...fieldedFilters.value];
 }
 
 function openAdvancedSearch() {

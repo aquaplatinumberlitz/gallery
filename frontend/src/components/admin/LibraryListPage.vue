@@ -41,6 +41,10 @@ const editLibrary = ref<RegisteredLibrary | null>(null);
 const deleteLibrary = ref<RegisteredLibrary | null>(null);
 const libraries = computed(() => librariesQuery.data.value ?? []);
 const statusByLibrary = computed(() => statusBatchQuery.statusByLibrary.value);
+const totalMediaFiles = computed(() => {
+  const stats = statsQuery.data.value;
+  return stats ? stats.photos + stats.videos : undefined;
+});
 const activeJobs = computed(
   () => jobsQuery.data.value?.filter((job) => job.state === "queued" || job.state === "running").length ?? 0,
 );
@@ -124,10 +128,13 @@ function created(library: RegisteredLibrary) {
           </div>
           <div class="bg-card p-3">
             <dt class="text-xs text-muted-foreground">Media files</dt>
-            <dd class="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+            <dd class="mt-0.5 text-base font-semibold tabular-nums text-foreground">
+              {{ formatAssetCount(totalMediaFiles) }}
+            </dd>
+            <p class="mt-0.5 text-xs tabular-nums text-muted-foreground" aria-label="Media file breakdown">
               {{ formatAssetCount(statsQuery.data.value?.photos) }} photos ·
               {{ formatAssetCount(statsQuery.data.value?.videos) }} videos
-            </dd>
+            </p>
           </div>
           <div class="bg-card p-3">
             <dt class="text-xs text-muted-foreground">Storage used</dt>

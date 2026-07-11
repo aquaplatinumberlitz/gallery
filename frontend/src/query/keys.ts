@@ -28,6 +28,8 @@ export const queryKeys = {
   // useLibraryStatsQuery / LibraryDetailPage for storage usage stats.
   libraryStats: (id: number) => ["libraries", "stats", id] as const,
 
+  offlineLibraryAssets: (id: number) => ["libraries", "offline-assets", id] as const,
+
   libraryJobs: (id: number, limit?: number) =>
     typeof limit === "number" ? (["libraries", "jobs", id, limit] as const) : (["libraries", "jobs", id] as const),
 

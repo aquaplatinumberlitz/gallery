@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@douxcode/vue-spring-bottom-sheet": "^3.2.0",
-    "@lucide/vue": "^1.18.0",
+    "@lucide/vue": "^1.20.0",
     "@tanstack/db": "^0.6.8",
     "@tanstack/query-db-collection": "^1.0.39",
     "@tanstack/vue-db": "^0.0.119",

@@ -45,4 +45,9 @@ describe("CopyButton", () => {
     const wrapper = mountSubject();
     expect(wrapper.get("button").attributes("aria-label")).toBe("Folder path copied");
   });
+
+  it("supports a 44px icon target for touch contexts", () => {
+    const wrapper = mountSubject({ size: "icon-lg" });
+    expect(wrapper.get("button").classes()).toContain("size-11");
+  });
 });

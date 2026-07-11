@@ -136,7 +136,7 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("Tracks which source files exist in registered libraries.");
   });
 
-  it("renders generated-image worker and queue diagnostics", () => {
+  it("combines image cache coverage and queue diagnostics", () => {
     mockRuntimeData = {
       global_runtime: {
         catalog_worker_count: 1,
@@ -163,12 +163,14 @@ describe("MaintenancePage", () => {
     };
 
     const wrapper = mountSubject();
-    const generatedImages = wrapper
+    const imageCache = wrapper
       .findAll('[data-slot="card"]')
-      .find((card) => card.text().includes("Thumbnail and preview queue health."));
-    expect(generatedImages?.text()).toContain("2/3");
-    expect(generatedImages?.text()).toContain("Queue depth");
-    expect(generatedImages?.text()).toContain("Stale running jobs");
+      .find((card) => card.text().includes("Coverage and queue health for cached thumbnails and previews."));
+    expect(imageCache?.text()).toContain("Coverage");
+    expect(imageCache?.text()).toContain("Queue health");
+    expect(imageCache?.text()).toContain("2/3");
+    expect(imageCache?.text()).toContain("Queue depth");
+    expect(imageCache?.text()).toContain("Stale running jobs");
   });
 
   it("shows only Rebuild and Clear imported-data action buttons", () => {
@@ -202,7 +204,7 @@ describe("MaintenancePage", () => {
     ];
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Recent job history");
-    expect(wrapper.text()).toContain("Latest 8 file catalog, metadata, and thumbnail jobs.");
+    expect(wrapper.text()).toContain("Latest 8 file catalog, metadata, and image cache jobs.");
     expect(wrapper.text()).toContain("View all jobs");
     expect(wrapper.text()).toContain("scan #12");
     expect(wrapper.text()).toContain("Library #4");
@@ -214,12 +216,48 @@ describe("MaintenancePage", () => {
     const wrapper = mountSubject();
 
     expect(wrapper.text()).toContain("Imported data flow");
-    expect(wrapper.text()).toContain(
-      "Files are discovered first, then details are extracted, then thumbnails are cached.",
-    );
+    expect(wrapper.text()).toContain("Processing pipeline");
     expect(wrapper.text()).toContain("File catalog");
+    expect(wrapper.text()).toContain("Discovers source files");
     expect(wrapper.text()).toContain("Metadata extraction");
-    expect(wrapper.text()).toContain("Thumbnails cache");
+    expect(wrapper.text()).toContain("Reads file details");
+    expect(wrapper.text()).toContain("Image cache");
+    expect(wrapper.text()).toContain("Builds thumbnails and previews");
+  });
+
+  it("presents file checks, issues, and repair results as one workflow", () => {
+    mockFileHealthData = {
+      run: {
+        id: 1,
+        trigger: "manual",
+        started_at: 1,
+        finished_at: 2,
+        status: "completed",
+        error: null,
+        issues: {
+          missing_source_files: 2,
+          generated_image_missing: 1,
+          generated_image_abandoned: 0,
+          metadata_mismatch: 3,
+          orphaned_work_item: 0,
+          generated_image_job_mismatch: 0,
+        },
+        repairs: { repaired: 1, requeued: 2, failed: 0, skipped: 0, recovered: 0, unchanged: 3 },
+      },
+    };
+
+    const wrapper = mountSubject();
+    const fileHealth = wrapper
+      .findAll('[data-slot="card"]')
+      .find((card) => card.text().includes("Check catalog, metadata, and image cache consistency"));
+
+    expect(fileHealth?.text()).toContain("Run checks");
+    expect(fileHealth?.text()).toContain("Issues found");
+    expect(fileHealth?.text()).toContain("Missing source files");
+    expect(fileHealth?.text()).toContain("Actions taken");
+    expect(fileHealth?.text()).toContain("Requeued");
+    expect(wrapper.text()).not.toContain("File issues");
+    expect(wrapper.text()).not.toContain("Repair results");
   });
 
   it("keeps catalog, metadata, and preview diagnostics read-only", () => {
@@ -266,7 +304,7 @@ describe("MaintenancePage", () => {
       "About Jobs without catalog item",
     ]);
     expect(thumbnailsSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
-      "Refresh thumbnails summary",
+      "Refresh image cache diagnostics",
       "About required files",
     ]);
     expect(thumbnailsSection?.text()).not.toContain("Rebuild");

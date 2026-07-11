@@ -16,6 +16,8 @@ import type {
   LibraryInspectorResponse,
   LibraryScanResponse,
   LibraryStats,
+  OfflineLibraryAssetsResponse,
+  ForgetOfflineLibraryAssetsResponse,
   LibraryUpdateRequest,
   LibraryValidationResult,
   MetadataResponse,
@@ -360,6 +362,18 @@ export const fetchLibrary = async (id: number): Promise<RegisteredLibrary> => {
 
 export const fetchLibraryStats = async (id: number): Promise<LibraryStats> => {
   const { data } = await api.get<LibraryStats>(`/api/libraries/${id}/stats`);
+  return data;
+};
+
+export const fetchOfflineLibraryAssets = async (id: number): Promise<OfflineLibraryAssetsResponse> => {
+  const { data } = await api.get<OfflineLibraryAssetsResponse>(`/api/libraries/${id}/offline-assets`);
+  return data;
+};
+
+export const forgetOfflineLibraryAssets = async (id: number): Promise<ForgetOfflineLibraryAssetsResponse> => {
+  const { data } = await api.delete<ForgetOfflineLibraryAssetsResponse>(`/api/libraries/${id}/offline-assets`, {
+    params: { confirm: true },
+  });
   return data;
 };
 

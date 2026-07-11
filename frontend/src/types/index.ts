@@ -280,6 +280,25 @@ export interface LibraryStats {
   import_path_count: number;
 }
 
+export interface OfflineLibraryAsset {
+  id: number;
+  name: string;
+  path: string;
+  type: "image" | "video";
+  size: number | null;
+  indexed_at: number | null;
+}
+
+export interface OfflineLibraryAssetsResponse {
+  items: OfflineLibraryAsset[];
+  total: number;
+}
+
+export interface ForgetOfflineLibraryAssetsResponse {
+  forgotten: number;
+  items: OfflineLibraryAsset[];
+}
+
 export interface GalleryStats {
   photos: number;
   videos: number;

@@ -281,6 +281,8 @@ Backend modules are mostly flat, with selected domain packages.
 | `POST /api/libraries/{id}/scan`           | Update every import path in one library                               | `libraries.py`      |
 | `GET /api/libraries/{id}/status`          | Return unified status envelope for a library or path scope            | `libraries.py`      |
 | `GET /api/libraries/{id}/stats`           | Return aggregate media statistics for one library                     | `libraries.py`      |
+| `GET /api/libraries/{id}/offline-assets`  | List exact unavailable image/video catalog rows                       | `libraries.py`      |
+| `DELETE /api/libraries/{id}/offline-assets?confirm=true` | Forget unavailable media rows and dependent derivative jobs without deleting source files | `libraries.py` |
 | `GET /api/libraries/{id}/jobs`            | Return recent jobs for one library                                    | `libraries.py`      |
 | `DELETE /api/libraries/{id}?confirm=true` | Unregister catalog data without deleting source files                 | `libraries.py`      |
 | `GET /api/derivatives/status`             | Return policy-aware thumbnail/preview coverage, convergence, quota, job counts, and worker health | `libraries.py`      |
@@ -392,21 +394,21 @@ Core keys:
 -> LibraryDetailPage.vue
 -> GET /api/libraries/{id}/status
 -> GET /api/derivatives/status?library_id=...
--> Generated images, Live status, Problems, jobs, stats, update/edit/delete
+-> Generated image cache, Live status, Problems, jobs, stats, update/edit/delete
 
 /admin/maintenance
 -> MaintenancePage.vue
--> generated-image summary by querying registered libraries
+-> image-cache summary by querying registered libraries
 -> POST /api/maintenance/imported-data/rebuild for all-library imported-data rebuild
 -> POST /api/maintenance/imported-data/clear for all-library imported-data clearing
 -> POST /api/maintenance/catalog/reset from Settings Danger Zone
 -> GET /api/maintenance/file-health for latest File issues and Repair results
 -> POST /api/maintenance/file-health/check from Check files
--> GET /api/maintenance/runtime for catalog, metadata, and generated-image worker/queue health
+-> GET /api/maintenance/runtime for catalog, metadata, and image-cache worker/queue health
 ```
 
 Primary admin UI labels intentionally avoid backend terms such as derivatives,
-runtime, diagnostics, and integrity. User-facing labels are `Generated images`,
+runtime, diagnostics, and integrity. User-facing labels are `Generated image cache`,
 `Live status`, `Problems`, `File issues`, `Check files`, and `Repair results`.
 
 ## Data Flow

@@ -23,6 +23,7 @@ const browseIsFetchingRef = ref(false);
 const browseIsFetchingNextPageRef = ref(false);
 let galleryHistoryIndex = 0;
 let galleryHistory = [""];
+let parsedFiltersResult: unknown[] = [];
 
 function routeMetaForPath(path: string) {
   if (path === "/metadata") {
@@ -75,7 +76,7 @@ vi.mock("@/composables/useInfiniteBrowseQuery", () => ({
 }));
 
 vi.mock("@/utils/serializeAdvancedSearchToQuery", () => ({
-  parseFieldedQuery: vi.fn(() => []),
+  parseFieldedQuery: vi.fn(() => parsedFiltersResult),
   serializeAdvancedSearchToQuery: vi.fn(() => ""),
 }));
 
@@ -188,7 +189,7 @@ function createWrapper(props: Record<string, unknown> = {}) {
         AdvancedSearchDrawer: {
           props: ["isOpen", "initialFilters"],
           template: `
-            <div data-testid="advanced-search-drawer">
+            <div data-testid="advanced-search-drawer" :data-initial-filters="JSON.stringify(initialFilters)">
               <button v-if="isOpen" data-testid="adv-search-close" @click="$emit('close')">Close</button>
               <button v-if="isOpen" data-testid="adv-search-apply" @click="$emit('apply', [])">Apply</button>
             </div>
@@ -227,6 +228,7 @@ describe("AppHeader", () => {
     browseIsFetchingNextPageRef.value = false;
     galleryHistoryIndex = 0;
     galleryHistory = [""];
+    parsedFiltersResult = [];
   });
 
   it("renders the brand hero on non-metadata routes", () => {
@@ -404,6 +406,21 @@ describe("AppHeader", () => {
       .trigger("click");
     await wrapper.find('[data-testid="adv-search-apply"]').trigger("click");
     expect(wrapper.emitted("update:searchQuery")).toBeTruthy();
+  });
+
+  it("passes repeated parsed filters to Advanced Search without merging them by field", async () => {
+    parsedFiltersResult = [
+      { field: "model", value: "PonyXL" },
+      { field: "model", value: "SDXL" },
+    ];
+    const wrapper = createWrapper({ searchQuery: "model:PonyXL model:SDXL" });
+    await wrapper
+      .findAll("button")
+      .find((item) => item.attributes("aria-label") === "Advanced Search")!
+      .trigger("click");
+    expect(
+      JSON.parse(wrapper.get('[data-testid="advanced-search-drawer"]').attributes("data-initial-filters")),
+    ).toEqual(parsedFiltersResult);
   });
 
   it("handles remove filter", async () => {

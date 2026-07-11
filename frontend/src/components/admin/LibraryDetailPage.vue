@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, shallowRef } from "vue";
 import { useRouter } from "vue-router";
 import {
   AlertTriangle,
@@ -15,6 +15,7 @@ import {
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
+import Badge from "@/components/ui/Badge.vue";
 import CopyButton from "@/components/ui/CopyButton.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import Separator from "@/components/ui/Separator.vue";
@@ -43,6 +44,7 @@ import LibraryProgressBar from "./LibraryProgressBar.vue";
 import LibraryStatusBadge from "./LibraryStatusBadge.vue";
 import LibraryEditDialog from "./dialogs/LibraryEditDialog.vue";
 import LibraryDeleteConfirmDialog from "./dialogs/LibraryDeleteConfirmDialog.vue";
+import OfflineFilesDialog from "./dialogs/OfflineFilesDialog.vue";
 
 const props = defineProps<{ id: number }>();
 const RECENT_JOB_LIMIT = 8;
@@ -59,17 +61,22 @@ useLibraryEvents();
 const generatedImagesQuery = useGeneratedImagesStatusQuery(libraryId);
 const { warmMutation } = useGeneratedImagesMutations(libraryId);
 
-const editOpen = ref(false);
-const deleteOpen = ref(false);
-const healthDetailsOpen = ref(false);
+const editOpen = shallowRef(false);
+const deleteOpen = shallowRef(false);
+const offlineFilesOpen = shallowRef(false);
+const healthDetailsOpen = shallowRef(false);
 const library = computed(() => libraryQuery.data.value ?? null);
 const status = computed<UnifiedStatus | null>(() => statusQuery.data.value?.status ?? null);
 const busy = computed(() => scanMutation.isPending.value);
 const statusContractError = computed(() => Boolean(statusQuery.contractError.value));
-const statusPresentation = computed(() => getCatalogStatusPresentation(status.value?.summary_state ?? null));
-const libraryFolderLabel = computed(() => {
+const statusLoadError = computed(() => Boolean(statusQuery.isError?.value));
+const sourceFolderCountLabel = computed(() => {
   const count = library.value?.import_paths.length ?? 0;
-  return count === 1 ? "Library folder" : "Library folders";
+  return `${formatAssetCount(count)} ${count === 1 ? "folder" : "folders"}`;
+});
+const exclusionPatternCountLabel = computed(() => {
+  const count = library.value?.exclusion_patterns.length ?? 0;
+  return `${formatAssetCount(count)} ${count === 1 ? "pattern" : "patterns"}`;
 });
 
 const scanStateLabels: Record<ScanState, string> = {
@@ -173,7 +180,10 @@ const issueBreakdown = computed(() => {
 });
 
 const latestIssue = computed(() => status.value?.latest_issue ?? null);
-const hasHealthIssues = computed(() => (status.value?.issue_count ?? 0) > 0);
+const hasUnavailableFiles = computed(() => (statsQuery.data.value?.offline_assets ?? 0) > 0);
+const hasCatalogIssues = computed(() => (status.value?.issue_count ?? 0) > 0);
+const hasHealthIssues = computed(() => hasCatalogIssues.value || hasUnavailableFiles.value);
+const statusPresentation = computed(() => getCatalogStatusPresentation(status.value?.summary_state ?? null));
 const healthSeverity = computed<"healthy" | "warning" | "error">(() => {
   const currentStatus = status.value;
   if (!currentStatus || currentStatus.availability.state === "unavailable" || currentStatus.summary_state === "error") {
@@ -189,6 +199,10 @@ const healthIssueLabel = computed(() => {
 const healthMessage = computed(() => {
   if (healthSeverity.value === "healthy") return "All systems available";
   if (healthSeverity.value === "error") return "Library unavailable";
+  if (hasCatalogIssues.value) return healthIssueLabel.value;
+  if (hasUnavailableFiles.value) {
+    return `${formatAssetCount(statsQuery.data.value?.offline_assets ?? 0)} cataloged files unavailable`;
+  }
   if (!hasHealthIssues.value) return statusPresentation.value.meaning;
   return healthIssueLabel.value;
 });
@@ -203,11 +217,15 @@ const statusTileTone: Record<StatusTileTone, string> = {
   error: "text-destructive",
 };
 const statusTiles = computed<
-  Array<{ key: string; label: string; value: string; detail: string; tone: StatusTileTone }>
+  Array<{ key: string; label: string; value: string; detail: string; tone: StatusTileTone; help?: string }>
 >(() => {
   const currentStatus = status.value;
   const availabilityTone: StatusTileTone =
-    !currentStatus || currentStatus.availability.state === "unavailable" ? "error" : "healthy";
+    !currentStatus || currentStatus.availability.state === "unavailable"
+      ? "error"
+      : hasUnavailableFiles.value
+        ? "warning"
+        : "healthy";
   const scanTone: StatusTileTone =
     !currentStatus || currentStatus.scan.state === "failed"
       ? "error"
@@ -224,10 +242,15 @@ const statusTiles = computed<
   return [
     {
       key: "availability",
-      label: "Availability",
-      value: availabilityDisplayLabel.value,
-      detail: availabilityDetailLabel.value,
+      label: "Source folders",
+      value: hasUnavailableFiles.value ? "Available with issues" : availabilityDisplayLabel.value,
+      detail: hasUnavailableFiles.value
+        ? `${availabilityDetailLabel.value} · ${formatAssetCount(statsQuery.data.value?.offline_assets ?? 0)} files unavailable`
+        : availabilityDetailLabel.value,
       tone: availabilityTone,
+      help: hasUnavailableFiles.value
+        ? `${formatAssetCount(statsQuery.data.value?.offline_assets ?? 0)} previously cataloged files are unavailable. They may have been moved, deleted, excluded by the library configuration, or located under an unavailable path. Restore the files or adjust the configuration, then choose Check again.`
+        : undefined,
     },
     {
       key: "scan",
@@ -282,6 +305,10 @@ const showGenerateMissing = computed(() => {
   if (thumbnails.value.policy === "on_demand") return informationalGap.value > 0;
   return thumbnailMissing.value > 0;
 });
+const generateMissingLabel = computed(() => {
+  const count = thumbnailMissing.value || informationalGap.value;
+  return count > 0 ? `Prepare ${formatAssetCount(count)} image cache files now` : "Prepare image cache";
+});
 const derivativeWorkerUnavailable = computed(
   () =>
     thumbnails.value !== null &&
@@ -297,60 +324,65 @@ const derivativeCoverageRatio = computed(() => {
 const derivativeCoverageLabel = computed(() =>
   hasDerivativeExpectation.value ? formatPercent(derivativeCoverageRatio.value) : "Not measured",
 );
-const derivativeCacheState = computed(() =>
-  thumbnails.value?.policy === "on_demand"
-    ? {
-        label: "Generated images",
-        value: "On demand",
-        detail:
-          informationalGap.value > 0
-            ? `${formatAssetCount(informationalGap.value)} images will be prepared on first view; cached coverage is informational`
-            : "Cached coverage is informational; images are created when requested",
-        tone: "text-muted-foreground",
-      }
-    : !hasDerivativeExpectation.value
-      ? {
-          label: "Generated images",
-          value: "Unknown",
-          detail: "Run a scan to measure generated-image needs",
-          tone: "text-muted-foreground",
-        }
-      : (thumbnails.value?.deferred_derivatives ?? 0) > 0
-        ? {
-            label: "Generated images",
-            value: "Storage limited",
-            detail: `${formatAssetCount(thumbnails.value?.deferred_derivatives ?? 0)} waiting for capacity`,
-            tone: "text-warning",
-          }
-        : (thumbnails.value?.terminal_failed_derivatives ?? 0) > 0 || derivativeWorkerUnavailable.value
-          ? {
-              label: "Generated images",
-              value: "Needs attention",
-              detail: "Some generated images cannot progress",
-              tone: "text-destructive",
-            }
-          : (thumbnails.value?.queued_jobs ?? 0) > 0 || (thumbnails.value?.running_jobs ?? 0) > 0
-            ? {
-                label: "Generated images",
-                value: "Preparing",
-                detail: "Generated images are being prepared",
-                tone: "text-warning",
-              }
-            : thumbnailMissing.value > 0
-              ? {
-                  label: "Generated images",
-                  value: `${formatAssetCount(thumbnailMissing.value)} missing`,
-                  detail: "Generation is needed",
-                  tone: "text-warning",
-                }
-              : {
-                  label: "Generated images",
-                  value: "Complete",
-                  detail: "Thumbnails and previews are ready",
-                  tone: "text-success",
-                },
-);
-const hasUnavailableFiles = computed(() => (statsQuery.data.value?.offline_assets ?? 0) > 0);
+const derivativeCacheState = computed(() => {
+  const currentStatus = thumbnails.value;
+  if (!currentStatus || !hasDerivativeExpectation.value) {
+    return {
+      label: "Cache status",
+      value: "Unknown",
+      detail: "Run a scan to measure image cache coverage",
+      tone: "text-muted-foreground",
+    };
+  }
+  if (currentStatus.deferred_derivatives > 0) {
+    return {
+      label: "Cache status",
+      value: "Storage limited",
+      detail: `${formatAssetCount(currentStatus.deferred_derivatives)} waiting for capacity`,
+      tone: "text-warning",
+    };
+  }
+  if (currentStatus.terminal_failed_derivatives > 0 || derivativeWorkerUnavailable.value) {
+    return {
+      label: "Cache status",
+      value: "Needs attention",
+      detail: "Some image cache jobs cannot progress",
+      tone: "text-destructive",
+    };
+  }
+  if (currentStatus.queued_jobs > 0 || currentStatus.running_jobs > 0) {
+    return {
+      label: "Cache status",
+      value: "Preparing",
+      detail: "Image cache is being prepared",
+      tone: "text-warning",
+    };
+  }
+  if (informationalGap.value === 0 && thumbnailReady.value >= thumbnailExpected.value) {
+    return {
+      label: "Cache status",
+      value: "Ready",
+      detail: "All thumbnails and previews are cached",
+      tone: "text-success",
+    };
+  }
+  if (currentStatus.policy === "on_demand") {
+    return {
+      label: "Cache status",
+      value: "On demand",
+      detail: `${formatAssetCount(informationalGap.value)} image cache files will be created on first view`,
+      tone: "text-muted-foreground",
+    };
+  }
+  return {
+    label: "Cache status",
+    value: `${formatAssetCount(thumbnailMissing.value)} missing`,
+    detail: "Image cache preparation is needed",
+    tone: "text-warning",
+  };
+});
+const statsLoadError = computed(() => Boolean(statsQuery.isError?.value));
+const generatedImagesLoadError = computed(() => Boolean(generatedImagesQuery.isError?.value));
 
 async function useInGallery() {
   if (library.value && galleryStore.setActiveLibrary(library.value)) await router.push("/");
@@ -449,63 +481,69 @@ function estimatedAssets(): number | undefined {
 
         <section class="space-y-4">
           <h3 class="text-sm font-semibold text-foreground">Overview</h3>
-          <dl v-if="statsQuery.data.value" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card class="gap-0 py-0">
-              <CardContent class="p-4">
-                <dt class="text-sm text-muted-foreground">Photos</dt>
-                <dd class="mt-1 text-sm font-semibold tabular-nums text-foreground">
-                  {{ formatAssetCount(statsQuery.data.value.photos) }}
-                </dd>
-              </CardContent>
-            </Card>
-            <Card class="gap-0 py-0">
-              <CardContent class="p-4">
-                <dt class="text-sm text-muted-foreground">Videos</dt>
-                <dd class="mt-1 text-sm font-semibold tabular-nums text-foreground">
-                  {{ formatAssetCount(statsQuery.data.value.videos) }}
-                </dd>
-              </CardContent>
-            </Card>
-            <Card class="gap-0 py-0">
-              <CardContent class="p-4">
-                <dt class="text-sm text-muted-foreground">Storage</dt>
-                <dd class="mt-1 text-sm font-semibold tabular-nums text-foreground">
-                  {{ formatBytes(statsQuery.data.value.usage_bytes) }}
-                </dd>
-              </CardContent>
-            </Card>
-            <Card class="gap-0 py-0">
-              <CardContent class="p-4">
-                <dt class="flex items-center gap-1 text-sm text-muted-foreground">
-                  Files
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        class="-my-1 size-5 text-muted-foreground hover:text-foreground"
-                        aria-label="About file availability"
-                      >
-                        <Info class="size-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" align="start" class="max-w-[260px]">
-                      <p>Available: indexed images/videos currently available on disk.</p>
-                      <p class="mt-1">
-                        Unavailable: cataloged files not available in the latest scan or under unavailable import paths.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </dt>
-                <dd class="mt-1 text-sm font-semibold tabular-nums text-foreground">
-                  {{ formatAssetCount(statsQuery.data.value.active_assets) }} available
-                  <span v-if="hasUnavailableFiles">
-                    · {{ formatAssetCount(statsQuery.data.value.offline_assets) }} unavailable
-                  </span>
-                </dd>
-              </CardContent>
-            </Card>
+          <dl
+            v-if="statsQuery.data.value"
+            class="grid divide-y divide-border rounded-md border border-border bg-card sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"
+          >
+            <div class="p-4">
+              <dt class="text-sm text-muted-foreground">Images</dt>
+              <dd class="mt-1 text-base font-semibold tabular-nums text-foreground">
+                {{ formatAssetCount(statsQuery.data.value.photos) }}
+              </dd>
+            </div>
+            <div class="p-4">
+              <dt class="text-sm text-muted-foreground">Videos</dt>
+              <dd class="mt-1 text-base font-semibold tabular-nums text-foreground">
+                {{ formatAssetCount(statsQuery.data.value.videos) }}
+              </dd>
+            </div>
+            <div class="p-4">
+              <dt class="text-sm text-muted-foreground">Source storage</dt>
+              <dd class="mt-1 text-base font-semibold tabular-nums text-foreground">
+                {{ formatBytes(statsQuery.data.value.usage_bytes) }}
+              </dd>
+            </div>
+            <div class="p-4">
+              <dt class="flex items-center gap-1 text-sm text-muted-foreground">
+                Files
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="-my-1 size-8 text-muted-foreground hover:text-foreground"
+                      aria-label="About file availability"
+                    >
+                      <Info class="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" class="max-w-[260px]">
+                    <p>Available: indexed images/videos currently available on disk.</p>
+                    <p class="mt-1">
+                      Unavailable: cataloged files not available in the latest scan or under unavailable import paths.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </dt>
+              <dd
+                class="mt-1 text-base font-semibold tabular-nums"
+                :class="hasUnavailableFiles ? 'text-warning' : 'text-foreground'"
+              >
+                {{ formatAssetCount(statsQuery.data.value.active_assets) }} available
+                <span v-if="hasUnavailableFiles">
+                  · {{ formatAssetCount(statsQuery.data.value.offline_assets) }} unavailable
+                </span>
+              </dd>
+            </div>
           </dl>
+          <div
+            v-else-if="statsLoadError"
+            class="rounded-md border border-destructive/30 bg-destructive/5 p-4"
+            role="alert"
+          >
+            <p class="text-sm font-medium">Overview data could not be loaded.</p>
+            <Button variant="outline" size="sm" class="mt-3" @click="statsQuery.refetch?.()">Try again</Button>
+          </div>
           <Skeleton v-else class="h-24 w-full" />
         </section>
 
@@ -528,6 +566,7 @@ function estimatedAssets(): number | undefined {
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        class="size-11"
                         aria-label="Refresh status"
                         :disabled="statusQuery.isFetching.value"
                         @click="statusQuery.refetch()"
@@ -542,7 +581,15 @@ function estimatedAssets(): number | undefined {
                 </div>
 
                 <div
-                  v-if="status"
+                  v-if="statusLoadError"
+                  class="rounded-md border border-destructive/30 bg-destructive/5 p-4"
+                  role="alert"
+                >
+                  <p class="text-sm font-medium">Status could not be loaded.</p>
+                  <Button variant="outline" size="sm" class="mt-3" @click="statusQuery.refetch?.()">Try again</Button>
+                </div>
+                <div
+                  v-else-if="status"
                   class="rounded-md border border-border p-3"
                   :class="{
                     'border-success/20 bg-success-bg': healthSeverity === 'healthy',
@@ -578,7 +625,7 @@ function estimatedAssets(): number | undefined {
                       </div>
                     </div>
                     <Button
-                      v-if="healthSeverity === 'warning' && hasHealthIssues"
+                      v-if="healthSeverity === 'warning' && hasCatalogIssues"
                       variant="outline"
                       size="sm"
                       class="shrink-0"
@@ -586,6 +633,18 @@ function estimatedAssets(): number | undefined {
                     >
                       {{ healthDetailsOpen ? "Hide details" : "Review" }}
                     </Button>
+                    <div v-else-if="hasUnavailableFiles" class="flex shrink-0 flex-wrap gap-2">
+                      <Button variant="outline" size="sm" @click="offlineFilesOpen = true">View files</Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        :disabled="busy"
+                        @click="scanMutation.mutate({ id: library.id })"
+                      >
+                        <RefreshCw :class="busy ? 'animate-spin' : ''" data-icon="inline-start" />
+                        {{ busy ? "Checking..." : "Check again" }}
+                      </Button>
+                    </div>
                     <Button
                       v-else-if="healthSeverity === 'error'"
                       variant="outline"
@@ -594,12 +653,13 @@ function estimatedAssets(): number | undefined {
                       :disabled="busy"
                       @click="scanMutation.mutate({ id: library.id })"
                     >
-                      Fix now
+                      <RefreshCw :class="busy ? 'animate-spin' : ''" data-icon="inline-start" />
+                      {{ busy ? "Checking..." : "Check again" }}
                     </Button>
                   </div>
 
                   <div
-                    v-if="healthSeverity === 'warning' && hasHealthIssues && healthDetailsOpen"
+                    v-if="healthSeverity === 'warning' && hasCatalogIssues && healthDetailsOpen"
                     class="mt-3 border-t pt-3"
                   >
                     <div class="grid gap-3 text-sm sm:grid-cols-3">
@@ -630,6 +690,21 @@ function estimatedAssets(): number | undefined {
                       <AlertTriangle v-else-if="tile.tone === 'warning'" class="size-4 shrink-0" aria-hidden="true" />
                       <CircleX v-else class="size-4 shrink-0" aria-hidden="true" />
                       <span>{{ tile.value }}</span>
+                      <Tooltip v-if="tile.help">
+                        <TooltipTrigger as-child>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            class="-my-1 size-6 text-muted-foreground hover:text-foreground"
+                            aria-label="About available with issues"
+                          >
+                            <Info class="size-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" align="start" class="max-w-[320px] font-normal">
+                          {{ tile.help }}
+                        </TooltipContent>
+                      </Tooltip>
                     </p>
                     <p class="mt-1 text-xs text-muted-foreground">{{ tile.detail }}</p>
                   </div>
@@ -644,7 +719,16 @@ function estimatedAssets(): number | undefined {
               <div class="space-y-4">
                 <div class="flex items-start justify-between gap-3">
                   <div>
-                    <h3 class="text-sm font-semibold text-foreground">Generated images</h3>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h3 class="text-sm font-semibold text-foreground">Generated image cache</h3>
+                      <Badge
+                        v-if="thumbnails?.policy === 'on_demand'"
+                        variant="outline"
+                        class="text-[11px] font-medium text-muted-foreground"
+                      >
+                        On demand
+                      </Badge>
+                    </div>
                     <p class="mt-1 text-sm text-muted-foreground">
                       Cached thumbnails and previews used while browsing.
                     </p>
@@ -654,7 +738,8 @@ function estimatedAssets(): number | undefined {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label="Refresh thumbnails cache"
+                        class="size-11"
+                        aria-label="Refresh image cache"
                         :disabled="generatedImagesQuery.isFetching.value"
                         @click="generatedImagesQuery.refetch()"
                       >
@@ -677,6 +762,27 @@ function estimatedAssets(): number | undefined {
                         <div class="flex min-w-0 items-center gap-2.5">
                           <ImageIcon class="size-4 shrink-0 text-foreground/70" aria-hidden="true" />
                           <p class="font-medium text-foreground">{{ row.label }}</p>
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                class="-my-1 size-6 text-muted-foreground hover:text-foreground"
+                                :aria-label="`About ${row.label.toLowerCase()}`"
+                              >
+                                <Info class="size-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" align="start" class="max-w-[280px] font-normal">
+                              <span v-if="row.kind === 'thumbnail'">
+                                Thumbnails are small cached images used in gallery grids and lists.
+                              </span>
+                              <span v-else>
+                                Previews are larger cached images used when opening an image in the lightbox or detail
+                                view.
+                              </span>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                         <p class="shrink-0 text-sm font-semibold tabular-nums text-foreground">
                           {{ formatAssetCount(row.ready) }}/{{ formatAssetCount(row.expected) }} cached
@@ -688,19 +794,19 @@ function estimatedAssets(): number | undefined {
                         :indicator-class="row.ratio >= 1 ? 'bg-success' : 'bg-warning'"
                       />
                       <dl class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
-                        <div class="flex items-center justify-between gap-2 sm:block">
+                        <div v-if="row.queued > 0" class="flex items-center justify-between gap-2 sm:block">
                           <dt class="text-muted-foreground">Queued</dt>
                           <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.queued) }}</dd>
                         </div>
-                        <div class="flex items-center justify-between gap-2 sm:block">
+                        <div v-if="row.running > 0" class="flex items-center justify-between gap-2 sm:block">
                           <dt class="text-muted-foreground">Running</dt>
                           <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.running) }}</dd>
                         </div>
-                        <div class="flex items-center justify-between gap-2 sm:block">
+                        <div v-if="row.failed > 0" class="flex items-center justify-between gap-2 sm:block">
                           <dt class="text-muted-foreground">Failed</dt>
                           <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.failed) }}</dd>
                         </div>
-                        <div class="flex items-center justify-between gap-2 sm:block">
+                        <div v-if="row.deferred > 0" class="flex items-center justify-between gap-2 sm:block">
                           <dt class="text-muted-foreground">Deferred</dt>
                           <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.deferred) }}</dd>
                         </div>
@@ -714,34 +820,39 @@ function estimatedAssets(): number | undefined {
                     <p class="mt-1 text-sm text-muted-foreground">{{ derivativeCoverageLabel }}</p>
                   </div>
                   <p v-if="showGenerateMissing" class="text-sm text-muted-foreground">
-                    {{ formatAssetCount(thumbnailMissing || informationalGap) }} generated images missing
+                    {{ formatAssetCount(thumbnailMissing || informationalGap) }} image cache files missing
                   </p>
-                  <div class="grid gap-3 text-sm sm:grid-cols-3">
+                  <dl class="grid gap-3 text-sm sm:grid-cols-3">
                     <div class="rounded-md border border-border bg-muted/60 p-3">
-                      <p class="text-xs font-medium text-muted-foreground">This library</p>
-                      <p class="mt-1 font-semibold text-foreground">{{ formatBytes(thumbnails.library_used_bytes) }}</p>
+                      <dt class="text-xs font-medium text-muted-foreground">This library</dt>
+                      <dd class="mt-1 font-semibold text-foreground">
+                        {{ formatBytes(thumbnails.library_used_bytes) }}
+                      </dd>
                     </div>
                     <div class="rounded-md border border-border bg-muted/60 p-3">
-                      <p class="text-xs font-medium text-muted-foreground">All libraries</p>
-                      <p class="mt-1 font-semibold text-foreground">
+                      <dt class="text-xs font-medium text-muted-foreground">All libraries</dt>
+                      <dd class="mt-1 font-semibold text-foreground">
                         {{ formatBytes(thumbnails.quota_used_bytes) }} / {{ formatBytes(thumbnails.quota_bytes) }}
-                      </p>
+                      </dd>
                     </div>
                     <div class="rounded-md border border-border bg-muted/60 p-3">
-                      <p class="text-xs font-medium text-muted-foreground">{{ derivativeCacheState.label }}</p>
-                      <p class="mt-1 font-semibold" :class="derivativeCacheState.tone">
+                      <dt class="text-xs font-medium text-muted-foreground">{{ derivativeCacheState.label }}</dt>
+                      <dd class="mt-1 font-semibold" :class="derivativeCacheState.tone">
                         {{ derivativeCacheState.value }}
-                      </p>
+                      </dd>
                       <p class="mt-1 text-xs text-muted-foreground">{{ derivativeCacheState.detail }}</p>
                     </div>
-                  </div>
+                  </dl>
                   <div
                     v-if="derivativeWorkerUnavailable"
                     class="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive"
                     role="alert"
                   >
                     <AlertTriangle class="mt-0.5 size-4 shrink-0" />
-                    <p>No generated-image worker is available. New generated-image jobs cannot progress.</p>
+                    <div class="space-y-2">
+                      <p>No image cache worker is available. New image cache jobs cannot progress.</p>
+                      <ButtonLink to="/admin/maintenance" variant="outline" size="sm">Open maintenance</ButtonLink>
+                    </div>
                   </div>
                   <p
                     v-if="thumbnails.queued_jobs || thumbnails.running_jobs || thumbnails.failed_jobs"
@@ -759,10 +870,23 @@ function estimatedAssets(): number | undefined {
                   >
                     <RefreshCw v-if="warmMutation.isPending.value" class="animate-spin" data-icon="inline-start" />
                     <ImageIcon v-else data-icon="inline-start" />
-                    {{ warmMutation.isPending.value ? "Queuing images..." : "Generate missing images" }}
+                    {{ warmMutation.isPending.value ? "Preparing image cache..." : generateMissingLabel }}
                   </Button>
                 </template>
-                <Skeleton v-else class="h-32 w-full" />
+                <div
+                  v-else-if="generatedImagesLoadError"
+                  class="rounded-md border border-destructive/30 bg-destructive/5 p-4"
+                  role="alert"
+                >
+                  <p class="text-sm font-medium">Image cache coverage could not be loaded.</p>
+                  <Button variant="outline" size="sm" class="mt-3" @click="generatedImagesQuery.refetch?.()">
+                    Try again
+                  </Button>
+                </div>
+                <Skeleton v-else-if="generatedImagesQuery.isPending.value" class="h-32 w-full" />
+                <div v-else class="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  Image cache coverage has not been measured yet.
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -774,7 +898,9 @@ function estimatedAssets(): number | undefined {
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 class="text-sm font-semibold text-foreground">Configuration</h3>
-              <p class="mt-1 text-sm text-muted-foreground">Read-only summary of this library's source paths.</p>
+              <p class="mt-1 text-sm text-muted-foreground">
+                Source folders and exclusion patterns used when updating this library.
+              </p>
             </div>
             <Button
               variant="outline"
@@ -790,8 +916,8 @@ function estimatedAssets(): number | undefined {
             <Card class="gap-0 py-0">
               <CardContent class="p-4">
                 <div class="flex items-center justify-between gap-3">
-                  <h4 class="text-sm font-semibold">{{ libraryFolderLabel }}</h4>
-                  <span class="text-xs text-muted-foreground">{{ library.import_paths.length }}</span>
+                  <h4 class="text-sm font-semibold">Source folders</h4>
+                  <span class="text-xs text-muted-foreground">{{ sourceFolderCountLabel }}</span>
                 </div>
                 <div class="mt-3 grid gap-2">
                   <div
@@ -808,7 +934,7 @@ function estimatedAssets(): number | undefined {
                       label="Copy path"
                       copied-label="Path copied"
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon-lg"
                       class="-mr-1 shrink-0 text-muted-foreground hover:text-foreground"
                     />
                   </div>
@@ -819,8 +945,8 @@ function estimatedAssets(): number | undefined {
             <Card class="gap-0 py-0">
               <CardContent class="p-4">
                 <div class="flex items-center justify-between gap-3">
-                  <h4 class="text-sm font-semibold">Excluded paths</h4>
-                  <span class="text-xs text-muted-foreground">{{ library.exclusion_patterns.length }}</span>
+                  <h4 class="text-sm font-semibold">Exclusion patterns</h4>
+                  <span class="text-xs text-muted-foreground">{{ exclusionPatternCountLabel }}</span>
                 </div>
                 <div v-if="library.exclusion_patterns.length" class="mt-3 flex flex-wrap gap-2">
                   <code
@@ -831,15 +957,15 @@ function estimatedAssets(): number | undefined {
                     {{ pattern }}
                   </code>
                 </div>
-                <div v-else class="mt-3 rounded-md border border-dashed border-border bg-muted/30 p-3">
-                  <p class="text-sm text-muted-foreground">None configured</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    class="mt-2 h-8 border-border bg-card px-2"
-                    @click="editOpen = true"
-                  >
-                    Add pattern
+                <div v-else class="mt-3 space-y-3">
+                  <div>
+                    <p class="text-sm font-medium text-foreground">No exclusion patterns</p>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                      All files under the source folders are included during library updates.
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" class="border-border bg-card" @click="editOpen = true">
+                    Add exclusion pattern
                   </Button>
                 </div>
               </CardContent>
@@ -876,7 +1002,7 @@ function estimatedAssets(): number | undefined {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" align="end" class="max-w-[220px]">
-                    Reload this library's recent scan, metadata, and generated-image jobs.
+                    Reload this library's recent scan, metadata, and image cache jobs.
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -938,6 +1064,12 @@ function estimatedAssets(): number | undefined {
       :estimated-assets="estimatedAssets()"
       :pending="unregisterMutation.isPending.value"
       @confirm="confirmUnregister"
+    />
+    <OfflineFilesDialog
+      v-if="library"
+      v-model:open="offlineFilesOpen"
+      :library-id="library.id"
+      :expected-count="statsQuery.data.value?.offline_assets ?? 0"
     />
   </main>
 </template>

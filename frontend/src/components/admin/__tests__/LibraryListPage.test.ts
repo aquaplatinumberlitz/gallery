@@ -124,4 +124,11 @@ describe("LibraryListPage", () => {
 
     expect(libraryButton?.classes()).toContain("cursor-pointer");
   });
+
+  it("shows total media files with a secondary photo/video breakdown", () => {
+    const wrapper = mountSubject();
+
+    expect(wrapper.text()).toContain("12");
+    expect(wrapper.get('[aria-label="Media file breakdown"]').text()).toBe("10 photos · 2 videos");
+  });
 });

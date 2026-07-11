@@ -78,10 +78,6 @@ export function useLibraryMutations() {
   const validateMutation = useMutation({
     mutationFn: ({ id, payload }: ValidateVariables) =>
       id ? validateLibraryUpdate(id, payload as LibraryUpdateRequest) : validateLibraryCreate(payload),
-    onSuccess: (result) => {
-      if (result.is_valid) toast.success("Library settings are valid");
-      else toast.warning("Library settings need attention");
-    },
     onError: (error) => toast.error("Could not validate library", errorMessage(error)),
   });
 

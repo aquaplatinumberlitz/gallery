@@ -123,6 +123,108 @@ def get_library_stats(library_id: int) -> dict[str, int]:
         }
 
 
+def list_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
+    """Return unavailable image/video catalog rows for one library."""
+    _initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
+            raise KeyError(library_id)
+        rows = conn.execute(
+            """
+            SELECT id, name, path, type, size, indexed_at
+            FROM assets
+            WHERE library_id = ?
+              AND type IN ('image', 'video')
+              AND offline = 1
+              AND deleted_at IS NULL
+            ORDER BY lower(name), path, id
+            """,
+            (library_id,),
+        ).fetchall()
+        return [
+            {
+                "id": int(row["id"]),
+                "name": str(row["name"]),
+                "path": str(row["path"]),
+                "type": str(row["type"]),
+                "size": int(row["size"]) if row["size"] is not None else None,
+                "indexed_at": int(float(row["indexed_at"]) * 1000) if row["indexed_at"] is not None else None,
+            }
+            for row in rows
+        ]
+
+
+def forget_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
+    """Delete unavailable media tombstones without touching source files."""
+    _initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
+            raise KeyError(library_id)
+        rows = conn.execute(
+            """
+            SELECT id, name, path, type, size, indexed_at
+            FROM assets
+            WHERE library_id = ?
+              AND type IN ('image', 'video')
+              AND offline = 1
+              AND deleted_at IS NULL
+            ORDER BY lower(name), path, id
+            """,
+            (library_id,),
+        ).fetchall()
+        if not rows:
+            return []
+        conn.execute(
+            """
+            DELETE FROM derivative_jobs
+            WHERE derivative_id IN (
+              SELECT d.id
+              FROM asset_derivatives AS d
+              JOIN assets AS a ON a.id = d.asset_id
+              WHERE a.library_id = ?
+                AND a.type IN ('image', 'video')
+                AND a.offline = 1
+                AND a.deleted_at IS NULL
+            )
+            """,
+            (library_id,),
+        )
+        conn.execute(
+            """
+            DELETE FROM asset_derivatives
+            WHERE asset_id IN (
+              SELECT id FROM assets
+              WHERE library_id = ?
+                AND type IN ('image', 'video')
+                AND offline = 1
+                AND deleted_at IS NULL
+            )
+            """,
+            (library_id,),
+        )
+        conn.execute(
+            """
+            DELETE FROM assets
+            WHERE library_id = ?
+              AND type IN ('image', 'video')
+              AND offline = 1
+              AND deleted_at IS NULL
+            """,
+            (library_id,),
+        )
+        return [
+            {
+                "id": int(row["id"]),
+                "name": str(row["name"]),
+                "path": str(row["path"]),
+                "type": str(row["type"]),
+                "size": int(row["size"]) if row["size"] is not None else None,
+                "indexed_at": int(float(row["indexed_at"]) * 1000) if row["indexed_at"] is not None else None,
+            }
+            for row in rows
+        ]
+
+
 def get_gallery_stats() -> dict[str, int]:
     """Return aggregate media counts and storage use across all libraries."""
     _initialize_database()

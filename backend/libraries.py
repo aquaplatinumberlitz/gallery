@@ -21,6 +21,7 @@ from .metadata_store import (
     catalog_path_contains,
     create_job,
     create_library,
+    forget_offline_library_assets,
     get_gallery_stats,
     get_job,
     get_library,
@@ -30,6 +31,7 @@ from .metadata_store import (
     list_active_jobs,
     list_jobs,
     list_libraries,
+    list_offline_library_assets,
     unregister_library,
     update_job_state,
     update_library,
@@ -587,6 +589,31 @@ async def api_library_stats(library_id: int):
         return await run_in_threadpool(get_library_stats, library_id)
     except KeyError as exc:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found") from exc
+
+
+@router.get("/api/libraries/{library_id}/offline-assets")
+async def api_list_offline_library_assets(library_id: int):
+    """List unavailable media tombstones so an administrator can identify them."""
+    try:
+        items = await run_in_threadpool(list_offline_library_assets, library_id)
+    except KeyError as exc:
+        raise APIError(404, ErrorType.NOT_FOUND, "Library not found") from exc
+    return {"items": items, "total": len(items)}
+
+
+@router.delete("/api/libraries/{library_id}/offline-assets")
+async def api_forget_offline_library_assets(
+    library_id: int,
+    confirm: bool = Query(False, description="Must be true; source files are never deleted"),
+):
+    """Permanently forget unavailable media catalog rows, never source files."""
+    if not confirm:
+        raise APIError(400, "confirmation_required", "Forgetting unavailable files requires explicit confirmation")
+    try:
+        items = await run_in_threadpool(forget_offline_library_assets, library_id)
+    except KeyError as exc:
+        raise APIError(404, ErrorType.NOT_FOUND, "Library not found") from exc
+    return {"forgotten": len(items), "items": items}
 
 
 @router.get("/api/libraries/{library_id}/jobs")

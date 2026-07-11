@@ -59,7 +59,7 @@ describe("useGeneratedImagesMutations", () => {
 
     await mutations.warmMutation.mutateAsync();
 
-    expect(toast.success).toHaveBeenCalledWith("Generated images queued");
+    expect(toast.success).toHaveBeenCalledWith("Image cache preparation queued");
     wrapper.unmount();
   });
 

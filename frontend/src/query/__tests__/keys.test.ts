@@ -33,6 +33,7 @@ describe("queryKeys", () => {
     ["libraries", [], ["libraries", "list"]],
     ["library", [5], ["libraries", "detail", 5]],
     ["libraryStats", [5], ["libraries", "stats", 5]],
+    ["offlineLibraryAssets", [5], ["libraries", "offline-assets", 5]],
     ["libraryJobs", [5], ["libraries", "jobs", 5]],
     ["galleryStats", [], ["stats", "gallery"]],
     ["jobsRoot", [], ["jobs"]],
