@@ -108,6 +108,8 @@ async def api_open_folder(path: str = Query(..., description="Absolute path to f
     if not OPEN_FOLDER_ENABLED:
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Open folder is disabled on this server")
     folder_path = resolve_path(path)
+    if not is_path_safe(folder_path):
+        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
     if not folder_path.exists():
         raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
     if not folder_path.is_dir():

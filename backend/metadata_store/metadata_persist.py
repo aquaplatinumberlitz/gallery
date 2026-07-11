@@ -142,8 +142,16 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
         width=metadata.width,
         height=metadata.height,
         reactivate_existing=False,
+        preserve_existing_identity=True,
     )
-    _sync_dimensions_to_file_index(conn, metadata.path, metadata.width, metadata.height)
+    _sync_dimensions_to_file_index(
+        conn,
+        metadata.path,
+        metadata.width,
+        metadata.height,
+        expected_mtime_ns=metadata.mtime_ns,
+        expected_size=metadata.size,
+    )
     _replace_image_resources_conn(conn, metadata.path, metadata.metadata_json, metadata.lora_text, metadata.indexed_at)
 
 
@@ -152,6 +160,9 @@ def _sync_dimensions_to_file_index(
     path: str | Path,
     width: int | None,
     height: int | None,
+    *,
+    expected_mtime_ns: int,
+    expected_size: int,
 ) -> None:
     """Fill missing file-index dimensions inside the caller's transaction."""
     if width is None and height is None:
@@ -161,18 +172,18 @@ def _sync_dimensions_to_file_index(
         UPDATE file_index
         SET width = COALESCE(?, width),
             height = COALESCE(?, height)
-        WHERE path = ?
+        WHERE path = ? AND mtime_ns = ? AND size = ?
         """,
-        (width, height, str(Path(path).resolve())),
+        (width, height, str(Path(path).resolve()), expected_mtime_ns, expected_size),
     )
     conn.execute(
         """
         UPDATE assets
         SET width = COALESCE(?, width),
             height = COALESCE(?, height)
-        WHERE path = ?
+        WHERE path = ? AND mtime_ns = ? AND size = ?
         """,
-        (width, height, str(Path(path).resolve())),
+        (width, height, str(Path(path).resolve()), expected_mtime_ns, expected_size),
     )
 
 
@@ -387,7 +398,14 @@ def upsert_image_dimensions(
             metadata_state="done",
             reactivate_existing=False,
         )
-        _sync_dimensions_to_file_index(conn, resolved_path, width, height)
+        _sync_dimensions_to_file_index(
+            conn,
+            resolved_path,
+            width,
+            height,
+            expected_mtime_ns=stat.st_mtime_ns,
+            expected_size=stat.st_size,
+        )
     return True
 
 
@@ -500,5 +518,7 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
             resolved_path,
             width if isinstance(width, int) else None,
             height if isinstance(height, int) else None,
+            expected_mtime_ns=stat.st_mtime_ns,
+            expected_size=stat.st_size,
         )
     return True

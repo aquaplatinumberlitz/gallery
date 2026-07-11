@@ -16,6 +16,7 @@ cleanup/rebuild flows change.
 
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 
@@ -276,6 +277,43 @@ def test_clear_imported_data_preserves_libraries_import_paths_exclusions_and_cle
     assert library["state"] == "discovering"
     assert library["last_scan_at"] is None
     assert library["last_error"] is None
+
+
+def test_clear_imported_data_blocks_metadata_producer_until_commit(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.derivative_scheduler import scheduler
+    from backend.indexer import dispatch_metadata_index_paths
+
+    create_library([isolated_gallery_root], name="Producer gate")
+    image = isolated_gallery_root / "queued-after-maintenance.png"
+    create_test_png(image)
+    original_clear = scheduler.clear_database_rows
+    producer_finished = threading.Event()
+    producer_thread: threading.Thread | None = None
+
+    def gated_clear(conn):
+        nonlocal producer_thread
+
+        def produce() -> None:
+            dispatch_metadata_index_paths([image])
+            producer_finished.set()
+
+        producer_thread = threading.Thread(target=produce)
+        producer_thread.start()
+        assert not producer_finished.wait(0.1)
+        return original_clear(conn)
+
+    monkeypatch.setattr(scheduler, "clear_database_rows", gated_clear)
+
+    response = isolated_app.post("/api/maintenance/imported-data/clear", json={"confirm": True})
+
+    assert response.status_code == 200
+    assert producer_thread is not None
+    producer_thread.join(timeout=2)
+    assert producer_finished.is_set()
 
 
 def test_clear_imported_data_requires_confirmation(isolated_app: TestClient) -> None:

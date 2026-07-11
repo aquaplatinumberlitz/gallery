@@ -39,6 +39,7 @@ def _upsert_asset_conn(
     duration_ms: int | None = None,
     codec: str | None = None,
     reactivate_existing: bool = True,
+    preserve_existing_identity: bool = False,
 ) -> int:
     from .library_store import _find_library_for_path_conn, _library_exclusion_patterns_conn
 
@@ -66,10 +67,10 @@ def _upsert_asset_conn(
           parent_path=excluded.parent_path,
           name=excluded.name,
           type=excluded.type,
-          mtime_ns=COALESCE(excluded.mtime_ns, assets.mtime_ns),
-          size=COALESCE(excluded.size, assets.size),
-          width=COALESCE(excluded.width, assets.width),
-          height=COALESCE(excluded.height, assets.height),
+          mtime_ns=CASE WHEN ? THEN assets.mtime_ns ELSE COALESCE(excluded.mtime_ns, assets.mtime_ns) END,
+          size=CASE WHEN ? THEN assets.size ELSE COALESCE(excluded.size, assets.size) END,
+          width=CASE WHEN ? THEN assets.width ELSE COALESCE(excluded.width, assets.width) END,
+          height=CASE WHEN ? THEN assets.height ELSE COALESCE(excluded.height, assets.height) END,
           orientation=COALESCE(excluded.orientation, assets.orientation),
           indexed_at=excluded.indexed_at,
           metadata_state=COALESCE(?, assets.metadata_state),
@@ -95,6 +96,10 @@ def _upsert_asset_conn(
             mime_type,
             duration_ms,
             codec,
+            int(preserve_existing_identity),
+            int(preserve_existing_identity),
+            int(preserve_existing_identity),
+            int(preserve_existing_identity),
             metadata_state,
             int(reactivate_existing),
             int(reactivate_existing),

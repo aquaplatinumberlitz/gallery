@@ -241,6 +241,19 @@ class TestApiOpenFolderRoute:
         resp = isolated_app.post("/api/open-folder", params={"path": str(missing)})
         assert resp.status_code == 404
 
+    def test_enabled_unsafe_path_returns_403_before_opening(
+        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr("backend.config.OPEN_FOLDER_ENABLED", True)
+        monkeypatch.setattr("backend.folders.OPEN_FOLDER_ENABLED", True)
+        popen_calls = []
+        monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: popen_calls.append((args, kwargs)))
+
+        resp = isolated_app.post("/api/open-folder", params={"path": "/etc"})
+
+        assert resp.status_code == 403
+        assert popen_calls == []
+
     def test_enabled_file_path_returns_400(
         self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path
     ):

@@ -20,6 +20,7 @@ if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     __package__ = "backend"
 
+from .catalog_maintenance_gate import maintenance_producer, producer_gate
 from .config import (
     DERIVATIVE_JOB_LEASE_SECONDS,
     DERIVATIVE_LEASE_HEARTBEAT_SECONDS,
@@ -139,6 +140,7 @@ class DerivativeScheduler:
         self._eviction_lock = threading.RLock()
         self._generation = 0
 
+    @maintenance_producer
     def start(self) -> None:
         """Start workers and recover jobs interrupted by a prior process.
 
@@ -501,6 +503,7 @@ class DerivativeScheduler:
             with _connect() as conn:
                 return self._capacity_available(conn, estimated_bytes)
 
+    @maintenance_producer
     def repair_derivative_consistency(self, derivative_ids: list[int]) -> DerivativeRepairSummary:
         """Create a queued job for each current ``queued`` derivative without one.
 
@@ -742,6 +745,7 @@ class DerivativeScheduler:
         )
         return derivative_id, "created" if inserted else "requeued"
 
+    @maintenance_producer
     def schedule_derivative(
         self,
         asset_id: int,
@@ -945,6 +949,7 @@ class DerivativeScheduler:
         with self._file_lock:
             self._served_paths.discard(cache_path)
 
+    @maintenance_producer
     def reconcile_desired_derivatives(
         self,
         *,
@@ -1323,19 +1328,26 @@ class DerivativeScheduler:
             "oldest_running_age_seconds": oldest_running_age_seconds,
         }
 
-    def clear_all(self) -> dict[str, int]:
-        """Clear derivative jobs/catalog rows and delete unserved cache files."""
-        _ensure_database()
+    def clear_database_rows(self, conn: sqlite3.Connection) -> dict[str, Any]:
+        """Delete derivative rows using the caller's transaction."""
+        paths = [
+            row[0] for row in conn.execute("SELECT cache_path FROM asset_derivatives WHERE cache_path IS NOT NULL")
+        ]
+        catalog_entries = int(conn.execute("SELECT count(*) FROM asset_derivatives").fetchone()[0])
+        jobs = int(conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0])
+        conn.execute("DELETE FROM derivative_jobs")
+        conn.execute("DELETE FROM asset_derivatives")
+        return {
+            "catalog_entries_cleared": catalog_entries,
+            "jobs_cleared": jobs,
+            "cache_paths": paths,
+        }
+
+    def clear_cache_files(self, paths: Sequence[str]) -> dict[str, int]:
+        """Delete committed derivative cache files while preserving served files."""
         from .thumbnails import clear_thumbnail_disk_cache
 
-        with _connect() as conn:
-            paths = [
-                row[0] for row in conn.execute("SELECT cache_path FROM asset_derivatives WHERE cache_path IS NOT NULL")
-            ]
-            catalog_entries = int(conn.execute("SELECT count(*) FROM asset_derivatives").fetchone()[0])
-            jobs = int(conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0])
-            conn.execute("DELETE FROM derivative_jobs")
-            conn.execute("DELETE FROM asset_derivatives")
+        paths = list(paths)
         files_dir = THUMBNAIL_CACHE_DIR / "files"
         paths.extend(str(path) for path in files_dir.iterdir() if path.is_file()) if files_dir.is_dir() else None
         poster_dir = THUMBNAIL_CACHE_DIR / "video_posters"
@@ -1352,11 +1364,19 @@ class DerivativeScheduler:
                     deleted += 1
         disk_entries = clear_thumbnail_disk_cache()
         return {
-            "catalog_entries_cleared": catalog_entries,
-            "jobs_cleared": jobs,
             "files_deleted": deleted,
             "disk_entries_cleared": disk_entries,
         }
+
+    def clear_all(self) -> dict[str, int]:
+        """Clear derivative jobs/catalog rows and delete unserved cache files."""
+        _ensure_database()
+        with _connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            result = self.clear_database_rows(conn)
+            conn.commit()
+        cache_result = self.clear_cache_files(result.pop("cache_paths"))
+        return {**result, **cache_result}
 
     def _claim_job(self, worker_id: str | None = None) -> sqlite3.Row | None:
         _ensure_database()
@@ -1409,22 +1429,18 @@ class DerivativeScheduler:
     def _worker_loop(self, worker_id: str | None = None) -> None:
         while not self._stop_event.is_set():
             try:
-                job = self._claim_job(worker_id)
+                with producer_gate():
+                    job = self._claim_job(worker_id)
+                    if job is not None:
+                        self._run_job(job)
             except Exception:  # noqa: BLE001
-                logger.exception("Derivative worker could not claim a job")
+                logger.exception("Derivative worker could not process a job")
                 self._stop_event.wait(0.5)
                 continue
             if job is None:
                 self._wake_event.clear()
                 self._wake_event.wait(timeout=1)
                 continue
-            try:
-                self._run_job(job)
-            except Exception:  # noqa: BLE001
-                # _run_job owns normal handler failures. This final boundary
-                # protects worker availability if failure persistence itself
-                # raises; startup/lease recovery repairs the abandoned claim.
-                logger.exception("Unexpected exception escaped derivative job %s", job["job_id"])
 
     def _supervisor_loop(self) -> None:
         """Recover abandoned claims and restore the configured worker count."""
@@ -1434,6 +1450,7 @@ class DerivativeScheduler:
             except Exception:  # noqa: BLE001
                 logger.exception("Derivative supervisor iteration failed")
 
+    @maintenance_producer
     def _supervise_once(self) -> None:
         dead_worker_ids: list[str] = []
         replacements: list[threading.Thread] = []

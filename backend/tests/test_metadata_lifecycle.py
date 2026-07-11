@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from backend.indexer import dispatch_metadata_index_paths, metadata_worker, recover_metadata_index_jobs
+from backend.metadata_extract import extract_metadata
 from backend.metadata_store import (
     _DB_LOCK,
     MAX_METADATA_JOB_ATTEMPTS,
@@ -33,7 +34,9 @@ from backend.metadata_store import (
     complete_metadata_job,
     create_library,
     get_metadata_index_status,
+    index_file,
     initialize_database,
+    upsert_metadata_batch,
 )
 from tests.conftest import create_test_image, create_test_png
 
@@ -1212,6 +1215,51 @@ def test_complete_metadata_job_stale_when_asset_version_mismatch(
         job_row = conn.execute("SELECT state FROM metadata_index_jobs WHERE path = ?", (resolved,)).fetchone()
     assert job_row is not None
     assert job_row["state"] == "stale", f"Expected stale, got {job_row['state']}"
+
+
+def test_stale_metadata_persistence_preserves_newer_asset_identity(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+):
+    """Metadata extracted for an old version cannot restore that asset identity."""
+    root = tmp_path / "lib"
+    root.mkdir()
+    image = root / "race.png"
+    create_test_png(image, size=(64, 64))
+    create_library([root], name="Race")
+    stat = image.stat()
+    assert index_file(
+        image,
+        image.name,
+        image.parent,
+        "image",
+        stat.st_mtime,
+        stat.st_size,
+        64,
+        64,
+    )
+    stale_metadata = extract_metadata(image)
+
+    newer_mtime_ns = stale_metadata.mtime_ns + 1_000_000_000
+    newer_size = stale_metadata.size + 17
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            "UPDATE assets SET mtime_ns = ?, size = ?, width = 999, height = 888 WHERE path = ?",
+            (newer_mtime_ns, newer_size, stale_metadata.path),
+        )
+
+    assert upsert_metadata_batch([stale_metadata]) == 1
+
+    with _DB_LOCK, _connect() as conn:
+        asset = conn.execute(
+            "SELECT mtime_ns, size, width, height FROM assets WHERE path = ?",
+            (stale_metadata.path,),
+        ).fetchone()
+    assert asset is not None
+    assert abs(float(asset["mtime_ns"]) - float(newer_mtime_ns)) < 1000
+    assert asset["size"] == newer_size
+    assert asset["width"] == 999
+    assert asset["height"] == 888
 
 
 # ---------------------------------------------------------------------------

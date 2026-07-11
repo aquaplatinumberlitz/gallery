@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
+from .catalog_maintenance_gate import maintenance_producer, producer_gate
 from .config import (
     METADATA_INDEXER_ENABLED as METADATA_INDEXER_ENABLED,  # noqa: F401 — monkeypatched by tests
 )
@@ -210,6 +211,7 @@ def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+@maintenance_producer
 def dispatch_metadata_index_paths(
     paths: Iterable[str | Path],
     root_path: str | Path | None = None,
@@ -299,7 +301,10 @@ class MetadataLifecycleWorker:
     def _worker_loop(self) -> None:
         while not self._stop_event.is_set():
             try:
-                job = self._claim_job()
+                with producer_gate():
+                    job = self._claim_job()
+                    if job is not None:
+                        self._run_job(job)
             except Exception:  # noqa: BLE001
                 self._logger.exception("DB-claim worker could not read the job queue")
                 self._stop_event.wait(0.5)
@@ -308,7 +313,6 @@ class MetadataLifecycleWorker:
                 self._wake_event.clear()
                 self._wake_event.wait(timeout=1)
                 continue
-            self._run_job(job)
 
     def _claim_job(self) -> MetadataIndexJob | None:
         """Claim one queued metadata job from SQLite.

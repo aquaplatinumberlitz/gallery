@@ -79,7 +79,7 @@ def _reset_autoincrement_sequences_conn(conn: Any) -> int:
     return int(cursor.rowcount if cursor.rowcount is not None and cursor.rowcount >= 0 else 0)
 
 
-def _clear_imported_data_rows() -> dict[str, int]:
+def _clear_imported_data_rows() -> tuple[dict[str, int], dict[str, Any]]:
     initialize_database()
     now = time.time()
     with _DB_LOCK, _connect() as conn:
@@ -96,6 +96,7 @@ def _clear_imported_data_rows() -> dict[str, int]:
         }
         conn.execute("BEGIN IMMEDIATE")
         try:
+            derivative_result = scheduler.clear_database_rows(conn)
             conn.execute("DELETE FROM catalog_rebuild_entries")
             conn.execute("DELETE FROM library_jobs")
             conn.execute("DELETE FROM metadata_index_jobs")
@@ -120,7 +121,13 @@ def _clear_imported_data_rows() -> dict[str, int]:
         except Exception:
             conn.execute("ROLLBACK")
             raise
-    return counts
+    return counts, derivative_result
+
+
+def _clear_imported_data() -> tuple[dict[str, int], dict[str, int]]:
+    counts, derivative_result = _clear_imported_data_rows()
+    cache_result = scheduler.clear_cache_files(derivative_result.pop("cache_paths"))
+    return counts, {**derivative_result, **cache_result}
 
 
 def _derivative_clear_counts(result: dict[str, int]) -> dict[str, int]:
@@ -137,8 +144,7 @@ def clear_imported_data(*, confirm: bool) -> dict[str, Any]:
     _require_confirm(confirm)
     with _maintenance_operation():
         _raise_if_active_work()
-        derivative_result = scheduler.clear_all()
-        counts = _clear_imported_data_rows()
+        counts, derivative_result = _clear_imported_data()
         return {
             "state": "cleared",
             "libraries_preserved": len(list_libraries()),
@@ -158,8 +164,7 @@ def rebuild_imported_data(*, confirm: bool) -> dict[str, Any]:
     _require_confirm(confirm)
     with _maintenance_operation():
         _raise_if_active_work()
-        derivative_result = scheduler.clear_all()
-        clear_counts = _clear_imported_data_rows()
+        clear_counts, derivative_result = _clear_imported_data()
         libraries = list_libraries()
         parent = create_job(
             "rebuild_imported_data",
@@ -245,7 +250,6 @@ def reset_catalog_database(*, confirm_phrase: str) -> dict[str, Any]:
         raise APIError(400, "confirmation_required", f"Reset requires typing {RESET_CONFIRM_PHRASE}")
     with _maintenance_operation():
         _raise_if_active_work()
-        derivative_result = scheduler.clear_all()
         initialize_database()
         with _DB_LOCK, _connect() as conn:
             counts = {
@@ -259,6 +263,7 @@ def reset_catalog_database(*, confirm_phrase: str) -> dict[str, Any]:
             }
             conn.execute("BEGIN IMMEDIATE")
             try:
+                derivative_result = scheduler.clear_database_rows(conn)
                 conn.execute("DELETE FROM catalog_rebuild_entries")
                 conn.execute("DELETE FROM library_jobs")
                 conn.execute("DELETE FROM metadata_index_jobs")
@@ -277,6 +282,8 @@ def reset_catalog_database(*, confirm_phrase: str) -> dict[str, Any]:
             except Exception:
                 conn.execute("ROLLBACK")
                 raise
+        cache_result = scheduler.clear_cache_files(derivative_result.pop("cache_paths"))
+        derivative_result = {**derivative_result, **cache_result}
         return {
             "state": "reset",
             **counts,

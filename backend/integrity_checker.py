@@ -5,6 +5,7 @@ import threading
 import time
 from pathlib import Path
 
+from .catalog_maintenance_gate import maintenance_producer
 from .config import DERIVATIVE_RECONCILE_BATCH_SIZE, DERIVATIVE_VARIANTS
 from .metadata_store import _DB_LOCK, _connect
 from .metadata_store.identity import (
@@ -49,6 +50,7 @@ class IntegrityChecker:
             except Exception:
                 logger.exception("Integrity checker crashed")
 
+    @maintenance_producer
     def run_and_persist(self, trigger: str = "manual") -> dict:
         """Run all checks and persist the summary to the integrity_check_runs table."""
         from .metadata_store.maintenance_store import insert_run

@@ -90,6 +90,14 @@ files and active metadata jobs whose source file or asset row disappeared. Each
 daemon or manual run persists a summary into `integrity_check_runs`, which backs
 the Maintenance file-health API.
 
+Destructive imported-data maintenance holds a shared producer gate across the
+operation. Metadata dispatch, metadata workers, derivative scheduling and
+reconciliation, integrity repair, and catalog queue producers cannot create new
+work while the gate is held. After in-flight producers are quiescent, durable
+active work is rechecked; derivative and catalog database rows are then deleted
+in one transaction, and cache files are removed only after commit. Releasing the
+gate resumes paused producers.
+
 ## Derivative Lifecycle
 
 ### Owner: `backend/derivative_scheduler.py`
