@@ -112,6 +112,7 @@ def test_baseline_source_change_leaves_historical_rows_without_current_work(
 
 
 def test_target_reconciler_creates_both_current_configured_variants(
+    isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
     """Target contract: one new image receives one current row/job per default kind."""
@@ -233,6 +234,7 @@ def test_target_quota_eviction_never_leaves_queued_derivative_without_job(
 
 
 def test_target_scheduler_exposes_fenced_derivative_outcome(
+    isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
     """Target contract: request waiters can inspect a scheduled derivative by ID."""

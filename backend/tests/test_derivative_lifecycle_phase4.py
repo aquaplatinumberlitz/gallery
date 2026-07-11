@@ -159,6 +159,7 @@ def test_integrity_repairs_queued_without_job(
 
 
 def test_get_derivative_outcome_reports_current_and_states(
+    isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
     """The fenced read model exposes derivative state and current identity."""

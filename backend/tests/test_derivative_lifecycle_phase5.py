@@ -234,6 +234,7 @@ def test_heartbeat_with_obsolete_token_updates_zero_rows(
 
 
 def test_heartbeat_thread_is_daemon_and_bounded(
+    isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
     """The heartbeat thread is owned by job/claim and does not block process exit."""
