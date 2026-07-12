@@ -419,7 +419,7 @@ describe("AppHeader", () => {
       .find((item) => item.attributes("aria-label") === "Advanced Search")!
       .trigger("click");
     expect(
-      JSON.parse(wrapper.get('[data-testid="advanced-search-drawer"]').attributes("data-initial-filters")),
+      JSON.parse(wrapper.get('[data-testid="advanced-search-drawer"]').attributes("data-initial-filters") ?? ""),
     ).toEqual(parsedFiltersResult);
   });
 

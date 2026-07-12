@@ -463,9 +463,9 @@ watch(
                         <datalist id="model-datalist">
                           <option v-for="option in facetModelOptions" :key="option" :value="option" />
                         </datalist>
-                        <FieldDescription v-if="facetStatus(facetModelOptions)" class="text-xs" aria-live="polite">{{
-                          facetStatus(facetModelOptions)
-                        }}</FieldDescription>
+                        <FieldDescription v-if="facetStatus(facetModelOptions)" class="text-xs" aria-live="polite">
+                          {{ facetStatus(facetModelOptions) }}
+                        </FieldDescription>
                       </Field>
                     </form.Field>
                     <form.Field name="folder" v-slot="{ field }">
@@ -532,9 +532,9 @@ watch(
                         <datalist id="sampler-datalist">
                           <option v-for="option in facetSamplerOptions" :key="option" :value="option" />
                         </datalist>
-                        <FieldDescription v-if="facetStatus(facetSamplerOptions)" class="text-xs" aria-live="polite">{{
-                          facetStatus(facetSamplerOptions)
-                        }}</FieldDescription>
+                        <FieldDescription v-if="facetStatus(facetSamplerOptions)" class="text-xs" aria-live="polite">
+                          {{ facetStatus(facetSamplerOptions) }}
+                        </FieldDescription>
                       </Field>
                     </form.Field>
                     <form.Field name="scheduler" v-slot="{ field }">
@@ -550,36 +550,35 @@ watch(
                         <datalist id="scheduler-datalist">
                           <option v-for="option in facetSchedulerOptions" :key="option" :value="option" />
                         </datalist>
-                        <FieldDescription
-                          v-if="facetStatus(facetSchedulerOptions)"
-                          class="text-xs"
-                          aria-live="polite"
-                          >{{ facetStatus(facetSchedulerOptions) }}</FieldDescription
-                        >
+                        <FieldDescription v-if="facetStatus(facetSchedulerOptions)" class="text-xs" aria-live="polite">
+                          {{ facetStatus(facetSchedulerOptions) }}
+                        </FieldDescription>
                       </Field>
                     </form.Field>
                     <form.Field name="lora" v-slot="{ field }">
-                      <Field class="gap-1.5"
-                        ><FieldLabel for="advanced-search-lora">LoRA</FieldLabel
+                      <Field class="gap-1.5">
+                        <FieldLabel for="advanced-search-lora">LoRA</FieldLabel
                         ><Input
                           id="advanced-search-lora"
                           :model-value="field.state.value"
                           placeholder="detail-slider"
                           @update:model-value="field.handleChange"
-                      /></Field>
+                        />
+                      </Field>
                     </form.Field>
                     <form.Field name="vae" v-slot="{ field }">
-                      <Field class="gap-1.5"
-                        ><FieldLabel for="advanced-search-vae">VAE</FieldLabel
+                      <Field class="gap-1.5">
+                        <FieldLabel for="advanced-search-vae">VAE</FieldLabel
                         ><Input
                           id="advanced-search-vae"
                           :model-value="field.state.value"
                           placeholder="vae-ft-mse"
                           @update:model-value="field.handleChange"
-                      /></Field>
+                        />
+                      </Field>
                     </form.Field>
-                    <form.Field name="seed" v-slot="{ field }"
-                      ><AdvancedSearchNumericField
+                    <form.Field name="seed" v-slot="{ field }">
+                      <AdvancedSearchNumericField
                         id="advanced-search-seed"
                         label="Seed"
                         :model-value="field.state.value"
@@ -588,9 +587,10 @@ watch(
                         placeholder="12345"
                         :error="validationErrors.seed"
                         @update:model-value="field.handleChange"
-                    /></form.Field>
-                    <form.Field name="steps" v-slot="{ field }"
-                      ><AdvancedSearchNumericField
+                      />
+                    </form.Field>
+                    <form.Field name="steps" v-slot="{ field }">
+                      <AdvancedSearchNumericField
                         id="advanced-search-steps"
                         label="Steps"
                         :model-value="field.state.value"
@@ -599,9 +599,10 @@ watch(
                         placeholder="30"
                         :error="validationErrors.steps"
                         @update:model-value="field.handleChange"
-                    /></form.Field>
-                    <form.Field name="cfg" v-slot="{ field }"
-                      ><AdvancedSearchNumericField
+                      />
+                    </form.Field>
+                    <form.Field name="cfg" v-slot="{ field }">
+                      <AdvancedSearchNumericField
                         id="advanced-search-cfg"
                         label="CFG scale"
                         :model-value="field.state.value"
@@ -609,9 +610,10 @@ watch(
                         placeholder="7.5"
                         :error="validationErrors.cfg"
                         @update:model-value="field.handleChange"
-                    /></form.Field>
-                    <form.Field name="clip_skip" v-slot="{ field }"
-                      ><AdvancedSearchNumericField
+                      />
+                    </form.Field>
+                    <form.Field name="clip_skip" v-slot="{ field }">
+                      <AdvancedSearchNumericField
                         id="advanced-search-clip-skip"
                         label="Clip skip"
                         :model-value="field.state.value"
@@ -620,9 +622,10 @@ watch(
                         placeholder="2"
                         :error="validationErrors.clip_skip"
                         @update:model-value="field.handleChange"
-                    /></form.Field>
-                    <form.Field name="denoising_strength" v-slot="{ field }"
-                      ><AdvancedSearchNumericField
+                      />
+                    </form.Field>
+                    <form.Field name="denoising_strength" v-slot="{ field }">
+                      <AdvancedSearchNumericField
                         id="advanced-search-denoising-strength"
                         label="Denoising strength"
                         :model-value="field.state.value"
@@ -630,9 +633,10 @@ watch(
                         placeholder="0.75"
                         :error="validationErrors.denoising_strength"
                         @update:model-value="field.handleChange"
-                    /></form.Field>
-                    <form.Field name="hires_upscale" v-slot="{ field }"
-                      ><AdvancedSearchNumericField
+                      />
+                    </form.Field>
+                    <form.Field name="hires_upscale" v-slot="{ field }">
+                      <AdvancedSearchNumericField
                         id="advanced-search-hires-upscale"
                         label="HiRes upscale"
                         :model-value="field.state.value"
@@ -640,9 +644,10 @@ watch(
                         placeholder="2"
                         :error="validationErrors.hires_upscale"
                         @update:model-value="field.handleChange"
-                    /></form.Field>
-                    <form.Field name="hires_steps" v-slot="{ field }"
-                      ><AdvancedSearchNumericField
+                      />
+                    </form.Field>
+                    <form.Field name="hires_steps" v-slot="{ field }">
+                      <AdvancedSearchNumericField
                         id="advanced-search-hires-steps"
                         label="HiRes steps"
                         :model-value="field.state.value"
@@ -651,7 +656,8 @@ watch(
                         placeholder="10"
                         :error="validationErrors.hires_steps"
                         @update:model-value="field.handleChange"
-                    /></form.Field>
+                      />
+                    </form.Field>
                   </div>
                 </FieldGroup>
               </AccordionContent>
@@ -665,14 +671,13 @@ watch(
                 >
               </AccordionTrigger>
               <AccordionContent class="pt-1">
-                <FieldDescription class="mb-4 text-xs"
-                  >Dimension filters combine with AND. Add more than one only when every condition should
-                  match.</FieldDescription
-                >
+                <FieldDescription class="mb-4 text-xs">
+                  Dimension filters combine with AND. Add more than one only when every condition should match.
+                </FieldDescription>
                 <FieldGroup class="gap-4">
                   <div class="grid grid-cols-2 gap-4">
-                    <form.Field name="width" v-slot="{ field }"
-                      ><AdvancedSearchNumericField
+                    <form.Field name="width" v-slot="{ field }">
+                      <AdvancedSearchNumericField
                         id="advanced-search-width"
                         label="Width"
                         :model-value="field.state.value"
@@ -681,9 +686,10 @@ watch(
                         placeholder="1024"
                         :error="validationErrors.width"
                         @update:model-value="field.handleChange"
-                    /></form.Field>
-                    <form.Field name="height" v-slot="{ field }"
-                      ><AdvancedSearchNumericField
+                      />
+                    </form.Field>
+                    <form.Field name="height" v-slot="{ field }">
+                      <AdvancedSearchNumericField
                         id="advanced-search-height"
                         label="Height"
                         :model-value="field.state.value"
@@ -692,7 +698,8 @@ watch(
                         placeholder="768"
                         :error="validationErrors.height"
                         @update:model-value="field.handleChange"
-                    /></form.Field>
+                      />
+                    </form.Field>
                   </div>
                   <form.Field name="size" v-slot="{ field }">
                     <Field :data-invalid="Boolean(validationErrors.size)" class="gap-1.5">
@@ -706,9 +713,9 @@ watch(
                         :aria-describedby="validationErrors.size ? 'advanced-search-size-error' : undefined"
                         @update:model-value="field.handleChange"
                       />
-                      <FieldError v-if="validationErrors.size" id="advanced-search-size-error">{{
-                        validationErrors.size
-                      }}</FieldError>
+                      <FieldError v-if="validationErrors.size" id="advanced-search-size-error">
+                        {{ validationErrors.size }}
+                      </FieldError>
                     </Field>
                   </form.Field>
                   <form.Field name="ratio" v-slot="{ field }">
@@ -723,9 +730,9 @@ watch(
                         :aria-describedby="validationErrors.ratio ? 'advanced-search-ratio-error' : undefined"
                         @update:model-value="field.handleChange"
                       />
-                      <FieldError v-if="validationErrors.ratio" id="advanced-search-ratio-error">{{
-                        validationErrors.ratio
-                      }}</FieldError>
+                      <FieldError v-if="validationErrors.ratio" id="advanced-search-ratio-error">
+                        {{ validationErrors.ratio }}
+                      </FieldError>
                       <ToggleGroup
                         type="single"
                         variant="outline"
@@ -743,8 +750,9 @@ watch(
                           :value="ratio"
                           :aria-label="ratio"
                           class="min-h-9 min-w-0 border data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                          >{{ ratio }}</ToggleGroupItem
                         >
+                          {{ ratio }}
+                        </ToggleGroupItem>
                       </ToggleGroup>
                     </Field>
                   </form.Field>
@@ -764,51 +772,51 @@ watch(
               <AccordionContent class="pt-1">
                 <FieldGroup class="gap-4">
                   <form.Field name="param" v-slot="{ field }">
-                    <Field class="gap-1.5"
-                      ><FieldLabel for="advanced-search-param">Metadata key</FieldLabel
+                    <Field class="gap-1.5">
+                      <FieldLabel for="advanced-search-param">Metadata key</FieldLabel
                       ><Input
                         id="advanced-search-param"
                         :model-value="field.state.value"
                         class="font-mono"
                         placeholder="some_key:value"
                         @update:model-value="field.handleChange"
-                      /><FieldDescription class="text-xs"
-                        >Serialized as <code>param:some_key:value</code>.</FieldDescription
-                      ></Field
-                    >
+                      /><FieldDescription class="text-xs">
+                        Serialized as <code>param:some_key:value</code>.
+                      </FieldDescription>
+                    </Field>
                   </form.Field>
                   <form.Field name="advanced" v-slot="{ field }">
-                    <Field class="gap-1.5"
-                      ><FieldLabel for="advanced-search-advanced">Workflow key</FieldLabel
+                    <Field class="gap-1.5">
+                      <FieldLabel for="advanced-search-advanced">Workflow key</FieldLabel
                       ><Input
                         id="advanced-search-advanced"
                         :model-value="field.state.value"
                         class="font-mono"
                         placeholder="some_key:value"
                         @update:model-value="field.handleChange"
-                      /><FieldDescription class="text-xs"
-                        >Serialized as <code>advanced:some_key:value</code>.</FieldDescription
-                      ></Field
-                    >
+                      /><FieldDescription class="text-xs">
+                        Serialized as <code>advanced:some_key:value</code>.
+                      </FieldDescription>
+                    </Field>
                   </form.Field>
                   <form.Field name="raw" v-slot="{ field }">
-                    <Field class="gap-1.5"
-                      ><FieldLabel for="advanced-search-raw">Raw metadata text</FieldLabel
+                    <Field class="gap-1.5">
+                      <FieldLabel for="advanced-search-raw">Raw metadata text</FieldLabel
                       ><Textarea
                         id="advanced-search-raw"
                         :model-value="field.state.value"
                         class="min-h-24 resize-y font-mono"
                         placeholder="model:PonyXL"
                         @update:model-value="(value) => field.handleChange(String(value))"
-                      /><FieldDescription class="text-xs">Searches embedded raw metadata text.</FieldDescription></Field
-                    >
+                      /><FieldDescription class="text-xs">Searches embedded raw metadata text.</FieldDescription>
+                    </Field>
                   </form.Field>
 
                   <Field v-if="passThroughTokens.length" class="gap-2">
                     <FieldLabel>Additional preserved filters</FieldLabel>
-                    <FieldDescription class="text-xs"
-                      >Repeated and unsupported filters stay unchanged unless removed.</FieldDescription
-                    >
+                    <FieldDescription class="text-xs">
+                      Repeated and unsupported filters stay unchanged unless removed.
+                    </FieldDescription>
                     <ul class="flex flex-col gap-2">
                       <li
                         v-for="token in passThroughTokens"
@@ -822,8 +830,9 @@ watch(
                           size="icon-sm"
                           :aria-label="`Remove ${filterToDisplayString(token.filter)}`"
                           @click="removeStagedToken(token.id)"
-                          ><X
-                        /></Button>
+                        >
+                          <X />
+                        </Button>
                       </li>
                     </ul>
                   </Field>
@@ -841,9 +850,9 @@ watch(
           <div class="flex items-center gap-3">
             <span class="text-xs text-muted-foreground"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd></span>
             <Button type="button" variant="ghost" size="sm" @click="handleCancel">Cancel</Button>
-            <Button type="submit" size="sm" :disabled="!formState.isValid"
-              ><Search data-icon="inline-start" />{{ applyLabel }}</Button
-            >
+            <Button type="submit" size="sm" :disabled="!formState.isValid">
+              <Search data-icon="inline-start" />{{ applyLabel }}
+            </Button>
           </div>
         </footer>
       </form>
