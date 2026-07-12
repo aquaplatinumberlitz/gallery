@@ -193,7 +193,7 @@ const gallerySortValue = computed<SortValue>({
             class="search-focus-input"
             data-focus-ring="none"
           />
-          <div class="flex shrink-0 items-center gap-2">
+          <div class="flex shrink-0 items-center gap-3">
             <SearchScopeSelect
               :model-value="searchScope"
               :current-label="folderName"
@@ -204,7 +204,7 @@ const gallerySortValue = computed<SortValue>({
             />
             <button
               v-if="hasQuery"
-              class="search-focus-clear inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-gallery-full border-0 bg-muted/70 p-0 text-foreground transition-colors duration-normal hover:bg-muted active:bg-accent"
+              class="search-focus-clear"
               @click="clearSearch"
               aria-label="Clear search"
             >
@@ -509,10 +509,33 @@ const gallerySortValue = computed<SortValue>({
 }
 
 /* ============================================================
-   Clear button
+   Clear button — matches scope button shape & background
    ============================================================ */
 .search-focus-clear {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 0;
+  background: color-mix(in srgb, var(--muted) 76%, transparent);
+  padding: 0;
+  color: var(--foreground);
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition:
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.search-focus-clear:hover {
+  background: var(--muted);
+}
+
+.search-focus-clear:active {
+  transform: scale(0.96);
 }
 
 .search-focus-clear svg {
@@ -522,10 +545,10 @@ const gallerySortValue = computed<SortValue>({
 
 :deep(.mobile-search-scope) {
   width: auto;
-  min-width: 44px;
-  max-width: 128px;
+  min-width: 144px;
+  max-width: 144px;
   height: 44px;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   border-color: transparent;
   border-radius: var(--gallery-radius-full);
   background: color-mix(in srgb, var(--muted) 76%, transparent);
@@ -542,7 +565,7 @@ const gallerySortValue = computed<SortValue>({
 }
 
 :deep(.mobile-search-scope .search-scope-select-label) {
-  max-width: 72px;
+  max-width: 86px;
 }
 
 /* ============================================================
@@ -658,19 +681,19 @@ const gallerySortValue = computed<SortValue>({
     font-size: 16px; /* Keep 16px to prevent iOS zoom */
   }
 
-  .search-focus-clear {
-    width: 44px;
-    height: 44px;
-  }
-
   .search-focus-input-icon {
     width: 14px;
     height: 14px;
   }
+}
 
-  .search-focus-clear svg {
-    width: var(--gallery-icon-md);
-    height: var(--gallery-icon-md);
+/* ============================================================
+   Very small screens (<420px) — tighter scope button
+   ============================================================ */
+@media (max-width: 420px) {
+  :deep(.mobile-search-scope) {
+    min-width: 112px;
+    max-width: 112px;
   }
 }
 
