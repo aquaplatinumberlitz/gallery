@@ -7,7 +7,7 @@
 .tablet-sheet {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--gallery-z-lightbox-panel, 100010);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -25,26 +25,37 @@
   position: relative;
   background: var(--gallery-lightbox-bg, #1a1a1a);
   border-radius: 20px 20px 0 0;
-  max-height: 65vh;
-  min-height: 28vh;
+  max-height: min(65dvh, 680px);
+  min-height: 28dvh;
   display: flex;
   flex-direction: column;
-  transition: max-height 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   overflow: hidden;
-  margin: 0 16px;
+  margin-inline-start: max(16px, env(safe-area-inset-left));
+  margin-inline-end: max(16px, env(safe-area-inset-right));
 
   &.tablet-expanded {
-    max-height: 80vh;
+    max-height: min(80dvh, 840px);
   }
 }
 
 .tablet-handle-wrapper {
+  width: 100%;
+  min-height: 44px;
   display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 10px 0 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
   touch-action: none;
   flex-shrink: 0;
   cursor: pointer;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: inset var(--focus-ring-shadow);
+  }
 }
 
 .tablet-handle {
@@ -121,7 +132,7 @@
 .tablet-col {
   overflow-y: auto;
   padding: 16px;
-  padding-bottom: 96px;
+  padding-bottom: max(24px, calc(env(safe-area-inset-bottom) + 16px));
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -248,7 +259,8 @@
 // Tablet-wide spacing refinement, not a device breakpoint
 @media (min-width: 900px) {
   .tablet-panel {
-    margin: 0 32px;
+    margin-inline-start: max(32px, env(safe-area-inset-left));
+    margin-inline-end: max(32px, env(safe-area-inset-right));
   }
 }
 
@@ -256,11 +268,11 @@
 // Short viewport tablet refinement
 @media (max-height: 800px) {
   .tablet-panel {
-    max-height: 55vh;
-    min-height: 22vh;
+    max-height: 55dvh;
+    min-height: 22dvh;
 
     &.tablet-expanded {
-      max-height: 72vh;
+      max-height: 72dvh;
     }
   }
 }

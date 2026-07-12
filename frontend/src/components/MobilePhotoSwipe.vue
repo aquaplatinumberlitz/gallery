@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, toRef } from "vue";
+import { computed, nextTick, toRef, useTemplateRef, watch } from "vue";
 import { Info } from "lucide-vue-next";
 import "photoswipe/dist/photoswipe.css";
 import type { FileNode } from "../types";
@@ -18,7 +18,8 @@ const emit = defineEmits<{
   (e: "toggleMetadata"): void;
 }>();
 
-const containerRef = ref<HTMLElement | null>(null);
+const containerRef = useTemplateRef<HTMLElement>("container");
+const metadataButtonRef = useTemplateRef<HTMLButtonElement>("metadataButton");
 
 usePhotoSwipe({
   containerRef,
@@ -28,17 +29,29 @@ usePhotoSwipe({
   photoSwipeOptions: {
     closeOnVerticalDrag: true,
     allowPanToNext: true,
+    trapFocus: false,
+    returnFocus: false,
   },
   thumbnailSize: 1600,
   onIndexChange: (index) => emit("indexChange", index),
   onClose: () => emit("close"),
 });
+
+watch(
+  () => props.metadataOpen,
+  async (isOpen, wasOpen) => {
+    if (!wasOpen || isOpen) return;
+    await nextTick();
+    metadataButtonRef.value?.focus({ preventScroll: true });
+  },
+);
 </script>
 
 <template>
-  <div ref="containerRef" class="mobile-photoswipe-container" />
+  <div ref="container" class="mobile-photoswipe-container" />
   <button
     v-if="!metadataOpen"
+    ref="metadataButton"
     class="lightbox-floating-control lightbox-floating-control--mobile"
     :aria-label="'View image info'"
     @click.stop="emit('toggleMetadata')"
@@ -58,7 +71,7 @@ usePhotoSwipe({
   position: fixed;
   right: max(18px, env(safe-area-inset-right) + 14px);
   bottom: max(24px, env(safe-area-inset-bottom) + 12px);
-  z-index: 5000;
+  z-index: calc(var(--gallery-z-lightbox, 100000) + 1);
 }
 </style>
 

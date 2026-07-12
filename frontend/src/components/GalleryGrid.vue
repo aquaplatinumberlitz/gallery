@@ -6,6 +6,8 @@ import { useLightboxStore } from "../stores/lightbox";
 import type { FileNode, SortValue, UnifiedSearchResult } from "../types";
 import { normalizeAssetType } from "../utils/assetType";
 import AlbumCard from "./AlbumCard.vue";
+import AlbumCardMobile from "./AlbumCardMobile.vue";
+import AlbumCardTablet from "./AlbumCardTablet.vue";
 import AlbumScroller from "./AlbumScroller.vue";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
 import GlowContainer from "./GlowContainer.vue";
@@ -517,6 +519,9 @@ const isSearchFetchingNextPage = computed(() => unifiedSearchQuery.isFetchingNex
 // --- Virtual scroller state ---
 const { isTablet } = useDevice();
 const deviceCategory = computed(() => (props.isMobile ? "mobile" : isTablet.value ? "tablet" : "desktop"));
+const searchAlbumCardComponent = computed(() =>
+  props.isMobile ? AlbumCardMobile : isTablet.value ? AlbumCardTablet : AlbumCard,
+);
 const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize(deviceCategory);
 
 const updateSearchScrollContentWidth = (el: HTMLElement | null) => {
@@ -590,10 +595,11 @@ type SearchVirtualRow =
   | { id: string; kind: "media"; items: UnifiedSearchResult[]; rowIndex: number };
 
 const searchAlbumColumnCount = computed(() => {
-  if (props.isMobile) return 1;
+  if (props.isMobile) return 2;
 
   const cardWidth = isTablet.value ? SEARCH_ALBUM_CARD_TABLET_WIDTH : SEARCH_ALBUM_CARD_DESKTOP_WIDTH;
   const maxColumns = isTablet.value ? 3 : 5;
+  const gridGap = isTablet.value ? 12 : SEARCH_ALBUM_GRID_GAP;
   const availableWidth = Math.max(0, searchScrollContentWidth.value - SEARCH_ALBUM_ROW_HORIZONTAL_PADDING);
 
   if (!availableWidth) {
@@ -602,17 +608,28 @@ const searchAlbumColumnCount = computed(() => {
 
   return Math.max(
     1,
-    Math.min(maxColumns, Math.floor((availableWidth + SEARCH_ALBUM_GRID_GAP) / (cardWidth + SEARCH_ALBUM_GRID_GAP))),
+    Math.min(maxColumns, Math.floor((availableWidth + gridGap) / (cardWidth + gridGap))),
   );
 });
+
+const searchAlbumGridGap = computed(() => (props.isMobile ? 8 : isTablet.value ? 12 : SEARCH_ALBUM_GRID_GAP));
 
 const searchAlbumCardWidth = computed(() =>
   props.isMobile ? undefined : isTablet.value ? SEARCH_ALBUM_CARD_TABLET_WIDTH : SEARCH_ALBUM_CARD_DESKTOP_WIDTH,
 );
 
 const searchAlbumGridTemplateColumns = computed(() =>
-  props.isMobile ? "minmax(0, 1fr)" : `repeat(${searchAlbumColumnCount.value}, ${searchAlbumCardWidth.value}px)`,
+  props.isMobile
+    ? `repeat(${searchAlbumColumnCount.value}, minmax(0, 1fr))`
+    : `repeat(${searchAlbumColumnCount.value}, ${searchAlbumCardWidth.value}px)`,
 );
+
+const searchAlbumMobileRowHeight = computed(() => {
+  const horizontalPadding = 4;
+  const availableWidth = Math.max(0, searchScrollContentWidth.value - horizontalPadding - searchAlbumGridGap.value);
+  const cardWidth = availableWidth ? availableWidth / searchAlbumColumnCount.value : 156;
+  return Math.ceil(cardWidth + 66);
+});
 
 const searchVirtualRows = computed<SearchVirtualRow[]>(() => {
   const rows: SearchVirtualRow[] = [];
@@ -652,7 +669,7 @@ const estimateSearchRowSize = (index: number) => {
   const row = searchVirtualRows.value[index];
   if (!row) return rowHeight.value || 220;
   if (row.kind === "header") return 48;
-  if (row.kind === "albums") return props.isMobile ? 178 : isTablet.value ? 226 : 280;
+  if (row.kind === "albums") return props.isMobile ? searchAlbumMobileRowHeight.value : isTablet.value ? 226 : 280;
   const mediaHeight = rowHeight.value || (props.isMobile ? 150 : isTablet.value ? 190 : 220);
   return mediaHeight + 48;
 };
@@ -662,7 +679,7 @@ const searchVirtualGrid = useVirtualGridRows({
   scrollElement: searchScrollParentRef,
   estimateSize: estimateSearchRowSize,
   overscan: 5,
-  measureDeps: [rowHeight, columnCount, searchAlbumColumnCount, searchAlbumCardWidth],
+  measureDeps: [rowHeight, columnCount, searchAlbumColumnCount, searchAlbumCardWidth, searchAlbumMobileRowHeight],
 });
 
 const searchVirtualItems = searchVirtualGrid.virtualItems;
@@ -670,7 +687,7 @@ const searchVirtualSpacerStyle = searchVirtualGrid.virtualSpacerStyle;
 const getSearchVirtualRowStyle = (start: number) => searchVirtualGrid.getVirtualRowStyle(start);
 const getSearchAlbumVirtualRowStyle = (start: number) =>
   searchVirtualGrid.getVirtualRowStyle(start, {
-    gap: `${SEARCH_ALBUM_GRID_GAP}px`,
+    gap: `${searchAlbumGridGap.value}px`,
     gridTemplateColumns: searchAlbumGridTemplateColumns.value,
   });
 const getSearchMediaVirtualRowStyle = (start: number) =>
@@ -936,7 +953,8 @@ useIntersectionObserver(
               class="search-virtual-row search-album-grid"
               :style="getSearchAlbumVirtualRowStyle(virtualRow.start)"
             >
-              <AlbumCard
+              <component
+                :is="searchAlbumCardComponent"
                 v-for="album in row.items"
                 :key="album.path"
                 :node="album"
@@ -1554,25 +1572,25 @@ useIntersectionObserver(
 /* ── Tablet (768px–1199px) spacing ── */
 @media (min-width: 768px) and (max-width: 1199px) {
   .gallery-grid {
-    gap: 12px;
+    gap: 8px;
   }
 
   .virtual-row {
-    gap: 12px;
+    gap: 10px;
   }
 
   .skeleton-grid {
-    gap: 12px;
+    gap: 10px;
   }
 
   .scroller {
-    padding-left: 6px;
-    padding-right: 10px;
+    padding-left: 2px;
+    padding-right: 6px;
   }
 
   .folders-only-container {
-    padding-left: 6px;
-    padding-right: 10px;
+    padding-left: 2px;
+    padding-right: 6px;
   }
 }
 
@@ -1604,13 +1622,13 @@ useIntersectionObserver(
   }
 
   .scroller-container {
-    padding-top: 8px;
+    padding-top: 4px;
   }
 
   /* Reduce photo row gap and spacers on mobile */
   .virtual-row {
-    gap: 4px;
-    padding: 0 4px;
+    gap: 3px;
+    padding: 0 2px;
   }
 
   .scroller-footer {
@@ -1623,8 +1641,8 @@ useIntersectionObserver(
   }
 
   .scroller {
-    padding-left: 4px;
-    padding-right: 4px;
+    padding-left: 2px;
+    padding-right: 2px;
   }
 
   .search-results-container {
@@ -1634,6 +1652,7 @@ useIntersectionObserver(
 
   .search-album-grid {
     gap: 8px;
+    padding-inline: 2px;
   }
 
   .search-result-card {

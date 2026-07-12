@@ -76,21 +76,28 @@ const emit = defineEmits<{
 .content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  height: 100%;
+  gap: 10px;
+  height: 100dvh;
   overflow: hidden;
-  padding: 16px 12px 20px 12px;
+  padding: max(12px, env(safe-area-inset-top)) 18px max(16px, env(safe-area-inset-bottom));
 }
 
 .content-body {
-  background: var(--card);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
   flex: 1;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 900px) {
+  .content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
 }
 </style>

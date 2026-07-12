@@ -29,9 +29,12 @@ const folderName = computed(() => {
       <ArrowLeft />
     </button>
 
-    <div class="mbb-path">
+    <div class="mbb-path" aria-live="polite">
       <FolderOpen class="path-icon" />
-      <span class="path-text">{{ folderName }}</span>
+      <span class="path-copy">
+        <span class="path-kicker">Current folder</span>
+        <span class="path-text">{{ folderName }}</span>
+      </span>
     </div>
 
     <button class="mbb-btn" :disabled="!canForward" @click="emit('forward')" aria-label="Go forward">
@@ -43,24 +46,24 @@ const folderName = computed(() => {
 <style scoped>
 .mobile-bottom-bar {
   position: fixed;
-  bottom: 16px;
+  bottom: 10px;
   left: 50%;
-  width: min(420px, calc(100vw - 32px));
+  width: min(440px, calc(100vw - 20px));
   box-sizing: border-box;
   transform: translateX(-50%) translateY(0);
   z-index: 80;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 6px 8px;
+  gap: 6px;
+  padding: 6px;
   margin-bottom: env(safe-area-inset-bottom, 0px);
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--card) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  box-shadow: var(--gallery-shadow-md, 0 4px 20px rgba(0, 0, 0, 0.1));
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  box-shadow: 0 10px 30px color-mix(in srgb, black 12%, transparent);
   opacity: 1;
   transition:
     transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
@@ -79,7 +82,7 @@ const folderName = computed(() => {
   min-width: 44px;
   min-height: 44px;
   border: none;
-  border-radius: 50%;
+  border-radius: 14px;
   background: transparent;
   color: var(--foreground);
   cursor: pointer;
@@ -115,7 +118,7 @@ const folderName = computed(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 0 1 auto;
+  flex: 1;
   padding: 0 8px;
   min-width: 0;
 }
@@ -125,9 +128,26 @@ const folderName = computed(() => {
   flex-shrink: 0;
 }
 
+.path-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.path-kicker {
+  color: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
 .path-text {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 650;
   color: var(--foreground);
   white-space: nowrap;
   overflow: hidden;
@@ -137,9 +157,9 @@ const folderName = computed(() => {
 /* Compact (<480px): smaller pill, tighter spacing */
 @media (max-width: 480px) {
   .mobile-bottom-bar {
-    bottom: 12px;
-    padding: 4px 6px;
-    border-radius: 20px;
+    bottom: 8px;
+    padding: 5px;
+    border-radius: 18px;
     gap: 2px;
   }
 
@@ -149,13 +169,12 @@ const folderName = computed(() => {
   }
 
   .mbb-path {
-    padding: 0 6px;
+    padding: 0 4px;
     gap: 4px;
-    max-width: 120px;
   }
 
   .path-text {
-    font-size: 12px;
+    font-size: 13px;
   }
 }
 </style>

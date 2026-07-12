@@ -114,12 +114,10 @@ const handleDensityOpenChange = (open: boolean) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
-  background: color-mix(in srgb, var(--card) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-  border-radius: 12px;
+  min-height: 54px;
+  padding: 4px 6px;
+  background: transparent;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   flex-shrink: 0;
 }
 
@@ -137,7 +135,7 @@ const handleDensityOpenChange = (open: boolean) => {
   min-width: 44px;
   min-height: 44px;
   border: none;
-  border-radius: 12px;
+  border-radius: 11px;
   background: transparent;
   color: var(--foreground);
   cursor: pointer;
@@ -177,11 +175,11 @@ const handleDensityOpenChange = (open: boolean) => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   min-height: 44px;
-  background: color-mix(in srgb, var(--card) 95%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 11px;
   color: var(--foreground);
   font-size: 13px;
   font-family: var(--font-body);
@@ -191,13 +189,13 @@ const handleDensityOpenChange = (open: boolean) => {
 
 .tgt-trigger:hover {
   border-color: var(--ring);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
+  box-shadow: none;
 }
 
 .sort-dropdown.open .tgt-trigger,
 .tgt-trigger.open {
   border-color: var(--ring);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
+  box-shadow: var(--focus-within-ring-shadow);
 }
 
 .tgt-trigger-label {

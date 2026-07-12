@@ -6,6 +6,7 @@
  * * the expected layout shell appears at each supported viewport width
  * * breakpoint transitions do not leave stale mobile/tablet/desktop controls visible
  * * keyboard focus indicators render inside controls instead of being clipped by layout overflow
+ * * mobile search controls stay inside the viewport with a compact scope trigger
  *
  * Run when:
  * * changing responsive breakpoints, layout components, headers, sidebars, or toolbars
@@ -209,6 +210,42 @@ test.describe("Mobile layout (375px)", () => {
     await expectCompositeFocusRing(page.locator(".search-focus-input"), page.locator(".search-focus-input-wrap"));
   });
 
+  test("mobile search controls do not overflow the viewport", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    await page.getByLabel("Open search").click();
+    await page.getByLabel("Search gallery").fill("portrait model");
+
+    const metrics = await page.locator(".mobile-header").evaluate((header) => {
+      const scope = header.querySelector<HTMLElement>('[aria-label^="Search scope:"]');
+      const advanced = header.querySelector<HTMLElement>('[aria-label="Advanced Search"]');
+      const input = header.querySelector<HTMLElement>(".search-focus-input");
+      if (!scope || !advanced || !input) throw new Error("Missing mobile search controls");
+
+      const headerRect = header.getBoundingClientRect();
+      const scopeRect = scope.getBoundingClientRect();
+      const advancedRect = advanced.getBoundingClientRect();
+      const inputRect = input.getBoundingClientRect();
+
+      return {
+        clientWidth: header.clientWidth,
+        scrollWidth: header.scrollWidth,
+        headerRight: headerRect.right,
+        scopeWidth: scopeRect.width,
+        scopeRight: scopeRect.right,
+        advancedRight: advancedRect.right,
+        inputWidth: inputRect.width,
+      };
+    });
+
+    expect(metrics.scrollWidth).toBe(metrics.clientWidth);
+    expect(metrics.scopeWidth).toBeLessThanOrEqual(44);
+    expect(metrics.scopeRight).toBeLessThanOrEqual(metrics.headerRight);
+    expect(metrics.advancedRight).toBeLessThanOrEqual(metrics.headerRight);
+    expect(metrics.inputWidth).toBeGreaterThanOrEqual(80);
+  });
+
   test("mobile bottom bar is present", async ({ page }) => {
     await installStubbedGallery(page);
     await openStubbedGallery(page);
@@ -242,6 +279,24 @@ test.describe("Tablet layout (768px)", () => {
     await expectInsetFocusRing(page, openSearch);
     await openSearch.press("Enter");
     await expectCompositeFocusRing(page.locator(".th-search-input"), page.locator(".th-search-input-wrap"));
+  });
+});
+
+test.describe("Mobile search touch interactions", () => {
+  test.use({ viewport: { width: 375, height: 812 }, hasTouch: true });
+
+  test("scope selection keeps expanded search open", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    await page.getByLabel("Open search").tap();
+    await page.getByLabel(/^Search scope:/).tap();
+
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await page.getByRole("option", { name: /All indexed/ }).tap();
+
+    await expect(page.getByLabel("Search gallery")).toBeVisible();
+    await expect(page.getByLabel("Search scope: All indexed")).toBeVisible();
   });
 });
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, toRef } from "vue";
+import { computed, nextTick, shallowRef, toRef, useTemplateRef, watch } from "vue";
 import "photoswipe/dist/photoswipe.css";
 import { X, ZoomIn, ZoomOut, Info } from "lucide-vue-next";
 import type { FileNode } from "../types";
@@ -19,8 +19,9 @@ const emit = defineEmits<{
   (e: "toggleMetadata"): void;
 }>();
 
-const containerRef = ref<HTMLElement | null>(null);
-const isZoomed = ref(false);
+const containerRef = useTemplateRef<HTMLElement>("container");
+const metadataButtonRef = useTemplateRef<HTMLButtonElement>("metadataButton");
+const isZoomed = shallowRef(false);
 
 const counter = computed(() => `${props.currentIndex + 1} / ${props.items.length}`);
 
@@ -32,6 +33,8 @@ const { pswp } = usePhotoSwipe({
   photoSwipeOptions: {
     closeOnVerticalDrag: true,
     allowPanToNext: true,
+    trapFocus: false,
+    returnFocus: false,
   },
   thumbnailSize: 2048,
   onIndexChange: (index) => {
@@ -53,16 +56,25 @@ function toggleZoom() {
     isZoomed.value = true;
   }
 }
+
+watch(
+  () => props.metadataOpen,
+  async (isOpen, wasOpen) => {
+    if (!wasOpen || isOpen) return;
+    await nextTick();
+    metadataButtonRef.value?.focus({ preventScroll: true });
+  },
+);
 </script>
 
 <template>
-  <div ref="containerRef" class="tablet-photoswipe-container" />
+  <div ref="container" class="tablet-photoswipe-container" />
 
   <div class="tablet-photoswipe-counter">
     {{ counter }}
   </div>
 
-  <div class="tablet-photoswipe-bar">
+  <div v-if="!metadataOpen" class="tablet-photoswipe-bar">
     <Tooltip>
       <TooltipTrigger as-child>
         <button
@@ -91,15 +103,15 @@ function toggleZoom() {
     <Tooltip>
       <TooltipTrigger as-child>
         <button
+          ref="metadataButton"
           class="lightbox-floating-control lightbox-floating-control--tablet"
-          :class="{ active: metadataOpen }"
-          :aria-label="metadataOpen ? 'Close image info' : 'View image info'"
+          aria-label="View image info"
           @click="emit('toggleMetadata')"
         >
           <Info :size="22" :stroke-width="2.2" />
         </button>
       </TooltipTrigger>
-      <TooltipContent>{{ metadataOpen ? "Close image info" : "View image info" }}</TooltipContent>
+      <TooltipContent>View image info</TooltipContent>
     </Tooltip>
   </div>
 </template>
@@ -129,7 +141,7 @@ function toggleZoom() {
   pointer-events: none;
   white-space: nowrap;
   user-select: none;
-  z-index: 5000;
+  z-index: calc(var(--gallery-z-lightbox, 100000) + 1);
 }
 
 .tablet-photoswipe-bar {
@@ -140,7 +152,7 @@ function toggleZoom() {
   display: flex;
   align-items: center;
   gap: 12px;
-  z-index: 5000;
+  z-index: calc(var(--gallery-z-lightbox, 100000) + 1);
 }
 </style>
 

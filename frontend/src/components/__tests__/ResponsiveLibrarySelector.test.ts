@@ -95,7 +95,8 @@ describe("ResponsiveLibrarySelector", () => {
 
     expect(wrapper.find("[data-testid='sheet']").exists()).toBe(true);
     expect(wrapper.find("[data-testid='dialog']").exists()).toBe(false);
-    expect(wrapper.get("[data-testid='sheet-content']").classes()).toContain("max-h-[75vh]");
+    expect(wrapper.get("[data-testid='sheet-content']").classes()).toContain("max-h-[min(75dvh,40rem)]");
+    expect(wrapper.get("[data-testid='sheet-content']").classes()).toContain("md:max-h-[min(62dvh,40rem)]");
   });
 
   it("selects an import path and closes", async () => {

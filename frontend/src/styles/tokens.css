@@ -87,6 +87,8 @@
   --gallery-z-modal: 100;
   --gallery-z-toast: 110;
   --gallery-z-tooltip: 120;
+  --gallery-z-lightbox: 100000;
+  --gallery-z-lightbox-panel: 100010;
 
   /* ── Sidebar widths ── */
   --gallery-sidebar-width: 280px;

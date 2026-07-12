@@ -31,7 +31,7 @@ const scopeOptions: ScopeOption[] = [
 const props = withDefaults(
   defineProps<{
     modelValue: SearchScope;
-    size?: "default" | "compact";
+    size?: "default" | "compact" | "icon";
     align?: "start" | "center" | "end";
     class?: HTMLAttributes["class"];
   }>(),
@@ -60,14 +60,19 @@ function handleUpdate(value: unknown) {
 <template>
   <Select :model-value="modelValue" @update:model-value="handleUpdate">
     <SelectTrigger
-      aria-label="Search scope"
+      :aria-label="`Search scope: ${selectedOption.label}`"
       :class="
-        cn('search-scope-select-trigger', size === 'compact' && 'search-scope-select-trigger-compact', props.class)
+        cn(
+          'search-scope-select-trigger',
+          size === 'compact' && 'search-scope-select-trigger-compact',
+          size === 'icon' && 'search-scope-select-trigger-icon',
+          props.class,
+        )
       "
     >
       <span class="search-scope-select-inner">
         <component :is="selectedOption.icon" class="search-scope-select-icon" aria-hidden="true" />
-        <span class="search-scope-select-label">{{ selectedOption.label }}</span>
+        <span v-if="size !== 'icon'" class="search-scope-select-label">{{ selectedOption.label }}</span>
       </span>
     </SelectTrigger>
     <SelectContent :align="align" class="search-scope-select-content">
@@ -127,6 +132,39 @@ function handleUpdate(value: unknown) {
   min-width: 122px;
   height: 30px;
   padding-inline: 9px;
+}
+
+.search-scope-select-trigger-icon {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  justify-content: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  padding: 0;
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.search-scope-select-trigger-icon:hover,
+.search-scope-select-trigger-icon[data-state="open"] {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+:deep(.search-scope-select-trigger-icon .lucide-chevron-down) {
+  display: none;
+}
+
+.search-scope-select-trigger-icon .search-scope-select-inner {
+  justify-content: center;
+}
+
+.search-scope-select-trigger-icon .search-scope-select-icon {
+  width: 17px;
+  height: 17px;
+  color: var(--foreground);
 }
 
 .search-scope-select-inner {

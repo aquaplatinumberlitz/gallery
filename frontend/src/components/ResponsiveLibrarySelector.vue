@@ -16,12 +16,15 @@ function close() {
 
 <template>
   <Sheet v-if="useSheet" v-model:open="open">
-    <SheetContent side="bottom" class="flex max-h-[75vh] flex-col overflow-hidden rounded-t-xl p-0">
+    <SheetContent
+      side="bottom"
+      class="flex max-h-[min(75dvh,40rem)] flex-col overflow-hidden rounded-t-xl p-0 md:max-h-[min(62dvh,40rem)]"
+    >
       <SheetHeader class="border-b px-5 py-4 text-left">
         <SheetTitle>Choose library</SheetTitle>
         <SheetDescription>Select a registered import path to browse.</SheetDescription>
       </SheetHeader>
-      <div class="overflow-y-auto px-4 py-4">
+      <div class="overflow-y-auto px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:px-5">
         <LibrarySelectorContent @close="close" />
       </div>
     </SheetContent>

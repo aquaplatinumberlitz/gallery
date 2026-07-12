@@ -5,6 +5,7 @@
  * Guarantees:
  * * query text is sent to the expected search endpoint parameters
  * * results, clear search, no-results, and special-character queries keep the UI stable
+ * * album suggestions use the device-specific album card presentation
  *
  * Run when:
  * * changing search inputs, fielded query parsing UI, or search result rendering
@@ -103,8 +104,33 @@ async function installStubbedGallery(page: Page) {
       let photos: any[] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test route fixtures build heterogeneous API payloads before JSON serialization.
       let promptResults: any[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test route fixtures build heterogeneous API payloads before JSON serialization.
+      let albums: any[] = [];
 
-      if (q.includes("rain")) {
+      if (q.includes("album")) {
+        albums = [
+          {
+            name: "Portrait studies",
+            path: `${rootPath}/portrait-studies`,
+            type: "album",
+            parent_path: rootPath,
+            relative_path: "portrait-studies",
+            cover_images: [imagePaths[0], imagePaths[2]],
+            image_count: 18,
+            mtime: 1004,
+          },
+          {
+            name: "Weather worlds",
+            path: `${rootPath}/weather-worlds`,
+            type: "album",
+            parent_path: rootPath,
+            relative_path: "weather-worlds",
+            cover_images: [imagePaths[1]],
+            image_count: 9,
+            mtime: 1005,
+          },
+        ];
+      } else if (q.includes("rain")) {
         photos = [
           {
             name: "rain_girl.png",
@@ -165,7 +191,7 @@ async function installStubbedGallery(page: Page) {
           query: q,
           scope,
           root: rootPath,
-          albums: [],
+          albums,
           photos,
           media: [...photos, ...promptResults],
           prompt: promptResults,
@@ -374,4 +400,41 @@ test("search query with special characters does not crash", async ({ page }) => 
   await searchInput.fill("");
   await searchInput.press("Enter");
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
+});
+
+test.describe("mobile album suggestions", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("uses the mobile album card visual in a two-column grid", async ({ page }) => {
+    await installStubbedGallery(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+      localStorage.setItem("gallery-sidebar-open", "false");
+    });
+
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+
+    await page.getByLabel("Open search").click();
+    const searchInput = page.getByLabel("Search gallery");
+    await searchInput.fill("album");
+    await searchInput.press("Enter");
+
+    await expect(page.getByText("Album suggestions", { exact: true })).toBeVisible();
+    const cards = page.locator(".search-album-grid > .album-card-mobile");
+    await expect(cards).toHaveCount(2);
+    await expect(page.locator(".search-album-grid > .album-card")).toHaveCount(0);
+
+    const cardBoxes = await cards.evaluateAll((elements) =>
+      elements.map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { width: rect.width, top: rect.top };
+      }),
+    );
+
+    expect(cardBoxes[0].width).toBeLessThan(190);
+    expect(Math.abs(cardBoxes[0].top - cardBoxes[1].top)).toBeLessThan(2);
+  });
 });

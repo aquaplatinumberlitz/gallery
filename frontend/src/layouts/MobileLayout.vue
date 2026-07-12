@@ -54,6 +54,7 @@ const emit = defineEmits<{
         :search-query="searchQuery"
         :search-scope="searchScope"
         :search-loading="searchLoading"
+        :current-path="currentPath"
         :bars-visible="showBackToGallery || barsVisible"
         :show-back-to-gallery="showBackToGallery"
         @update:search-query="emit('update:searchQuery', $event)"
@@ -93,10 +94,10 @@ const emit = defineEmits<{
 }
 
 .content {
-  padding: 60px 16px 72px 16px;
+  padding: calc(68px + env(safe-area-inset-top)) 8px calc(80px + env(safe-area-inset-bottom)) 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   height: 100dvh;
   overflow: hidden;
 }
@@ -110,7 +111,7 @@ const emit = defineEmits<{
   background: transparent;
   border-radius: 0;
   box-shadow: none;
-  padding: 4px 4px;
+  padding: 0;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -121,8 +122,8 @@ const emit = defineEmits<{
 /* Compact: <480px */
 @media (max-width: 480px) {
   .content {
-    padding: 56px 12px 72px 12px;
-    gap: 6px;
+    padding: calc(64px + env(safe-area-inset-top)) 4px calc(76px + env(safe-area-inset-bottom)) 4px;
+    gap: 0;
     overflow: hidden;
   }
 
@@ -131,7 +132,7 @@ const emit = defineEmits<{
   }
 
   .content-body {
-    padding: 4px 4px;
+    padding: 0;
     border-radius: 0;
     background: transparent;
     box-shadow: none;

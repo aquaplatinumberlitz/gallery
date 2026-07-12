@@ -206,11 +206,27 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
   await viewInfoBtn.evaluate((el: HTMLElement) => el.click());
 
   // Wait for BottomSheet to render (with animation)
-  await expect(page.locator("[data-vsbs-sheet]")).toBeVisible({ timeout: 10_000 });
+  const metadataDialog = page.getByRole("dialog", { name: "Image metadata" });
+  await expect(metadataDialog).toBeVisible({ timeout: 10_000 });
+  await expect(metadataDialog).not.toHaveAttribute("aria-modal");
+
+  const promptTab = page.getByRole("tab", { name: "Prompt" });
+  const paramsTab = page.getByRole("tab", { name: "Params" });
+  await expect(promptTab).toHaveAttribute("aria-selected", "true");
+  await promptTab.focus();
+  await promptTab.press("ArrowRight");
+  await expect(paramsTab).toBeFocused();
+  await expect(paramsTab).toHaveAttribute("aria-selected", "true");
+  await paramsTab.press("ArrowLeft");
+  await expect(promptTab).toBeFocused();
+  await expect(promptTab).toHaveAttribute("aria-selected", "true");
 
   // Assert metadata sheet is visible with prompt/copy UI
   const copyPromptBtn = page.getByLabel("Copy prompt");
   await expect(copyPromptBtn).toBeVisible({ timeout: 10_000 });
+  const copyPromptBox = await copyPromptBtn.boundingBox();
+  expect(copyPromptBox?.width).toBeGreaterThanOrEqual(44);
+  expect(copyPromptBox?.height).toBeGreaterThanOrEqual(44);
 
   // Assert seed param pill is visible (inside params tab)
   await page.locator("button.sheet-tab", { hasText: "Params" }).evaluate((el: HTMLElement) => el.click());
@@ -332,6 +348,51 @@ test("metadata sheet can be opened via View info button on mobile", async ({ pag
 
   // Page should still be functional
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 3000 });
+});
+
+test("tablet metadata sheet avoids toolbar overlap and accidental content-swipe dismissal", async ({ page }) => {
+  await page.setViewportSize({ width: 834, height: 1194 });
+  await installStubbedGallery(page);
+  await openStubbedGallery(page);
+  await dismissMobileSidebar(page);
+
+  await page
+    .getByTestId("photo-card")
+    .first()
+    .evaluate((el: HTMLElement) => el.click());
+  await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+
+  const viewInfoButton = page.getByLabel("View image info");
+  await expect(viewInfoButton).toBeVisible({ timeout: 5_000 });
+  await viewInfoButton.click();
+
+  const dialog = page.getByRole("dialog", { name: "Image information for a.png" });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(".tablet-photoswipe-bar")).not.toBeVisible();
+
+  const handle = page.getByRole("button", { name: "Expand image information" });
+  await expect(handle).toBeFocused();
+  const handleBox = await handle.boundingBox();
+  expect(handleBox?.height).toBeGreaterThanOrEqual(44);
+
+  await page
+    .locator(".tablet-col")
+    .first()
+    .evaluate((element) => {
+      const start = new Touch({ identifier: 1, target: element, clientX: 40, clientY: 100 });
+      const end = new Touch({ identifier: 1, target: element, clientX: 40, clientY: 190 });
+      element.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, touches: [start] }));
+      element.dispatchEvent(new TouchEvent("touchmove", { bubbles: true, touches: [end] }));
+      element.dispatchEvent(new TouchEvent("touchend", { bubbles: true, changedTouches: [end] }));
+    });
+  await expect(dialog).toBeVisible();
+
+  await handle.press("Enter");
+  await expect(dialog).toHaveClass(/tablet-expanded/);
+  await page.getByRole("button", { name: "Collapse image information" }).press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(viewInfoButton).toBeVisible();
+  await expect(viewInfoButton).toBeFocused();
 });
 
 test("mobile search works with fielded queries", async ({ page }) => {

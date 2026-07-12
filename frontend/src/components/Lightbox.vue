@@ -121,6 +121,7 @@ function handleIndexChange(newIndex: number) {
 
 const handleKeydownCapture = (e: KeyboardEvent) => {
   if (!show.value) return;
+  if (showSheet.value) return;
   if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
 
   const target = e.target as HTMLElement;
@@ -141,7 +142,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement;
   if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
-  if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+  if (!showSheet.value && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
     const pending = pendingArrowKeydown;
     pendingArrowKeydown = null;
     const photoSwipeHandled =
@@ -253,7 +254,7 @@ function handleToggleFullscreen() {
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <FocusScope v-if="show" :trapped="true" :loop="true" as-child>
+      <FocusScope v-if="show" :trapped="!showSheet" :loop="!showSheet" as-child>
         <div
           ref="lightboxRef"
           data-testid="lightbox"

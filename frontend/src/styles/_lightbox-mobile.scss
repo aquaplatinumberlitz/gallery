@@ -21,6 +21,7 @@
 
 .sheet-tab {
   flex: 1;
+  min-height: 44px;
   padding: 10px 0;
   background: none;
   border: none;
@@ -45,8 +46,8 @@
 }
 
 .sheet-expand-toggle {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   margin: 0 8px 0 4px;
   border: 0;
   border-radius: 999px;
@@ -55,7 +56,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 40px;
+  flex: 0 0 44px;
   cursor: pointer;
   transition:
     background 0.2s ease,
@@ -132,7 +133,7 @@
 }
 
 .sheet-text {
-  font-size: 12px;
+  font-size: 13px;
   color: #e5e7eb;
   margin: 0;
 }
@@ -164,9 +165,9 @@
 
 .inline-copy-button {
   position: static;
-  width: 28px;
-  height: 28px;
-  margin: -7px 0;
+  width: 44px;
+  height: 44px;
+  margin: -12px 0;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -251,9 +252,9 @@
   }
 
   .sheet-expand-toggle {
-    width: 40px;
-    height: 40px;
-    flex-basis: 40px;
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
     margin-right: 6px;
   }
 
@@ -266,12 +267,12 @@
   }
 
   .sheet-text {
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.4;
   }
 
   .sheet-label {
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .params-grid {
@@ -280,6 +281,6 @@
 
   .param-pill {
     padding: 3px 6px;
-    font-size: 10px;
+    font-size: 11px;
   }
 }

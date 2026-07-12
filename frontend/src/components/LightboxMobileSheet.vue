@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, shallowRef, useTemplateRef } from "vue";
 import BottomSheet from "@douxcode/vue-spring-bottom-sheet";
 import "@douxcode/vue-spring-bottom-sheet/dist/style.css";
 import { loraHighlighter } from "../utils/loraHighlighter";
@@ -32,15 +32,17 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const bottomSheetRef = ref<InstanceType<typeof BottomSheet>>();
-const sheetOpen = ref(true);
-const sheetExpanded = ref(false);
-const activeTab = ref("prompt");
-const showAdvanced = ref(false);
-const promptExpanded = ref(false);
-const negPromptExpanded = ref(false);
-const textResetKey = ref(0);
-const pendingOutsideTap = ref<{
+type MetadataTab = "prompt" | "params" | "model";
+
+const bottomSheetRef = useTemplateRef<InstanceType<typeof BottomSheet>>("bottomSheet");
+const sheetOpen = shallowRef(true);
+const sheetExpanded = shallowRef(false);
+const activeTab = shallowRef<MetadataTab>("prompt");
+const showAdvanced = shallowRef(false);
+const promptExpanded = shallowRef(false);
+const negPromptExpanded = shallowRef(false);
+const textResetKey = shallowRef(0);
+const pendingOutsideTap = shallowRef<{
   pointerId: number;
   startX: number;
   startY: number;
@@ -49,12 +51,42 @@ const pendingOutsideTap = ref<{
 const anyTextExpanded = computed(() => promptExpanded.value || negPromptExpanded.value);
 const isSheetVisuallyExpanded = computed(() => sheetExpanded.value || anyTextExpanded.value);
 const snapPoints = ["44%", "80%"] as Array<`${number}%`>;
+const tabOrder: MetadataTab[] = ["prompt", "params", "model"];
 const TAP_THRESHOLD_PX = 10;
 const documentPointerOptions = { capture: true, passive: true } as AddEventListenerOptions;
 
-function setTab(tab: string) {
+function setTab(tab: MetadataTab) {
   activeTab.value = tab;
   hapticLight();
+}
+
+async function focusTab(tab: MetadataTab) {
+  setTab(tab);
+  await nextTick();
+  document.getElementById(`mobile-metadata-tab-${tab}`)?.focus({ preventScroll: true });
+}
+
+function onTabKeydown(event: KeyboardEvent, tab: MetadataTab) {
+  const currentIndex = tabOrder.indexOf(tab);
+  let nextIndex: number | null = null;
+
+  if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabOrder.length;
+  if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabOrder.length) % tabOrder.length;
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = tabOrder.length - 1;
+  if (nextIndex === null) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  void focusTab(tabOrder[nextIndex]);
+}
+
+function syncSheetSemantics() {
+  const sheet = bottomSheetRef.value?.$refs.sheet as HTMLElement | undefined;
+  if (!sheet) return;
+  sheet.setAttribute("role", "dialog");
+  sheet.setAttribute("aria-labelledby", "mobile-metadata-title");
+  sheet.removeAttribute("aria-modal");
 }
 
 function onSheetClosed() {
@@ -62,6 +94,10 @@ function onSheetClosed() {
   sheetExpanded.value = false;
   pendingOutsideTap.value = null;
   emit("close");
+}
+
+function onSheetSnapped(index?: number) {
+  sheetExpanded.value = index === 1;
 }
 
 function snapToCompact() {
@@ -165,16 +201,33 @@ function onDocumentPointerCancel() {
   pendingOutsideTap.value = null;
 }
 
-onMounted(() => {
+function onDocumentKeydown(event: KeyboardEvent) {
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  const targetTab = target?.dataset.metadataTab as MetadataTab | undefined;
+  if (targetTab && ["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) {
+    onTabKeydown(event, targetTab);
+    return;
+  }
+  if (!sheetOpen.value || event.key !== "Escape") return;
+  event.preventDefault();
+  event.stopPropagation();
+  emit("close");
+}
+
+onMounted(async () => {
   document.addEventListener("pointerdown", onDocumentPointerDown, documentPointerOptions);
   document.addEventListener("pointerup", onDocumentPointerUp, documentPointerOptions);
   document.addEventListener("pointercancel", onDocumentPointerCancel, documentPointerOptions);
+  document.addEventListener("keydown", onDocumentKeydown, true);
+  await nextTick();
+  syncSheetSemantics();
 });
 
 onUnmounted(() => {
   document.removeEventListener("pointerdown", onDocumentPointerDown, documentPointerOptions);
   document.removeEventListener("pointerup", onDocumentPointerUp, documentPointerOptions);
   document.removeEventListener("pointercancel", onDocumentPointerCancel, documentPointerOptions);
+  document.removeEventListener("keydown", onDocumentKeydown, true);
   pendingOutsideTap.value = null;
 });
 
@@ -189,7 +242,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 
 <template>
   <BottomSheet
-    ref="bottomSheetRef"
+    ref="bottomSheet"
     v-model="sheetOpen"
     teleport-defer
     header-class="mobile-sheet-header-slot"
@@ -202,36 +255,54 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
     :expand-on-content-drag="true"
     swipe-close-threshold="35%"
     @closed="onSheetClosed"
-    @snapped="
-      (index) => {
-        sheetExpanded = index === 1;
-      }
-    "
+    @opened="syncSheetSemantics"
+    @snapped="onSheetSnapped"
   >
     <template #header>
       <div class="sheet-header" v-if="props.meta" data-vsbs-no-drag>
-        <div class="sheet-tabs">
+        <div class="sheet-tabs" role="tablist" aria-label="Image metadata sections">
           <button
+            id="mobile-metadata-tab-prompt"
             class="sheet-tab"
             :class="{ active: activeTab === 'prompt' }"
+            role="tab"
+            :aria-selected="activeTab === 'prompt'"
+            aria-controls="mobile-metadata-panel-prompt"
+            :tabindex="activeTab === 'prompt' ? 0 : -1"
+            data-metadata-tab="prompt"
             data-testid="tab-prompt"
             @click="setTab('prompt')"
+            @keydown="onTabKeydown($event, 'prompt')"
           >
             Prompt
           </button>
           <button
+            id="mobile-metadata-tab-params"
             class="sheet-tab"
             :class="{ active: activeTab === 'params' }"
+            role="tab"
+            :aria-selected="activeTab === 'params'"
+            aria-controls="mobile-metadata-panel-params"
+            :tabindex="activeTab === 'params' ? 0 : -1"
+            data-metadata-tab="params"
             data-testid="tab-params"
             @click="setTab('params')"
+            @keydown="onTabKeydown($event, 'params')"
           >
             Params
           </button>
           <button
+            id="mobile-metadata-tab-model"
             class="sheet-tab"
             :class="{ active: activeTab === 'model' }"
+            role="tab"
+            :aria-selected="activeTab === 'model'"
+            aria-controls="mobile-metadata-panel-model"
+            :tabindex="activeTab === 'model' ? 0 : -1"
+            data-metadata-tab="model"
             data-testid="tab-model"
             @click="setTab('model')"
+            @keydown="onTabKeydown($event, 'model')"
           >
             Model
           </button>
@@ -240,7 +311,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           type="button"
           class="sheet-expand-toggle"
           :aria-label="isSheetVisuallyExpanded ? 'Collapse metadata sheet' : 'Expand metadata sheet'"
-          :aria-expanded="sheetExpanded"
+          :aria-expanded="isSheetVisuallyExpanded"
           @click="toggleSheetExpanded"
         >
           <ChevronDown v-if="isSheetVisuallyExpanded" :size="22" :stroke-width="2.25" />
@@ -250,6 +321,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
     </template>
 
     <div class="sheet-content-inner">
+      <h2 id="mobile-metadata-title" class="sr-only">Image metadata</h2>
       <!-- Loading state -->
       <div v-if="props.isLoading && !props.meta" class="meta-loading">
         <Loader :stroke-width="1.5" class="lucide-spin gallery-icon-nav" />
@@ -264,7 +336,14 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 
       <template v-else>
         <!-- ========== Tab: Prompt ========== -->
-        <div v-show="activeTab === 'prompt'" class="sheet-tab-content">
+        <div
+          v-show="activeTab === 'prompt'"
+          id="mobile-metadata-panel-prompt"
+          class="sheet-tab-content"
+          role="tabpanel"
+          aria-labelledby="mobile-metadata-tab-prompt"
+          tabindex="0"
+        >
           <div class="meta-section" :class="{ 'is-empty': !props.meta?.prompt }">
             <div class="section-top" :class="{ 'metadata-copyable': props.meta?.prompt }">
               <label class="sheet-label">Prompt</label>
@@ -336,7 +415,14 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
         </div>
 
         <!-- ========== Tab: Params ========== -->
-        <div v-show="activeTab === 'params'" class="sheet-tab-content">
+        <div
+          v-show="activeTab === 'params'"
+          id="mobile-metadata-panel-params"
+          class="sheet-tab-content"
+          role="tabpanel"
+          aria-labelledby="mobile-metadata-tab-params"
+          tabindex="0"
+        >
           <!-- Tool label -->
           <div class="meta-section" v-if="props.meta?.tool">
             <div class="source-badge">
@@ -427,7 +513,14 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
         </div>
 
         <!-- ========== Tab: Model ========== -->
-        <div v-show="activeTab === 'model'" class="sheet-tab-content">
+        <div
+          v-show="activeTab === 'model'"
+          id="mobile-metadata-panel-model"
+          class="sheet-tab-content"
+          role="tabpanel"
+          aria-labelledby="mobile-metadata-tab-model"
+          tabindex="0"
+        >
           <div class="meta-section" :class="{ 'is-empty': !hasModels }">
             <label v-if="props.meta?.params?.Model" class="sheet-label">Checkpoint</label>
             <p v-if="props.meta?.params?.Model" class="sheet-text">
@@ -482,12 +575,12 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
   box-sizing: border-box;
   background: var(--gallery-lightbox-bg, #1a1a1a);
   color: #e5e7eb;
-  z-index: 100010;
+  z-index: var(--gallery-z-lightbox-panel, 100010);
 }
 
 [data-vsbs-backdrop] {
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0.12) 50%, rgba(0, 0, 0, 0.28) 100%);
-  z-index: 100009;
+  z-index: calc(var(--gallery-z-lightbox-panel, 100010) - 1);
 }
 
 [data-vsbs-header].mobile-sheet-header-slot {
@@ -536,14 +629,14 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
   box-sizing: border-box;
   background: transparent;
   overflow-x: hidden;
-  padding: 12px 16px 24px;
+  padding: 12px 16px max(24px, calc(env(safe-area-inset-bottom) + 16px));
   user-select: text;
   -webkit-user-select: text;
 }
 
 @media (max-width: 480px) {
   [data-vsbs-content].sheet-content.sheet-content {
-    padding: 8px 12px 20px;
+    padding: 8px 12px max(20px, calc(env(safe-area-inset-bottom) + 12px));
   }
 }
 </style>

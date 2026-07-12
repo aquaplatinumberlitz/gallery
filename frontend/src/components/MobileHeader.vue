@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, onBeforeUnmount, computed, watch } from "vue";
-import { Menu, Search, X, ArrowLeft, Library, Loader2, SlidersHorizontal } from "lucide-vue-next";
+import { Menu, Search, X, ArrowLeft, Loader2, SlidersHorizontal } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import { useGalleryStore } from "../stores/gallery";
 import SortDropdown from "./SortDropdown.vue";
@@ -13,6 +13,7 @@ interface Props {
   searchQuery: string;
   searchScope: "current" | "all";
   searchLoading: boolean;
+  currentPath: string;
   barsVisible: boolean;
   showBackToGallery?: boolean;
 }
@@ -33,6 +34,10 @@ const searchBtnRef = ref<HTMLButtonElement | null>(null);
 
 // ── Derived ──
 const hasQuery = computed(() => props.searchQuery.length > 0);
+const folderName = computed(() => {
+  const segments = props.currentPath.replace(/\\/g, "/").split("/").filter(Boolean);
+  return segments.at(-1) || "Gallery";
+});
 
 // ── Open / Close ──
 function openSearch() {
@@ -149,11 +154,12 @@ const gallerySortValue = computed<SortValue>({
       <ArrowLeft />
     </motion.button>
 
-    <!-- Center: search area -->
+    <!-- Center: current browse context / search area -->
     <div class="mh-search">
-      <RouterLink v-if="showBackToGallery" to="/" class="mh-btn mh-search-btn" aria-label="Back to gallery">
-        <ArrowLeft />
-      </RouterLink>
+      <div v-if="!isSearchActive" class="mh-context">
+        <span class="mh-context-kicker">{{ showBackToGallery ? "Workspace" : "Browsing" }}</span>
+        <span class="mh-context-title">{{ showBackToGallery ? "Gallery" : folderName }}</span>
+      </div>
       <button
         v-if="!isSearchActive && !showBackToGallery"
         class="mh-btn mh-search-btn"
@@ -163,7 +169,7 @@ const gallerySortValue = computed<SortValue>({
         <Search />
       </button>
       <motion.div
-        v-else
+        v-if="isSearchActive"
         class="search-focus-bar"
         :initial="{ opacity: 0, scaleX: 0.72 }"
         :animate="{ opacity: 1, scaleX: 1 }"
@@ -171,7 +177,7 @@ const gallerySortValue = computed<SortValue>({
       >
         <div class="search-focus-input-wrap">
           <Loader2 v-if="searchLoading" class="search-focus-input-icon search-focus-loading" />
-          <Search v-else class="search-focus-input-icon" />
+          <Search v-else-if="!hasQuery" class="search-focus-input-icon" />
           <input
             id="mobile-gallery-search"
             name="gallery-search"
@@ -192,7 +198,7 @@ const gallerySortValue = computed<SortValue>({
           </button>
           <SearchScopeSelect
             :model-value="searchScope"
-            size="compact"
+            size="icon"
             @update:model-value="emit('scope-change', $event)"
           />
         </div>
@@ -202,13 +208,8 @@ const gallerySortValue = computed<SortValue>({
       </motion.div>
     </div>
 
-    <RouterLink
-      v-if="!isSearchActive && !showBackToGallery"
-      to="/admin/libraries"
-      class="mh-btn"
-      aria-label="Libraries"
-    >
-      <Library />
+    <RouterLink v-if="!isSearchActive && showBackToGallery" to="/" class="mh-btn" aria-label="Back to gallery">
+      <ArrowLeft />
     </RouterLink>
 
     <!-- Right: sort, theme & settings (hidden in search mode) -->
@@ -250,8 +251,7 @@ const gallerySortValue = computed<SortValue>({
       :animate="{ opacity: 1 }"
       :exit="{ opacity: 0 }"
       :transition="{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }"
-      @click="handleOverlayClick"
-      @touchend.prevent="handleOverlayClick"
+      @pointerdown="handleOverlayClick"
     />
   </AnimatePresence>
 </template>
@@ -268,13 +268,14 @@ const gallerySortValue = computed<SortValue>({
   z-index: 80;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  padding-top: max(8px, env(safe-area-inset-top));
-  background: color-mix(in srgb, var(--card) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  gap: 4px;
+  min-height: 60px;
+  padding: 6px 8px;
+  padding-top: max(6px, env(safe-area-inset-top));
+  background: color-mix(in srgb, var(--background) 94%, transparent);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   transform: translateY(0);
   opacity: 1;
   transition:
@@ -311,7 +312,7 @@ const gallerySortValue = computed<SortValue>({
   width: 44px;
   height: 44px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: transparent;
   color: var(--foreground);
   cursor: pointer;
@@ -335,6 +336,7 @@ const gallerySortValue = computed<SortValue>({
 
 .mh-btn:active {
   background: color-mix(in srgb, var(--foreground) 14%, transparent);
+  transform: scale(0.96);
 }
 
 /* ============================================================
@@ -343,8 +345,39 @@ const gallerySortValue = computed<SortValue>({
 .mh-search {
   flex: 1;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
   min-width: 0;
+}
+
+.mh-context {
+  min-width: 0;
+  padding-left: 4px;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+
+.mh-context-kicker {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.mh-context-title {
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ============================================================
@@ -354,7 +387,7 @@ const gallerySortValue = computed<SortValue>({
   width: 44px;
   height: 44px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: transparent;
   color: var(--foreground);
   cursor: pointer;
@@ -378,6 +411,8 @@ const gallerySortValue = computed<SortValue>({
    ============================================================ */
 .search-focus-bar {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   transform-origin: right center;
@@ -392,12 +427,14 @@ const gallerySortValue = computed<SortValue>({
   align-items: center;
   gap: 8px;
   flex: 1;
-  height: 44px;
-  padding: 0 6px 0 12px;
+  min-width: 0;
+  height: 48px;
+  overflow: hidden;
+  padding: 0 2px 0 10px;
   border: 1px solid var(--input);
-  border-radius: 12px;
-  background: var(--background);
-  box-shadow: 0 1px 2px color-mix(in srgb, black 6%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 92%, var(--background));
+  box-shadow: 0 1px 2px color-mix(in srgb, black 5%, transparent);
   transition:
     box-shadow 0.2s ease,
     border-color 0.2s ease;
@@ -470,12 +507,12 @@ const gallerySortValue = computed<SortValue>({
   color: var(--foreground);
   cursor: pointer;
   padding: 0;
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: 10px;
   flex-shrink: 0;
   transition: background 0.15s ease;
 }
@@ -532,10 +569,10 @@ const gallerySortValue = computed<SortValue>({
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 70;
-  background: rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  z-index: calc(var(--gallery-z-dropdown) - 1);
+  background: color-mix(in srgb, black 24%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   cursor: pointer;
   /* Don't block touch on the header above */
   touch-action: manipulation;
@@ -571,9 +608,22 @@ const gallerySortValue = computed<SortValue>({
    ============================================================ */
 @media (max-width: 480px) {
   .mobile-header {
-    padding: 8px 8px;
-    padding-top: max(8px, env(safe-area-inset-top));
-    gap: 4px;
+    min-height: 56px;
+    padding: 4px;
+    padding-top: max(4px, env(safe-area-inset-top));
+    gap: 2px;
+  }
+
+  .mh-context {
+    padding-left: 2px;
+  }
+
+  .mh-context-kicker {
+    font-size: 9px;
+  }
+
+  .mh-context-title {
+    font-size: 14px;
   }
 
   .mh-btn,
@@ -584,8 +634,8 @@ const gallerySortValue = computed<SortValue>({
   }
 
   .search-focus-input-wrap {
-    height: 44px;
-    padding: 0 8px;
+    height: 48px;
+    padding: 0 2px 0 8px;
     gap: 6px;
   }
 
@@ -594,15 +644,35 @@ const gallerySortValue = computed<SortValue>({
   }
 
   .search-focus-clear {
-    width: 22px;
-    height: 22px;
+    width: 44px;
+    height: 44px;
   }
 
-  .search-focus-clear svg,
   .search-focus-input-icon {
     width: 14px;
     height: 14px;
   }
+
+  .search-focus-clear svg {
+    width: var(--gallery-icon-md);
+    height: var(--gallery-icon-md);
+  }
+}
+
+:deep(.mh-sort-trigger) {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-color: transparent;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+
+:deep(.mh-sort-trigger > span),
+:deep(.mh-sort-trigger > svg:last-child) {
+  display: none;
 }
 
 /* ============================================================

@@ -38,6 +38,10 @@ Tablet:
 - Keep the 280px sidebar as a transform-based drawer.
 - Keep the drawer in the DOM and apply `inert` plus `aria-hidden` when closed.
 - Use `TabletHeader` and `TabletGalleryToolbar`.
+- Keep the tablet shell visually flat: the header may use a bounded chrome surface,
+  but the gallery content must not be wrapped in an additional desktop-style card.
+- Present browse context in the header and keep navigation, sort, and density in a
+  separate compact toolbar below it.
 
 Mobile:
 
@@ -45,6 +49,18 @@ Mobile:
 - Use the 240px overlay sidebar with backdrop close.
 - Mobile uses native scroll instead of virtual scrolling.
 - Keep fixed header and bottom bar safe-area-aware.
+- Show the current browse context in the top bar instead of filling the header with
+  secondary shortcuts. Library selection and management remain available in the sidebar.
+- Keep the bottom dock focused on back/forward history and the current folder label.
+- In the expanded mobile search state, keep back, input, scope, and Advanced Search
+  within one viewport-width row. Use the icon-only scope trigger on mobile while
+  retaining the full scope labels and descriptions in its select menu.
+- Close the empty-query search overlay from `pointerdown`, not a synthesized
+  touch `click`, so opening or selecting a teleported scope option cannot dismiss
+  the expanded search state.
+- Render search album suggestions with the same device-specific card family used
+  by gallery browsing: two-column `AlbumCardMobile` cards on mobile,
+  `AlbumCardTablet` on tablet, and the layered desktop card on desktop.
 
 ## Grid Density
 
@@ -78,6 +94,9 @@ Tablet:
 - Use `TabletPhotoSwipe.vue` for PhotoSwipe plus counter, zoom, close, and info toolbar.
 - Use `LightboxTabletPanel.vue` for metadata.
 - Keep the tablet toolbar owned by the tablet wrapper, not the shared desktop wrapper.
+- Hide the floating PhotoSwipe toolbar while the metadata panel is open so controls never overlap sheet content.
+- Only the 44px handle may expand or collapse the tablet panel. Scrolling or swiping either metadata column must never dismiss it.
+- Treat the panel as a non-modal dialog, move focus to its handle on open, support Escape to close, and restore focus to the Info button.
 
 Mobile:
 
@@ -87,6 +106,10 @@ Mobile:
 - Keep the VSBS snap points at `44%` collapsed and `80%` expanded unless changing the full interaction model.
 - Let VSBS handle drag, snap, and scroll behavior. Do not restore the old `.sheet-panel` pointer-drag implementation.
 - Keep VSBS `blocking=false` so its focus trap does not conflict with PhotoSwipe focus management.
+- Disable PhotoSwipe's duplicate focus trap on mobile/tablet; the outer lightbox `FocusScope` owns trapping while metadata is closed and is temporarily non-trapping while the teleported mobile sheet is open.
+- Expose the VSBS surface as a labelled non-modal dialog and remove its library-provided `aria-modal` attribute while `blocking=false`.
+- Implement Prompt, Params, and Model with tablist/tab/tabpanel semantics and Left/Right/Home/End keyboard navigation.
+- Keep all sheet actions at least 44x44px and include `env(safe-area-inset-bottom)` in bottom padding.
 - Keep VSBS width and background overrides in a non-scoped global style block because the library teleports its DOM to `<body>`.
 - PhotoSwipe owns image rendering, photo swipe left/right, pan/zoom, and lightbox close. The metadata sheet must not intercept these gestures outside the sheet body.
 
@@ -100,7 +123,7 @@ Mobile:
 
 ## Mobile Lightbox Sheet
 
-Last reviewed: 2026-06-23
+Last reviewed: 2026-07-12
 
 Mobile lightbox metadata uses `@douxcode/vue-spring-bottom-sheet` through `LightboxMobileSheet.vue`.
 See [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) for VSBS and PhotoSwipe integration rationale, customizations, and pitfalls.
@@ -113,6 +136,10 @@ See [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) for VSBS and PhotoSwipe in
 - Body content scrolls normally inside the VSBS scroll area.
 - Outside tap closes the metadata sheet only. It must not close PhotoSwipe or block image swipe left/right.
 - `blocking=false` is required to avoid focus-trap recursion with PhotoSwipe.
+- Because this is non-blocking, the teleported VSBS root must use `role="dialog"`, a stable accessible label, and no `aria-modal="true"`.
+- The tab strip follows the WAI-ARIA tabs pattern, including roving tabindex and ArrowLeft/ArrowRight/Home/End navigation.
+- Escape closes the sheet and focus returns to the floating Info button.
+- Use the semantic `--gallery-z-lightbox` and `--gallery-z-lightbox-panel` tokens instead of one-off overlay z-index values.
 - VSBS styles must be global, not scoped, because the library teleports sheet DOM outside the component scope.
 - Keep the width chain explicit for `[data-vsbs-sheet]`, `[data-vsbs-scroll]`, `[data-vsbs-content]`, `.sheet-content`, and `.expandable-text` so the sheet cannot collapse horizontally.
 - Keep the sheet background black/dark through VSBS variables and scroll/content overrides so no gray strip appears.

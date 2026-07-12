@@ -145,14 +145,17 @@ function openAdvancedSearch() {
 
     <!-- Center: breadcrumb (hidden in search mode) -->
     <div v-show="!isSearchActive" class="th-center">
-      <Breadcrumb
-        v-if="!showBackToGallery"
-        :path="currentPath"
-        :root-path="galleryStore.activeImportRootPath"
-        @navigate="handleBreadcrumbNavigate"
-      />
-      <span v-if="showBackToGallery" class="th-path-empty">{{ pageTitle }}</span>
-      <span v-else-if="!currentPath" class="th-path-empty">Gallery</span>
+      <span class="th-context-kicker">{{ showBackToGallery ? "Workspace" : "Gallery" }}</span>
+      <div class="th-context-path">
+        <Breadcrumb
+          v-if="!showBackToGallery && currentPath"
+          :path="currentPath"
+          :root-path="galleryStore.activeImportRootPath"
+          @navigate="handleBreadcrumbNavigate"
+        />
+        <span v-if="showBackToGallery" class="th-path-empty">{{ pageTitle }}</span>
+        <span v-else-if="!currentPath" class="th-path-empty">All media</span>
+      </div>
     </div>
 
     <!-- Center: expandable search input (search mode) -->
@@ -265,14 +268,15 @@ function openAdvancedSearch() {
 .tablet-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 52px;
-  min-height: 52px;
-  padding: 0 12px;
-  background: color-mix(in srgb, var(--card) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  gap: 10px;
+  height: 68px;
+  min-height: 68px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 16px;
   flex-shrink: 0;
   position: relative;
   z-index: 20;
@@ -285,7 +289,7 @@ function openAdvancedSearch() {
   width: 44px;
   height: 44px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: transparent;
   color: var(--foreground);
   cursor: pointer;
@@ -327,15 +331,33 @@ function openAdvancedSearch() {
 .th-center {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.th-context-kicker {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.th-context-path {
+  width: 100%;
   min-width: 0;
   overflow: hidden;
 }
 
 .th-path-empty {
-  color: var(--muted-foreground);
-  font-size: 15px;
-  font-weight: 500;
+  color: var(--foreground);
+  font-size: 16px;
+  font-weight: 650;
   white-space: nowrap;
 }
 
@@ -368,8 +390,8 @@ function openAdvancedSearch() {
   height: 44px;
   padding: 0 6px 0 12px;
   border: 1px solid var(--input);
-  border-radius: 12px;
-  background: var(--background);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--background) 88%, var(--card));
   box-shadow: 0 1px 2px color-mix(in srgb, black 6%, transparent);
   transition:
     box-shadow 0.2s ease,
@@ -464,9 +486,9 @@ function openAdvancedSearch() {
   right: 0;
   bottom: 0;
   z-index: 10;
-  background: rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: color-mix(in srgb, black 24%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   cursor: pointer;
   touch-action: manipulation;
   pointer-events: auto;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { computed, nextTick, onMounted, shallowRef, useTemplateRef } from "vue";
 import { loraHighlighter } from "../utils/loraHighlighter";
 import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
@@ -33,9 +33,9 @@ const emit = defineEmits<{
 }>();
 
 // Internal state
-const sheetExpanded = ref(false);
-const sheetStartY = ref(0);
-const showAdvanced = ref(false);
+const sheetExpanded = shallowRef(false);
+const showAdvanced = shallowRef(false);
+const sheetHandleRef = useTemplateRef<HTMLButtonElement>("sheetHandle");
 
 function toggleExpanded() {
   sheetExpanded.value = !sheetExpanded.value;
@@ -46,19 +46,10 @@ function closeSheet() {
   emit("close");
 }
 
-function onSheetTouchStart(e: TouchEvent) {
-  sheetStartY.value = e.touches[0].clientY;
-}
-
-function onSheetTouchMove(e: TouchEvent) {
-  const delta = e.touches[0].clientY - sheetStartY.value;
-  if (delta > 50) closeSheet();
-  if (delta < -50) sheetExpanded.value = true;
-}
-
-function onSheetTouchEnd() {
-  /* no-op */
-}
+onMounted(async () => {
+  await nextTick();
+  sheetHandleRef.value?.focus({ preventScroll: true });
+});
 
 // Derived
 const hasGenData = computed(() => hasCoreParams(props.meta?.params));
@@ -72,16 +63,25 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 <template>
   <div class="tablet-sheet" @click.self="closeSheet">
     <div class="tablet-backdrop" @click.self="closeSheet" />
-    <div
+    <section
       class="tablet-panel"
       :class="{ 'tablet-expanded': sheetExpanded }"
-      @touchstart="onSheetTouchStart"
-      @touchmove="onSheetTouchMove"
-      @touchend="onSheetTouchEnd"
+      role="dialog"
+      aria-labelledby="tablet-metadata-title"
+      @keydown.esc.stop.prevent="closeSheet"
     >
-      <div class="tablet-handle-wrapper" @click="toggleExpanded">
-        <div class="tablet-handle" />
-      </div>
+      <h2 id="tablet-metadata-title" class="sr-only">Image information for {{ props.imageName }}</h2>
+      <button
+        ref="sheetHandle"
+        type="button"
+        class="tablet-handle-wrapper"
+        :aria-label="sheetExpanded ? 'Collapse image information' : 'Expand image information'"
+        :aria-expanded="sheetExpanded"
+        aria-controls="tablet-metadata-content"
+        @click="toggleExpanded"
+      >
+        <span class="tablet-handle" aria-hidden="true" />
+      </button>
 
       <!-- Loading state -->
       <div v-if="props.isLoading && !props.meta" class="meta-loading" style="flex: 1; min-height: 120px">
@@ -129,7 +129,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
         </header>
 
         <!-- 2-column content -->
-        <div class="tablet-grid">
+        <div id="tablet-metadata-content" class="tablet-grid">
           <!-- Left column: Generation Params + Model -->
           <div class="tablet-col">
             <!-- Generation Data (core) -->
@@ -304,7 +304,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
           </div>
         </div>
       </template>
-    </div>
+    </section>
   </div>
 </template>
 
