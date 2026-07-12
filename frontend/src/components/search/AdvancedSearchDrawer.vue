@@ -314,7 +314,19 @@ function validateValues(value: FormValues): Partial<Record<FormFieldName, string
 
 const sectionFields: Record<string, FormFieldName[]> = {
   content: ["prompt", "negative", "model", "folder", "name", "date"],
-  generation: ["sampler", "scheduler", "lora", "vae", "seed", "steps", "cfg", "clip_skip", "denoising_strength", "hires_upscale", "hires_steps"],
+  generation: [
+    "sampler",
+    "scheduler",
+    "lora",
+    "vae",
+    "seed",
+    "steps",
+    "cfg",
+    "clip_skip",
+    "denoising_strength",
+    "hires_upscale",
+    "hires_steps",
+  ],
   dimensions: ["width", "height", "size", "ratio"],
   syntax: ["param", "advanced", "raw"],
 };
@@ -445,7 +457,13 @@ watch(
             </Button>
           </div>
 
-          <Accordion type="multiple" :model-value="activeAccordionSections" @update:modelValue="activeAccordionSections = $event" class="w-full" data-testid="advanced-search-groups">
+          <Accordion
+            type="multiple"
+            :model-value="activeAccordionSections"
+            @update:model-value="activeAccordionSections = $event as string[]"
+            class="w-full"
+            data-testid="advanced-search-groups"
+          >
             <AccordionItem value="content">
               <AccordionTrigger class="text-left no-underline hover:no-underline">
                 <span class="flex flex-col gap-0.5">
