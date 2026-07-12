@@ -5,6 +5,7 @@
  * Guarantees:
  * * the expected layout shell appears at each supported viewport width
  * * breakpoint transitions do not leave stale mobile/tablet/desktop controls visible
+ * * keyboard focus indicators render inside controls instead of being clipped by layout overflow
  *
  * Run when:
  * * changing responsive breakpoints, layout components, headers, sidebars, or toolbars
@@ -12,6 +13,7 @@
  */
 
 import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
+import type { Locator } from "@playwright/test";
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
@@ -122,6 +124,7 @@ async function openStubbedGallery(page: Page) {
     localStorage.setItem("intro_mode", "disabled");
     localStorage.setItem("gallery-active-library-id", "1");
     localStorage.setItem("gallery-active-import-path-id", "10");
+    if (window.innerWidth < 1200) localStorage.setItem("gallery-sidebar-open", "false");
   });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
@@ -136,6 +139,49 @@ async function collapseDesktopHeader(page: Page) {
     element.dispatchEvent(new Event("scroll", { bubbles: true }));
   });
   await expect(page.locator(".compact-header:not([inert])")).toBeVisible({ timeout: 5_000 });
+}
+
+async function expectInsetFocusRing(page: Page, control: Locator) {
+  for (let index = 0; index < 80; index += 1) {
+    const isFocused = await control.evaluate((element) => element === document.activeElement);
+    if (isFocused) break;
+    await page.keyboard.press("Tab");
+  }
+
+  await expect(control).toBeFocused();
+
+  const focusStyle = await control.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth,
+      outlineOffset: style.outlineOffset,
+      ringShadow: style.getPropertyValue("--tw-ring-shadow").trim(),
+    };
+  });
+
+  expect(focusStyle).toEqual({
+    outlineStyle: "solid",
+    outlineWidth: "2px",
+    outlineOffset: "-2px",
+    ringShadow: "0 0 #0000",
+  });
+}
+
+async function expectCompositeFocusRing(input: Locator, wrapper: Locator) {
+  await input.focus();
+  await expect(input).toBeFocused();
+
+  const styles = await Promise.all([
+    input.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { outlineStyle: style.outlineStyle, focusOptOut: element.dataset.focusRing };
+    }),
+    wrapper.evaluate((element) => getComputedStyle(element).boxShadow),
+  ]);
+
+  expect(styles[0]).toEqual({ outlineStyle: "none", focusOptOut: "none" });
+  expect(styles[1]).toContain("inset");
 }
 
 test.describe("Mobile layout (375px)", () => {
@@ -158,6 +204,9 @@ test.describe("Mobile layout (375px)", () => {
     // Mobile header should have search open button
     const searchBtn = page.getByLabel("Open search");
     await expect(searchBtn).toBeVisible({ timeout: 5000 });
+    await expectInsetFocusRing(page, searchBtn);
+    await searchBtn.press("Enter");
+    await expectCompositeFocusRing(page.locator(".search-focus-input"), page.locator(".search-focus-input-wrap"));
   });
 
   test("mobile bottom bar is present", async ({ page }) => {
@@ -190,6 +239,9 @@ test.describe("Tablet layout (768px)", () => {
     // Tablet header should have a search toggle
     const openSearch = page.getByLabel("Open search");
     await expect(openSearch).toBeVisible({ timeout: 5000 });
+    await expectInsetFocusRing(page, openSearch);
+    await openSearch.press("Enter");
+    await expectCompositeFocusRing(page.locator(".th-search-input"), page.locator(".th-search-input-wrap"));
   });
 });
 
@@ -225,6 +277,14 @@ test.describe("Desktop layout (1200px+)", () => {
     // Desktop has a search input
     const searchInput = page.getByRole("searchbox");
     await expect(searchInput).toBeVisible({ timeout: 5000 });
+    await expectCompositeFocusRing(
+      page.locator(".expanded-header:not([inert]) .search-input"),
+      page.locator(".expanded-header:not([inert]) .search-box"),
+    );
+
+    await expectInsetFocusRing(page, page.getByRole("button", { name: "Change Intro Page" }));
+    await expectInsetFocusRing(page, page.getByRole("button", { name: "Sort gallery" }));
+    await expectInsetFocusRing(page, page.getByRole("button", { name: "View density" }));
   });
 
   test("desktop layout shows folder tree or sidebar", async ({ page }) => {
@@ -271,7 +331,12 @@ test.describe("Desktop compact header (1200px edge)", () => {
     expect(metrics.search.right).toBeLessThanOrEqual(metrics.sort.left);
     expect(metrics.sort.right).toBeLessThanOrEqual(metrics.view.left);
     expect(metrics.hasScope).toBe(false);
-    expect(metrics.hasAdvancedSearch).toBe(false);
+    expect(metrics.hasAdvancedSearch).toBe(true);
+
+    const compactHeader = page.locator(".compact-header:not([inert])");
+    await expectInsetFocusRing(page, compactHeader.locator(".advanced-search-btn"));
+    await expectInsetFocusRing(page, compactHeader.locator(".sort-trigger"));
+    await expectInsetFocusRing(page, compactHeader.locator(".gallery-density-trigger"));
   });
 });
 

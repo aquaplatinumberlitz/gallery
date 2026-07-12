@@ -24,6 +24,7 @@ const emit = defineEmits<{
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;
   (e: "openSettings"): void;
+  (e: "openAdvancedSearch"): void;
 }>();
 </script>
 
@@ -54,6 +55,7 @@ const emit = defineEmits<{
         @toggle-sidebar="emit('toggleSidebar')"
         @toggle-theme="emit('toggleTheme')"
         @open-settings="emit('openSettings')"
+        @open-advanced-search="emit('openAdvancedSearch')"
       />
 
       <div class="content-body">
@@ -72,7 +74,6 @@ const emit = defineEmits<{
   min-height: 0;
   overflow: hidden;
   padding: 16px 16px 24px 16px;
-  transition: padding-top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .content-body {

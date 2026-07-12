@@ -81,6 +81,13 @@
   --gallery-icon-nav: var(--gallery-icon-xxl);
   --gallery-icon-card: var(--gallery-icon-md);
 
+  /* Semantic overlay stack */
+  --gallery-z-dropdown: 40;
+  --gallery-z-sticky: 60;
+  --gallery-z-modal: 100;
+  --gallery-z-toast: 110;
+  --gallery-z-tooltip: 120;
+
   /* ── Sidebar widths ── */
   --gallery-sidebar-width: 280px;
   --gallery-sidebar-mobile-width: 240px;
@@ -108,7 +115,11 @@
 
   --font-body: "InterVariable", "Segoe UI", "SF Pro Display", system-ui, -apple-system, sans-serif;
   --font-code: "JetBrains Mono", monospace;
-  --focus-ring-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  --gallery-focus-ring: oklch(0.42 0.04 55);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: -2px;
+  --focus-ring-shadow: none;
+  --focus-within-ring-shadow: inset 0 0 0 var(--focus-ring-width) var(--gallery-focus-ring);
 
   /* Legacy shadow tokens (giữ tương thích) */
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
@@ -153,7 +164,9 @@
   --brand-section-muted: #b0b3b8;
   --brand-neon-color: #d6a15d;
   --brand-neon-border-color: #08f;
-  --focus-ring-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 70%, transparent);
+  --gallery-focus-ring: oklch(0.82 0.08 75);
+  --focus-ring-shadow: none;
+  --focus-within-ring-shadow: inset 0 0 0 var(--focus-ring-width) var(--gallery-focus-ring);
 
   /* ── Semantic foreground (dark mode — WCAG AA on tinted dark surfaces) ── */
   --gallery-success-fg: #86efac;

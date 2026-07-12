@@ -201,7 +201,7 @@ html[data-theme="dark"] .search-box {
 
 html[data-theme="dark"] .search-box:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  box-shadow: var(--focus-within-ring-shadow);
 }
 
 /* Dark mode neon effect for sidebar field-container */
@@ -212,7 +212,7 @@ html[data-theme="dark"] .field-container {
 
 html[data-theme="dark"] .field-container:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  box-shadow: var(--focus-within-ring-shadow);
 }
 
 /* Dark mode neon effect for theme-toggle button */
@@ -304,18 +304,23 @@ pre {
 /* Focus visible - shadcn components use focus-visible:outline-none + focus-visible:ring-* */
 /* Low-specificity fallback keeps native/custom controls aligned with the app ring. */
 :where(
-  a[href],
-  button,
-  input,
-  select,
-  textarea,
-  summary,
-  [contenteditable="true"],
-  [tabindex]:not([tabindex="-1"])
-):focus-visible {
-  outline: 2px solid transparent;
-  outline-offset: 2px;
-  box-shadow: var(--focus-ring-shadow);
+    a[href],
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [contenteditable="true"],
+    [tabindex]:not([tabindex="-1"])
+  ):not([data-focus-ring="none"]):focus-visible {
+  --tw-ring-inset: inset !important;
+  --tw-ring-color: var(--gallery-focus-ring) !important;
+  --tw-ring-offset-width: 0px !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-inset-ring-shadow: 0 0 #0000 !important;
+  outline: var(--focus-ring-width) solid var(--gallery-focus-ring) !important;
+  outline-offset: var(--focus-ring-offset) !important;
 }
 
 /* Skip link styles (if placed in body) */
@@ -378,9 +383,10 @@ pre {
     --border: #fff;
   }
 
-  :focus-visible {
+  :focus-visible:not([data-focus-ring="none"]) {
     outline: 3px solid currentColor !important;
-    outline-offset: 3px !important;
+    outline-offset: -3px !important;
+    box-shadow: none !important;
   }
 }
 

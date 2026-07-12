@@ -10,7 +10,6 @@ const toggleThemeMock = vi.fn();
 const fieldedFiltersRef = ref<unknown[]>([]);
 const queryStringRef = ref("");
 let fieldedSearchIsActive = false;
-const applyFiltersMock = vi.fn();
 const removeFilterMock = vi.fn((index: number) => {
   fieldedFiltersRef.value.splice(index, 1);
   queryStringRef.value = "";
@@ -23,7 +22,6 @@ const browseIsFetchingRef = ref(false);
 const browseIsFetchingNextPageRef = ref(false);
 let galleryHistoryIndex = 0;
 let galleryHistory = [""];
-let parsedFiltersResult: unknown[] = [];
 
 function routeMetaForPath(path: string) {
   if (path === "/metadata") {
@@ -61,7 +59,6 @@ vi.mock("@/composables/useFieldedSearch", () => ({
     fieldedFilters: fieldedFiltersRef,
     isActive: fieldedSearchIsActive,
     queryString: queryStringRef,
-    applyFilters: applyFiltersMock,
     removeFilter: removeFilterMock,
     clearAll: clearAllMock,
   }),
@@ -73,11 +70,6 @@ vi.mock("@/composables/useInfiniteBrowseQuery", () => ({
     isFetching: browseIsFetchingRef,
     isFetchingNextPage: browseIsFetchingNextPageRef,
   }),
-}));
-
-vi.mock("@/utils/serializeAdvancedSearchToQuery", () => ({
-  parseFieldedQuery: vi.fn(() => parsedFiltersResult),
-  serializeAdvancedSearchToQuery: vi.fn(() => ""),
 }));
 
 vi.mock("@/router", () => ({
@@ -186,15 +178,6 @@ function createWrapper(props: Record<string, unknown> = {}) {
         DropdownMenuContent: { template: "<div><slot /></div>" },
         DropdownMenuRadioGroup: { template: "<div><slot /></div>" },
         DropdownMenuRadioItem: { template: "<div><slot /></div>" },
-        AdvancedSearchDrawer: {
-          props: ["isOpen", "initialFilters"],
-          template: `
-            <div data-testid="advanced-search-drawer" :data-initial-filters="JSON.stringify(initialFilters)">
-              <button v-if="isOpen" data-testid="adv-search-close" @click="$emit('close')">Close</button>
-              <button v-if="isOpen" data-testid="adv-search-apply" @click="$emit('apply', [])">Apply</button>
-            </div>
-          `,
-        },
         SearchFilterChips: {
           props: ["filters"],
           template: `
@@ -218,7 +201,6 @@ describe("AppHeader", () => {
     fieldedFiltersRef.value = [];
     queryStringRef.value = "";
     fieldedSearchIsActive = false;
-    applyFiltersMock.mockClear();
     removeFilterMock.mockClear();
     clearAllMock.mockClear();
     goBackMock.mockClear();
@@ -228,7 +210,6 @@ describe("AppHeader", () => {
     browseIsFetchingNextPageRef.value = false;
     galleryHistoryIndex = 0;
     galleryHistory = [""];
-    parsedFiltersResult = [];
   });
 
   it("renders the brand hero on non-metadata routes", () => {
@@ -387,40 +368,20 @@ describe("AppHeader", () => {
     expect(themeButton.classes()).toContain("is-dark");
   });
 
-  it("opens and closes advanced search drawer", async () => {
+  it("requests the shared advanced search drawer", async () => {
     const wrapper = createWrapper();
     const advBtn = wrapper.findAll("button").find((b) => b.attributes("aria-label") === "Advanced Search");
     expect(advBtn).toBeDefined();
     await advBtn!.trigger("click");
-    expect(wrapper.find('[data-testid="adv-search-close"]').exists()).toBe(true);
-
-    await wrapper.find('[data-testid="adv-search-close"]').trigger("click");
-    expect(wrapper.find('[data-testid="adv-search-close"]').exists()).toBe(false);
+    expect(wrapper.emitted("open-advanced-search")?.length).toBeGreaterThan(0);
   });
 
-  it("applies advanced search filters via drawer", async () => {
+  it("exposes Advanced Search from the compact header", async () => {
     const wrapper = createWrapper();
-    await wrapper
-      .findAll("button")
-      .find((b) => b.attributes("aria-label") === "Advanced Search")!
-      .trigger("click");
-    await wrapper.find('[data-testid="adv-search-apply"]').trigger("click");
-    expect(wrapper.emitted("update:searchQuery")).toBeTruthy();
-  });
-
-  it("passes repeated parsed filters to Advanced Search without merging them by field", async () => {
-    parsedFiltersResult = [
-      { field: "model", value: "PonyXL" },
-      { field: "model", value: "SDXL" },
-    ];
-    const wrapper = createWrapper({ searchQuery: "model:PonyXL model:SDXL" });
-    await wrapper
-      .findAll("button")
-      .find((item) => item.attributes("aria-label") === "Advanced Search")!
-      .trigger("click");
-    expect(
-      JSON.parse(wrapper.get('[data-testid="advanced-search-drawer"]').attributes("data-initial-filters") ?? ""),
-    ).toEqual(parsedFiltersResult);
+    const buttons = wrapper.findAll('button[aria-label="Advanced Search"]');
+    expect(buttons).toHaveLength(2);
+    await buttons[1]!.trigger("click");
+    expect(wrapper.emitted("open-advanced-search")?.length).toBeGreaterThan(0);
   });
 
   it("handles remove filter", async () => {

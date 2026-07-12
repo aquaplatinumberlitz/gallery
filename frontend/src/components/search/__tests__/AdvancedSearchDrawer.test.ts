@@ -66,7 +66,7 @@ describe("AdvancedSearchDrawer", () => {
     expect(button(wrapper, /^Content and files/)?.attributes("aria-expanded")).toBe("true");
     expect(button(wrapper, /^Generation settings/)?.attributes("aria-expanded")).toBe("false");
     expect(button(wrapper, /^Dimensions/)?.attributes("aria-expanded")).toBe("false");
-    expect(button(wrapper, /^Query syntax/)?.attributes("aria-expanded")).toBe("false");
+    expect(button(wrapper, /^Custom metadata/)?.attributes("aria-expanded")).toBe("false");
     expect(wrapper.get("#advanced-search-prompt").isVisible()).toBe(true);
   });
 
@@ -116,15 +116,16 @@ describe("AdvancedSearchDrawer", () => {
     expect(wrapper.emitted("close")).toHaveLength(1);
   });
 
-  it("preserves repeated filters when opened and applied unchanged", async () => {
+  it("keeps Apply and Revert disabled until repeated filters change", async () => {
     const filters: FieldFilter[] = [
       { field: "model", value: "PonyXL" },
       { field: "model", value: "SDXL" },
     ];
     const wrapper = createWrapper(filters);
-    await button(wrapper, "Apply 2 filters")!.trigger("click");
-    await flushPromises();
-    expect(wrapper.emitted("apply")?.[0]).toEqual([filters]);
+    expect(button(wrapper, "Apply 2 filters")!.attributes()).toHaveProperty("disabled");
+    expect(button(wrapper, "Revert edits")!.attributes()).toHaveProperty("disabled");
+    expect(wrapper.text()).toContain("model:PonyXL");
+    expect(wrapper.text()).toContain("model:SDXL");
   });
 
   it("preserves unknown pass-through filters", async () => {
@@ -133,9 +134,16 @@ describe("AdvancedSearchDrawer", () => {
       { field: "future_filter", operator: ">=", value: "7" },
     ];
     const wrapper = createWrapper(filters);
+    expect(button(wrapper, /^Custom metadata/)?.attributes("aria-expanded")).toBe("true");
+    await wrapper.get("#advanced-search-prompt").setValue("landscape");
     await button(wrapper, "Apply 2 filters")!.trigger("click");
     await flushPromises();
-    expect(wrapper.emitted("apply")?.[0]).toEqual([filters]);
+    expect(wrapper.emitted("apply")?.[0]).toEqual([
+      [
+        { field: "prompt", value: "landscape" },
+        { field: "future_filter", operator: ">=", value: "7" },
+      ],
+    ]);
   });
 
   it("keeps repeated pass-through filters when the primary value is edited", async () => {
@@ -164,7 +172,14 @@ describe("AdvancedSearchDrawer", () => {
     expect(input.attributes("aria-describedby")).toBe("advanced-search-steps-error");
     expect(wrapper.get("#advanced-search-steps-error").attributes("role")).toBe("alert");
     expect((input.element as HTMLInputElement).value).toBe("0");
-    expect(button(wrapper, /^Apply/)?.attributes()).toHaveProperty("disabled");
+    expect(button(wrapper, /^Apply/)?.attributes()).not.toHaveProperty("disabled");
+    expect(wrapper.text()).toContain("1 field need attention");
+    await button(wrapper, /^Generation settings/)!.trigger("click");
+    expect(button(wrapper, /^Generation settings/)?.attributes("aria-expanded")).toBe("false");
+    await button(wrapper, /^Apply/)!.trigger("click");
+    await flushPromises();
+    expect(button(wrapper, /^Generation settings/)?.attributes("aria-expanded")).toBe("true");
+    expect((document.activeElement as HTMLElement | null)?.id).toBe("advanced-search-steps");
   });
 
   it("marks the selected aspect-ratio preset as pressed", async () => {
@@ -203,7 +218,7 @@ describe("AdvancedSearchDrawer", () => {
 
   it("does not apply on an unmodified Enter in raw metadata text", async () => {
     const wrapper = createWrapper();
-    await openGroup(wrapper, "Query syntax");
+    await openGroup(wrapper, "Custom metadata");
     await wrapper.get("#advanced-search-raw").trigger("keydown", { key: "Enter" });
     expect(wrapper.emitted("apply")).toBeUndefined();
   });

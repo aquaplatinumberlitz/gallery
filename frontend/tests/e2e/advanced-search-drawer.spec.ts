@@ -12,6 +12,7 @@
  */
 
 import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
+import type { Locator } from "@playwright/test";
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
@@ -225,6 +226,35 @@ function drawerField(drawer: ReturnType<Page["getByRole"]>, id: string) {
   return drawer.locator(`#${id}`);
 }
 
+async function expectNoHorizontalOverflow(scrollBody: Locator) {
+  const overflowMetrics = await scrollBody.evaluate((element) => {
+    const rootRect = element.getBoundingClientRect();
+    const offenders = [...element.querySelectorAll<HTMLElement>("*")]
+      .map((child) => {
+        const rect = child.getBoundingClientRect();
+        return {
+          tag: child.tagName,
+          id: child.id,
+          className: child.className,
+          left: rect.left,
+          right: rect.right,
+        };
+      })
+      .filter(({ left, right }) => right > left && (left < rootRect.left - 0.5 || right > rootRect.right + 0.5));
+
+    return {
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      offenders,
+    };
+  });
+
+  expect(overflowMetrics, JSON.stringify(overflowMetrics.offenders, null, 2)).toMatchObject({
+    scrollWidth: overflowMetrics.clientWidth,
+    offenders: [],
+  });
+}
+
 test.describe("AdvancedSearchDrawer", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
@@ -239,14 +269,17 @@ test.describe("AdvancedSearchDrawer", () => {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-    await page.getByLabel("Advanced Search").click();
+    await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer).toBeVisible({ timeout: 5_000 });
+    const closeBox = await page.getByLabel("Close").boundingBox();
+    expect(closeBox?.width).toBeGreaterThanOrEqual(44);
+    expect(closeBox?.height).toBeGreaterThanOrEqual(44);
 
     await expect(drawer).toContainText("Content and files");
     await expect(drawer).toContainText("Generation settings");
     await expect(drawer).toContainText("Dimensions");
-    await expect(drawer).toContainText("Query syntax");
+    await expect(drawer).toContainText("Custom metadata");
 
     await expect(drawerField(drawer, "advanced-search-prompt")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-model")).toBeVisible();
@@ -255,6 +288,24 @@ test.describe("AdvancedSearchDrawer", () => {
     await expect(drawerField(drawer, "advanced-search-sampler")).not.toBeVisible();
     await drawer.getByRole("button", { name: /Generation settings/ }).click();
     await expect(drawerField(drawer, "advanced-search-sampler")).toBeVisible();
+    await expectNoHorizontalOverflow(page.getByTestId("advanced-search-scroll-body"));
+    await page.keyboard.press("Tab");
+    await drawerField(drawer, "advanced-search-seed").focus();
+    const seedFocusStyle = await drawerField(drawer, "advanced-search-seed").evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        outlineStyle: style.outlineStyle,
+        outlineWidth: style.outlineWidth,
+        outlineOffset: style.outlineOffset,
+        ringShadow: style.getPropertyValue("--tw-ring-shadow").trim(),
+      };
+    });
+    expect(seedFocusStyle).toEqual({
+      outlineStyle: "solid",
+      outlineWidth: "2px",
+      outlineOffset: "-2px",
+      ringShadow: "0 0 #0000",
+    });
 
     await expect(drawerField(drawer, "advanced-search-seed")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-steps")).toBeVisible();
@@ -270,12 +321,12 @@ test.describe("AdvancedSearchDrawer", () => {
       await expect(drawer.getByRole("button", { name: preset })).toBeVisible();
     }
 
-    await drawer.getByRole("button", { name: /Query syntax/ }).click();
+    await drawer.getByRole("button", { name: /Custom metadata/ }).click();
     await expect(drawerField(drawer, "advanced-search-param")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-advanced")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-raw")).toBeVisible();
 
-    await expect(drawer.getByRole("button", { name: "Reset changes" })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Revert edits" })).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Clear all" })).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Cancel" })).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Apply filters" })).toBeVisible();
@@ -295,7 +346,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-    await page.getByLabel("Advanced Search").click();
+    await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer).toBeVisible({ timeout: 5_000 });
 
@@ -325,7 +376,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-    await page.getByLabel("Advanced Search").click();
+    await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer).toBeVisible({ timeout: 5_000 });
 
@@ -334,7 +385,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await drawer.getByRole("button", { name: "Cancel" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
 
-    await page.getByLabel("Advanced Search").click();
+    await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer2 = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer2).toBeVisible({ timeout: 5_000 });
 
@@ -348,6 +399,26 @@ test.describe("AdvancedSearchDrawer", () => {
     await expect(drawer2).not.toBeVisible({ timeout: 5_000 });
     const countAfter = requestsFor(requests, "/api/search").length;
     expect(countAfter).toBe(countBefore);
+  });
+
+  test("outside click does not discard dirty staged filters", async ({ page }) => {
+    await installStubbedGallery(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
+
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: "Advanced Search" }).click();
+    const drawer = page.getByRole("dialog", { name: "Advanced Search" });
+    await drawerField(drawer, "advanced-search-prompt").fill("keep this edit");
+
+    await page.mouse.click(100, 100);
+    await expect(drawer).toBeVisible();
+    await expect(drawerField(drawer, "advanced-search-prompt")).toHaveValue("keep this edit");
+    await drawer.getByRole("button", { name: "Cancel" }).click();
   });
 
   test("clear all stages empty filters until apply", async ({ page }) => {
@@ -366,7 +437,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await searchInput.press("Enter");
     await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("seed"))).toBe(true);
 
-    await page.getByLabel("Advanced Search").click();
+    await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer).toBeVisible({ timeout: 5_000 });
 
@@ -396,7 +467,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
     // Apply prompt filter via drawer
-    await page.getByLabel("Advanced Search").click();
+    await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer).toBeVisible({ timeout: 5_000 });
 
@@ -433,7 +504,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-    await page.getByLabel("Advanced Search").click();
+    await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer).toBeVisible({ timeout: 5_000 });
 
@@ -469,7 +540,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-    await page.getByLabel("Advanced Search").click();
+    await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer).toBeVisible({ timeout: 5_000 });
 
@@ -517,7 +588,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
 
     // Advanced Search button still works
-    await page.getByLabel("Advanced Search").click();
+    await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer).toBeVisible({ timeout: 5_000 });
 
@@ -530,3 +601,41 @@ test.describe("AdvancedSearchDrawer", () => {
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
   });
 });
+
+for (const viewport of [
+  { name: "tablet", width: 800, height: 900 },
+  { name: "mobile", width: 390, height: 844 },
+]) {
+  test.describe(`AdvancedSearchDrawer ${viewport.name}`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height }, locale: "en-US" });
+
+    test("opens from compact search and applies filters", async ({ page }) => {
+      const requests = await installStubbedGallery(page);
+      await page.addInitScript(() => {
+        localStorage.setItem("intro_mode", "disabled");
+        localStorage.setItem("gallery-active-library-id", "1");
+        localStorage.setItem("gallery-active-import-path-id", "10");
+      });
+
+      await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+      const closeSidebar = page.getByRole("button", { name: /(Collapse|Close) sidebar/i });
+      if (await closeSidebar.isVisible()) await closeSidebar.click();
+      await page.getByLabel("Open search").click();
+      await page.getByRole("button", { name: "Advanced Search" }).click();
+
+      const drawer = page.getByRole("dialog", { name: "Advanced Search" });
+      await expect(drawer).toBeVisible();
+      const drawerBox = await drawer.boundingBox();
+      expect(drawerBox?.width).toBeLessThanOrEqual(viewport.width);
+
+      await drawer.getByRole("button", { name: /Generation settings/ }).click();
+      await expectNoHorizontalOverflow(page.getByTestId("advanced-search-scroll-body"));
+
+      await drawerField(drawer, "advanced-search-prompt").fill(`${viewport.name} search`);
+      await drawer.getByRole("button", { name: "Apply 1 filter" }).click();
+      await expect(drawer).not.toBeVisible();
+      await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+}

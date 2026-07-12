@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import Input from "@/components/ui/Input.vue";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import type { NumericFilterValue } from "./advancedSearchModel";
 
-export interface NumericFilterValue {
-  value: string;
-  op: string;
-}
+export type { NumericFilterValue } from "./advancedSearchModel";
 
 interface Props {
   id: string;
@@ -42,9 +40,9 @@ function updateValue(value: string) {
 </script>
 
 <template>
-  <Field :data-invalid="Boolean(error)" class="gap-1.5">
+  <Field :data-invalid="Boolean(error)" class="min-w-0 gap-1.5">
     <FieldLabel :for="id">{{ label }}</FieldLabel>
-    <div class="flex gap-2">
+    <div class="flex min-w-0 gap-2">
       <select
         :id="`${id}-operator`"
         :value="modelValue.op"

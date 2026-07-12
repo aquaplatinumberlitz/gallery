@@ -478,7 +478,7 @@ Header search or AdvancedSearchDrawer
 - Fielded search keeps metadata filters scoped to filterable image/prompt
   media; filename-only videos are not returned for fielded queries unless a
   future video metadata index supports the same predicates.
-- The Advanced Search drawer uses TanStack Form and `/api/facets` to build the same fielded query syntax.
+- The shared Advanced Search drawer is owned by `App.vue`, uses TanStack Form and `/api/facets`, and builds the same fielded query syntax from desktop, tablet, and mobile headers. It renders as a right sheet on tablet/desktop and a full-width sheet on compact mobile viewports.
 - `GET /api/search-metadata` remains available for older callers, but the main gallery UI uses `/api/search`.
 - Desktop/tablet gallery sorting uses `SortSelect.vue`, a local shadcn-vue Select wrapper. `MobileHeader.vue` still uses `SortDropdown.vue`.
 

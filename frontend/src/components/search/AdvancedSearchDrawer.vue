@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from "vue";
+import { computed, nextTick, ref, shallowRef, watch } from "vue";
 import { useForm, useStore } from "@tanstack/vue-form";
 import { Search, Trash2, X } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
@@ -13,7 +13,22 @@ import { useFacetsQuery } from "@/composables/useFacetsQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
 import { filterToDisplayString } from "@/utils/serializeAdvancedSearchToQuery";
 import type { FacetEntry, FieldFilter } from "@/types";
-import AdvancedSearchNumericField, { type NumericFilterValue } from "./AdvancedSearchNumericField.vue";
+import AdvancedSearchNumericField from "./AdvancedSearchNumericField.vue";
+import AdvancedSearchPrefixedField from "./AdvancedSearchPrefixedField.vue";
+import {
+  NUMERIC_OPS,
+  aspectRatios,
+  buildDefaultValues,
+  buildStagedState,
+  collectStagedFilters,
+  filterSignature,
+  sectionForField,
+  slotForFilter,
+  validateValues,
+  type FormFieldName,
+  type FormValues,
+  type StagedToken,
+} from "./advancedSearchModel";
 
 interface Props {
   isOpen: boolean;
@@ -28,326 +43,17 @@ const emit = defineEmits<{
 }>();
 
 const { activeImportRootPath } = useActiveLibrarySelection();
-const facetsQuery = useFacetsQuery(computed(() => activeImportRootPath.value));
-
-const NUMERIC_OPS = [
-  { label: "=", value: "=" },
-  { label: ">", value: ">" },
-  { label: ">=", value: ">=" },
-  { label: "<", value: "<" },
-  { label: "<=", value: "<=" },
-] as const;
-
-const aspectRatios = ["1:1", "4:3", "16:9", "3:2", "2:3", "9:16"] as const;
-
-type NumericFieldName =
-  | "seed"
-  | "steps"
-  | "cfg"
-  | "width"
-  | "height"
-  | "clip_skip"
-  | "denoising_strength"
-  | "hires_upscale"
-  | "hires_steps";
-
-interface FormValues {
-  prompt: string;
-  negative: string;
-  model: string;
-  folder: string;
-  name: string;
-  date: string;
-  sampler: string;
-  scheduler: string;
-  lora: string;
-  vae: string;
-  seed: NumericFilterValue;
-  steps: NumericFilterValue;
-  cfg: NumericFilterValue;
-  clip_skip: NumericFilterValue;
-  denoising_strength: NumericFilterValue;
-  hires_upscale: NumericFilterValue;
-  hires_steps: NumericFilterValue;
-  width: NumericFilterValue;
-  height: NumericFilterValue;
-  size: string;
-  ratio: string;
-  param: string;
-  advanced: string;
-  raw: string;
-}
-
-type FormFieldName = keyof FormValues;
-
-interface StagedToken {
-  id: string;
-  filter: FieldFilter;
-  slot: FormFieldName | null;
-  primary: boolean;
-}
-
-const fieldOrder: FormFieldName[] = [
-  "prompt",
-  "negative",
-  "model",
-  "folder",
-  "name",
-  "date",
-  "sampler",
-  "scheduler",
-  "lora",
-  "vae",
-  "seed",
-  "steps",
-  "cfg",
-  "clip_skip",
-  "denoising_strength",
-  "hires_upscale",
-  "hires_steps",
-  "width",
-  "height",
-  "size",
-  "ratio",
-  "param",
-  "advanced",
-  "raw",
-];
-
-const numericFields = new Set<FormFieldName>([
-  "seed",
-  "steps",
-  "cfg",
-  "clip_skip",
-  "denoising_strength",
-  "hires_upscale",
-  "hires_steps",
-  "width",
-  "height",
-]);
-
-function defaultNumericValue(): NumericFilterValue {
-  return { value: "", op: "=" };
-}
-
-function buildDefaultValues(): FormValues {
-  return {
-    prompt: "",
-    negative: "",
-    model: "",
-    folder: "",
-    name: "",
-    date: "",
-    sampler: "",
-    scheduler: "",
-    lora: "",
-    vae: "",
-    seed: defaultNumericValue(),
-    steps: defaultNumericValue(),
-    cfg: defaultNumericValue(),
-    clip_skip: defaultNumericValue(),
-    denoising_strength: defaultNumericValue(),
-    hires_upscale: defaultNumericValue(),
-    hires_steps: defaultNumericValue(),
-    width: defaultNumericValue(),
-    height: defaultNumericValue(),
-    size: "",
-    ratio: "",
-    param: "",
-    advanced: "",
-    raw: "",
-  };
-}
-
-function slotForFilter(filter: FieldFilter): FormFieldName | null {
-  const field = filter.field.toLowerCase();
-  const aliases: Record<string, FormFieldName> = {
-    positive: "prompt",
-    path: "folder",
-    cfg_scale: "cfg",
-    aspect_ratio: "ratio",
-    denoising: "denoising_strength",
-  };
-  const normalized = aliases[field] ?? field;
-  return fieldOrder.includes(normalized as FormFieldName) ? (normalized as FormFieldName) : null;
-}
-
-function setValueFromFilter(values: FormValues, slot: FormFieldName, filter: FieldFilter) {
-  if (numericFields.has(slot)) {
-    values[slot as NumericFieldName] = { value: filter.value, op: filter.operator || "=" };
-    return;
-  }
-  values[slot as Exclude<FormFieldName, NumericFieldName>] = filter.value;
-}
+const facetsQuery = useFacetsQuery(
+  computed(() => activeImportRootPath.value),
+  computed(() => props.isOpen),
+);
 
 function stageFilters(filters: FieldFilter[]) {
-  const values = buildDefaultValues();
-  const seen = new Set<FormFieldName>();
-  const tokens = filters.map((filter, index): StagedToken => {
-    const slot = slotForFilter(filter);
-    const primary = slot !== null && !seen.has(slot);
-    if (slot && primary) {
-      seen.add(slot);
-      setValueFromFilter(values, slot, filter);
-    }
-    return { id: `filter-${index}`, filter: { ...filter }, slot, primary };
-  });
-
+  const { values, tokens, openSections } = buildStagedState(filters);
   stagedTokens.value = tokens;
   openingValues.value = structuredClone(values);
-  activeAccordionSections.value = computeOpenSections(filters);
+  activeAccordionSections.value = openSections;
   form.reset(values);
-}
-
-function fieldValue(values: FormValues, slot: FormFieldName): string | NumericFilterValue {
-  return values[slot];
-}
-
-function fieldChanged(values: FormValues, slot: FormFieldName): boolean {
-  const current = fieldValue(values, slot);
-  const opening = fieldValue(openingValues.value, slot);
-  if (typeof current === "string" && typeof opening === "string") return current !== opening;
-  if (typeof current !== "string" && typeof opening !== "string") {
-    return current.value !== opening.value || current.op !== opening.op;
-  }
-  return true;
-}
-
-function filterForSlot(slot: FormFieldName, values: FormValues): FieldFilter | null {
-  const outputFields: Record<FormFieldName, string> = {
-    prompt: "prompt",
-    negative: "negative",
-    model: "model",
-    folder: "folder",
-    name: "name",
-    date: "date",
-    sampler: "sampler",
-    scheduler: "scheduler",
-    lora: "lora",
-    vae: "vae",
-    seed: "seed",
-    steps: "steps",
-    cfg: "cfg",
-    clip_skip: "clip_skip",
-    denoising_strength: "denoising_strength",
-    hires_upscale: "hires_upscale",
-    hires_steps: "hires_steps",
-    width: "width",
-    height: "height",
-    size: "size",
-    ratio: "ratio",
-    param: "param",
-    advanced: "advanced",
-    raw: "raw",
-  };
-  const value = fieldValue(values, slot);
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed ? { field: outputFields[slot], value: trimmed } : null;
-  }
-  const trimmed = value.value.trim();
-  if (!trimmed) return null;
-  return {
-    field: outputFields[slot],
-    value: trimmed,
-    operator: value.op === "=" ? undefined : value.op,
-  };
-}
-
-function collectStagedFilters(values: FormValues): FieldFilter[] {
-  const result: FieldFilter[] = [];
-  const primarySlots = new Set<FormFieldName>();
-
-  for (const token of stagedTokens.value) {
-    if (!token.primary || token.slot === null) {
-      if (token.filter.value.trim()) result.push({ ...token.filter });
-      continue;
-    }
-    primarySlots.add(token.slot);
-    if (!fieldChanged(values, token.slot)) {
-      if (token.filter.value.trim()) result.push({ ...token.filter });
-      continue;
-    }
-    const replacement = filterForSlot(token.slot, values);
-    if (replacement) result.push(replacement);
-  }
-
-  for (const slot of fieldOrder) {
-    if (primarySlots.has(slot)) continue;
-    const filter = filterForSlot(slot, values);
-    if (filter) result.push(filter);
-  }
-  return result;
-}
-
-function isInteger(value: string) {
-  return /^-?\d+$/.test(value.trim());
-}
-
-function isPositiveInteger(value: string) {
-  return /^\d+$/.test(value.trim()) && Number(value) > 0;
-}
-
-function isPositiveNumber(value: string) {
-  return Number.isFinite(Number(value)) && Number(value) > 0;
-}
-
-function validateValues(value: FormValues): Partial<Record<FormFieldName, string>> {
-  const errors: Partial<Record<FormFieldName, string>> = {};
-  if (value.seed.value && !isInteger(value.seed.value)) errors.seed = "Enter a whole number";
-  for (const field of ["steps", "clip_skip", "hires_steps", "width", "height"] as const) {
-    if (value[field].value && !isPositiveInteger(value[field].value)) errors[field] = "Enter a positive whole number";
-  }
-  for (const field of ["cfg", "denoising_strength", "hires_upscale"] as const) {
-    if (value[field].value && !isPositiveNumber(value[field].value)) errors[field] = "Enter a positive number";
-  }
-  if (value.size) {
-    const match = value.size.match(/^(\d+)\s*x\s*(\d+)$/i);
-    if (!match || Number(match[1]) <= 0 || Number(match[2]) <= 0) errors.size = "Use a positive size such as 1024x768";
-  }
-  if (value.ratio) {
-    const match = value.ratio.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
-    if (!match || Number(match[1]) <= 0 || Number(match[2]) <= 0) errors.ratio = "Use a ratio such as 16:9";
-  }
-  return errors;
-}
-
-const sectionFields: Record<string, FormFieldName[]> = {
-  content: ["prompt", "negative", "model", "folder", "name", "date"],
-  generation: [
-    "sampler",
-    "scheduler",
-    "lora",
-    "vae",
-    "seed",
-    "steps",
-    "cfg",
-    "clip_skip",
-    "denoising_strength",
-    "hires_upscale",
-    "hires_steps",
-  ],
-  dimensions: ["width", "height", "size", "ratio"],
-  syntax: ["param", "advanced", "raw"],
-};
-
-function sectionForField(field: FormFieldName): string | null {
-  for (const [section, fields] of Object.entries(sectionFields)) {
-    if (fields.includes(field)) return section;
-  }
-  return null;
-}
-
-function computeOpenSections(filters: FieldFilter[]): string[] {
-  const sections = new Set<string>(["content"]);
-  for (const filter of filters) {
-    const slot = slotForFilter(filter);
-    if (slot) {
-      const section = sectionForField(slot);
-      if (section) sections.add(section);
-    }
-  }
-  return [...sections];
 }
 
 const stagedTokens = shallowRef<StagedToken[]>([]);
@@ -363,14 +69,17 @@ const form = useForm({
     },
   },
   onSubmit: ({ value }) => {
-    emit("apply", collectStagedFilters(value));
+    emit("apply", collectStagedFilters(value, stagedTokens.value, openingValues.value));
     emit("close");
   },
 });
 
 const formState = useStore(form.store);
 const validationErrors = computed(() => validateValues(formState.value.values));
-const stagedFilters = computed(() => collectStagedFilters(formState.value.values));
+const stagedFilters = computed(() =>
+  collectStagedFilters(formState.value.values, stagedTokens.value, openingValues.value),
+);
+const isDirty = computed(() => filterSignature(stagedFilters.value) !== filterSignature(props.initialFilters));
 const activeFilterCount = computed(() => stagedFilters.value.length);
 const activeFilterSummary = computed(() =>
   activeFilterCount.value === 0
@@ -383,6 +92,54 @@ const applyLabel = computed(() =>
     : "Apply filters",
 );
 const passThroughTokens = computed(() => stagedTokens.value.filter((token) => !token.primary || token.slot === null));
+const validationErrorEntries = computed(() => Object.entries(validationErrors.value) as Array<[FormFieldName, string]>);
+const validationErrorCount = computed(() => validationErrorEntries.value.length);
+const sectionErrorCounts = computed(() => {
+  const counts: Record<string, number> = {};
+  for (const [field] of validationErrorEntries.value) {
+    const section = sectionForField(field);
+    if (section) counts[section] = (counts[section] ?? 0) + 1;
+  }
+  return counts;
+});
+const sectionFilterCounts = computed(() => {
+  const counts: Record<string, number> = {};
+  const seen = new Set<FormFieldName>();
+  for (const filter of stagedFilters.value) {
+    const slot = slotForFilter(filter);
+    const section = !slot || seen.has(slot) ? "syntax" : sectionForField(slot);
+    if (slot) seen.add(slot);
+    if (section) counts[section] = (counts[section] ?? 0) + 1;
+  }
+  return counts;
+});
+
+const fieldIds: Record<FormFieldName, string> = {
+  prompt: "advanced-search-prompt",
+  negative: "advanced-search-negative",
+  model: "advanced-search-model",
+  folder: "advanced-search-folder",
+  name: "advanced-search-name",
+  date: "advanced-search-date",
+  sampler: "advanced-search-sampler",
+  scheduler: "advanced-search-scheduler",
+  lora: "advanced-search-lora",
+  vae: "advanced-search-vae",
+  seed: "advanced-search-seed",
+  steps: "advanced-search-steps",
+  cfg: "advanced-search-cfg",
+  clip_skip: "advanced-search-clip-skip",
+  denoising_strength: "advanced-search-denoising-strength",
+  hires_upscale: "advanced-search-hires-upscale",
+  hires_steps: "advanced-search-hires-steps",
+  width: "advanced-search-width",
+  height: "advanced-search-height",
+  size: "advanced-search-size",
+  ratio: "advanced-search-ratio",
+  param: "advanced-search-param",
+  advanced: "advanced-search-advanced",
+  raw: "advanced-search-raw",
+};
 
 const facetData = computed(() => facetsQuery.data.value);
 const facetModelOptions = computed(() => facetData.value?.model?.map((entry: FacetEntry) => entry.value) ?? []);
@@ -416,14 +173,40 @@ function handleOpenChange(open: boolean) {
   if (!open) handleCancel();
 }
 
+function handleInteractOutside(event: Event) {
+  if (isDirty.value) event.preventDefault();
+}
+
 function removeStagedToken(id: string) {
   stagedTokens.value = stagedTokens.value.filter((token) => token.id !== id);
+}
+
+async function focusFirstInvalidField() {
+  const firstInvalidField = validationErrorEntries.value[0]?.[0];
+  if (!firstInvalidField) return;
+  const section = sectionForField(firstInvalidField);
+  if (section && !activeAccordionSections.value.includes(section)) {
+    activeAccordionSections.value = [...activeAccordionSections.value, section];
+  }
+  await nextTick();
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  const target = document.getElementById(fieldIds[firstInvalidField]);
+  target?.focus();
+  target?.scrollIntoView({ block: "nearest" });
+}
+
+async function submitForm() {
+  if (validationErrorCount.value > 0) {
+    await focusFirstInvalidField();
+    return;
+  }
+  if (isDirty.value) await form.handleSubmit();
 }
 
 function handleShortcut(event: KeyboardEvent) {
   if (event.key !== "Enter" || (!event.ctrlKey && !event.metaKey)) return;
   event.preventDefault();
-  if (formState.value.isValid) void form.handleSubmit();
+  void submitForm();
 }
 
 watch(
@@ -439,39 +222,73 @@ watch(
   <Sheet :open="isOpen" @update:open="handleOpenChange">
     <SheetContent
       side="right"
-      class="advanced-search-drawer w-[560px] max-w-[560px] gap-0 p-0 sm:max-w-[560px]"
+      class="advanced-search-drawer w-full max-w-none gap-0 p-0 sm:w-[560px] sm:max-w-[560px]"
       data-testid="advanced-search-drawer"
+      @interact-outside="handleInteractOutside"
     >
-      <form class="flex h-full min-h-0 flex-col" @submit.prevent="form.handleSubmit()" @keydown="handleShortcut">
-        <SheetHeader class="shrink-0 gap-1 border-b px-6 py-5 pr-14 text-left">
+      <form class="flex h-full min-h-0 flex-col" @submit.prevent="submitForm" @keydown="handleShortcut">
+        <SheetHeader class="shrink-0 gap-1 border-b px-4 py-4 pr-14 text-left sm:px-6 sm:py-5">
           <SheetTitle class="text-lg">Advanced Search</SheetTitle>
           <SheetDescription>Build precise metadata and file filters.</SheetDescription>
         </SheetHeader>
 
-        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5" data-testid="advanced-search-scroll-body">
-          <div class="mb-4 flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
-            <p class="text-sm font-medium" aria-live="polite">{{ activeFilterSummary }}</p>
-            <Button type="button" variant="ghost" size="sm" :disabled="activeFilterCount === 0" @click="handleClearAll">
-              <Trash2 data-icon="inline-start" />
-              Clear all
-            </Button>
+        <div
+          class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
+          data-testid="advanced-search-scroll-body"
+        >
+          <div class="mb-4 rounded-md border bg-muted/40 px-3 py-2.5">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-sm font-medium" aria-live="polite">{{ activeFilterSummary }}</p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                class="min-h-9 shrink-0"
+                :disabled="activeFilterCount === 0"
+                @click="handleClearAll"
+              >
+                <Trash2 data-icon="inline-start" />
+                Clear all
+              </Button>
+            </div>
+            <ul
+              v-if="stagedFilters.length"
+              class="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto"
+              aria-label="Selected filters"
+            >
+              <li
+                v-for="(filter, index) in stagedFilters"
+                :key="`${filter.field}-${filter.operator ?? ''}-${filter.value}-${index}`"
+                class="max-w-full rounded-md border bg-background px-2 py-1"
+              >
+                <code class="block max-w-full truncate text-xs">{{ filterToDisplayString(filter) }}</code>
+              </li>
+            </ul>
           </div>
 
           <Accordion
             type="multiple"
             :model-value="activeAccordionSections"
             @update:model-value="activeAccordionSections = $event as string[]"
-            class="w-full"
+            class="min-w-0 max-w-full"
             data-testid="advanced-search-groups"
           >
             <AccordionItem value="content">
               <AccordionTrigger class="text-left no-underline hover:no-underline">
-                <span class="flex flex-col gap-0.5">
-                  <span>Content and files</span>
-                  <span class="text-xs font-normal text-muted-foreground">Words, models, locations, and dates</span>
+                <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
+                  <span class="flex flex-col gap-0.5">
+                    <span>Content and files</span>
+                    <span class="text-xs font-normal text-muted-foreground">Words, models, locations, and dates</span>
+                  </span>
+                  <span
+                    v-if="sectionFilterCounts.content"
+                    class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium"
+                  >
+                    {{ sectionFilterCounts.content }}
+                  </span>
                 </span>
               </AccordionTrigger>
-              <AccordionContent class="pt-1">
+              <AccordionContent class="px-1 pt-1">
                 <FieldGroup class="gap-4">
                   <form.Field name="prompt" v-slot="{ field }">
                     <Field class="gap-1.5">
@@ -495,7 +312,7 @@ watch(
                       />
                     </Field>
                   </form.Field>
-                  <div class="grid grid-cols-2 gap-4">
+                  <div class="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
                     <form.Field name="model" v-slot="{ field }">
                       <Field class="gap-1.5">
                         <FieldLabel for="advanced-search-model">Model</FieldLabel>
@@ -555,16 +372,32 @@ watch(
 
             <AccordionItem value="generation">
               <AccordionTrigger class="text-left no-underline hover:no-underline">
-                <span class="flex flex-col gap-0.5">
-                  <span>Generation settings</span>
-                  <span class="text-xs font-normal text-muted-foreground"
-                    >Sampler, resources, and generation values</span
-                  >
+                <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
+                  <span class="flex flex-col gap-0.5">
+                    <span>Generation settings</span>
+                    <span class="text-xs font-normal text-muted-foreground"
+                      >Sampler, resources, and generation values</span
+                    >
+                  </span>
+                  <span class="flex items-center gap-1.5">
+                    <span
+                      v-if="sectionErrorCounts.generation"
+                      class="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+                    >
+                      {{ sectionErrorCounts.generation }} error{{ sectionErrorCounts.generation === 1 ? "" : "s" }}
+                    </span>
+                    <span
+                      v-if="sectionFilterCounts.generation"
+                      class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium"
+                    >
+                      {{ sectionFilterCounts.generation }}
+                    </span>
+                  </span>
                 </span>
               </AccordionTrigger>
-              <AccordionContent class="pt-1">
+              <AccordionContent class="px-1 pt-1">
                 <FieldGroup class="gap-4">
-                  <div class="grid grid-cols-2 gap-4">
+                  <div class="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
                     <form.Field name="sampler" v-slot="{ field }">
                       <Field class="gap-1.5">
                         <FieldLabel for="advanced-search-sampler">Sampler</FieldLabel>
@@ -711,17 +544,33 @@ watch(
 
             <AccordionItem value="dimensions">
               <AccordionTrigger class="text-left no-underline hover:no-underline">
-                <span class="flex flex-col gap-0.5"
-                  ><span>Dimensions</span
-                  ><span class="text-xs font-normal text-muted-foreground">Pixel size and proportions</span></span
-                >
+                <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
+                  <span class="flex flex-col gap-0.5">
+                    <span>Dimensions</span>
+                    <span class="text-xs font-normal text-muted-foreground">Pixel size and proportions</span>
+                  </span>
+                  <span class="flex items-center gap-1.5">
+                    <span
+                      v-if="sectionErrorCounts.dimensions"
+                      class="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+                    >
+                      {{ sectionErrorCounts.dimensions }} error{{ sectionErrorCounts.dimensions === 1 ? "" : "s" }}
+                    </span>
+                    <span
+                      v-if="sectionFilterCounts.dimensions"
+                      class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium"
+                    >
+                      {{ sectionFilterCounts.dimensions }}
+                    </span>
+                  </span>
+                </span>
               </AccordionTrigger>
-              <AccordionContent class="pt-1">
+              <AccordionContent class="px-1 pt-1">
                 <FieldDescription class="mb-4 text-xs">
                   Dimension filters combine with AND. Add more than one only when every condition should match.
                 </FieldDescription>
                 <FieldGroup class="gap-4">
-                  <div class="grid grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <form.Field name="width" v-slot="{ field }">
                       <AdvancedSearchNumericField
                         id="advanced-search-width"
@@ -784,7 +633,7 @@ watch(
                         variant="outline"
                         size="sm"
                         :model-value="field.state.value || undefined"
-                        class="grid grid-cols-6"
+                        class="grid grid-cols-3 sm:grid-cols-6"
                         aria-label="Aspect ratio presets"
                         @update:model-value="
                           (value) => field.handleChange(Array.isArray(value) ? (value[0] ?? '') : (value ?? ''))
@@ -795,7 +644,7 @@ watch(
                           :key="ratio"
                           :value="ratio"
                           :aria-label="ratio"
-                          class="min-h-9 min-w-0 border data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                          class="min-h-9 min-w-0 border focus-visible:relative focus-visible:z-10 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
                         >
                           {{ ratio }}
                         </ToggleGroupItem>
@@ -808,53 +657,57 @@ watch(
 
             <AccordionItem value="syntax">
               <AccordionTrigger class="text-left no-underline hover:no-underline">
-                <span class="flex flex-col gap-0.5"
-                  ><span>Query syntax</span
-                  ><span class="text-xs font-normal text-muted-foreground"
-                    >Metadata keys and raw metadata text</span
-                  ></span
-                >
+                <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
+                  <span class="flex flex-col gap-0.5">
+                    <span>Custom metadata</span>
+                    <span class="text-xs font-normal text-muted-foreground"
+                      >Uncommon keys and embedded metadata text</span
+                    >
+                  </span>
+                  <span v-if="sectionFilterCounts.syntax" class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                    {{ sectionFilterCounts.syntax }}
+                  </span>
+                </span>
               </AccordionTrigger>
-              <AccordionContent class="pt-1">
+              <AccordionContent class="px-1 pt-1">
                 <FieldGroup class="gap-4">
+                  <FieldDescription class="rounded-md bg-muted/50 px-3 py-2.5 text-sm">
+                    Use these options only when the standard fields above do not cover the metadata you need.
+                  </FieldDescription>
                   <form.Field name="param" v-slot="{ field }">
-                    <Field class="gap-1.5">
-                      <FieldLabel for="advanced-search-param">Metadata key</FieldLabel
-                      ><Input
-                        id="advanced-search-param"
-                        :model-value="field.state.value"
-                        class="font-mono"
-                        placeholder="some_key:value"
-                        @update:model-value="field.handleChange"
-                      /><FieldDescription class="text-xs">
-                        Serialized as <code>param:some_key:value</code>.
-                      </FieldDescription>
-                    </Field>
+                    <AdvancedSearchPrefixedField
+                      id="advanced-search-param"
+                      label="Custom metadata field"
+                      prefix="param:"
+                      :model-value="field.state.value"
+                      placeholder="camera_model:ILCE-7M4"
+                      example-input="camera_model:ILCE-7M4"
+                      @update:model-value="field.handleChange"
+                    />
                   </form.Field>
                   <form.Field name="advanced" v-slot="{ field }">
-                    <Field class="gap-1.5">
-                      <FieldLabel for="advanced-search-advanced">Workflow key</FieldLabel
-                      ><Input
-                        id="advanced-search-advanced"
-                        :model-value="field.state.value"
-                        class="font-mono"
-                        placeholder="some_key:value"
-                        @update:model-value="field.handleChange"
-                      /><FieldDescription class="text-xs">
-                        Serialized as <code>advanced:some_key:value</code>.
-                      </FieldDescription>
-                    </Field>
+                    <AdvancedSearchPrefixedField
+                      id="advanced-search-advanced"
+                      label="Workflow metadata field"
+                      prefix="advanced:"
+                      :model-value="field.state.value"
+                      placeholder="sampler_name:euler"
+                      example-input="sampler_name:euler"
+                      @update:model-value="field.handleChange"
+                    />
                   </form.Field>
                   <form.Field name="raw" v-slot="{ field }">
                     <Field class="gap-1.5">
-                      <FieldLabel for="advanced-search-raw">Raw metadata text</FieldLabel
+                      <FieldLabel for="advanced-search-raw">Raw metadata contains</FieldLabel
                       ><Textarea
                         id="advanced-search-raw"
                         :model-value="field.state.value"
                         class="min-h-24 resize-y font-mono"
                         placeholder="model:PonyXL"
                         @update:model-value="(value) => field.handleChange(String(value))"
-                      /><FieldDescription class="text-xs">Searches embedded raw metadata text.</FieldDescription>
+                      /><FieldDescription class="text-xs">
+                        Matches this text anywhere in embedded metadata. Use it when you know the text but not its key.
+                      </FieldDescription>
                     </Field>
                   </form.Field>
 
@@ -889,14 +742,24 @@ watch(
         </div>
 
         <footer
-          class="flex shrink-0 items-center justify-between gap-4 border-t bg-background px-6 py-4"
+          class="flex shrink-0 flex-col gap-3 border-t bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4"
           data-testid="advanced-search-footer"
         >
-          <Button type="button" variant="outline" size="sm" @click="handleResetChanges">Reset changes</Button>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-muted-foreground"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd></span>
+          <div class="flex min-w-0 items-center justify-between gap-3 sm:justify-start">
+            <Button type="button" variant="outline" size="sm" :disabled="!isDirty" @click="handleResetChanges">
+              Revert edits
+            </Button>
+            <span v-if="validationErrorCount" class="text-xs font-medium text-destructive" role="alert">
+              {{ validationErrorCount }} field{{ validationErrorCount === 1 ? "" : "s" }} need attention
+            </span>
+            <span v-else-if="isDirty" class="text-xs text-muted-foreground">Unsaved changes</span>
+          </div>
+          <div class="flex items-center justify-end gap-2 sm:gap-3">
+            <span class="hidden text-xs text-muted-foreground md:inline"
+              ><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd></span
+            >
             <Button type="button" variant="ghost" size="sm" @click="handleCancel">Cancel</Button>
-            <Button type="submit" size="sm" :disabled="!formState.isValid">
+            <Button type="submit" size="sm" :disabled="!isDirty">
               <Search data-icon="inline-start" />{{ applyLabel }}
             </Button>
           </div>

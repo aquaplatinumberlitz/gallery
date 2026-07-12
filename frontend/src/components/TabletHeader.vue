@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, onBeforeUnmount, watch, computed } from "vue";
-import { Menu, Search, X, ArrowLeft, Library, Loader2 } from "lucide-vue-next";
+import { Menu, Search, X, ArrowLeft, Library, Loader2, SlidersHorizontal } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import Breadcrumb from "./Breadcrumb.vue";
 import SearchScopeSelect from "./SearchScopeSelect.vue";
@@ -23,6 +23,7 @@ const emit = defineEmits<{
   "toggle-theme": [];
   "update:searchQuery": [value: string];
   "scope-change": [value: "current" | "all"];
+  "open-advanced-search": [];
 }>();
 
 const galleryStore = useGalleryStore();
@@ -102,6 +103,11 @@ function onSearchInput(e: Event) {
   const target = e.target as HTMLInputElement;
   emit("update:searchQuery", target.value);
 }
+
+function openAdvancedSearch() {
+  isSearchActive.value = false;
+  emit("open-advanced-search");
+}
 </script>
 
 <template>
@@ -173,6 +179,7 @@ function onSearchInput(e: Event) {
           spellcheck="false"
           aria-label="Search gallery"
           class="th-search-input"
+          data-focus-ring="none"
         />
         <button v-if="hasQuery" class="th-search-clear" @click="clearSearch" aria-label="Clear search">
           <X />
@@ -183,6 +190,9 @@ function onSearchInput(e: Event) {
           @update:model-value="emit('scope-change', $event)"
         />
       </div>
+      <button class="th-btn th-advanced-search" @click="openAdvancedSearch" aria-label="Advanced Search">
+        <SlidersHorizontal class="th-header-icon" />
+      </button>
     </motion.div>
 
     <!-- Right: actions (hidden in search mode) -->
@@ -272,8 +282,8 @@ function onSearchInput(e: Event) {
    Buttons — shared
    ============================================================ */
 .th-btn {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 10px;
   background: transparent;
@@ -347,6 +357,7 @@ function onSearchInput(e: Event) {
   display: flex;
   align-items: center;
   transform-origin: right center;
+  gap: 4px;
 }
 
 .th-search-input-wrap {
@@ -354,7 +365,7 @@ function onSearchInput(e: Event) {
   align-items: center;
   gap: 8px;
   flex: 1;
-  height: 40px;
+  height: 44px;
   padding: 0 6px 0 12px;
   border: 1px solid var(--input);
   border-radius: 12px;
@@ -367,7 +378,7 @@ function onSearchInput(e: Event) {
 
 .th-search-input-wrap:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  box-shadow: var(--focus-within-ring-shadow);
 }
 
 .th-search-icon {

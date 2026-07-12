@@ -155,3 +155,22 @@ Icon rules:
 - Keep mobile glow effects disabled for performance and clipping.
 - Keep safe-area offsets for fixed bars and lightbox controls.
 - Wrap localStorage reads/writes in try/catch for Safari Private Browsing.
+
+## Keyboard Focus
+
+- Standalone interactive controls use the global `:focus-visible` indicator from `main.scss`: a 2px outline with a -2px offset, rendered entirely inside the control boundary.
+- Do not add component-local Tailwind `ring` shadows as the visible focus indicator; the global rule neutralizes them so overflow, animation, and scroll containers cannot clip an external ring.
+- Composite controls use `focus-within` on their outer wrapper with `--focus-within-ring-shadow`. Mark the inner native input with `data-focus-ring="none"` to avoid a double indicator.
+- Keep the focus colors and geometry in `tokens.css`. Component styles must not introduce a different focus width, offset, or color.
+- Regression tests must verify computed outline geometry on keyboard-focused controls at mobile, tablet, and desktop breakpoints.
+
+## Advanced Search
+
+- Keep one shared Advanced Search drawer instance at the app shell so filter state and serialization stay consistent across layouts.
+- Desktop exposes Advanced Search in both expanded and compact search headers.
+- Tablet and mobile expose Advanced Search from the expanded search bar.
+- Use a 560px right-side sheet where space allows and a full-width sheet on compact mobile viewports.
+- Keep selected filters visible above collapsed sections. Repeated or unsupported filters must also open the Custom metadata section.
+- Show validation counts on affected section headers and in the footer; submitting an invalid form must open and focus the first invalid field.
+- Do not dismiss dirty edits from an outside pointer interaction. Explicit Cancel, Close, or Escape may discard staged changes.
+- Maintain 44x44px touch targets for compact-header actions and sheet close controls.

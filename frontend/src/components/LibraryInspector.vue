@@ -1430,7 +1430,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 
 .search-clear-button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .filter-count-badge {
@@ -1572,7 +1572,7 @@ button.metadata-header-control:hover {
 
 button.metadata-header-control:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .metadata-header-label {

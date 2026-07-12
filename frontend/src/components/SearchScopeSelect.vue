@@ -120,7 +120,7 @@ function handleUpdate(value: unknown) {
 
 .search-scope-select-trigger:focus-visible {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .search-scope-select-trigger-compact {

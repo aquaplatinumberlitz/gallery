@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, ref } from "vue";
+import { computed, inject, onMounted } from "vue";
 import {
   Landmark,
   Settings,
@@ -34,11 +34,9 @@ import {
 import { useGalleryTheme } from "@/composables/useGalleryTheme";
 import { useFieldedSearch } from "@/composables/useFieldedSearch";
 import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "@/composables/useColumnResize";
-import AdvancedSearchDrawer from "@/components/search/AdvancedSearchDrawer.vue";
 import SearchScopeSelect from "@/components/SearchScopeSelect.vue";
 import SearchFilterChips from "@/components/SearchFilterChips.vue";
-import type { FieldFilter, SortValue } from "@/types";
-import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery";
+import type { SortValue } from "@/types";
 import { prefetchLibrariesRoute, prefetchMetadataRoute } from "@/router";
 import { useGalleryStore } from "@/stores/gallery";
 import { queryClient } from "@/query";
@@ -58,7 +56,7 @@ interface Props {
   searchScope: "current" | "all";
   searchLoading: boolean;
 }
-const props = defineProps<Props>();
+defineProps<Props>();
 
 const emit = defineEmits<{
   "update:searchQuery": [value: string];
@@ -66,6 +64,7 @@ const emit = defineEmits<{
   "toggle-sidebar": [];
   "toggle-theme": [];
   "open-settings": [];
+  "open-advanced-search": [];
 }>();
 
 const { resolvedTheme, toggleTheme } = useGalleryTheme();
@@ -73,7 +72,6 @@ const {
   fieldedFilters,
   isActive: isFieldedSearchActive,
   queryString: fieldedQueryString,
-  applyFilters,
   removeFilter,
   clearAll,
 } = useFieldedSearch();
@@ -83,8 +81,6 @@ const isLibrariesRoute = computed(() => activeNav.value === "libraries");
 const isMaintenanceRoute = computed(() => activeNav.value === "maintenance");
 const showGalleryHeader = computed(() => !isMetadataRoute.value && !isAdminRoute.value);
 
-const isAdvancedSearchOpen = ref(false);
-const advancedSearchInitialFilters = ref<FieldFilter[]>([]);
 let metadataDataPrefetchStarted = false;
 
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
@@ -191,19 +187,6 @@ onMounted(() => {
   });
 });
 
-function getAdvancedSearchInitialFilters() {
-  const parsedFilters = parseFieldedQuery(props.searchQuery);
-
-  // The visible query is authoritative when it contains fielded tokens. Keeping
-  // the parsed sequence intact preserves repeated fields for Advanced Search.
-  return parsedFilters.length > 0 ? parsedFilters : [...fieldedFilters.value];
-}
-
-function openAdvancedSearch() {
-  advancedSearchInitialFilters.value = getAdvancedSearchInitialFilters();
-  isAdvancedSearchOpen.value = true;
-}
-
 function clearSearch() {
   clearAll();
   emit("update:searchQuery", "");
@@ -211,15 +194,6 @@ function clearSearch() {
 
 function submitSearch() {
   galleryStore.submitSearch();
-}
-
-function handleAdvancedSearchApply(filters: FieldFilter[]) {
-  applyFilters(filters);
-  emit("update:searchQuery", serializeAdvancedSearchToQuery(filters));
-}
-
-function handleAdvancedSearchClose() {
-  isAdvancedSearchOpen.value = false;
 }
 
 function handleRemoveFilter(index: number) {
@@ -258,7 +232,7 @@ function handleClearAll() {
           damping: 35,
           opacity: { type: 'tween', duration: 0.2, ease: [0.4, 0, 0.6, 1] },
         }"
-        :style="{ overflow: 'hidden' }"
+        :style="{ overflow: isHeaderCollapsed ? 'hidden' : 'visible' }"
         :aria-hidden="isHeaderCollapsed"
         :inert="isHeaderCollapsed"
       >
@@ -395,11 +369,11 @@ function handleClearAll() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        class="advanced-search-btn search-action-btn size-7 p-0"
+                        class="advanced-search-btn search-action-btn size-9 p-0"
                         type="button"
                         :class="{ 'text-primary': isFieldedSearchActive }"
                         aria-label="Advanced Search"
-                        @click="openAdvancedSearch"
+                        @click="emit('open-advanced-search')"
                       >
                         <SlidersHorizontal class="gallery-icon-toolbar" />
                       </Button>
@@ -537,7 +511,7 @@ function handleClearAll() {
           damping: 35,
           opacity: { type: 'tween', duration: 0.2, ease: [0.4, 0, 0.6, 1] },
         }"
-        :style="{ overflow: 'hidden' }"
+        :style="{ overflow: isHeaderCollapsed ? 'visible' : 'hidden' }"
         :aria-hidden="!isHeaderCollapsed"
         :inert="!isHeaderCollapsed"
       >
@@ -596,6 +570,23 @@ function handleClearAll() {
             @submit="submitSearch"
             @clear="clearSearch"
           />
+
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                class="advanced-search-btn size-9 shrink-0"
+                type="button"
+                :class="{ 'text-primary': isFieldedSearchActive }"
+                aria-label="Advanced Search"
+                @click="emit('open-advanced-search')"
+              >
+                <SlidersHorizontal class="gallery-icon-toolbar" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Advanced Search</TooltipContent>
+          </Tooltip>
 
           <SortSelect
             v-model="gallerySortValue"
@@ -752,13 +743,6 @@ function handleClearAll() {
         </div>
       </div>
     </template>
-
-    <AdvancedSearchDrawer
-      :is-open="isAdvancedSearchOpen"
-      :initial-filters="advancedSearchInitialFilters"
-      @close="handleAdvancedSearchClose"
-      @apply="handleAdvancedSearchApply"
-    />
   </header>
 </template>
 
@@ -786,7 +770,7 @@ function handleClearAll() {
 .gallery-header.is-gallery-header {
   display: block;
   container: gallery-header / inline-size;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .gallery-header.is-gallery-header.is-expanded {
@@ -925,7 +909,7 @@ h1 {
 
 .theme-pill-toggle:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .theme-pill-toggle:hover {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, defineAsyncComponent, provide, watch } from "vue";
+import { computed, ref, shallowRef, defineAsyncComponent, provide, watch } from "vue";
 import { useEventListener, useStorage } from "@vueuse/core";
 import { useGalleryStore } from "./stores/gallery";
 import GalleryToaster from "./components/GalleryToaster.vue";
@@ -19,6 +19,10 @@ import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
 import { useRouteChrome } from "@/composables/useRouteChrome";
 import { useSidebarTreeQuery } from "./composables/useSidebarTreeQuery";
 import { MotionConfig } from "motion-v";
+import AdvancedSearchDrawer from "./components/search/AdvancedSearchDrawer.vue";
+import { useFieldedSearch } from "./composables/useFieldedSearch";
+import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "./utils/serializeAdvancedSearchToQuery";
+import type { FieldFilter } from "./types";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const showDevtools = import.meta.env.DEV || import.meta.env.VITE_DEVTOOLS === "true";
@@ -68,6 +72,24 @@ watch(
 
 const galleryStore = useGalleryStore();
 const librariesQuery = useLibrariesQuery();
+const { applyFilters, clearAll: clearFieldedSearch } = useFieldedSearch();
+const isAdvancedSearchOpen = shallowRef(false);
+const advancedSearchInitialFilters = shallowRef<FieldFilter[]>([]);
+
+function handleSearchQueryUpdate(value: string) {
+  galleryStore.setSearchQuery(value);
+  if (!parseFieldedQuery(value).length) clearFieldedSearch();
+}
+
+function openAdvancedSearch() {
+  advancedSearchInitialFilters.value = parseFieldedQuery(galleryStore.searchQuery);
+  isAdvancedSearchOpen.value = true;
+}
+
+function handleAdvancedSearchApply(filters: FieldFilter[]) {
+  applyFilters(filters);
+  galleryStore.setSearchQuery(serializeAdvancedSearchToQuery(filters));
+}
 
 watch(
   () => librariesQuery.isSuccess.value,
@@ -161,8 +183,9 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
         :can-back="canBack"
         :can-forward="canForward"
         :show-back-to-gallery="showBackToGallery"
-        @update:search-query="galleryStore.setSearchQuery($event)"
+        @update:search-query="handleSearchQueryUpdate"
         @scope-change="galleryStore.setSearchScope($event)"
+        @open-advanced-search="openAdvancedSearch"
         @update:sidebar-open="isSidebarOpen = $event"
         @toggle-sidebar="toggleSidebar"
         @toggle-theme="toggleTheme"
@@ -182,8 +205,9 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
         :search-query="galleryStore.searchQuery"
         :search-scope="galleryStore.searchScope"
         :search-loading="galleryStore.searchLoading"
-        @update:search-query="galleryStore.setSearchQuery($event)"
+        @update:search-query="handleSearchQueryUpdate"
         @scope-change="galleryStore.setSearchScope($event)"
+        @open-advanced-search="openAdvancedSearch"
         @update:sidebar-open="isSidebarOpen = $event"
         @toggle-sidebar="toggleSidebar"
         @toggle-theme="toggleTheme"
@@ -201,8 +225,9 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
         :search-query="galleryStore.searchQuery"
         :search-scope="galleryStore.searchScope"
         :search-loading="galleryStore.searchLoading"
-        @update:search-query="galleryStore.setSearchQuery($event)"
+        @update:search-query="handleSearchQueryUpdate"
         @scope-change="galleryStore.setSearchScope($event)"
+        @open-advanced-search="openAdvancedSearch"
         @update:sidebar-open="isSidebarOpen = $event"
         @toggle-sidebar="toggleSidebar"
         @toggle-theme="toggleTheme"
@@ -210,6 +235,12 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
       />
 
       <Lightbox />
+      <AdvancedSearchDrawer
+        :is-open="isAdvancedSearchOpen"
+        :initial-filters="advancedSearchInitialFilters"
+        @close="isAdvancedSearchOpen = false"
+        @apply="handleAdvancedSearchApply"
+      />
       <GalleryToaster v-if="!isMobile" />
       <SettingsModal :is-open="isSettingsOpen" @close="isSettingsOpen = false" @preview="handlePreviewIntro" />
       <component

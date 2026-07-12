@@ -43,6 +43,7 @@ const hasQuery = computed(() => props.modelValue.length > 0);
       :placeholder="placeholder"
       autocomplete="off"
       class="search-input"
+      data-focus-ring="none"
     />
     <Tooltip v-if="hasQuery">
       <TooltipTrigger as-child>
@@ -84,7 +85,7 @@ const hasQuery = computed(() => props.modelValue.length > 0);
 
 .search-box:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  box-shadow: var(--focus-within-ring-shadow);
 }
 
 .search-box.is-compact {
@@ -150,7 +151,7 @@ const hasQuery = computed(() => props.modelValue.length > 0);
 .search-box .search-action-btn:focus-visible,
 .search-box :slotted(.search-action-btn:focus-visible) {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .search-box .search-action-btn:active,
@@ -196,7 +197,7 @@ const hasQuery = computed(() => props.modelValue.length > 0);
 
   .search-box:focus-within {
     border-color: var(--primary);
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
+    box-shadow: var(--focus-within-ring-shadow);
   }
 }
 

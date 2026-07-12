@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, onBeforeUnmount, computed, watch } from "vue";
-import { Menu, Search, X, ArrowLeft, Library, Loader2 } from "lucide-vue-next";
+import { Menu, Search, X, ArrowLeft, Library, Loader2, SlidersHorizontal } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import { useGalleryStore } from "../stores/gallery";
 import SortDropdown from "./SortDropdown.vue";
@@ -24,6 +24,7 @@ const emit = defineEmits<{
   "scope-change": [value: "current" | "all"];
   "toggle-sidebar": [];
   "toggle-theme": [];
+  "open-advanced-search": [];
 }>();
 
 const isSearchActive = ref(false);
@@ -100,6 +101,11 @@ watch(isSearchActive, (active) => {
 function onSearchInput(e: Event) {
   const target = e.target as HTMLInputElement;
   emit("update:searchQuery", target.value);
+}
+
+function openAdvancedSearch() {
+  isSearchActive.value = false;
+  emit("open-advanced-search");
 }
 
 const galleryStore = useGalleryStore();
@@ -179,6 +185,7 @@ const gallerySortValue = computed<SortValue>({
             spellcheck="false"
             aria-label="Search gallery"
             class="search-focus-input"
+            data-focus-ring="none"
           />
           <button v-if="hasQuery" class="search-focus-clear" @click="clearSearch" aria-label="Clear search">
             <X />
@@ -189,6 +196,9 @@ const gallerySortValue = computed<SortValue>({
             @update:model-value="emit('scope-change', $event)"
           />
         </div>
+        <button class="mh-btn search-focus-advanced" @click="openAdvancedSearch" aria-label="Advanced Search">
+          <SlidersHorizontal />
+        </button>
       </motion.div>
     </div>
 
@@ -298,8 +308,8 @@ const gallerySortValue = computed<SortValue>({
    Buttons — shared
    ============================================================ */
 .mh-btn {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 10px;
   background: transparent;
@@ -341,8 +351,8 @@ const gallerySortValue = computed<SortValue>({
    Search button (collapsed state)
    ============================================================ */
 .mh-search-btn {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 10px;
   background: transparent;
@@ -371,6 +381,7 @@ const gallerySortValue = computed<SortValue>({
   display: flex;
   align-items: center;
   transform-origin: right center;
+  gap: 4px;
 }
 
 /* ============================================================
@@ -381,7 +392,7 @@ const gallerySortValue = computed<SortValue>({
   align-items: center;
   gap: 8px;
   flex: 1;
-  height: 42px;
+  height: 44px;
   padding: 0 6px 0 12px;
   border: 1px solid var(--input);
   border-radius: 12px;
@@ -395,7 +406,7 @@ const gallerySortValue = computed<SortValue>({
 /* When input is focused, subtle ring */
 .search-focus-input-wrap:focus-within {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  box-shadow: var(--focus-within-ring-shadow);
 }
 
 .search-focus-input-icon {
@@ -486,8 +497,8 @@ const gallerySortValue = computed<SortValue>({
    Back button (search mode)
    ============================================================ */
 .search-focus-back {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 10px;
   background: transparent;
@@ -568,13 +579,13 @@ const gallerySortValue = computed<SortValue>({
   .mh-btn,
   .mh-search-btn,
   .search-focus-back {
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
   }
 
   .search-focus-input-wrap {
-    height: 38px;
-    padding: 0 10px;
+    height: 44px;
+    padding: 0 8px;
     gap: 6px;
   }
 
