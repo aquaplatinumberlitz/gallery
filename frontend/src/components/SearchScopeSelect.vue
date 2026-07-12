@@ -13,31 +13,20 @@ interface ScopeOption {
   icon: Component;
 }
 
-const scopeOptions: ScopeOption[] = [
-  {
-    value: "current",
-    label: "This folder",
-    description: "Search the folder you are viewing.",
-    icon: FolderSearch,
-  },
-  {
-    value: "all",
-    label: "All indexed",
-    description: "Search across indexed libraries.",
-    icon: Earth,
-  },
-];
-
 const props = withDefaults(
   defineProps<{
     modelValue: SearchScope;
     size?: "default" | "compact" | "icon";
     align?: "start" | "center" | "end";
+    currentLabel?: string;
+    allLabel?: string;
     class?: HTMLAttributes["class"];
   }>(),
   {
     size: "default",
     align: "end",
+    currentLabel: "This folder",
+    allLabel: "All indexed",
     class: undefined,
   },
 );
@@ -46,8 +35,23 @@ const emit = defineEmits<{
   "update:modelValue": [value: SearchScope];
 }>();
 
+const scopeOptions = computed<ScopeOption[]>(() => [
+  {
+    value: "current",
+    label: props.currentLabel,
+    description: "Search the folder you are viewing.",
+    icon: FolderSearch,
+  },
+  {
+    value: "all",
+    label: props.allLabel,
+    description: "Search across indexed libraries.",
+    icon: Earth,
+  },
+]);
+
 const selectedOption = computed(
-  () => scopeOptions.find((option) => option.value === props.modelValue) ?? scopeOptions[0],
+  () => scopeOptions.value.find((option) => option.value === props.modelValue) ?? scopeOptions.value[0],
 );
 
 function handleUpdate(value: unknown) {

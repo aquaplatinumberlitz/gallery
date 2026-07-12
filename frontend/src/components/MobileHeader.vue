@@ -193,14 +193,24 @@ const gallerySortValue = computed<SortValue>({
             class="search-focus-input"
             data-focus-ring="none"
           />
-          <button v-if="hasQuery" class="search-focus-clear" @click="clearSearch" aria-label="Clear search">
-            <X />
-          </button>
-          <SearchScopeSelect
-            :model-value="searchScope"
-            size="icon"
-            @update:model-value="emit('scope-change', $event)"
-          />
+          <div class="flex shrink-0 items-center gap-2">
+            <SearchScopeSelect
+              :model-value="searchScope"
+              :current-label="folderName"
+              all-label="All libraries"
+              size="compact"
+              class="mobile-search-scope"
+              @update:model-value="emit('scope-change', $event)"
+            />
+            <button
+              v-if="hasQuery"
+              class="search-focus-clear inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-gallery-full border-0 bg-muted/70 p-0 text-foreground transition-colors duration-normal hover:bg-muted active:bg-accent"
+              @click="clearSearch"
+              aria-label="Clear search"
+            >
+              <X />
+            </button>
+          </div>
         </div>
         <button class="mh-btn search-focus-advanced" @click="openAdvancedSearch" aria-label="Advanced Search">
           <SlidersHorizontal />
@@ -502,32 +512,37 @@ const gallerySortValue = computed<SortValue>({
    Clear button
    ============================================================ */
 .search-focus-clear {
-  background: color-mix(in srgb, var(--muted-foreground) 12%, transparent);
-  border: none;
-  color: var(--foreground);
-  cursor: pointer;
-  padding: 0;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  flex-shrink: 0;
-  transition: background 0.15s ease;
-}
-
-.search-focus-clear:hover {
-  background: color-mix(in srgb, var(--muted-foreground) 20%, transparent);
-}
-
-.search-focus-clear:active {
-  background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .search-focus-clear svg {
   width: var(--gallery-icon-md);
   height: var(--gallery-icon-md);
+}
+
+:deep(.mobile-search-scope) {
+  width: auto;
+  min-width: 44px;
+  max-width: 128px;
+  height: 44px;
+  flex: 0 1 auto;
+  border-color: transparent;
+  border-radius: var(--gallery-radius-full);
+  background: color-mix(in srgb, var(--muted) 76%, transparent);
+  padding-inline: 12px;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:deep(.mobile-search-scope:hover),
+:deep(.mobile-search-scope[data-state="open"]) {
+  border-color: transparent;
+  background: var(--muted);
+  box-shadow: none;
+}
+
+:deep(.mobile-search-scope .search-scope-select-label) {
+  max-width: 72px;
 }
 
 /* ============================================================
