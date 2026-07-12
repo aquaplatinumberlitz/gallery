@@ -53,6 +53,7 @@ const submitLabel = computed(() => {
   if (createMutation.isPending.value) return "Adding…";
   if (updateMutation.isPending.value) return "Saving…";
   if (scanMutation.isPending.value) return "Starting scan…";
+  if (!props.library && scanAfterAdd.value) return "Add and update";
   return props.library ? "Save changes" : "Add library";
 });
 
