@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
 import { FolderOpen } from "lucide-vue-next";
@@ -13,6 +14,15 @@ const emit = defineEmits<{
 defineProps<{
   node: FileNode;
 }>();
+
+// Skeleton shimmer shown over the cover until the cover image finishes loading.
+const loaded = ref(false);
+const onCoverLoad = () => {
+  loaded.value = true;
+};
+const onCoverError = () => {
+  loaded.value = true;
+};
 </script>
 
 <template>
@@ -25,7 +35,17 @@ defineProps<{
     @keydown.space.prevent="emit('click')"
   >
     <div class="album-cover">
-      <img v-if="node.cover_images?.[0]" :src="getThumbnailUrl(node.cover_images[0])" loading="lazy" alt="" />
+      <div v-if="node.cover_images?.[0] && !loaded" class="cover-skeleton" aria-hidden="true">
+        <div class="shimmer-wave" />
+      </div>
+      <img
+        v-if="node.cover_images?.[0]"
+        :src="getThumbnailUrl(node.cover_images[0])"
+        loading="lazy"
+        alt=""
+        @load="onCoverLoad"
+        @error="onCoverError"
+      />
       <div v-else class="placeholder flex-center">
         <span class="fa-placeholder-svg" v-html="placeholderSvg" />
       </div>
@@ -37,7 +57,9 @@ defineProps<{
       </h3>
       <div class="album-meta">
         <FolderOpen class="gallery-icon-meta album-meta-icon" />
-        <span v-if="node.image_count !== undefined && node.image_count !== null"
+        <span
+          v-if="node.image_count !== undefined && node.image_count !== null"
+          class="album-count-badge"
           >{{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span
         >
       </div>
@@ -51,22 +73,30 @@ defineProps<{
   --album-frame-border: var(--brand-album-paper-border);
   --album-title-color: var(--brand-album-title);
   --album-meta-color: var(--brand-album-muted);
+  --album-card-radius: 10px;
 
   width: 100%;
+  min-height: 44px; // Ensure tap target stays above 44px
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--album-card-radius);
   overflow: hidden; // Outer card clips content — clean straight edge at bottom
   background: var(--album-frame-bg);
   border: 1px solid var(--album-frame-border);
-  box-shadow: none;
+  // Subtle layered elevation for visual hierarchy on small screens
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 2px 6px rgba(0, 0, 0, 0.04);
   transition:
     transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
     opacity 160ms ease;
 
   .album-cover {
+    position: relative; // Anchor for the in-card skeleton overlay
     width: 100%;
     aspect-ratio: 1 / 1;
-    border-radius: 8px 8px 0 0; // Only top corners rounded — bottom is straight horizontal edge
+    border-radius: var(--album-card-radius) var(--album-card-radius) 0 0; // Only top corners rounded
     overflow: hidden;
     border: none; // Removed border for cleaner look (Apple Photos style)
     background: var(--album-frame-bg);
@@ -76,6 +106,9 @@ defineProps<{
       width: 100%;
       height: 100%;
       object-fit: cover;
+      // Fade the cover in once it loads, hiding the swap from skeleton → image
+      opacity: 1;
+      transition: opacity 200ms ease;
     }
 
     .placeholder {
@@ -86,17 +119,31 @@ defineProps<{
       place-items: center;
       color: var(--album-meta-color);
     }
+
+    // Card-shape loading skeleton shown until the cover image finishes loading.
+    .cover-skeleton {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--album-meta-color) 10%, transparent),
+        color-mix(in srgb, var(--album-meta-color) 6%, transparent),
+        color-mix(in srgb, var(--album-meta-color) 10%, transparent)
+      );
+      overflow: hidden;
+      pointer-events: none;
+    }
   }
 
   .album-info {
-    padding: 0 8px 8px;
-    margin-top: 6px;
+    padding: 0 10px 10px;
+    margin-top: 7px;
 
     .album-name {
       font-family: var(--font-body);
       font-weight: 600;
       font-size: 13px;
-      line-height: 1.25;
+      line-height: 1.3;
       color: var(--album-title-color);
       margin: 0;
       display: -webkit-box;
@@ -111,12 +158,12 @@ defineProps<{
     .album-meta {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
       font-family: var(--font-code);
       font-size: 11px; // Increased from 10px → 11px (better readability)
       color: var(--album-meta-color);
-      margin: 4px 0 0;
-      letter-spacing: 0.5px;
+      margin: 6px 0 0;
+      letter-spacing: 0.4px;
     }
     .album-meta-icon {
       flex-shrink: 0;
@@ -126,23 +173,41 @@ defineProps<{
       width: var(--gallery-icon-meta);
       height: var(--gallery-icon-meta);
     }
+
+    // Count/stat badge — pill shape, subtle tinted background, clear hierarchy
+    .album-count-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--album-meta-color) 12%, transparent);
+      color: var(--album-meta-color);
+      font-size: 10.5px;
+      line-height: 1.55;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+    }
   }
 
   // Hover only for devices with hover capability (desktop/trackpad)
   @media (hover: hover) {
     &:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 4px 10px rgba(0, 0, 0, 0.08),
+        0 8px 18px rgba(0, 0, 0, 0.06);
+      border-color: color-mix(in srgb, var(--album-meta-color) 28%, var(--album-frame-border));
+
       .album-cover {
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-        transform: translateY(-2px);
         transition:
-          transform 200ms ease,
           box-shadow 200ms ease;
       }
     }
   }
 
   html[data-theme="dark"] & {
-    box-shadow: none;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.04);
 
     .album-cover {
       box-shadow: 0 0 8px rgba(255, 255, 255, 0.04); // Subtle glow in dark mode
@@ -153,18 +218,70 @@ defineProps<{
       color: var(--album-title-color);
     }
 
+    .album-count-badge {
+      background: color-mix(in srgb, var(--album-meta-color) 18%, transparent);
+    }
+
     @media (hover: hover) {
-      &:hover .album-cover {
-        box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
+      &:hover {
+        box-shadow: 0 0 14px rgba(255, 255, 255, 0.08);
+        .album-cover {
+          box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
+        }
       }
     }
   }
 
+  // Tap feedback — subtle press scale, slight border tighten
   &:active {
     transform: scale(0.97);
-    opacity: 0.85;
-    box-shadow: none;
+    opacity: 0.9;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    border-color: color-mix(in srgb, var(--album-meta-color) 40%, var(--album-frame-border));
   }
+}
+
+// Shimmer animation reused from SkeletonLoader pattern — kept local & lightweight
+@keyframes album-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.cover-skeleton .shimmer-wave {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.18) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: album-shimmer 1.5s infinite;
+}
+
+// Disable shimmer animation on touch devices (prefers reduced motion / no hover)
+@media (hover: none) {
+  .cover-skeleton .shimmer-wave {
+    animation: none;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 50%, transparent 100%);
+    transform: translateX(0);
+  }
+}
+
+html[data-theme="dark"] .cover-skeleton .shimmer-wave {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 50%, transparent 100%);
+}
+
+html[data-theme="dark"] .cover-skeleton {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--album-meta-color) 16%, transparent),
+    color-mix(in srgb, var(--album-meta-color) 10%, transparent),
+    color-mix(in srgb, var(--album-meta-color) 16%, transparent)
+  );
 }
 
 .flex-center {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
 import { FolderOpen } from "lucide-vue-next";
@@ -13,6 +14,15 @@ const emit = defineEmits<{
 defineProps<{
   node: FileNode;
 }>();
+
+// Skeleton shimmer shown over the cover until the cover image finishes loading.
+const loaded = ref(false);
+const onCoverLoad = () => {
+  loaded.value = true;
+};
+const onCoverError = () => {
+  loaded.value = true;
+};
 </script>
 
 <template>
@@ -25,7 +35,17 @@ defineProps<{
     @keydown.space.prevent="emit('click')"
   >
     <div class="album-cover">
-      <img v-if="node.cover_images?.[0]" :src="getThumbnailUrl(node.cover_images[0])" loading="lazy" alt="" />
+      <div v-if="node.cover_images?.[0] && !loaded" class="cover-skeleton" aria-hidden="true">
+        <div class="shimmer-wave" />
+      </div>
+      <img
+        v-if="node.cover_images?.[0]"
+        :src="getThumbnailUrl(node.cover_images[0])"
+        loading="lazy"
+        alt=""
+        @load="onCoverLoad"
+        @error="onCoverError"
+      />
       <div v-else class="placeholder flex-center">
         <span class="fa-placeholder-svg" v-html="placeholderSvg" />
       </div>
@@ -37,7 +57,7 @@ defineProps<{
       </h3>
       <div class="album-meta">
         <FolderOpen class="gallery-icon-meta album-meta-icon" />
-        <span
+        <span class="album-count-badge"
           >Album<span v-if="node.image_count !== undefined && node.image_count !== null">
             · {{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span
           ></span
@@ -66,6 +86,7 @@ defineProps<{
     box-shadow 160ms ease;
 
   .album-cover {
+    position: relative; // Anchor for the in-card skeleton overlay (no visual change)
     width: 100%;
     height: 130px;
     overflow: hidden;
@@ -75,6 +96,8 @@ defineProps<{
       width: 100%;
       height: 100%;
       object-fit: cover;
+      opacity: 1;
+      transition: opacity 200ms ease;
     }
 
     .placeholder {
@@ -84,6 +107,20 @@ defineProps<{
       display: grid;
       place-items: center;
       color: var(--album-meta-color);
+    }
+
+    // Card-shape loading skeleton shown transiently until the cover image loads.
+    .cover-skeleton {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--album-meta-color) 10%, transparent),
+        color-mix(in srgb, var(--album-meta-color) 6%, transparent),
+        color-mix(in srgb, var(--album-meta-color) 10%, transparent)
+      );
+      overflow: hidden;
+      pointer-events: none;
     }
   }
 
@@ -160,5 +197,99 @@ defineProps<{
   height: 32px;
   display: block;
   color: var(--album-meta-color);
+}
+
+// Shimmer animation reused from SkeletonLoader pattern — kept local & lightweight
+@keyframes album-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.cover-skeleton .shimmer-wave {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.18) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: album-shimmer 1.5s infinite;
+}
+
+@media (hover: none) {
+  .cover-skeleton .shimmer-wave {
+    animation: none;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 50%, transparent 100%);
+    transform: translateX(0);
+  }
+}
+
+// Dark theme skeleton — Vue scoped adds the data-v attribute to the last
+// selector in the chain, so this matches `.cover-skeleton` rendered here.
+html[data-theme="dark"] .cover-skeleton {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--album-meta-color) 16%, transparent),
+    color-mix(in srgb, var(--album-meta-color) 10%, transparent),
+    color-mix(in srgb, var(--album-meta-color) 16%, transparent)
+  );
+}
+html[data-theme="dark"] .cover-skeleton .shimmer-wave {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 50%, transparent 100%);
+}
+
+// ── Mobile/tablet-only refinements (<1024px) — desktop styles left unchanged ──
+@media (max-width: 1023px) {
+  .album-card-tablet {
+    border-radius: 12px;
+
+    // Count/stat badge — pill shape, subtle tinted background, clearer hierarchy
+    .album-count-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--album-meta-color) 12%, transparent);
+      color: var(--album-meta-color);
+      font-size: 11px;
+      line-height: 1.55;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+    }
+
+    // Subtle lift on hover-capable devices (trackpad/mouse)
+    @media (hover: hover) {
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow:
+          0 4px 10px rgba(0, 0, 0, 0.08),
+          0 8px 18px rgba(0, 0, 0, 0.06);
+        border-color: color-mix(in srgb, var(--album-meta-color) 28%, var(--album-frame-border));
+      }
+    }
+
+    // Refined tap feedback — subtle press scale, tightened border, keep depth
+    &:active {
+      transform: scale(0.97);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      border-color: color-mix(in srgb, var(--album-meta-color) 40%, var(--album-frame-border));
+    }
+  }
+
+  html[data-theme="dark"] .album-card-tablet {
+    .album-count-badge {
+      background: color-mix(in srgb, var(--album-meta-color) 18%, transparent);
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        box-shadow: 0 0 14px rgba(255, 255, 255, 0.08);
+      }
+    }
+  }
 }
 </style>
