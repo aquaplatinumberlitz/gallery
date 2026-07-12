@@ -105,9 +105,9 @@ describe("LibraryForm", () => {
     expect(wrapper.text()).toContain("Exclusion patterns");
   });
 
-  it("shows Add library button when no library prop", () => {
+  it("shows Add and update button when no library prop (scan after add default)", () => {
     const wrapper = createWrapper();
-    expect(wrapper.text()).toContain("Add library");
+    expect(wrapper.text()).toContain("Add and update");
   });
 
   it("shows Save changes when library prop provided", () => {
@@ -141,12 +141,12 @@ describe("LibraryForm", () => {
     expect(checkbox.attributes("aria-checked")).toBe("true");
   });
 
-  it("keeps only Cancel and Add library in the create footer", () => {
+  it("keeps only Cancel and Add and update in the create footer", () => {
     const wrapper = createWrapper();
     expect(wrapper.text()).toContain("Cancel");
-    expect(wrapper.text()).toContain("Add library");
+    expect(wrapper.text()).toContain("Add and update");
     expect(wrapper.text()).not.toContain("Validate");
-    expect(wrapper.text()).not.toContain("Add and update");
+    expect(wrapper.text()).not.toContain("Add library");
   });
 
   it("validates, creates, and scans when the default option is enabled", async () => {
