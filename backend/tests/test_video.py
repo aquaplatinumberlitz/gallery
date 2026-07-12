@@ -163,6 +163,14 @@ def test_video_poster_generation(
 
     poster_dir = isolated_thumbnail_cache / "video_posters"
     monkeypatch.setattr(video_module, "POSTER_CACHE_DIR", poster_dir)
+    original_run_in_threadpool = video_module.run_in_threadpool
+    offloaded: list[str] = []
+
+    async def tracked_run_in_threadpool(func, *args):
+        offloaded.append(func.__name__)
+        return await original_run_in_threadpool(func, *args)
+
+    monkeypatch.setattr(video_module, "run_in_threadpool", tracked_run_in_threadpool)
 
     response = isolated_app.get("/api/video/poster", params={"path": str(video_file)})
 
@@ -170,6 +178,14 @@ def test_video_poster_generation(
     assert response.headers["content-type"] == "image/webp"
     assert response.content.startswith(b"RIFF")
     assert len(list(poster_dir.glob("*.webp"))) == 1
+    assert offloaded == ["_get_or_generate_poster"]
+
+    cached = isolated_app.get(
+        "/api/video/poster",
+        params={"path": str(video_file)},
+        headers={"If-None-Match": response.headers["etag"]},
+    )
+    assert cached.status_code == 304
 
 
 def test_video_poster_reports_missing_ffmpeg(

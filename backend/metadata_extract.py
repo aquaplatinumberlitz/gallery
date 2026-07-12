@@ -56,6 +56,19 @@ class ExtractedMetadata:
     aesthetic_score: float | None = None
     date: str = ""
     aspect_ratio: str = ""
+    source_path: str | None = None
+    source_mtime_ns: int | None = None
+    source_size: int | None = None
+
+
+def metadata_sidecar_identity(path: Path) -> tuple[str | None, int | None, int | None]:
+    """Return the exact identity of an optional same-stem text sidecar."""
+    sidecar = path.with_suffix(".txt")
+    try:
+        stat = sidecar.stat()
+    except OSError:
+        return None, None, None
+    return str(sidecar.resolve()), stat.st_mtime_ns, stat.st_size
 
 
 def extract_loras(text: str) -> list[str]:
@@ -802,6 +815,7 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
     aesthetic_score = parse_float(safe_text(_metadata_param(result, "aesthetic_score", "Aesthetic score")))
     date = safe_text(result.get("date"))
     aspect_ratio = safe_text(_metadata_param(result, "AspectRatio", "aspect_ratio"))
+    source_path, source_mtime_ns, source_size = metadata_sidecar_identity(path)
 
     return ExtractedMetadata(
         path=str(path.resolve()),
@@ -838,4 +852,7 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
         aesthetic_score=aesthetic_score,
         date=date,
         aspect_ratio=aspect_ratio,
+        source_path=source_path,
+        source_mtime_ns=source_mtime_ns,
+        source_size=source_size,
     )

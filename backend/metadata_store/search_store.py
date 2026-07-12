@@ -12,6 +12,8 @@ from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
 from ..metadata_extract import contains_cjk
 from ._db import _DB_LOCK, _connect
 from ._schema import initialize_database
+from .identity import current_file_metadata_sql
+from .path_utils import named_path_scope_sql, path_scope_sql
 
 
 def _metadata_store_build_album_metadata(path: Path) -> dict[str, Any]:
@@ -23,6 +25,7 @@ def _metadata_store_build_album_metadata(path: Path) -> dict[str, Any]:
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 ALBUM_SUGGESTION_LIMIT = 12
+_CURRENT_METADATA_SQL = current_file_metadata_sql(fi_alias="fi", im_alias="m")
 
 
 def _escape_fts_token(token: str) -> str:
@@ -78,8 +81,8 @@ def _scope_clause(scope: str, root_path: str | Path | None, alias: str = "fi") -
     root = Path(root_path).resolve() if scope == "current" and root_path else None
     if root is None:
         return "", [], Path(os.sep)
-    root_str, root_prefix = _path_prefix(root)
-    return f" AND ({alias}.path = ? OR {alias}.path LIKE ? ESCAPE '\\')", [root_str, root_prefix], root
+    clause, params = path_scope_sql(root, column=f"{alias}.path", leading_and=True)
+    return clause, params, root
 
 
 def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str) -> list[dict[str, Any]]:
@@ -287,7 +290,8 @@ def _search_fts(
         SELECT m.*, bm25({bm25_table}) AS rank
         FROM {table}
         JOIN image_metadata m ON m.id = {table}.rowid
-        WHERE {table} MATCH ?
+        JOIN file_index fi ON fi.path = m.path
+        WHERE {table} MATCH ? AND {_CURRENT_METADATA_SQL}
         ORDER BY rank ASC, m.mtime DESC, m.name ASC
         LIMIT ? OFFSET ?
     """
@@ -295,18 +299,26 @@ def _search_fts(
 
 
 def _count_fts(conn: sqlite3.Connection, table: str, match_query: str) -> int:
-    row = conn.execute(f"SELECT count(*) AS total FROM {table} WHERE {table} MATCH ?", (match_query,)).fetchone()
+    row = conn.execute(
+        f"""SELECT count(*) AS total
+            FROM {table}
+            JOIN image_metadata m ON m.id = {table}.rowid
+            JOIN file_index fi ON fi.path = m.path
+            WHERE {table} MATCH ? AND {_CURRENT_METADATA_SQL}""",
+        (match_query,),
+    ).fetchone()
     return int(row["total"] if row else 0)
 
 
 def _search_like(conn: sqlite3.Connection, query: str, limit: int, offset: int) -> list[sqlite3.Row]:
     pattern = _like_pattern(query)
-    where = " OR ".join(f"{field} LIKE ? ESCAPE '\\'" for field in SEARCH_FIELDS)
+    where = " OR ".join(f"m.{field} LIKE ? ESCAPE '\\'" for field in SEARCH_FIELDS)
     sql = f"""
-        SELECT *
-        FROM image_metadata
-        WHERE {where}
-        ORDER BY mtime DESC, name ASC
+        SELECT m.*
+        FROM image_metadata m
+        JOIN file_index fi ON fi.path = m.path
+        WHERE ({where}) AND {_CURRENT_METADATA_SQL}
+        ORDER BY m.mtime DESC, m.name ASC
         LIMIT ? OFFSET ?
     """
     return list(conn.execute(sql, (*([pattern] * len(SEARCH_FIELDS)), limit, offset)))
@@ -314,9 +326,13 @@ def _search_like(conn: sqlite3.Connection, query: str, limit: int, offset: int) 
 
 def _count_like(conn: sqlite3.Connection, query: str) -> int:
     pattern = _like_pattern(query)
-    where = " OR ".join(f"{field} LIKE ? ESCAPE '\\'" for field in SEARCH_FIELDS)
+    where = " OR ".join(f"m.{field} LIKE ? ESCAPE '\\'" for field in SEARCH_FIELDS)
     row = conn.execute(
-        f"SELECT count(*) AS total FROM image_metadata WHERE {where}", [pattern] * len(SEARCH_FIELDS)
+        f"""SELECT count(*) AS total
+            FROM image_metadata m
+            JOIN file_index fi ON fi.path = m.path
+            WHERE ({where}) AND {_CURRENT_METADATA_SQL}""",
+        [pattern] * len(SEARCH_FIELDS),
     ).fetchone()
     return int(row["total"] if row else 0)
 
@@ -392,6 +408,7 @@ def _media_prompt_select(
             JOIN image_metadata m ON m.id = fts.rowid
             JOIN file_index fi ON fi.path = m.path
             WHERE image_metadata_fts MATCH :prompt_match
+              AND {_CURRENT_METADATA_SQL}
               {scope_sql}
               {extra_where}
         """
@@ -402,6 +419,7 @@ def _media_prompt_select(
             JOIN image_metadata m ON m.id = fts.rowid
             JOIN file_index fi ON fi.path = m.path
             WHERE image_metadata_fts_trigram MATCH :prompt_match
+              AND {_CURRENT_METADATA_SQL}
               {scope_sql}
               {extra_where}
         """
@@ -411,6 +429,7 @@ def _media_prompt_select(
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
             WHERE 1=1
+              AND {_CURRENT_METADATA_SQL}
               {scope_sql}
               {extra_where}
         """
@@ -421,6 +440,7 @@ def _media_prompt_select(
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
             WHERE ({prompt_where})
+              AND {_CURRENT_METADATA_SQL}
               {scope_sql}
               {extra_where}
         """
@@ -564,7 +584,7 @@ def _search_media_page(
     limit: int,
     cursor: int,
 ) -> tuple[list[sqlite3.Row], Path, bool]:
-    scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
+    _scope_sql, _scope_params, root = _scope_clause(scope, root_path, "fi")
     filename_kind, _filename_count = _count_filename_matches(conn, query, "photo", scope, root_path)
     video_kind, _video_count = _count_filename_matches(conn, query, "video", scope, root_path)
     prompt_kind = _prompt_match_kind(conn, query, scope, root_path)
@@ -576,10 +596,8 @@ def _search_media_page(
         "page_limit": limit + 1,
         "page_offset": cursor,
     }
-    params.update({f"scope_{idx}": value for idx, value in enumerate(scope_params)})
-    named_scope_sql = ""
-    if scope_params:
-        named_scope_sql = " AND (fi.path = :scope_0 OR fi.path LIKE :scope_1 ESCAPE '\\')"
+    named_scope_sql, named_scope_params = _build_scope_named(scope, root_path, "fi")
+    params.update(named_scope_params)
 
     rows = list(
         conn.execute(
@@ -628,12 +646,10 @@ def _search_fielded_media_page(
     limit: int,
     cursor: int,
 ) -> tuple[list[sqlite3.Row], Path, bool]:
-    scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
-    named_scope_sql = ""
+    _scope_sql, _scope_params, root = _scope_clause(scope, root_path, "fi")
+    named_scope_sql, named_scope_params = _build_scope_named(scope, root_path, "fi")
     params: dict[str, Any] = {"page_limit": limit + 1, "page_offset": cursor}
-    if scope_params:
-        named_scope_sql = " AND (fi.path = :scope_0 OR fi.path LIKE :scope_1 ESCAPE '\\')"
-        params.update({f"scope_{idx}": value for idx, value in enumerate(scope_params)})
+    params.update(named_scope_params)
 
     selects: list[str] = []
     ctes: list[str] = []
@@ -778,14 +794,11 @@ def search_index(
     }
 
 
-def _build_scope_named(scope: str, root_path: str | Path | None, alias: str = "fi") -> tuple[str, dict[str, str]]:
+def _build_scope_named(scope: str, root_path: str | Path | None, alias: str = "fi") -> tuple[str, dict[str, Any]]:
     """Build scope WHERE fragment and named params dict."""
     if scope != "current" or not root_path:
         return "", {}
-    root = Path(root_path).resolve()
-    root_str, root_prefix = _path_prefix(root)
-    cond = f" AND ({alias}.path = :scope_root OR {alias}.path LIKE :scope_prefix ESCAPE '\\')"
-    return cond, {"scope_root": root_str, "scope_prefix": root_prefix}
+    return named_path_scope_sql(root_path, column=f"{alias}.path", leading_and=True)
 
 
 def search_index_fielded(

@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class FileNode(BaseModel):
@@ -12,7 +12,7 @@ class FileNode(BaseModel):
     path: str  # absolute path on disk
     type: Literal["folder", "image", "video"]
     has_children: bool
-    cover_images: list[str] = []
+    cover_images: list[str] = Field(default_factory=list)
     mtime: float = 0  # Modified time (Unix timestamp)
     image_count: int = 0  # Number of images in folder (applies to "folder" type only)
     width: int | None = None  # Image width in pixels (only for type="image")

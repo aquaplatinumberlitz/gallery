@@ -1,18 +1,34 @@
-"""Regression coverage for path-owned metadata and generated cache cleanup."""
+"""Regression coverage for path-owned metadata and generated cache cleanup.
+
+Purpose:
+Verify library cleanup, scan connection reuse, and integrity-run locking.
+
+Guarantees:
+Path-owned database rows and cache files are removed without leaking test data.
+
+Run when:
+Changing library unregister/offline cleanup, directory indexing, or integrity locking.
+"""
 
 from __future__ import annotations
 
-import time
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
-from backend.metadata_store import _DB_LOCK, _connect, create_library, forget_offline_library_assets, unregister_library
-from backend.metadata_store import library_store
 from backend.integrity_checker import IntegrityCheckAlreadyRunning, IntegrityChecker
-from backend.metadata_store import file_index
+from backend.metadata_store import (
+    _DB_LOCK,
+    _connect,
+    create_library,
+    file_index,
+    forget_offline_library_assets,
+    library_store,
+    unregister_library,
+)
 from tests.conftest import create_test_png
 
 
@@ -103,6 +119,7 @@ def test_nanosecond_identity_columns_use_integer_affinity(isolated_metadata_db: 
 
 
 def test_directory_scan_uses_one_shared_write_connection(
+    isolated_metadata_db: Path,
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

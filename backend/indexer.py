@@ -42,7 +42,7 @@ from .metadata_store import (
     repair_legacy_asset_mtime_ns,
     reset_running_jobs_to_queued,
 )
-from .metadata_store.search_store import _like_escape
+from .metadata_store.path_utils import path_scope_sql
 
 try:  # prometheus-fastapi-instrumentator depends on prometheus_client.
     from prometheus_client import Counter, Gauge, Histogram
@@ -104,8 +104,7 @@ def _metadata_runtime_scope_sql(
     if not scope_text or scope_text == os.sep:
         return "", []
 
-    prefix = f"{scope_text.rstrip(os.sep)}{os.sep}"
-    return f" AND ({column} = ? OR {column} LIKE ? ESCAPE '\\')", [scope_text, f"{_like_escape(prefix)}%"]
+    return path_scope_sql(scope_text, column=column, leading_and=True)
 
 
 def get_indexer_runtime_status(scope_path: str | Path | None = None) -> dict[str, Any]:
@@ -231,7 +230,10 @@ def dispatch_metadata_index_paths(
     Phase 2 replaces all direct calls to ``queue_metadata_index_paths`` +
     ``_enqueue_metadata_jobs_from_result`` with this unified entrypoint.
     """
-    result = _persist_metadata_index_jobs(list(paths), root_path, priority=priority)
+    path_list = list(paths)
+    if not METADATA_INDEXER_ENABLED:
+        return {"queued": 0, "coalesced": 0, "skipped": len(path_list), "failed": 0}
+    result = _persist_metadata_index_jobs(path_list, root_path, priority=priority)
     metadata_worker.wake()
     return {
         "queued": len(result.enqueued),

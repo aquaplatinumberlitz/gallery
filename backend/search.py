@@ -68,9 +68,7 @@ def _cleanup_registered_library_roots(stale_paths: set[str]) -> int:
                     continue
     removed = 0
     for root in sorted(affected_roots)[:4]:
-        removed += int(
-            cleanup_stale_index(None, root, remove_outside_scope=False, max_candidates=250) or 0
-        )
+        removed += int(cleanup_stale_index(None, root, remove_outside_scope=False, max_candidates=250) or 0)
     return removed
 
 

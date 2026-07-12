@@ -129,6 +129,7 @@ def _setup_test_data() -> None:
         path = fd["path"]
         _create_png(path)
         resolved = str(path.resolve())
+        stat = path.stat()
 
         # file_index + file_index_fts (index_file opens its own connection)
         index_file(
@@ -136,8 +137,8 @@ def _setup_test_data() -> None:
             name=fd["name"],
             parent_path=str(fd["parent_path"].resolve()),
             type=fd["type"],
-            mtime=now,
-            size=1024,
+            mtime=stat.st_mtime,
+            size=stat.st_size,
             width=fd["width"],
             height=fd["height"],
         )
@@ -147,12 +148,12 @@ def _setup_test_data() -> None:
             conn.execute(
                 """
                 INSERT INTO image_metadata (
-                  path, name, mtime, size, width, height, format, mode, has_alpha,
+                  path, name, mtime, mtime_ns, size, width, height, format, mode, has_alpha,
                   prompt, negative_prompt, model, sampler, seed, steps, cfg_scale,
                   raw_metadata_text, metadata_json, updated_at, indexed_at,
                   tool, scheduler, model_hash, lora_text, vae
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                          ?, ?, ?, ?, ?)
+                          ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(path) DO UPDATE SET
                   prompt=excluded.prompt, negative_prompt=excluded.negative_prompt,
                   model=excluded.model, sampler=excluded.sampler, seed=excluded.seed,
@@ -166,8 +167,9 @@ def _setup_test_data() -> None:
                 (
                     resolved,
                     fd["name"],
-                    now,
-                    1024,
+                    stat.st_mtime,
+                    stat.st_mtime_ns,
+                    stat.st_size,
                     fd["width"],
                     fd["height"],
                     "PNG",
@@ -203,13 +205,14 @@ def _setup_test_data() -> None:
     for fpath, fname, parent in scope_files:
         _create_png(fpath)
         resolved = str(fpath.resolve())
+        stat = fpath.stat()
         index_file(
             path=resolved,
             name=fname,
             parent_path=str(parent.resolve()),
             type="photo",
-            mtime=now,
-            size=1024,
+            mtime=stat.st_mtime,
+            size=stat.st_size,
             width=64,
             height=64,
         )
@@ -217,14 +220,34 @@ def _setup_test_data() -> None:
             conn.execute(
                 """
                 INSERT INTO image_metadata (
-                  path, name, mtime, size, width, height, format, mode, has_alpha,
+                  path, name, mtime, mtime_ns, size, width, height, format, mode, has_alpha,
                   prompt, negative_prompt, model, sampler, seed, raw_metadata_text,
                   metadata_json, updated_at, indexed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(path) DO UPDATE SET
                   prompt=excluded.prompt, raw_metadata_text=excluded.raw_metadata_text
                 """,
-                (resolved, fname, now, 1024, 64, 64, "PNG", "RGB", 0, "rain", "", "", "", "", "", "", now, now),
+                (
+                    resolved,
+                    fname,
+                    stat.st_mtime,
+                    stat.st_mtime_ns,
+                    stat.st_size,
+                    64,
+                    64,
+                    "PNG",
+                    "RGB",
+                    0,
+                    "rain",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    now,
+                    now,
+                ),
             )
         _TEST_INSERTED_PATHS.append(resolved)
 
@@ -349,14 +372,11 @@ def test_startup_hook_calls_refresh_and_watcher(monkeypatch: pytest.MonkeyPatch)
     importlib.reload(app_module)
     app = app_module.app
 
-    handlers = app.router.on_startup
-    assert len(handlers) >= 1
+    async def run_lifespan():
+        async with app.router.lifespan_context(app):
+            pass
 
-    async def run_all():
-        for handler in handlers:
-            await handler()
-
-    asyncio.run(run_all())
+    asyncio.run(run_lifespan())
 
     assert len(scheduler_called) == 1
     assert len(refresh_called) == 1

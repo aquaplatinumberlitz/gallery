@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
 from contextlib import suppress
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Query
@@ -12,7 +10,8 @@ from fastapi.concurrency import run_in_threadpool
 
 from .errors import APIError, ErrorType
 from .metadata_store import _DB_LOCK, _connect, initialize_database
-from .metadata_store.search_store import _like_escape
+from .metadata_store.identity import current_file_metadata_sql
+from .metadata_store.path_utils import named_path_scope_sql
 from .paths import is_path_safe, resolve_path
 
 try:
@@ -41,6 +40,7 @@ else:
     _facets_query_duration = None
 
 FACET_DEFAULT_LIMIT = 50
+_CURRENT_METADATA_SQL = current_file_metadata_sql(fi_alias="fi", im_alias="m")
 
 
 def _build_facet_query(field: str, value_expr: str, max_values: int, scope_where: str, scope_params: dict) -> str:
@@ -48,7 +48,7 @@ def _build_facet_query(field: str, value_expr: str, max_values: int, scope_where
         SELECT {value_expr} AS value, count(*) AS count
         FROM image_metadata m
         JOIN file_index fi ON fi.path = m.path
-        WHERE {value_expr} != '' {scope_where}
+        WHERE {value_expr} != '' AND {_CURRENT_METADATA_SQL} {scope_where}
         GROUP BY {value_expr}
         ORDER BY count DESC, {value_expr} ASC
         LIMIT :limit
@@ -59,12 +59,7 @@ def _build_scope(folder_path: str | None) -> tuple[str, dict]:
     if not folder_path:
         return "", {}
     try:
-        resolved = str(Path(folder_path).resolve())
-        prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
-        return "AND (fi.path = :scope_root OR fi.path LIKE :scope_prefix ESCAPE '\\')", {
-            "scope_root": resolved,
-            "scope_prefix": f"{_like_escape(prefix)}%",
-        }
+        return named_path_scope_sql(folder_path, column="fi.path", leading_and=True)
     except OSError:
         return "", {}
 
@@ -104,7 +99,7 @@ def _get_image_size_facets(scope_where: str, scope_params: dict, max_values: int
                 count(*) AS count
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
-            WHERE m.width IS NOT NULL {scope_where}
+            WHERE m.width IS NOT NULL AND {_CURRENT_METADATA_SQL} {scope_where}
             GROUP BY value
             ORDER BY count DESC, value ASC
             LIMIT :limit
@@ -126,7 +121,7 @@ def _get_seed_availability(scope_where: str, scope_params: dict) -> list[dict]:
             SELECT count(*) AS total
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
-            WHERE m.seed IS NOT NULL AND m.seed != '' {scope_where}
+            WHERE m.seed IS NOT NULL AND m.seed != '' AND {_CURRENT_METADATA_SQL} {scope_where}
             """,
             scope_params,
         ).fetchone()["total"]
@@ -152,7 +147,7 @@ def _get_metadata_availability(scope_where: str, scope_params: dict) -> list[dic
             SELECT count(*) AS total
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
-            WHERE m.metadata_json IS NOT NULL {scope_where}
+            WHERE m.metadata_json IS NOT NULL AND {_CURRENT_METADATA_SQL} {scope_where}
             """,
             scope_params,
         ).fetchone()["total"]
@@ -179,8 +174,9 @@ def _get_lora_facet(scope_where: str, scope_params: dict, max_values: int) -> li
                 f"""
                 SELECT ir.name, count(DISTINCT ir.path) AS count
                 FROM image_resources ir
+                JOIN image_metadata m ON m.path = ir.path
                 JOIN file_index fi ON fi.path = ir.path
-                WHERE ir.kind = 'lora' AND ir.name != '' {scope_where}
+                WHERE ir.kind = 'lora' AND ir.name != '' AND {_CURRENT_METADATA_SQL} {scope_where}
                 GROUP BY ir.name
                 ORDER BY count DESC, ir.name COLLATE NOCASE ASC
                 LIMIT :max_values

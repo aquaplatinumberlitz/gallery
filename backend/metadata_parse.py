@@ -14,7 +14,7 @@ from fastapi.concurrency import run_in_threadpool
 from .config import METADATA_CACHE_MAX_BYTES
 from .errors import APIError, ErrorType
 from .files import check_image_limits, is_image
-from .metadata_extract import extract_metadata, extracted_metadata_to_api
+from .metadata_extract import extract_metadata, extracted_metadata_to_api, metadata_sidecar_identity
 from .metadata_store import get_lightbox_metadata, upsert_extracted_metadata
 from .paths import is_path_safe, resolve_path
 
@@ -51,7 +51,7 @@ def _parse_metadata_uncached(path: Path) -> dict:
 
 def _metadata_cache_key(path: Path) -> tuple:
     stat = path.stat()
-    return (str(path), stat.st_mtime, stat.st_size)
+    return (str(path), stat.st_mtime_ns, stat.st_size, *metadata_sidecar_identity(path))
 
 
 def parse_metadata(path: Path) -> dict:

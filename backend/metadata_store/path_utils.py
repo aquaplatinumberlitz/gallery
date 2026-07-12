@@ -6,11 +6,14 @@ import os
 import re
 import unicodedata
 from pathlib import Path
+from typing import Any
 
 
 def canonicalize_catalog_path(path: str | Path) -> str:
     """Return a stable lexical catalog path without requiring the path to exist."""
-    text = unicodedata.normalize("NFC", str(path)).replace("\\", os.sep)
+    text = unicodedata.normalize("NFC", str(path))
+    if os.name == "nt":
+        text = text.replace("/", os.sep)
     normalized = os.path.normpath(text)
     if os.name == "nt":
         drive, tail = os.path.splitdrive(normalized)
@@ -63,3 +66,51 @@ def _compare_natural_sql(left: str | None, right: str | None) -> int:
 
 def _path_is_within(path: str, root: str) -> bool:
     return catalog_path_contains(root, path)
+
+
+def _like_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def path_scope_sql(
+    root: str | Path,
+    *,
+    column: str = "path",
+    leading_and: bool = False,
+) -> tuple[str, list[Any]]:
+    """Build a component-safe, case-sensitive SQLite path scope predicate."""
+    resolved = canonicalize_catalog_path(root)
+    prefix = resolved if resolved.endswith(os.sep) else resolved + os.sep
+    predicate = f"({column} = ? OR ({column} LIKE ? ESCAPE '\\' COLLATE BINARY AND substr({column}, 1, ?) = ?))"
+    if leading_and:
+        predicate = f" AND {predicate}"
+    return predicate, [resolved, f"{_like_escape(prefix)}%", len(prefix), prefix]
+
+
+def named_path_scope_sql(
+    root: str | Path,
+    *,
+    column: str = "path",
+    parameter_prefix: str = "scope",
+    leading_and: bool = False,
+) -> tuple[str, dict[str, Any]]:
+    """Named-parameter variant of :func:`path_scope_sql`."""
+    resolved = canonicalize_catalog_path(root)
+    prefix = resolved if resolved.endswith(os.sep) else resolved + os.sep
+    root_key = f"{parameter_prefix}_root"
+    like_key = f"{parameter_prefix}_prefix"
+    length_key = f"{parameter_prefix}_length"
+    prefix_key = f"{parameter_prefix}_exact_prefix"
+    predicate = (
+        f"({column} = :{root_key} OR "
+        f"({column} LIKE :{like_key} ESCAPE '\\' COLLATE BINARY "
+        f"AND substr({column}, 1, :{length_key}) = :{prefix_key}))"
+    )
+    if leading_and:
+        predicate = f" AND {predicate}"
+    return predicate, {
+        root_key: resolved,
+        like_key: f"{_like_escape(prefix)}%",
+        length_key: len(prefix),
+        prefix_key: prefix,
+    }

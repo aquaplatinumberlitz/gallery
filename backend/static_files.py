@@ -46,8 +46,9 @@ async def catch_all(path: str):
         raise HTTPException(status_code=404, detail="Only available in production mode")
     if path.startswith("api/") or path.startswith("openapi") or path.startswith("docs"):
         raise HTTPException(status_code=404, detail="Not Found")
-    file_path = FRONTEND_DIST / path
-    if path and (FRONTEND_DIST / path).is_file():
+    frontend_root = FRONTEND_DIST.resolve()
+    file_path = (frontend_root / path).resolve()
+    if path and file_path.is_relative_to(frontend_root) and file_path.is_file():
         media_type, _ = mimetypes.guess_type(str(file_path))
         return FileResponse(str(file_path), media_type=media_type)
     return FileResponse(str(FRONTEND_DIST / "index.html"), media_type="text/html")

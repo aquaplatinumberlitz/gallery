@@ -455,13 +455,17 @@ class IntegrityChecker:
         cache_exists: Mapping[str, bool] | None = None,
     ) -> dict[str, int]:
         """Repair missing ready files and return outcome-specific counters."""
-        rows = rows if rows is not None else conn.execute("""
+        rows = (
+            rows
+            if rows is not None
+            else conn.execute("""
             SELECT d.id, d.cache_path, d.source_mtime_ns, d.source_size,
                    a.id AS asset_id, a.path, a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
             FROM asset_derivatives d
             LEFT JOIN assets a ON a.id = d.asset_id
             WHERE d.status = 'ready'
         """).fetchall()
+        )
         counts = {"requeued": 0, "skipped": 0}
         for row in rows:
             exists = (
@@ -532,8 +536,11 @@ class IntegrityChecker:
         rows: Sequence[sqlite3.Row] | None = None,
         source_stats: Mapping[str, os.stat_result | None] | None = None,
     ) -> dict[str, int]:
-        rows = rows if rows is not None else conn.execute(
-            """
+        rows = (
+            rows
+            if rows is not None
+            else conn.execute(
+                """
             SELECT j.id AS job_id, j.attempts, j.claim_token, d.id AS derivative_id,
                    d.source_mtime_ns, d.source_size, a.id AS asset_id, a.path,
                    a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
@@ -543,7 +550,8 @@ class IntegrityChecker:
             WHERE j.state = 'running'
               AND (j.lease_expires_at IS NULL OR j.lease_expires_at <= julianday('now'))
             """
-        ).fetchall()
+            ).fetchall()
+        )
         counts = {"requeued": 0, "skipped": 0, "failed": 0}
         for row in rows:
             result_code = (
@@ -616,13 +624,17 @@ class IntegrityChecker:
         rows: Sequence[sqlite3.Row] | None = None,
         cache_exists: Mapping[str, bool] | None = None,
     ) -> dict[str, int]:
-        rows = rows if rows is not None else conn.execute("""
+        rows = (
+            rows
+            if rows is not None
+            else conn.execute("""
             SELECT ad.id, ad.cache_path, dj.id AS job_id
             FROM derivative_jobs dj
             JOIN asset_derivatives ad ON ad.id = dj.derivative_id
             WHERE dj.state = 'done'
               AND ad.status != 'ready'
         """).fetchall()
+        )
         repaired = 0
         failed = 0
         for row in rows:
@@ -654,17 +666,19 @@ class IntegrityChecker:
         rows: Sequence[sqlite3.Row] | None = None,
         file_exists: Mapping[str, bool] | None = None,
     ) -> int:
-        rows = rows if rows is not None else conn.execute("""
+        rows = (
+            rows
+            if rows is not None
+            else conn.execute("""
             SELECT path FROM metadata_index_jobs
             WHERE state IN ('queued', 'running')
         """).fetchall()
+        )
         failed = 0
         now = time.time()
         for row in rows:
             exists = (
-                file_exists.get(str(row["path"]), False)
-                if file_exists is not None
-                else Path(row["path"]).is_file()
+                file_exists.get(str(row["path"]), False) if file_exists is not None else Path(row["path"]).is_file()
             )
             if not exists:
                 conn.execute(

@@ -10,10 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from ..files import is_image_path, is_index_excluded_path
-from ..metadata_extract import ExtractedMetadata, parse_float, parse_int, safe_text
+from ..metadata_extract import ExtractedMetadata, metadata_sidecar_identity, parse_float, parse_int, safe_text
 from ._asset_store import _upsert_asset_conn
 from ._db import _DB_LOCK, _connect
 from ._resources import _replace_image_resources_conn
+from .identity import image_metadata_params_match_sql
 from .metadata_queue import _mark_current_metadata_done, _metadata_job_from_path
 from .types import CachedDimensions
 
@@ -36,13 +37,14 @@ def _sanitize_metadata_for_json(metadata: dict[str, Any]) -> Any:
     return sanitize_metadata_for_json(metadata)
 
 
-def _needs_reindex(conn: sqlite3.Connection, path: Path, mtime: float, size: int) -> bool:
+def _needs_reindex(conn: sqlite3.Connection, path: Path, mtime: float, mtime_ns: int, size: int) -> bool:
     row = conn.execute(
-        "SELECT mtime, size, metadata_json FROM image_metadata WHERE path = ?", (str(path.resolve()),)
+        f"""SELECT source_path, source_mtime_ns, source_size FROM image_metadata
+            WHERE path = ? AND ({image_metadata_params_match_sql()})
+              AND size = ? AND metadata_json IS NOT NULL""",
+        (str(path.resolve()), mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime, size),
     ).fetchone()
-    if row is None:
-        return True
-    return row["mtime"] != mtime or row["size"] != size or not row["metadata_json"]
+    return row is None or tuple(row) != metadata_sidecar_identity(path)
 
 
 def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: ExtractedMetadata) -> None:
@@ -54,9 +56,10 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
           raw_metadata_text, metadata_json, updated_at, indexed_at,
           tool, scheduler, model_hash, lora_text, generation_time,
           clip_skip, hires_upscale, hires_steps, denoising_strength,
-          vae, ensd, aesthetic_score, date, aspect_ratio
+          vae, ensd, aesthetic_score, date, aspect_ratio,
+          source_path, source_mtime_ns, source_size
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(path) DO UPDATE SET
           name=excluded.name,
           mtime=excluded.mtime,
@@ -91,7 +94,10 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
           ensd=excluded.ensd,
           aesthetic_score=excluded.aesthetic_score,
           date=excluded.date,
-          aspect_ratio=excluded.aspect_ratio
+          aspect_ratio=excluded.aspect_ratio,
+          source_path=excluded.source_path,
+          source_mtime_ns=excluded.source_mtime_ns,
+          source_size=excluded.source_size
         """,
         (
             metadata.path,
@@ -129,6 +135,9 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
             metadata.aesthetic_score,
             metadata.date,
             metadata.aspect_ratio,
+            metadata.source_path,
+            metadata.source_mtime_ns,
+            metadata.source_size,
         ),
     )
     _upsert_asset_conn(
@@ -229,7 +238,7 @@ def index_image(path: Path) -> bool:
 
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
-        if not _needs_reindex(conn, path, stat.st_mtime, stat.st_size):
+        if not _needs_reindex(conn, path, stat.st_mtime, stat.st_mtime_ns, stat.st_size):
             return False
         try:
             metadata = _extract_metadata(path)
@@ -262,13 +271,28 @@ def get_lightbox_metadata(path: str | Path) -> dict | None:
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
         row = conn.execute(
-            """
+            f"""
             SELECT * FROM image_metadata
-            WHERE path = ? AND mtime = ? AND size = ? AND metadata_json IS NOT NULL
+            WHERE path = ? AND ({image_metadata_params_match_sql()})
+              AND size = ? AND metadata_json IS NOT NULL
             """,
-            (resolved, stat.st_mtime, stat.st_size),
+            (
+                resolved,
+                stat.st_mtime_ns,
+                stat.st_mtime_ns,
+                stat.st_mtime_ns,
+                stat.st_mtime_ns,
+                stat.st_mtime_ns,
+                stat.st_mtime,
+                stat.st_size,
+            ),
         ).fetchone()
         if row is None:
+            return None
+
+        if tuple(row[key] for key in ("source_path", "source_mtime_ns", "source_size")) != metadata_sidecar_identity(
+            Path(path)
+        ):
             return None
 
         metadata_json = row["metadata_json"]
@@ -450,6 +474,7 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
     )
     now = time.time()
     resolved_path = str(image_path.resolve())
+    source_path, source_mtime_ns, source_size = metadata_sidecar_identity(image_path)
 
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
@@ -458,8 +483,8 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
             INSERT INTO image_metadata (
               path, name, mtime, mtime_ns, size, width, height, prompt, negative_prompt,
               model, sampler, seed, steps, cfg_scale, raw_metadata_text,
-              metadata_json, updated_at, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              metadata_json, updated_at, indexed_at, source_path, source_mtime_ns, source_size
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
               name=excluded.name,
               mtime=excluded.mtime,
@@ -477,7 +502,10 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
               raw_metadata_text=excluded.raw_metadata_text,
               metadata_json=excluded.metadata_json,
               updated_at=excluded.updated_at,
-              indexed_at=excluded.indexed_at
+              indexed_at=excluded.indexed_at,
+              source_path=excluded.source_path,
+              source_mtime_ns=excluded.source_mtime_ns,
+              source_size=excluded.source_size
             """,
             (
                 resolved_path,
@@ -498,7 +526,43 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
                 metadata_json,
                 now,
                 now,
+                source_path,
+                source_mtime_ns,
+                source_size,
             ),
+        )
+        conn.execute(
+            """
+            INSERT INTO file_index (
+              path, name, parent_path, type, mtime, mtime_ns, size, width, height, indexed_at
+            ) VALUES (?, ?, ?, 'image', ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+              name=excluded.name,
+              parent_path=excluded.parent_path,
+              type='image',
+              mtime=excluded.mtime,
+              mtime_ns=excluded.mtime_ns,
+              size=excluded.size,
+              width=COALESCE(excluded.width, file_index.width),
+              height=COALESCE(excluded.height, file_index.height),
+              indexed_at=excluded.indexed_at
+            """,
+            (
+                resolved_path,
+                image_path.name,
+                str(image_path.parent.resolve()),
+                stat.st_mtime,
+                stat.st_mtime_ns,
+                stat.st_size,
+                width if isinstance(width, int) else None,
+                height if isinstance(height, int) else None,
+                now,
+            ),
+        )
+        conn.execute("DELETE FROM file_index_fts WHERE path = ?", (resolved_path,))
+        conn.execute(
+            "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, 'image', ?)",
+            (image_path.name, resolved_path, str(image_path.parent.resolve())),
         )
         _upsert_asset_conn(
             conn,

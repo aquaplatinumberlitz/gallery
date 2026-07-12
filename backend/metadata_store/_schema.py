@@ -153,6 +153,9 @@ def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "image_metadata", "aesthetic_score", "REAL")
     _ensure_column(conn, "image_metadata", "date", "TEXT")
     _ensure_column(conn, "image_metadata", "aspect_ratio", "TEXT")
+    _ensure_column(conn, "image_metadata", "source_path", "TEXT")
+    _ensure_column(conn, "image_metadata", "source_mtime_ns", "INTEGER")
+    _ensure_column(conn, "image_metadata", "source_size", "INTEGER")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_size  ON image_metadata(path, mtime, size)")
     _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
@@ -183,7 +186,9 @@ def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
           PRIMARY KEY(parent_job_id, child_job_id)
         )"""
     )
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_catalog_job_dependencies_child ON catalog_job_dependencies(child_job_id)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_catalog_job_dependencies_child ON catalog_job_dependencies(child_job_id)"
+    )
     _migrate_nanosecond_affinity(conn)
 
 
@@ -194,9 +199,10 @@ def _column_type(conn: sqlite3.Connection, table: str, column: str) -> str | Non
 
 def _migrate_nanosecond_affinity(conn: sqlite3.Connection) -> None:
     """Rebuild legacy REAL nanosecond columns without changing row identities."""
-    if _column_type(conn, "assets", "mtime_ns") == "INTEGER" and _column_type(
-        conn, "asset_derivatives", "source_mtime_ns"
-    ) == "INTEGER":
+    if (
+        _column_type(conn, "assets", "mtime_ns") == "INTEGER"
+        and _column_type(conn, "asset_derivatives", "source_mtime_ns") == "INTEGER"
+    ):
         return
     conn.commit()
     conn.execute("PRAGMA foreign_keys=OFF")

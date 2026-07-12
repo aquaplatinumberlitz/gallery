@@ -41,7 +41,11 @@ def test_scan_folder_counts_behavior(tmp_path: Path):
     assert counts["child_count"] == 4
 
 
-def test_warm_path_does_not_call_scan_folder_counts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_warm_path_does_not_call_scan_folder_counts(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     monkeypatch.setattr("backend.metadata_store.ENABLE_WARM_INDEXED_LISTING", True)
 
     from backend.metadata_store import (

@@ -101,12 +101,18 @@ def start_refresh() -> None:
         )
 
 
-def stop_refresh() -> None:
-    """Signal the scheduled refresh worker to stop and clear its thread handle."""
+def stop_refresh(join_timeout: float = 5.0) -> bool:
+    """Signal the scheduled refresh worker and wait before allowing a restart."""
     global _refresh_thread
     _refresh_stop.set()
+    thread = _refresh_thread
+    if thread and thread is not threading.current_thread() and hasattr(thread, "join"):
+        thread.join(timeout=max(0.0, join_timeout))
+    alive = bool(thread and hasattr(thread, "is_alive") and thread.is_alive())
     with _refresh_lock:
-        _refresh_thread = None
+        if _refresh_thread is thread and not alive:
+            _refresh_thread = None
+    return not alive
 
 
 def get_refresh_status() -> dict[str, Any]:

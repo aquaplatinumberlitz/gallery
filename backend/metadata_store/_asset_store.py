@@ -56,6 +56,18 @@ def _upsert_asset_conn(
         return 0
     normalized_mtime_ns = _normalize_asset_mtime_ns(mtime_ns)
     normalized_type = "image" if type in {"image", "photo", "file"} else "video" if type == "video" else "folder"
+    existing = conn.execute(
+        "SELECT type, mtime_ns, size FROM assets WHERE library_id = ? AND path = ?",
+        (library_id, resolved_path),
+    ).fetchone()
+    identity_changed = bool(
+        existing is not None
+        and not preserve_existing_identity
+        and normalized_type != "folder"
+        and normalized_mtime_ns is not None
+        and size is not None
+        and (existing["mtime_ns"] != normalized_mtime_ns or existing["size"] != size)
+    )
     conn.execute(
         """
         INSERT INTO assets (
@@ -69,14 +81,14 @@ def _upsert_asset_conn(
           type=excluded.type,
           mtime_ns=CASE WHEN ? THEN assets.mtime_ns ELSE COALESCE(excluded.mtime_ns, assets.mtime_ns) END,
           size=CASE WHEN ? THEN assets.size ELSE COALESCE(excluded.size, assets.size) END,
-          width=CASE WHEN ? THEN assets.width ELSE COALESCE(excluded.width, assets.width) END,
-          height=CASE WHEN ? THEN assets.height ELSE COALESCE(excluded.height, assets.height) END,
-          orientation=COALESCE(excluded.orientation, assets.orientation),
+          width=CASE WHEN ? THEN excluded.width WHEN ? THEN assets.width ELSE COALESCE(excluded.width, assets.width) END,
+          height=CASE WHEN ? THEN excluded.height WHEN ? THEN assets.height ELSE COALESCE(excluded.height, assets.height) END,
+          orientation=CASE WHEN ? THEN excluded.orientation ELSE COALESCE(excluded.orientation, assets.orientation) END,
           indexed_at=excluded.indexed_at,
-          metadata_state=COALESCE(?, assets.metadata_state),
-          mime_type=COALESCE(excluded.mime_type, assets.mime_type),
-          duration_ms=COALESCE(excluded.duration_ms, assets.duration_ms),
-          codec=COALESCE(excluded.codec, assets.codec),
+          metadata_state=COALESCE(?, CASE WHEN ? THEN 'pending' ELSE assets.metadata_state END),
+          mime_type=CASE WHEN ? THEN excluded.mime_type ELSE COALESCE(excluded.mime_type, assets.mime_type) END,
+          duration_ms=CASE WHEN ? THEN excluded.duration_ms ELSE COALESCE(excluded.duration_ms, assets.duration_ms) END,
+          codec=CASE WHEN ? THEN excluded.codec ELSE COALESCE(excluded.codec, assets.codec) END,
           offline=CASE WHEN ? THEN 0 ELSE assets.offline END,
           deleted_at=CASE WHEN ? THEN NULL ELSE assets.deleted_at END
         """,
@@ -98,9 +110,16 @@ def _upsert_asset_conn(
             codec,
             int(preserve_existing_identity),
             int(preserve_existing_identity),
+            int(identity_changed),
             int(preserve_existing_identity),
+            int(identity_changed),
             int(preserve_existing_identity),
+            int(identity_changed),
             metadata_state,
+            int(identity_changed),
+            int(identity_changed),
+            int(identity_changed),
+            int(identity_changed),
             int(reactivate_existing),
             int(reactivate_existing),
         ),

@@ -27,7 +27,7 @@ from backend.metadata_store import (
 
 
 @pytest.fixture(autouse=True)
-def ensure_warm_listing_enabled(monkeypatch: pytest.MonkeyPatch):
+def ensure_warm_listing_enabled(monkeypatch: pytest.MonkeyPatch, isolated_metadata_db: Path):
     monkeypatch.setattr("backend.metadata_store.ENABLE_WARM_INDEXED_LISTING", True)
     yield
 

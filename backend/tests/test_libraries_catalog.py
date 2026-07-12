@@ -450,7 +450,10 @@ def test_offline_asset_api_finds_and_forgets_only_media_tombstones(
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(active.resolve()),)).fetchone()[0] == 1
         assert conn.execute("SELECT count(*) FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0] == 0
-        assert conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0] == 0
+        assert (
+            conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0]
+            == 0
+        )
 
 
 def test_offline_asset_api_returns_not_found_for_unknown_library(isolated_metadata_db: Path):

@@ -2,11 +2,13 @@
 
 import os
 import time
+from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from . import indexer as metadata_indexer
 from .browse import router as browse_router
 from .config import (
     ENABLE_METRICS,
@@ -78,7 +80,35 @@ def _get_cors_origins() -> list[str]:
                 validated.append(normalized)
     return validated
 
-app = FastAPI(title="Museum Art Gallery API")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    recover_stale_jobs()
+    if metadata_indexer.METADATA_INDEXER_ENABLED:
+        recover_metadata_index_jobs()
+    if GALLERY_CATALOG_SERVICE_ENABLED:
+        start()
+        if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
+            queue_startup_scans()
+    if metadata_indexer.METADATA_INDEXER_ENABLED:
+        metadata_worker.start()
+    if INTEGRITY_CHECK_ENABLED:
+        integrity_checker.start()
+    scheduler.start()
+    _start_refresh()
+    _start_watcher()
+    try:
+        yield
+    finally:
+        _stop_watcher()
+        _stop_refresh()
+        stop()
+        metadata_worker.stop()
+        scheduler.stop()
+        integrity_checker.stop()
+
+
+app = FastAPI(title="Museum Art Gallery API", lifespan=_lifespan)
 
 if ENABLE_METRICS:
     from prometheus_fastapi_instrumentator import Instrumentator
@@ -112,33 +142,6 @@ app.include_router(libraries_router)
 app.include_router(maintenance_router)
 app.include_router(facets_router)
 app.include_router(static_files_router)
-
-
-@app.on_event("startup")
-async def _startup_background_services():
-    recover_stale_jobs()
-    recover_metadata_index_jobs()  # Phase 4: recover metadata jobs
-    if GALLERY_CATALOG_SERVICE_ENABLED:
-        start()
-        if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
-            queue_startup_scans()
-    # Phase 2: DB-claim worker is authoritative
-    metadata_worker.start()
-    if INTEGRITY_CHECK_ENABLED:
-        integrity_checker.start()
-    scheduler.start()
-    _start_refresh()
-    _start_watcher()
-
-
-@app.on_event("shutdown")
-async def _shutdown_background_services():
-    _stop_watcher()
-    _stop_refresh()
-    stop()
-    metadata_worker.stop()
-    scheduler.stop()
-    integrity_checker.stop()
 
 
 if ENABLE_PROFILER:

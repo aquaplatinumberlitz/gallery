@@ -172,6 +172,21 @@ class TestCatchAll:
         assert resp.status_code == 200
         assert "SPA fallback" in resp.text
 
+    def test_production_does_not_serve_files_outside_frontend_dist(
+        self, static_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        frontend = tmp_path / "dist"
+        frontend.mkdir()
+        (frontend / "index.html").write_text("safe shell")
+        (tmp_path / "secret.txt").write_text("outside secret")
+
+        monkeypatch.setattr("backend.static_files.PRODUCTION", True)
+        monkeypatch.setattr("backend.static_files.FRONTEND_DIST", frontend)
+
+        resp = static_client.get("/%2e%2e%2fsecret.txt")
+        assert resp.status_code == 200
+        assert resp.text == "safe shell"
+
     def test_production_serves_root_fallback_for_empty_path(
         self, static_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):

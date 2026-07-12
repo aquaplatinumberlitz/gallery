@@ -32,6 +32,11 @@ from backend.metadata_store import (
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_metadata_database(isolated_metadata_db: Path) -> None:
+    """Keep every facet test away from the developer's live metadata DB."""
+
+
 def _seed_metadata(tmp_path: Path) -> None:
     """Create a folder with images and seed metadata into SQLite."""
     album = tmp_path / "album"

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import mimetypes
-import os
 import sqlite3
 import subprocess
 import time
@@ -19,6 +18,7 @@ from ._asset_store import _upsert_asset_conn
 from ._db import _DB_LOCK, _connect
 from .library_store import _find_library_for_path_conn, _library_exclusion_patterns_conn, get_library_for_path
 from .metadata_persist import index_images
+from .path_utils import path_scope_sql
 
 logger = logging.getLogger(__name__)
 _INDEX_WRITE_BATCH_SIZE = 500
@@ -60,12 +60,33 @@ def _bulk_index_records(records: list[tuple[Any, ...]], library_id: int | None) 
                          parent_path=excluded.parent_path, name=excluded.name, type=excluded.type,
                          mtime_ns=COALESCE(excluded.mtime_ns, assets.mtime_ns),
                          size=COALESCE(excluded.size, assets.size),
-                         width=COALESCE(excluded.width, assets.width),
-                         height=COALESCE(excluded.height, assets.height),
+                         width=CASE WHEN excluded.type IN ('image', 'video')
+                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN excluded.width ELSE COALESCE(excluded.width, assets.width) END,
+                         height=CASE WHEN excluded.type IN ('image', 'video')
+                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN excluded.height ELSE COALESCE(excluded.height, assets.height) END,
+                         orientation=CASE WHEN excluded.type IN ('image', 'video')
+                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN NULL ELSE assets.orientation END,
+                         metadata_state=CASE WHEN excluded.type = 'image'
+                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN 'pending' ELSE assets.metadata_state END,
                          indexed_at=excluded.indexed_at,
-                         mime_type=COALESCE(excluded.mime_type, assets.mime_type),
-                         duration_ms=COALESCE(excluded.duration_ms, assets.duration_ms),
-                         codec=COALESCE(excluded.codec, assets.codec), offline=0, deleted_at=NULL""",
+                         mime_type=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN excluded.mime_type ELSE COALESCE(excluded.mime_type, assets.mime_type) END,
+                         duration_ms=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN excluded.duration_ms ELSE COALESCE(excluded.duration_ms, assets.duration_ms) END,
+                         codec=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN excluded.codec ELSE COALESCE(excluded.codec, assets.codec) END,
+                         offline=0, deleted_at=NULL""",
                     (
                         (
                             library_id,
@@ -91,12 +112,6 @@ def _initialize_database() -> None:
     from ._schema import initialize_database
 
     initialize_database()
-
-
-def _search_like_escape(value: str) -> str:
-    from .search_store import _like_escape
-
-    return _like_escape(value)
 
 
 def _search_is_inside_root(path: Path, root: Path) -> bool:
@@ -302,9 +317,7 @@ def cleanup_ignored_index(root_path: str | Path | None = None) -> int:
 
 
 def _scoped_path_where(root: Path) -> tuple[str, list[Any]]:
-    resolved = str(root.resolve())
-    prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
-    return "(path = ? OR path LIKE ? ESCAPE '\\')", [resolved, f"{_search_like_escape(prefix)}%"]
+    return path_scope_sql(root)
 
 
 def clear_index_records(root_path: str | Path) -> dict[str, int]:
@@ -360,8 +373,19 @@ def index_directory_tree(
         try:
             records.append(
                 (
-                    str(folder), folder.name or str(folder), str(folder.parent), "folder",
-                    stat.st_mtime, stat.st_mtime_ns, None, None, None, time.time(), None, None, None,
+                    str(folder),
+                    folder.name or str(folder),
+                    str(folder.parent),
+                    "folder",
+                    stat.st_mtime,
+                    stat.st_mtime_ns,
+                    None,
+                    None,
+                    None,
+                    time.time(),
+                    None,
+                    None,
+                    None,
                 )
             )
             indexed += 1
@@ -431,9 +455,19 @@ def index_directory_tree(
                             logger.debug("Could not probe video metadata for %s", entry, exc_info=True)
                     records.append(
                         (
-                            str(entry.resolve()), entry.name, str(entry.parent.resolve()), asset_type or "folder",
-                            stat.st_mtime, stat.st_mtime_ns, stat.st_size, width, height, time.time(),
-                            mime_type, duration_ms, codec,
+                            str(entry.resolve()),
+                            entry.name,
+                            str(entry.parent.resolve()),
+                            asset_type or "folder",
+                            stat.st_mtime,
+                            stat.st_mtime_ns,
+                            stat.st_size,
+                            width,
+                            height,
+                            time.time(),
+                            mime_type,
+                            duration_ms,
+                            codec,
                         )
                     )
                     indexed += 1

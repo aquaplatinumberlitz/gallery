@@ -6,7 +6,8 @@ if __name__ == "__main__":
     import os as _os
 
     import uvicorn
-    from config import PRODUCTION
+
+    from .config import PRODUCTION
 
     port_env = _os.getenv("PORT")
     try:

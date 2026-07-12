@@ -170,10 +170,10 @@ from .job_store import (
     update_parent_aggregate_job as update_parent_aggregate_job,
 )
 from .library_store import (
-    forget_offline_library_assets as forget_offline_library_assets,
+    create_library as create_library,
 )
 from .library_store import (
-    create_library as create_library,
+    forget_offline_library_assets as forget_offline_library_assets,
 )
 from .library_store import (
     get_first_library_root as get_first_library_root,
@@ -323,10 +323,10 @@ from .types import (
     CatalogMaintenanceBusy as CatalogMaintenanceBusy,
 )
 from .types import (
-    LibraryOverlapError as LibraryOverlapError,
+    LibraryBusyError as LibraryBusyError,
 )
 from .types import (
-    LibraryBusyError as LibraryBusyError,
+    LibraryOverlapError as LibraryOverlapError,
 )
 from .types import (
     MetadataIndexJob as MetadataIndexJob,

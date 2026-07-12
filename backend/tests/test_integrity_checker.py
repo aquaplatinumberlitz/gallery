@@ -793,11 +793,7 @@ class TestRunAllChecksDerivativeContracts:
             )
         result = _checker.run_all_checks()
         assert result["derivative_queued_without_job"] == 1
-        assert (
-            result["derivative_queued_without_job_repaired"]
-            + result["derivative_queued_without_job_active"]
-            == 1
-        )
+        assert result["derivative_queued_without_job_repaired"] + result["derivative_queued_without_job_active"] == 1
 
     def test_check_derivative_policy_deferred_empty(self, _checker, _init_db):
         assert _checker.run_all_checks()["derivative_policy_deferred"] == 0
@@ -822,9 +818,10 @@ class TestRunAllChecksDerivativeContracts:
         result = _checker.run_all_checks()
         assert result["derivative_policy_deferred"] == 1
         with _connect() as conn:
-            assert conn.execute(
-                "SELECT count(*) FROM derivative_jobs WHERE state IN ('queued', 'running')"
-            ).fetchone()[0] >= 1
+            assert (
+                conn.execute("SELECT count(*) FROM derivative_jobs WHERE state IN ('queued', 'running')").fetchone()[0]
+                >= 1
+            )
 
     def test_check_derivative_expected_row_missing_no_warm_libraries(self, _checker, _init_db):
         assert _checker.run_all_checks()["derivative_expected_row_missing"] == 0

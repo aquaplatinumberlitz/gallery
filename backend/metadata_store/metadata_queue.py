@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sqlite3
 import time
 from collections.abc import Iterable
@@ -10,11 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from ..files import is_image_path, is_index_excluded_path
+from ..metadata_extract import metadata_sidecar_identity
 from ._db import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect
 from .identity import (
     asset_params_match_sql,
     image_metadata_params_match_sql,
 )
+from .path_utils import path_scope_sql
 from .types import MetadataIndexJob, MetadataQueueResult
 
 _MIN_REASONABLE_MTIME_NS = 1_000_000_000_000
@@ -24,12 +25,6 @@ def _initialize_database() -> None:
     from ._schema import initialize_database
 
     initialize_database()
-
-
-def _search_like_escape(value: str) -> str:
-    from .search_store import _like_escape
-
-    return _like_escape(value)
 
 
 def _image_metadata_exists_for_job(
@@ -47,14 +42,16 @@ def _image_metadata_exists_for_job(
     """
     row = conn.execute(
         f"""
-        SELECT 1 FROM image_metadata
+        SELECT source_path, source_mtime_ns, source_size FROM image_metadata
         WHERE path = ?
           AND ({image_metadata_params_match_sql()})
           AND size = ?
         """,
         (path, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime, size),
     ).fetchone()
-    return row is not None
+    if row is None:
+        return False
+    return tuple(row) == metadata_sidecar_identity(Path(path))
 
 
 def _current_metadata_is_complete(
@@ -776,9 +773,7 @@ def reset_running_jobs_to_queued(
 def _metadata_scope_filter(alias: str, scope_path: str | Path | None) -> tuple[str, list[Any]]:
     if scope_path is None:
         return "", []
-    resolved = str(Path(scope_path).resolve())
-    prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
-    return f"AND ({alias}.path = ? OR {alias}.path LIKE ? ESCAPE '\\')", [resolved, f"{_search_like_escape(prefix)}%"]
+    return path_scope_sql(scope_path, column=f"{alias}.path", leading_and=True)
 
 
 def repair_legacy_asset_mtime_ns(
@@ -979,11 +974,9 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
     params: list[Any] = []
     root = ""
     if path:
-        resolved = str(Path(path).resolve())
-        root = resolved
-        prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
-        where = "WHERE (path = ? OR path LIKE ? ESCAPE '\\')"
-        params = [resolved, f"{_search_like_escape(prefix)}%"]
+        root = str(Path(path).resolve())
+        scope_predicate, params = path_scope_sql(path)
+        where = f"WHERE {scope_predicate}"
 
     with _DB_LOCK, _connect() as conn:
         for row in conn.execute(
@@ -1039,10 +1032,7 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
         metadata_scope = ""
         metadata_params: list[Any] = []
         if path:
-            resolved = str(Path(path).resolve())
-            prefix = f"{resolved.rstrip(os.sep)}{os.sep}"
-            metadata_scope = "AND (fi.path = ? OR fi.path LIKE ? ESCAPE '\\')"
-            metadata_params = [resolved, f"{_search_like_escape(prefix)}%"]
+            metadata_scope, metadata_params = path_scope_sql(path, column="fi.path", leading_and=True)
         metadata_records_row = conn.execute(
             f"""
             SELECT count(*) AS total

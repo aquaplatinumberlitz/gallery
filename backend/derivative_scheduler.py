@@ -965,15 +965,14 @@ class DerivativeScheduler:
             scope_params: list[Any] = []
             if scope_path is not None:
                 from .metadata_store import get_library_for_path
+                from .metadata_store.path_utils import path_scope_sql
 
                 library = get_library_for_path(scope_path)
                 if library is None:
                     raise KeyError(scope_path)
                 library_id = int(library["id"])
                 path = str(Path(scope_path).resolve())
-                escaped_path = path.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-                scope_clause = " AND (a.path = ? OR a.path LIKE ? ESCAPE '\\')"
-                scope_params = [path, escaped_path.rstrip("/") + "/%"]
+                scope_clause, scope_params = path_scope_sql(path, column="a.path", leading_and=True)
             if library_id is not None:
                 library = conn.execute("SELECT warm_enabled FROM libraries WHERE id = ?", (library_id,)).fetchone()
                 if library is None:

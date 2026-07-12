@@ -121,3 +121,33 @@ def job_matches_image_metadata_sql(*, job_alias: str = "mj", im_alias: str = "im
         f" OR ({im_alias}.mtime_ns IS NULL AND {job_alias}.mtime_ns IS NOT NULL "
         f"AND ABS({job_alias}.mtime_ns / {_NANOS_PER_SEC} - {im_alias}.mtime) < {MTIME_SEC_TOLERANCE}))"
     )
+
+
+def file_index_matches_image_metadata_sql(*, fi_alias: str = "fi", im_alias: str = "im") -> str:
+    """Return an exact current-file identity predicate for metadata rows."""
+    return (
+        f"(({fi_alias}.size = {im_alias}.size OR ({fi_alias}.size IS NULL AND {im_alias}.size IS NULL)) AND ("
+        f"({fi_alias}.mtime_ns IS NOT NULL AND {im_alias}.mtime_ns IS NOT NULL "
+        f"AND {fi_alias}.mtime_ns = {im_alias}.mtime_ns)"
+        f" OR ({fi_alias}.mtime_ns IS NULL AND {im_alias}.mtime_ns IS NOT NULL "
+        f"AND ABS({im_alias}.mtime_ns / {_NANOS_PER_SEC} - {fi_alias}.mtime) < {MTIME_SEC_TOLERANCE})"
+        f" OR ({im_alias}.mtime_ns IS NULL AND {fi_alias}.mtime_ns IS NOT NULL "
+        f"AND ABS({fi_alias}.mtime_ns / {_NANOS_PER_SEC} - {im_alias}.mtime) < {MTIME_SEC_TOLERANCE})"
+        f" OR ({fi_alias}.mtime_ns IS NULL AND {im_alias}.mtime_ns IS NULL "
+        f"AND ABS({fi_alias}.mtime - {im_alias}.mtime) < {MTIME_SEC_TOLERANCE})))"
+    )
+
+
+def current_file_metadata_sql(*, fi_alias: str = "fi", im_alias: str = "im") -> str:
+    """Return a predicate excluding stale metadata and inactive catalog assets."""
+    identity = file_index_matches_image_metadata_sql(fi_alias=fi_alias, im_alias=im_alias)
+    return (
+        f"({identity} AND ("
+        f"NOT EXISTS (SELECT 1 FROM assets AS current_asset_any WHERE current_asset_any.path = {fi_alias}.path)"
+        f" OR EXISTS (SELECT 1 FROM assets AS current_asset "
+        f"WHERE current_asset.path = {fi_alias}.path "
+        f"AND current_asset.offline = 0 AND current_asset.deleted_at IS NULL "
+        f"AND current_asset.mtime_ns = {fi_alias}.mtime_ns "
+        f"AND (current_asset.size = {fi_alias}.size "
+        f"OR (current_asset.size IS NULL AND {fi_alias}.size IS NULL)))))"
+    )

@@ -111,6 +111,7 @@ def test_scan_all_creates_parent_and_linked_children(
 
 
 def test_library_configuration_change_rechecks_active_job_atomically(
+    isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
     library = register_library(isolated_gallery_root)

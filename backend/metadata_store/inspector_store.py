@@ -13,7 +13,10 @@ from typing import Any
 from ._db import _DB_LOCK, _connect
 from ._resources import _iter_metadata_loras, _lora_summary, _split_lora_text
 from ._schema import initialize_database
+from .identity import current_file_metadata_sql
 from .search_store import _build_scope_named, _folder_relative_path
+
+_CURRENT_METADATA_SQL = current_file_metadata_sql(fi_alias="fi", im_alias="m")
 
 
 def _truncate_preview(text: str | None, limit: int = 140) -> str:
@@ -170,7 +173,7 @@ def list_library_inspector_rows(
             field_conditions, field_params = build_fielded_conditions(parsed)
         keyset_condition, keyset_params = _build_library_inspector_keyset_where(normalized_sort, cursor)
 
-        where_parts = ["fi.type IN ('image', 'photo')"]
+        where_parts = ["fi.type IN ('image', 'photo')", _CURRENT_METADATA_SQL]
         if field_conditions:
             where_parts.extend(field_conditions)
         if keyset_condition:
@@ -230,6 +233,7 @@ def list_library_inspector_rows(
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
             WHERE fi.type IN ('image', 'photo')
+            AND {_CURRENT_METADATA_SQL}
             {scope_cond}
             """,
             scope_params,
@@ -268,7 +272,7 @@ def get_library_inspector_metadata(path: str | Path) -> dict[str, Any] | None:
     initialize_database()
     with _DB_LOCK, _connect() as conn:
         row = conn.execute(
-            """
+            f"""
             SELECT
               m.*,
               fi.parent_path,
@@ -278,6 +282,7 @@ def get_library_inspector_metadata(path: str | Path) -> dict[str, Any] | None:
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
             WHERE m.path = ? AND fi.type IN ('image', 'photo')
+              AND {_CURRENT_METADATA_SQL}
             """,
             (resolved,),
         ).fetchone()

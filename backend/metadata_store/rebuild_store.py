@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import mimetypes
-import os
 import sqlite3
 import time
 from pathlib import Path
@@ -13,19 +12,13 @@ from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE
 from ..files import asset_type_for_path, is_asset_path, is_index_excluded_path
 from ._db import _DB_LOCK, _active_asset_where, _connect
 from .library_store import get_library
-from .path_utils import canonicalize_catalog_path, catalog_path_contains
+from .path_utils import canonicalize_catalog_path, catalog_path_contains, path_scope_sql
 
 
 def _initialize_database() -> None:
     from ._schema import initialize_database
 
     initialize_database()
-
-
-def _search_like_escape(value: str) -> str:
-    from .search_store import _like_escape
-
-    return _like_escape(value)
 
 
 def enumerate_to_rebuild_staging(
@@ -302,9 +295,8 @@ def activate_rebuild_staging(
             scope_sql = ""
             params: list[Any] = [library_id]
             if scope_text is not None:
-                prefix = f"{scope_text.rstrip(os.sep)}{os.sep}"
-                scope_sql = " AND (path = ? OR path LIKE ? ESCAPE '\\')"
-                params.extend([scope_text, f"{_search_like_escape(prefix)}%"])
+                scope_sql, scope_params = path_scope_sql(scope_text, leading_and=True)
+                params.extend(scope_params)
             in_scope = conn.execute(
                 f"""
                 SELECT path FROM assets
@@ -351,10 +343,8 @@ def _reconcile_assets_conn(
     params: list[Any] = [library_id]
     scope_sql = ""
     if scope_path is not None:
-        scope = str(Path(scope_path).resolve())
-        prefix = f"{scope.rstrip(os.sep)}{os.sep}"
-        scope_sql = " AND (path = ? OR path LIKE ? ESCAPE '\\')"
-        params.extend([scope, f"{_search_like_escape(prefix)}%"])
+        scope_sql, scope_params = path_scope_sql(scope_path, leading_and=True)
+        params.extend(scope_params)
 
     existing = conn.execute(
         f"""

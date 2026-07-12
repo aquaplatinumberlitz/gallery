@@ -12,6 +12,16 @@ Changing metadata-store DB path resolution, config imports, or initialization.
 """
 
 
+def test_pytest_process_never_targets_the_live_metadata_database():
+    """The process-wide pytest DB must stay outside backend/.cache."""
+    from pathlib import Path
+
+    import backend.config as cfg
+
+    live_db = Path(__file__).resolve().parents[1] / ".cache" / "gallery_metadata.db"
+    assert cfg.GALLERY_METADATA_DB.resolve() != live_db.resolve()
+
+
 def test_db_path_source_of_truth_is_consistent(monkeypatch, tmp_path):
     """Patch config and verify _connect and initialize_database use same path."""
     import backend.config as cfg

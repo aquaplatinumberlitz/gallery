@@ -35,7 +35,14 @@ class TestApiImage:
         assert resp.status_code == 200
         assert "cache-control" in resp.headers
         assert "etag" in resp.headers
-        assert "immutable" in resp.headers["cache-control"].lower()
+        assert "must-revalidate" in resp.headers["cache-control"].lower()
+
+        cached = isolated_app.get(
+            "/api/image",
+            params={"path": str(path)},
+            headers={"If-None-Match": resp.headers["etag"]},
+        )
+        assert cached.status_code == 304
 
     def test_image_rejects_invalid_file(self, isolated_app: TestClient, temp_gallery: Path):
         path = temp_gallery / "album_a" / "note.txt"

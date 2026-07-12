@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 
 from fastapi import APIRouter, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from starlette.responses import FileResponse, Response, StreamingResponse
 
 from .config import THUMBNAIL_CACHE_DIR
@@ -36,6 +37,7 @@ _POSTER_LOCKS: dict[str, threading.Lock] = {}
 
 _RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
 _RANGE_CHUNK_SIZE = 1024 * 1024
+_REVALIDATE_CACHE_CONTROL = "public, max-age=0, must-revalidate"
 
 
 def _validate_video(path: str) -> Path:
@@ -81,8 +83,11 @@ async def api_video(request: Request, path: str = Query(...)):
     common_headers = {
         "Accept-Ranges": "bytes",
         "ETag": etag,
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": _REVALIDATE_CACHE_CONTROL,
     }
+
+    if request.headers.get("if-none-match") == etag and not request.headers.get("range"):
+        return Response(status_code=304, headers=common_headers)
 
     range_header = request.headers.get("range", "").strip()
     if not range_header:
@@ -128,10 +133,8 @@ async def api_video(request: Request, path: str = Query(...)):
     )
 
 
-@router.get("/api/video/poster")
-async def api_video_poster(path: str = Query(...)):
-    """Return a cached WebP poster or generate one atomically from the video."""
-    file_path = _validate_video(path)
+def _get_or_generate_poster(file_path: Path) -> Path:
+    """Generate a poster synchronously; callers must run this off the event loop."""
     ffmpeg_path = shutil.which("ffmpeg")
     if ffmpeg_path is None:
         raise APIError(503, ErrorType.VIDEO_TOOL_UNAVAILABLE, "ffmpeg is not available on this system")
@@ -180,10 +183,21 @@ async def api_video_poster(path: str = Query(...)):
                 # Atomic rename so concurrent readers never see a half-written poster.
                 temp_path.replace(cached_path)
 
+    return cached_path
+
+
+@router.get("/api/video/poster")
+async def api_video_poster(request: Request, path: str = Query(...)):
+    """Return a cached WebP poster or generate one without blocking the event loop."""
+    file_path = _validate_video(path)
+    cached_path = await run_in_threadpool(_get_or_generate_poster, file_path)
     cached_stat = cached_path.stat()
     etag = f'"{cached_stat.st_mtime_ns}-{cached_stat.st_size}"'
+    headers = {"Cache-Control": _REVALIDATE_CACHE_CONTROL, "ETag": etag}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
     return FileResponse(
         cached_path,
         media_type="image/webp",
-        headers={"Cache-Control": "public, max-age=31536000, immutable", "ETag": etag},
+        headers=headers,
     )

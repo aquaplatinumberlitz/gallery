@@ -15,7 +15,7 @@ from .config import (
     WATCHER_MAX_EVENTS_PER_TICK,
     WATCHER_ROOTS,
 )
-from .files import is_asset_path, is_index_excluded_path
+from .files import IMAGE_EXTENSIONS, is_asset_path, is_index_excluded_path
 from .scan_worker import queue_watcher_scan
 
 try:
@@ -88,6 +88,9 @@ class _DebouncedHandler:
         elif is_asset_path(path):
             folder = str(path.parent)
             image_path = path_str
+        elif path.suffix.lower() == ".txt" and any(path.with_suffix(ext).is_file() for ext in IMAGE_EXTENSIONS):
+            folder = str(path.parent)
+            image_path = None
         else:
             return
         now = time.time()

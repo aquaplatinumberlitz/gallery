@@ -343,9 +343,7 @@ def _handle_json_field(builder: _ConditionBuilder, ft: FieldToken) -> None:
         path_param = builder.next_param(f"$.{json_path}")
         comparison = f") = {builder.next_param(ft.value)}" if ft.value else ") IS NOT NULL"
         builder.conditions.append(
-            "json_valid(m.metadata_json) AND json_extract(m.metadata_json, "
-            + path_param
-            + comparison
+            "json_valid(m.metadata_json) AND json_extract(m.metadata_json, " + path_param + comparison
         )
         return
     like_val = f'%"{ft.value}%'
@@ -369,9 +367,7 @@ def _handle_size(builder: _ConditionBuilder, ft: FieldToken) -> None:
     size_match = re.match(r"(\d+)\s*x\s*(\d+)", ft.value, re.IGNORECASE)
     if size_match:
         width, height = (int(size_match.group(index)) for index in (1, 2))
-        builder.conditions.append(
-            f"m.width = {builder.next_param(width)} AND m.height = {builder.next_param(height)}"
-        )
+        builder.conditions.append(f"m.width = {builder.next_param(width)} AND m.height = {builder.next_param(height)}")
 
 
 def _handle_path(builder: _ConditionBuilder, ft: FieldToken) -> None:
@@ -427,8 +423,7 @@ def _handle_standard_field(builder: _ConditionBuilder, ft: FieldToken) -> None:
         )
         joiner = " AND " if ft.quote_char and "," in ft.value else " OR "
         likes = [
-            f"m.{col} LIKE {builder.next_param(f'%{_escape_like_literal(value)}%')} ESCAPE '\\'"
-            for value in values
+            f"m.{col} LIKE {builder.next_param(f'%{_escape_like_literal(value)}%')} ESCAPE '\\'" for value in values
         ]
         builder.conditions.append("(" + joiner.join(likes) + ")")
         return

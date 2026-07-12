@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,12 @@ if str(REPO_ROOT) not in sys.path:
 
 os.environ.setdefault("ENABLE_METRICS", "0")
 os.environ.setdefault("GALLERY_CATALOG_SERVICE_ENABLED", "0")
+
+# Set process-wide safety paths before any backend module is imported. Tests
+# that forget an isolation fixture must never fall back to the live cache.
+_PYTEST_RUNTIME_DIR = Path(tempfile.mkdtemp(prefix="gallery-pytest-runtime-"))
+os.environ["GALLERY_METADATA_DB"] = str(_PYTEST_RUNTIME_DIR / "gallery_metadata.db")
+os.environ["GALLERY_THUMBNAIL_CACHE_DIR"] = str(_PYTEST_RUNTIME_DIR / "thumbnails")
 
 
 # ---------------------------------------------------------------------------
