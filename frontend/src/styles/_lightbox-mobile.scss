@@ -133,7 +133,8 @@
 }
 
 .sheet-text {
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.45;
   color: #e5e7eb;
   margin: 0;
 }
@@ -233,6 +234,11 @@
   }
 }
 
+.param-pill.metadata-copyable {
+  min-height: 44px;
+  padding-block: 0.625rem;
+}
+
 /* Seed pill layout */
 .seed-row {
   display: flex;
@@ -267,8 +273,8 @@
   }
 
   .sheet-text {
-    font-size: 13px;
-    line-height: 1.4;
+    font-size: 14px;
+    line-height: 1.45;
   }
 
   .sheet-label {
@@ -279,7 +285,7 @@
     gap: 4px;
   }
 
-  .param-pill {
+  .param-pill:not(.metadata-copyable) {
     padding: 3px 6px;
     font-size: 11px;
   }

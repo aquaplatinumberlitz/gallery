@@ -253,7 +253,7 @@ function formatMiddlePath(value: string, maxLength = 34) {
             <Button
               variant="outline"
               size="sm"
-              class="bg-popover hover:bg-accent"
+              class="index-details__action bg-popover hover:bg-accent"
               :disabled="(!path && !isLibraryScope) || !!actionPending"
               @click="emit('scan')"
             >
@@ -404,5 +404,20 @@ function formatMiddlePath(value: string, maxLength = 34) {
 
 .index-details__actions {
   padding-top: 2px;
+}
+
+@media (max-width: 1023px) {
+  .index-details {
+    gap: 16px;
+  }
+
+  .index-details__section {
+    gap: 9px;
+  }
+
+  .index-details__action {
+    min-height: 44px;
+    padding-block: 0.625rem;
+  }
 }
 </style>

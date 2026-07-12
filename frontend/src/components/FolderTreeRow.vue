@@ -82,7 +82,7 @@ watch(
   <TreeItemLabel
     v-if="item.kind === 'folder'"
     :has-children="item.hasChildren"
-    class="min-w-0 bg-transparent text-[13px] text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground in-data-[selected]:bg-sidebar-accent in-data-[selected]:text-sidebar-accent-foreground"
+    class="folder-tree-label min-w-0 bg-transparent text-[13px] text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground in-data-[selected]:bg-sidebar-accent in-data-[selected]:text-sidebar-accent-foreground"
   >
     <span class="flex min-w-0 flex-1 items-center gap-1.5">
       <FolderOpen v-if="isExpanded" class="folder-icon gallery-icon-md" />
@@ -119,6 +119,12 @@ watch(
 </template>
 
 <style scoped>
+@media (max-width: 1023px) {
+  .folder-tree-label {
+    min-height: 44px;
+  }
+}
+
 .folder-icon {
   color: var(--primary);
   transition: color 120ms ease;

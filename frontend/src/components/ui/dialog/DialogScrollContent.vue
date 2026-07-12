@@ -22,7 +22,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
       <DialogContent
         :class="
           cn(
-            'relative z-50 grid w-full max-w-lg my-8 gap-4 border border-border bg-background p-6 shadow-lg duration-200 sm:rounded-lg md:w-full',
+            'dialog-scroll-content relative z-50 grid w-full max-w-lg my-8 gap-4 border border-border bg-background p-6 shadow-lg duration-200 sm:rounded-lg md:w-full',
             props.class,
           )
         "
@@ -39,7 +39,9 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
       >
         <slot />
 
-        <DialogClose class="absolute top-3 right-3 p-0.5 transition-colors rounded-md hover:bg-secondary">
+        <DialogClose
+          class="dialog-scroll-close absolute top-3 right-3 p-0.5 transition-colors rounded-md hover:bg-secondary"
+        >
           <X class="w-4 h-4" />
           <span class="sr-only">Close</span>
         </DialogClose>
@@ -47,3 +49,23 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
     </DialogOverlay>
   </DialogPortal>
 </template>
+
+<style scoped>
+@media (max-width: 639px) {
+  .dialog-scroll-content {
+    width: calc(100% - 1.5rem);
+    max-width: calc(100% - 1.5rem);
+    margin-block: 0.75rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+  }
+
+  .dialog-scroll-close {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+  }
+}
+</style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, toRef, useTemplateRef, watch } from "vue";
-import { Info } from "lucide-vue-next";
+import { Info, X } from "lucide-vue-next";
 import "photoswipe/dist/photoswipe.css";
 import type { FileNode } from "../types";
 import { usePhotoSwipe } from "../composables/usePhotoSwipe";
@@ -20,6 +20,7 @@ const emit = defineEmits<{
 
 const containerRef = useTemplateRef<HTMLElement>("container");
 const metadataButtonRef = useTemplateRef<HTMLButtonElement>("metadataButton");
+const counter = computed(() => `${props.currentIndex + 1} / ${props.items.length}`);
 
 usePhotoSwipe({
   containerRef,
@@ -49,6 +50,12 @@ watch(
 
 <template>
   <div ref="container" class="mobile-photoswipe-container" />
+  <div class="mobile-photoswipe-counter">
+    {{ counter }}
+  </div>
+  <button class="lightbox-floating-control mobile-photoswipe-close" aria-label="Close" @click="emit('close')">
+    <X :size="22" :stroke-width="2.2" />
+  </button>
   <button
     v-if="!metadataOpen"
     ref="metadataButton"
@@ -65,6 +72,36 @@ watch(
   position: fixed;
   inset: 0;
   z-index: 1;
+}
+
+.mobile-photoswipe-counter {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: calc(var(--gallery-z-lightbox, 100000) + 1);
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.mobile-photoswipe-close {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(12px, calc(env(safe-area-inset-left) + 8px));
+  z-index: calc(var(--gallery-z-lightbox, 100000) + 1);
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .lightbox-floating-control--mobile {

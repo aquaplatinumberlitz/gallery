@@ -99,7 +99,9 @@ defineProps<{
 /* ── Mobile (≤767px) ── */
 @media (max-width: 767px) {
   .gallery-section-header {
-    margin-bottom: 12px;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding-inline: 2px;
   }
 
   .gallery-section-header h3 {

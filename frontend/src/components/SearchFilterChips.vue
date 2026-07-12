@@ -22,11 +22,11 @@ const emit = defineEmits<{
       v-for="(filter, index) in filters"
       :key="index"
       variant="secondary"
-      class="gap-1 pl-2.5 pr-1.5 py-1 text-xs cursor-default"
+      class="search-filter-chip gap-1 pl-2.5 pr-1.5 py-1 text-xs cursor-default"
     >
       {{ filterToDisplayString(filter) }}
       <button
-        class="ml-0.5 rounded-sm hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center size-4 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        class="search-filter-remove ml-0.5 rounded-sm hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center size-4 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
         @click="emit('remove', index)"
         :aria-label="`Remove filter: ${filterToDisplayString(filter)}`"
       >
@@ -35,10 +35,31 @@ const emit = defineEmits<{
     </Badge>
     <button
       v-if="filters.length > 1"
-      class="text-xs text-muted-foreground hover:text-foreground underline cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      class="search-filter-clear text-xs text-muted-foreground hover:text-foreground underline cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       @click="emit('clearAll')"
     >
       Clear All
     </button>
   </div>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+  .search-filter-chip {
+    min-height: 44px;
+    padding-block: 0.375rem;
+  }
+
+  .search-filter-remove {
+    width: 44px;
+    height: 44px;
+    margin-block: -0.375rem;
+    margin-right: -0.375rem;
+  }
+
+  .search-filter-clear {
+    min-height: 44px;
+    padding: 0.625rem 0.5rem;
+  }
+}
+</style>

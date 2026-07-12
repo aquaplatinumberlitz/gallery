@@ -46,4 +46,13 @@ const posterUrl = computed(() => (props.video ? getVideoPosterUrl(props.video.pa
   max-height: 86vh;
   background: black;
 }
+
+@media (max-width: 639px) {
+  .video-dialog {
+    width: calc(100vw - 1.5rem);
+    max-width: calc(100vw - 1.5rem);
+    padding: 0;
+    border-radius: 0.75rem;
+  }
+}
 </style>

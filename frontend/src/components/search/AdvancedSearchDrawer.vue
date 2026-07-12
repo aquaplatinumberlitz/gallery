@@ -243,7 +243,7 @@ watch(
                 type="button"
                 variant="ghost"
                 size="sm"
-                class="min-h-9 shrink-0"
+                class="advanced-search-clear min-h-9 shrink-0"
                 :disabled="activeFilterCount === 0"
                 @click="handleClearAll"
               >
@@ -324,7 +324,12 @@ watch(
                           @update:model-value="field.handleChange"
                         />
                         <datalist id="model-datalist">
-                          <option v-for="option in facetModelOptions" :key="option" :value="option" />
+                          <option
+                            v-for="option in facetModelOptions"
+                            :key="option"
+                            :value="option"
+                            class="advanced-search-option"
+                          />
                         </datalist>
                         <FieldDescription v-if="facetStatus(facetModelOptions)" class="text-xs" aria-live="polite">
                           {{ facetStatus(facetModelOptions) }}
@@ -409,7 +414,12 @@ watch(
                           @update:model-value="field.handleChange"
                         />
                         <datalist id="sampler-datalist">
-                          <option v-for="option in facetSamplerOptions" :key="option" :value="option" />
+                          <option
+                            v-for="option in facetSamplerOptions"
+                            :key="option"
+                            :value="option"
+                            class="advanced-search-option"
+                          />
                         </datalist>
                         <FieldDescription v-if="facetStatus(facetSamplerOptions)" class="text-xs" aria-live="polite">
                           {{ facetStatus(facetSamplerOptions) }}
@@ -427,7 +437,12 @@ watch(
                           @update:model-value="field.handleChange"
                         />
                         <datalist id="scheduler-datalist">
-                          <option v-for="option in facetSchedulerOptions" :key="option" :value="option" />
+                          <option
+                            v-for="option in facetSchedulerOptions"
+                            :key="option"
+                            :value="option"
+                            class="advanced-search-option"
+                          />
                         </datalist>
                         <FieldDescription v-if="facetStatus(facetSchedulerOptions)" class="text-xs" aria-live="polite">
                           {{ facetStatus(facetSchedulerOptions) }}
@@ -727,6 +742,7 @@ watch(
                           type="button"
                           variant="ghost"
                           size="icon-sm"
+                          class="advanced-search-remove"
                           :aria-label="`Remove ${filterToDisplayString(token.filter)}`"
                           @click="removeStagedToken(token.id)"
                         >
@@ -742,11 +758,18 @@ watch(
         </div>
 
         <footer
-          class="flex shrink-0 flex-col gap-3 border-t bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4"
+          class="advanced-search-footer flex shrink-0 flex-col gap-3 border-t bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4"
           data-testid="advanced-search-footer"
         >
           <div class="flex min-w-0 items-center justify-between gap-3 sm:justify-start">
-            <Button type="button" variant="outline" size="sm" :disabled="!isDirty" @click="handleResetChanges">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              class="advanced-search-action"
+              :disabled="!isDirty"
+              @click="handleResetChanges"
+            >
               Revert edits
             </Button>
             <span v-if="validationErrorCount" class="text-xs font-medium text-destructive" role="alert">
@@ -758,8 +781,10 @@ watch(
             <span class="hidden text-xs text-muted-foreground md:inline"
               ><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd></span
             >
-            <Button type="button" variant="ghost" size="sm" @click="handleCancel">Cancel</Button>
-            <Button type="submit" size="sm" :disabled="!isDirty">
+            <Button type="button" variant="ghost" size="sm" class="advanced-search-action" @click="handleCancel">
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" class="advanced-search-action" :disabled="!isDirty">
               <Search data-icon="inline-start" />{{ applyLabel }}
             </Button>
           </div>
@@ -768,3 +793,31 @@ watch(
     </SheetContent>
   </Sheet>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+  .advanced-search-clear,
+  .advanced-search-remove,
+  .advanced-search-action {
+    min-height: 44px;
+  }
+
+  .advanced-search-clear,
+  .advanced-search-action {
+    padding-block: 0.625rem;
+  }
+
+  .advanced-search-remove {
+    min-width: 44px;
+  }
+
+  .advanced-search-footer {
+    padding-bottom: max(0.75rem, calc(env(safe-area-inset-bottom) + 0.5rem));
+  }
+
+  .advanced-search-option {
+    min-height: 44px;
+    padding-block: 0.625rem;
+  }
+}
+</style>

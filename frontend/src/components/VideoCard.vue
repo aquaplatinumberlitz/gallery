@@ -33,7 +33,9 @@ const formatDuration = (durationMs?: number | null) => {
     :aria-label="`Play video ${name || ''}`.trim()"
     @click="emit('click')"
   >
-    <div v-if="!posterLoaded && !posterFailed" class="video-shimmer" />
+    <div v-if="!posterLoaded && !posterFailed" class="video-shimmer">
+      <span class="video-shimmer-wave" />
+    </div>
     <img
       v-if="!posterFailed"
       :src="getVideoPosterUrl(src)"
@@ -83,6 +85,14 @@ const formatDuration = (durationMs?: number | null) => {
       transform: translateY(-2px) scale(1.02);
     }
   }
+
+  @media (max-width: 1023px) {
+    -webkit-tap-highlight-color: transparent;
+
+    &:active {
+      transform: scale(0.97);
+    }
+  }
 }
 
 .video-shimmer {
@@ -91,6 +101,10 @@ const formatDuration = (durationMs?: number | null) => {
   background: linear-gradient(90deg, var(--muted) 25%, var(--accent) 50%, var(--muted) 75%);
   background-size: 200% 100%;
   animation: video-shimmer 1.5s infinite;
+}
+
+.video-shimmer-wave {
+  display: none;
 }
 
 .video-placeholder {
@@ -134,9 +148,60 @@ const formatDuration = (durationMs?: number | null) => {
   }
 }
 
+@keyframes mobile-video-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 1023px) {
+  .video-shimmer {
+    overflow: hidden;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.06));
+    background-size: auto;
+    animation: none;
+  }
+
+  .video-shimmer-wave {
+    position: absolute;
+    inset: 0;
+    display: block;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.5) 50%, transparent 100%);
+    transform: translateX(-100%);
+    animation: mobile-video-shimmer 1.5s infinite;
+  }
+
+  :global(html[data-theme="dark"]) .video-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.06),
+      rgba(255, 255, 255, 0.08)
+    );
+  }
+
+  :global(html[data-theme="dark"]) .video-shimmer-wave {
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+  }
+}
+
+@media (max-width: 767px) {
+  .play-button {
+    background: rgb(0 0 0 / 55%);
+  }
+
+  .play-button :deep(svg) {
+    transform: scale(0.84);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .video-card,
-  .video-shimmer {
+  .video-shimmer,
+  .video-shimmer-wave {
     transition: none;
     animation: none;
   }

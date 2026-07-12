@@ -94,7 +94,7 @@ function created(library: RegisteredLibrary) {
 
 <template>
   <main class="h-full overflow-y-auto p-4 text-foreground sm:p-6" aria-labelledby="libraries-heading">
-    <div class="mx-auto max-w-7xl space-y-6">
+    <div class="admin-library-stack mx-auto max-w-7xl space-y-6">
       <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
           <h2 id="libraries-heading" class="text-xl font-semibold tracking-normal text-foreground">Libraries</h2>
@@ -119,14 +119,16 @@ function created(library: RegisteredLibrary) {
       </header>
 
       <section aria-label="Gallery statistics">
-        <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border ring-1 ring-border sm:grid-cols-4">
-          <div class="bg-card p-3">
+        <dl
+          class="admin-library-metrics grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border ring-1 ring-border sm:grid-cols-4"
+        >
+          <div class="admin-library-metric bg-card p-3">
             <dt class="text-xs text-muted-foreground">Libraries</dt>
             <dd class="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
               {{ statsQuery.data.value?.library_count ?? libraries.length }}
             </dd>
           </div>
-          <div class="bg-card p-3">
+          <div class="admin-library-metric bg-card p-3">
             <dt class="text-xs text-muted-foreground">Media files</dt>
             <dd class="mt-0.5 text-base font-semibold tabular-nums text-foreground">
               {{ formatAssetCount(totalMediaFiles) }}
@@ -136,13 +138,13 @@ function created(library: RegisteredLibrary) {
               {{ formatAssetCount(statsQuery.data.value?.videos) }} videos
             </p>
           </div>
-          <div class="bg-card p-3">
+          <div class="admin-library-metric bg-card p-3">
             <dt class="text-xs text-muted-foreground">Storage used</dt>
             <dd class="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
               {{ formatBytes(statsQuery.data.value?.usage_bytes) }}
             </dd>
           </div>
-          <div class="bg-card p-3">
+          <div class="admin-library-metric bg-card p-3">
             <dt class="text-xs text-muted-foreground">Queued jobs</dt>
             <dd
               class="mt-0.5 text-sm font-semibold tabular-nums"
@@ -262,7 +264,7 @@ function created(library: RegisteredLibrary) {
           </CardContent>
         </Card>
 
-        <div class="grid gap-3 lg:hidden">
+        <div class="admin-library-mobile-list grid gap-3 lg:hidden">
           <Card v-for="library in libraries" :key="library.id" class="gap-0 py-0">
             <CardContent class="p-4">
               <div class="flex items-start justify-between gap-3">
@@ -327,3 +329,32 @@ function created(library: RegisteredLibrary) {
     />
   </main>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+  .admin-library-stack {
+    gap: 1.75rem;
+  }
+
+  .admin-library-metric {
+    min-height: 88px;
+    padding: 1rem;
+  }
+
+  .admin-library-metric dt {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .admin-library-metric dd {
+    margin-top: 0.375rem;
+    font-size: 1.125rem;
+    line-height: 1.25;
+  }
+
+  .admin-library-mobile-list {
+    gap: 1rem;
+  }
+}
+</style>

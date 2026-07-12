@@ -129,7 +129,7 @@ const expandAll = () => {
             <BreadcrumbItem>
               <DropdownMenu v-model:open="ellipsisMenuOpen">
                 <DropdownMenuTrigger
-                  class="hover:text-foreground"
+                  class="hidden-folders-trigger hover:text-foreground"
                   :aria-label="`${hiddenSegments.length} more folders`"
                 >
                   <span role="presentation" aria-hidden="true" class="flex size-5 items-center justify-center">
@@ -244,6 +244,24 @@ const expandAll = () => {
 @media (max-width: 480px) {
   .breadcrumb {
     gap: 4px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .hidden-folders-trigger,
+  .collapse-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .hidden-folders-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 </style>

@@ -32,7 +32,6 @@ const folderName = computed(() => {
     <div class="mbb-path" aria-live="polite">
       <FolderOpen class="path-icon" />
       <span class="path-copy">
-        <span class="path-kicker">Current folder</span>
         <span class="path-text">{{ folderName }}</span>
       </span>
     </div>
@@ -93,7 +92,8 @@ const folderName = computed(() => {
   transition:
     background 0.15s ease,
     color 0.15s ease,
-    opacity 0.15s ease;
+    opacity 0.15s ease,
+    transform 0.12s ease;
 }
 
 .mbb-btn svg {
@@ -107,6 +107,7 @@ const folderName = computed(() => {
 
 .mbb-btn:active:not(:disabled) {
   background: color-mix(in srgb, var(--foreground) 14%, transparent);
+  transform: scale(0.94);
 }
 
 .mbb-btn:disabled {
@@ -136,15 +137,6 @@ const folderName = computed(() => {
   gap: 1px;
 }
 
-.path-kicker {
-  color: var(--muted-foreground);
-  font-size: 9px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-
 .path-text {
   font-size: 14px;
   font-weight: 650;
@@ -152,6 +144,17 @@ const folderName = computed(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (hover: none) {
+  .mbb-btn {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mbb-btn:active:not(:disabled) {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 18%, transparent);
+  }
 }
 
 /* Compact (<480px): smaller pill, tighter spacing */

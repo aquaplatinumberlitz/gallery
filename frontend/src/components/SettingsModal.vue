@@ -143,9 +143,9 @@ async function handleResetCatalog() {
 <template>
   <Dialog :open="isOpen" @update:open="onOpenChange">
     <DialogContent
-      class="max-h-[min(92dvh,760px)] gap-0 overflow-hidden border-border bg-background p-0 shadow-xl sm:max-w-[620px] sm:rounded-2xl"
+      class="settings-dialog max-h-[min(92dvh,760px)] gap-0 overflow-hidden border-border bg-background p-0 shadow-xl sm:max-w-[620px] sm:rounded-2xl"
     >
-      <DialogHeader class="border-b border-border bg-muted/25 px-5 py-4 text-left sm:px-6">
+      <DialogHeader class="settings-dialog-header border-b border-border bg-muted/25 px-5 py-4 text-left sm:px-6">
         <div class="flex items-start justify-between gap-4 pr-9">
           <div class="flex min-w-0 flex-col">
             <DialogTitle class="font-[Cinzel] text-xl leading-tight tracking-normal text-foreground">
@@ -156,7 +156,9 @@ async function handleResetCatalog() {
         <DialogDescription class="sr-only"> Configure gallery intro and viewer settings </DialogDescription>
       </DialogHeader>
 
-      <div class="flex max-h-[calc(min(92dvh,760px)-74px)] flex-col gap-4 overflow-y-auto px-4 py-4 sm:px-5">
+      <div
+        class="settings-dialog-body flex max-h-[calc(min(92dvh,760px)-74px)] flex-col gap-4 overflow-y-auto px-4 py-4 sm:px-5"
+      >
         <FieldSet class="gap-4 rounded-xl border border-border bg-card/65 p-4 shadow-sm">
           <div class="flex flex-col gap-1.5">
             <FieldLegend class="mb-0 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
@@ -336,3 +338,16 @@ async function handleResetCatalog() {
     </DialogContent>
   </Dialog>
 </template>
+
+<style scoped>
+@media (max-width: 639px) {
+  .settings-dialog {
+    padding: 0;
+  }
+
+  .settings-dialog-header,
+  .settings-dialog-body {
+    padding-inline: 1rem;
+  }
+}
+</style>

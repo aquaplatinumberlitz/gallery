@@ -1627,7 +1627,7 @@ useIntersectionObserver(
 
   /* Reduce photo row gap and spacers on mobile */
   .virtual-row {
-    gap: 3px;
+    gap: 5px;
     padding: 0 2px;
   }
 
@@ -1656,11 +1656,11 @@ useIntersectionObserver(
   }
 
   .search-result-card {
-    gap: 3px;
+    gap: 5px;
   }
 
   .search-result-name {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .search-result-path {
@@ -1673,7 +1673,7 @@ useIntersectionObserver(
   }
 
   .skeleton-grid {
-    gap: 4px;
+    gap: 5px;
   }
 }
 

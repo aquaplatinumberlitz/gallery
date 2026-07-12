@@ -14,7 +14,7 @@ const props = defineProps<{
     data-slot="tree-item-label"
     :class="
       cn(
-        'in-focus-visible:ring-ring/50 bg-background hover:bg-accent in-data-[selected]:bg-accent in-data-[selected]:text-accent-foreground in-data-[drag-target=true]:bg-accent flex items-center gap-1 rounded-sm px-2 py-1.5 text-sm transition-colors not-in-data-[folder=true]:ps-7 in-focus-visible:ring-[3px] [&_svg]:pointer-events-none [&_svg]:shrink-0',
+        'tree-item-label in-focus-visible:ring-ring/50 bg-background hover:bg-accent in-data-[selected]:bg-accent in-data-[selected]:text-accent-foreground in-data-[drag-target=true]:bg-accent flex items-center gap-1 rounded-sm px-2 py-1.5 text-sm transition-colors not-in-data-[folder=true]:ps-7 in-focus-visible:ring-[3px] [&_svg]:pointer-events-none [&_svg]:shrink-0',
         props.class,
       )
     "
@@ -23,3 +23,12 @@ const props = defineProps<{
     <slot />
   </span>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+  .tree-item-label {
+    min-height: 44px;
+    padding-block: 0.625rem;
+  }
+}
+</style>

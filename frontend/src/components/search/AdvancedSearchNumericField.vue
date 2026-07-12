@@ -49,10 +49,15 @@ function updateValue(value: string) {
         :aria-label="`${label} operator`"
         :aria-invalid="Boolean(error)"
         :aria-describedby="error ? errorId : undefined"
-        class="h-9 w-16 shrink-0 cursor-pointer rounded-md border border-input bg-background px-2 text-sm font-medium text-foreground shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        class="advanced-search-operator h-9 w-16 shrink-0 cursor-pointer rounded-md border border-input bg-background px-2 text-sm font-medium text-foreground shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         @change="updateOperator"
       >
-        <option v-for="operator in operators" :key="operator.value" :value="operator.value">
+        <option
+          v-for="operator in operators"
+          :key="operator.value"
+          :value="operator.value"
+          class="advanced-search-operator-option"
+        >
           {{ operator.label }}
         </option>
       </select>
@@ -70,3 +75,17 @@ function updateValue(value: string) {
     <FieldError v-if="error" :id="errorId">{{ error }}</FieldError>
   </Field>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+  .advanced-search-operator {
+    min-height: 44px;
+    padding-block: 0.625rem;
+  }
+
+  .advanced-search-operator-option {
+    min-height: 44px;
+    padding-block: 0.625rem;
+  }
+}
+</style>

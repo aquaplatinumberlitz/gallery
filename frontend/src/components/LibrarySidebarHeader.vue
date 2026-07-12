@@ -48,7 +48,7 @@ function openLibrarySelector() {
 <template>
   <div class="relative bg-sidebar p-4 pb-3 group-data-[collapsible=icon]:p-1">
     <SidebarTrigger
-      class="absolute right-2 top-2 z-20 size-7 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mx-auto"
+      class="sidebar-close-trigger absolute right-2 top-2 z-20 size-7 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mx-auto"
     />
     <IconTooltipButton
       variant="ghost"
@@ -134,3 +134,14 @@ function openLibrarySelector() {
     <ResponsiveLibrarySelector v-model="sheetOpen" />
   </div>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+  .sidebar-close-trigger {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+</style>

@@ -177,7 +177,7 @@ function formatCount(value: number) {
             <Button
               variant="outline"
               size="sm"
-              class="h-8 gap-1.5 px-2.5 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center"
+              class="index-status-trigger h-8 gap-1.5 px-2.5 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center"
               aria-label="File catalog status"
             >
               <span class="relative inline-flex">
@@ -201,7 +201,11 @@ function formatCount(value: number) {
         </Tooltip>
       </span>
     </PopoverTrigger>
-    <PopoverContent class="w-72 p-4" align="end" :side-offset="8">
+    <PopoverContent
+      class="index-status-popover w-72 p-4"
+      align="end"
+      :side-offset="8"
+    >
       <div v-if="isLoading" class="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader class="size-4 animate-spin" />
         Loading file catalog status...
@@ -236,7 +240,7 @@ function formatCount(value: number) {
 
         <button
           type="button"
-          class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+          class="index-status-details-toggle flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
           :aria-expanded="showDetails"
           @click="showDetails = !showDetails"
         >
@@ -329,7 +333,13 @@ function formatCount(value: number) {
         <div v-if="actionError" class="text-xs text-destructive">{{ actionError }}</div>
 
         <div class="flex gap-2 pt-1">
-          <Button variant="outline" size="sm" :disabled="!!actionPending" @click="triggerAction">
+          <Button
+            variant="outline"
+            size="sm"
+            class="index-status-action"
+            :disabled="!!actionPending"
+            @click="triggerAction"
+          >
             {{ actionPending === "scan" ? "Updating..." : updateLabel }}
           </Button>
         </div>
@@ -339,3 +349,34 @@ function formatCount(value: number) {
     </PopoverContent>
   </Popover>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+  .index-status-trigger {
+    min-width: 44px;
+    min-height: 44px;
+    height: 44px;
+    padding-inline: 0.75rem;
+  }
+
+  .index-status-popover {
+    width: min(18rem, calc(100vw - 1.5rem));
+    max-height: min(78dvh, 36rem);
+    overflow-y: auto;
+    padding: 1rem;
+  }
+
+  .index-status-details-toggle,
+  .index-status-action {
+    min-height: 44px;
+  }
+
+  .index-status-details-toggle {
+    padding-block: 0.625rem;
+  }
+
+  .index-status-action {
+    padding-block: 0.625rem;
+  }
+}
+</style>

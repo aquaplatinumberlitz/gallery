@@ -81,7 +81,7 @@ const needsRefreshCount = computed(() => {
 
 <template>
   <main class="h-full overflow-y-auto p-4 text-foreground sm:p-6" aria-labelledby="maintenance-heading">
-    <div class="mx-auto max-w-6xl space-y-6">
+    <div class="maintenance-page-stack mx-auto max-w-6xl space-y-6">
       <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
           <h2 id="maintenance-heading" class="text-xl font-semibold tracking-normal text-foreground">Maintenance</h2>
@@ -127,9 +127,9 @@ const needsRefreshCount = computed(() => {
         @run-checks="fileHealthMutation.mutateAsync()"
       />
 
-      <div class="grid gap-4 md:grid-cols-2">
-        <Card class="gap-0 py-0">
-          <CardContent class="p-5">
+      <div class="maintenance-status-grid grid gap-4 md:grid-cols-2">
+        <Card class="maintenance-status-card gap-0 py-0">
+          <CardContent class="maintenance-status-content p-5">
             <div class="space-y-1">
               <div class="flex items-center gap-2">
                 <File class="size-5 text-foreground/70" aria-hidden="true" />
@@ -218,8 +218,8 @@ const needsRefreshCount = computed(() => {
           </CardContent>
         </Card>
 
-        <Card class="gap-0 py-0">
-          <CardContent class="p-5">
+        <Card class="maintenance-status-card gap-0 py-0">
+          <CardContent class="maintenance-status-content p-5">
             <div class="space-y-1">
               <div class="flex items-center gap-2">
                 <FileChartColumn class="size-5 text-foreground/70" aria-hidden="true" />
@@ -462,3 +462,27 @@ const needsRefreshCount = computed(() => {
     />
   </main>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+  .maintenance-page-stack {
+    gap: 1.75rem;
+  }
+
+  .maintenance-status-grid {
+    gap: 1rem;
+  }
+
+  .maintenance-status-content {
+    padding: 1.25rem;
+  }
+
+  .maintenance-status-content dl {
+    gap: 0.875rem;
+  }
+
+  .maintenance-status-content dl > div:not([role]) {
+    min-height: 2rem;
+  }
+}
+</style>
