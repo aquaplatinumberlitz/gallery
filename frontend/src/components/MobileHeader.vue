@@ -545,8 +545,8 @@ const gallerySortValue = computed<SortValue>({
 
 :deep(.mobile-search-scope) {
   width: auto;
-  min-width: 144px;
-  max-width: 144px;
+  min-width: 96px;
+  max-width: 96px;
   height: 44px;
   flex: 0 0 auto;
   border-color: transparent;
@@ -565,7 +565,7 @@ const gallerySortValue = computed<SortValue>({
 }
 
 :deep(.mobile-search-scope .search-scope-select-label) {
-  max-width: 86px;
+  max-width: 56px;
 }
 
 /* ============================================================
@@ -692,8 +692,8 @@ const gallerySortValue = computed<SortValue>({
    ============================================================ */
 @media (max-width: 420px) {
   :deep(.mobile-search-scope) {
-    min-width: 112px;
-    max-width: 112px;
+    min-width: 76px;
+    max-width: 76px;
   }
 }
 

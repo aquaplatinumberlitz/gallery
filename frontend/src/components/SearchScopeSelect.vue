@@ -133,9 +133,9 @@ function handleUpdate(value: unknown) {
 }
 
 .search-scope-select-trigger-compact {
-  min-width: 144px;
+  min-width: 96px;
   height: 44px;
-  padding-inline: 12px;
+  padding-inline: 8px;
 }
 
 .search-scope-select-trigger-icon {
@@ -251,8 +251,7 @@ function handleUpdate(value: unknown) {
 
 @media (max-width: 420px) {
   .search-scope-select-trigger-compact {
-    min-width: 112px;
-    max-width: 112px;
+    min-width: 76px;
     padding-inline: 8px;
   }
 
