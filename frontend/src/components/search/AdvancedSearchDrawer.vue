@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 import { useForm, useStore } from "@tanstack/vue-form";
 import { Search, Trash2, X } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
@@ -195,6 +195,7 @@ function stageFilters(filters: FieldFilter[]) {
 
   stagedTokens.value = tokens;
   openingValues.value = structuredClone(values);
+  activeAccordionSections.value = computeOpenSections(filters);
   form.reset(values);
 }
 
@@ -311,8 +312,35 @@ function validateValues(value: FormValues): Partial<Record<FormFieldName, string
   return errors;
 }
 
+const sectionFields: Record<string, FormFieldName[]> = {
+  content: ["prompt", "negative", "model", "folder", "name", "date"],
+  generation: ["sampler", "scheduler", "lora", "vae", "seed", "steps", "cfg", "clip_skip", "denoising_strength", "hires_upscale", "hires_steps"],
+  dimensions: ["width", "height", "size", "ratio"],
+  syntax: ["param", "advanced", "raw"],
+};
+
+function sectionForField(field: FormFieldName): string | null {
+  for (const [section, fields] of Object.entries(sectionFields)) {
+    if (fields.includes(field)) return section;
+  }
+  return null;
+}
+
+function computeOpenSections(filters: FieldFilter[]): string[] {
+  const sections = new Set<string>(["content"]);
+  for (const filter of filters) {
+    const slot = slotForFilter(filter);
+    if (slot) {
+      const section = sectionForField(slot);
+      if (section) sections.add(section);
+    }
+  }
+  return [...sections];
+}
+
 const stagedTokens = shallowRef<StagedToken[]>([]);
 const openingValues = shallowRef<FormValues>(buildDefaultValues());
+const activeAccordionSections = ref(["content"]);
 
 const form = useForm({
   defaultValues: buildDefaultValues(),
@@ -417,7 +445,7 @@ watch(
             </Button>
           </div>
 
-          <Accordion type="multiple" :default-value="['content']" class="w-full" data-testid="advanced-search-groups">
+          <Accordion type="multiple" :model-value="activeAccordionSections" @update:modelValue="activeAccordionSections = $event" class="w-full" data-testid="advanced-search-groups">
             <AccordionItem value="content">
               <AccordionTrigger class="text-left no-underline hover:no-underline">
                 <span class="flex flex-col gap-0.5">
