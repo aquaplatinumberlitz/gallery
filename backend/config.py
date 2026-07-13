@@ -149,6 +149,7 @@ MAX_IMAGE_PIXELS = 100 * 1024 * 1024  # 100 megapixels
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 PRODUCTION = os.getenv("PRODUCTION", "0") == "1"
+GALLERY_TRUSTED_PROXY_SECRET = os.getenv("GALLERY_TRUSTED_PROXY_SECRET", "")
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
 OPEN_FOLDER_ENABLED = os.getenv("GALLERY_OPEN_FOLDER", "false").lower() == "true"

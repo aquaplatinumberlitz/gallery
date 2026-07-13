@@ -42,8 +42,9 @@ metadata. Only `.txt` sidecars produced by `path.with_suffix(".txt")` are consid
 
 `GET /api/metadata?path=...` is defined in `backend/metadata_parse.py`.
 
-- The route resolves the path, enforces the configured `PATH_SAFETY_ROOT` boundary, verifies
-  the image extension, and runs parsing in a thread pool.
+- The route resolves the path, enforces `PATH_SAFETY_ROOT`, requires an active
+  registered-library image asset, verifies the file and image extension, and
+  runs parsing in a thread pool.
 - `parse_metadata()` keys its in-memory LRU by path, mtime, and size.
 - A matching SQLite row is preferred before reopening the original image.
 - Concurrent cold requests for the same key share one in-flight parse.

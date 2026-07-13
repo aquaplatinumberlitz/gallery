@@ -292,8 +292,16 @@ def _validate_import_paths(import_paths: list[str]) -> tuple[list[ValidationItem
     """Normalize import paths and validate their filesystem boundaries."""
     path_items = [_validation_item(value) for value in import_paths]
     canonical_paths: list[str | None] = []
-    for item in path_items:
+    for index, item in enumerate(path_items):
         value = _trim_value(item["value"])
+        if index >= 32:
+            item.update(is_valid=False, message="At most 32 import paths are allowed")
+            canonical_paths.append(None)
+            continue
+        if len(item["value"]) > 4096:
+            item.update(is_valid=False, message="Import paths cannot exceed 4096 characters")
+            canonical_paths.append(None)
+            continue
         if not value:
             item.update(is_valid=False, message="Import path cannot be empty")
             canonical_paths.append(None)
@@ -305,7 +313,7 @@ def _validate_import_paths(import_paths: list[str]) -> tuple[list[ValidationItem
             continue
         try:
             resolved = resolve_path(value)
-        except (OSError, RuntimeError):
+        except (OSError, RuntimeError, ValueError):
             item.update(is_valid=False, message="Import path could not be resolved")
             canonical_paths.append(None)
             continue
@@ -358,16 +366,20 @@ def _validate_same_library_overlaps(
     path_items: list[ValidationItem],
     canonical_paths: list[str | None],
 ) -> None:
-    for index, (item, canonical) in enumerate(zip(path_items, canonical_paths, strict=True)):
-        if canonical is None:
+    ordered = sorted(
+        ((canonical, index) for index, canonical in enumerate(canonical_paths) if canonical is not None),
+        key=lambda value: value[0],
+    )
+    for (left, left_index), (right, right_index) in zip(ordered, ordered[1:], strict=False):
+        if left == right:
             continue
-        for other_index, other in enumerate(canonical_paths):
-            if index == other_index or other is None or canonical == other:
-                continue
-            if _path_overlaps(canonical, other):
-                item["is_valid"] = False
-                item["message"] = "This import path overlaps another path in the same library"
-                break
+        try:
+            Path(right).relative_to(left)
+        except ValueError:
+            continue
+        for index in (left_index, right_index):
+            path_items[index]["is_valid"] = False
+            path_items[index]["message"] = "This import path overlaps another path in the same library"
 
 
 def _validate_registered_path_overlaps(
@@ -405,6 +417,9 @@ def _validate_exclusion_patterns(exclusion_patterns: list[str]) -> list[Validati
     for item in pattern_items:
         pattern = _trim_value(item["value"])
         item["normalized_value"] = pattern or None
+        if len(item["value"]) > 512:
+            item.update(is_valid=False, message="Exclusion patterns cannot exceed 512 characters")
+            continue
         if not pattern:
             item.update(is_valid=False, message="Exclusion pattern cannot be empty")
             continue

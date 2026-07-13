@@ -3,10 +3,11 @@
 import mimetypes
 import os
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
 from .config import FRONTEND_DIST, PRODUCTION
+from .security import require_trusted_proxy
 
 router = APIRouter()
 
@@ -19,7 +20,7 @@ async def read_root():
     return {"message": "Museum Art Gallery API"}
 
 
-@router.get("/api/landing-pages")
+@router.get("/api/landing-pages", dependencies=[Depends(require_trusted_proxy)])
 def get_landing_pages():
     """List static landing-page HTML files bundled under frontend public assets."""
     base_dir = os.path.dirname(os.path.abspath(__file__))

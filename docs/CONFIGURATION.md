@@ -3,7 +3,7 @@
 Status: Maintained
 
 Last verified against `backend/config.py`, `frontend/vite.config.ts`, frontend
-environment reads, and the server nginx site config: 2026-07-10.
+environment reads, and the server nginx site config: 2026-07-13.
 
 Boolean flags parsed by `_env_flag()` treat `0`, `false`, `no`, and `off`
 case-insensitively as false; any other provided value is true. Flags documented as
@@ -23,6 +23,12 @@ development topology.
 
 The production nginx template serves `frontend/dist/` directly and keeps only
 the `/api` proxy to `127.0.0.1:4701`.
+
+Both nginx templates require HTTP Basic Auth for the whole site and include the
+root-owned `/etc/nginx/snippets/gallery-proxy-secret.conf` inside `/api`. That
+snippet must set `X-Gallery-Proxy-Secret` to the same value as
+`GALLERY_TRUSTED_PROXY_SECRET`; keep it and the `.htpasswd` file outside the
+repository. Requests are limited to 1 MiB bodies.
 
 Standard backend command from the repo root:
 
@@ -62,6 +68,7 @@ curl -I http://150.230.56.153/
 | Variable                                               | Type                    | Default                                               | Behavior                                                                                                 |
 | ------------------------------------------------------ | ----------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `PRODUCTION`                                           | boolean (`"1"`)         | `0`                                                   | Enables production mode; also changes the default for metrics.                                           |
+| `GALLERY_TRUSTED_PROXY_SECRET`                         | secret string            | unset                                                 | Required at 32+ characters when `PRODUCTION=1`. Protected `/api` routes require the matching `X-Gallery-Proxy-Secret` header; configuring a secret in development also enables the check. |
 | `PORT`                                                 | integer                 | `4701` in `backend/main.py` fallback                  | Uvicorn port when running `python3 -m backend.main` directly.                                            |
 | `FRONTEND_ORIGIN`                                      | URL/string              | unset                                                 | Extra CORS origin; trailing slash is stripped.                                                           |
 | `FRONTEND_PORT`                                        | integer/string          | unset                                                 | Adds localhost and 127.0.0.1 CORS origins for the active frontend port.                                  |

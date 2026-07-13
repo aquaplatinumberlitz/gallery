@@ -138,7 +138,9 @@ def enumerate_to_rebuild_staging(
                 if entry.name.startswith(".") or is_index_excluded_path(entry, import_root, exclusion_patterns):
                     continue
                 try:
-                    if entry.is_dir() and not entry.is_symlink():
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir():
                         visit(entry, import_root, visited_inodes)
                     elif entry.is_file() and is_asset_path(entry):
                         file_stat = entry.stat()

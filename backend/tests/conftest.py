@@ -286,6 +286,11 @@ def temp_gallery(
     # WebP encoder not available in Pillow 12.0.0; PNG bytes as fallback
     create_test_png(album_b / "cover.webp", size=(1920, 1080))
 
+    from backend.metadata_store import create_library, index_directory_tree
+
+    create_library([root], name="Test gallery")
+    index_directory_tree(root)
+
     return root
 
 
@@ -328,5 +333,10 @@ def temp_gallery_with_metadata(
         cfg_scale=7.5,
         size=(1536, 1024),
     )
+
+    from backend.metadata_store import create_library, index_directory_tree
+
+    create_library([root], name="Metadata gallery")
+    index_directory_tree(root)
 
     return root

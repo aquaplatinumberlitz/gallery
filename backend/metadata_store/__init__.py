@@ -176,6 +176,9 @@ from .library_store import (
     forget_offline_library_assets as forget_offline_library_assets,
 )
 from .library_store import (
+    get_asset_state_for_path as get_asset_state_for_path,
+)
+from .library_store import (
     get_first_library_root as get_first_library_root,
 )
 from .library_store import (

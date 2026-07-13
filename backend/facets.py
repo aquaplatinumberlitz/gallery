@@ -12,7 +12,7 @@ from .errors import APIError, ErrorType
 from .metadata_store import _DB_LOCK, _connect, initialize_database
 from .metadata_store.identity import current_file_metadata_sql
 from .metadata_store.path_utils import named_path_scope_sql
-from .paths import is_path_safe, resolve_path
+from .scan import require_registered_path_allowed
 
 try:
     from prometheus_client import Histogram
@@ -230,9 +230,7 @@ async def api_facets(
     """Return metadata facet counts for the requested folder scope."""
     folder_path = None
     if path:
-        target = resolve_path(path)
-        if not is_path_safe(target):
-            raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
+        target, _library = await run_in_threadpool(require_registered_path_allowed, path)
         if target.exists() and not target.is_dir():
             raise APIError(400, ErrorType.NOT_DIRECTORY, "Path is not a folder")
         if not target.exists():

@@ -16,7 +16,7 @@ from .errors import APIError, ErrorType
 from .files import check_image_limits, is_image
 from .metadata_extract import extract_metadata, extracted_metadata_to_api, metadata_sidecar_identity
 from .metadata_store import get_lightbox_metadata, upsert_extracted_metadata
-from .paths import is_path_safe, resolve_path
+from .scan import require_media_path_allowed
 
 
 def _estimate_dict_size(d: dict) -> int:
@@ -113,9 +113,9 @@ def parse_metadata(path: Path) -> dict:
 @router.get("/api/metadata")
 async def api_metadata(path: str = Query(..., description="Absolute path to image file")):
     """Return normalized metadata for one image after path and type validation."""
-    file_path = resolve_path(path)
-    if not is_path_safe(file_path):
-        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied")
+    file_path = require_media_path_allowed(path, "image")
+    if not file_path.exists() or not file_path.is_file():
+        raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
     if not is_image(file_path):
         raise APIError(400, ErrorType.INVALID_FILE, "Not a valid image file")
 

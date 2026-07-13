@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-07-10
+Last reviewed: 2026-07-13
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -302,7 +302,8 @@ Backend modules are mostly flat, with selected domain packages.
 
 ### Backend Behavior
 
-- `PATH_SAFETY_ROOT` bounds path safety. The default root is `/`, which is permissive for local use but all file routes still resolve and check paths.
+- `PATH_SAFETY_ROOT` is the outer filesystem safety boundary. Media routes additionally require an active registered-library catalog asset of the expected type; registered folder scopes must be owned and non-excluded. Safety-root escapes return `403`, while catalog-invisible paths return `404`.
+- In production nginx owns browser Basic Auth and injects a secret header. FastAPI validates that header on every `/api` router and refuses production startup unless the shared secret is at least 32 characters.
 - `GALLERY_OPEN_FOLDER=false` disables OS folder opening by default.
 - `ENABLE_METRICS` defaults to enabled outside production and exposes `/metrics` with route-level labels.
 - `ENABLE_PROFILER=0` by default. When enabled, selected endpoints are profiled with pyinstrument and HTML reports are written to `backend/profiles/`.

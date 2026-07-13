@@ -6,20 +6,30 @@ from pathlib import Path
 from .config import PATH_SAFETY_ROOT
 
 
-def resolve_path(raw_path: str) -> Path:
+class InvalidPathError(ValueError):
+    """Raised when an external path cannot be safely resolved."""
+
+
+def resolve_path(raw_path: str | Path) -> Path:
     """Resolve a user-supplied path.
 
     Handles Windows extended-length paths to reduce MAX_PATH issues with deep folders.
     """
-    p = Path(raw_path)
+    raw_text = str(raw_path)
+    if "\0" in raw_text:
+        raise InvalidPathError("Path contains an embedded NUL byte")
+    p = Path(raw_text)
     try:
         return p.resolve()
-    except OSError:
+    except (OSError, RuntimeError, ValueError) as exc:
         if os.name == "nt":
             # Add \\?\ prefix to support paths >260 chars
             extended = Path(r"\\?\\" + str(p))
-            return extended.resolve()
-        raise
+            try:
+                return extended.resolve()
+            except (OSError, RuntimeError, ValueError) as windows_exc:
+                raise InvalidPathError("Path could not be resolved") from windows_exc
+        raise InvalidPathError("Path could not be resolved") from exc
 
 
 def is_path_safe(path: Path) -> bool:

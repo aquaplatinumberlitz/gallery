@@ -47,7 +47,7 @@ class TestApiImage:
     def test_image_rejects_invalid_file(self, isolated_app: TestClient, temp_gallery: Path):
         path = temp_gallery / "album_a" / "note.txt"
         resp = isolated_app.get("/api/image", params={"path": str(path)})
-        assert resp.status_code == 400
+        assert resp.status_code == 404
 
     def test_image_404_for_missing(self, isolated_app: TestClient, temp_gallery: Path):
         resp = isolated_app.get("/api/image", params={"path": str(temp_gallery / "none.png")})
@@ -78,6 +78,7 @@ class TestThumbnail:
     def test_thumbnail_no_upscale_small_images(self, isolated_app: TestClient, isolated_gallery_root: Path):
         path = isolated_gallery_root / "small.png"
         create_test_png(path, size=(200, 150))
+        _register_and_index_image(isolated_gallery_root, path)
         resp = isolated_app.get("/api/thumbnail", params={"path": str(path), "max_long_edge": 512})
         assert resp.status_code == 200
         with PILImage.open(BytesIO(resp.content)) as img:
@@ -123,6 +124,7 @@ class TestPreview:
     def test_preview_no_upscale_small_images(self, isolated_app: TestClient, isolated_gallery_root: Path):
         path = isolated_gallery_root / "small.png"
         create_test_png(path, size=(400, 300))
+        _register_and_index_image(isolated_gallery_root, path)
         resp = isolated_app.get("/api/preview", params={"path": str(path)})
         assert resp.status_code == 200
         with PILImage.open(BytesIO(resp.content)) as img:
@@ -224,3 +226,21 @@ class TestDerivativeCacheSeparation:
         assert thumb_resp.status_code == 200
         with PILImage.open(BytesIO(thumb_resp.content)) as img:
             assert max(img.size) <= 512
+
+
+def _register_and_index_image(root: Path, path: Path) -> None:
+    from backend.metadata_store import create_library, index_file
+
+    create_library([root], name="Single image")
+    stat = path.stat()
+    assert index_file(
+        path,
+        path.name,
+        path.parent,
+        "image",
+        stat.st_mtime,
+        stat.st_size,
+        None,
+        None,
+        "image/png",
+    )

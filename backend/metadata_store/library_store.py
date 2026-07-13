@@ -426,7 +426,13 @@ def get_asset_state_for_path(path: str | Path) -> dict[str, Any] | None:
     resolved = str(Path(path).resolve())
     with _DB_LOCK, _connect() as conn:
         row = conn.execute(
-            "SELECT type, offline, deleted_at FROM assets WHERE path = ? LIMIT 1",
+            """
+            SELECT a.type, a.offline, a.deleted_at, a.library_id
+            FROM assets AS a
+            JOIN libraries AS l ON l.id = a.library_id
+            WHERE a.path = ?
+            LIMIT 1
+            """,
             (resolved,),
         ).fetchone()
     if row is None:
@@ -435,6 +441,7 @@ def get_asset_state_for_path(path: str | Path) -> dict[str, Any] | None:
         "type": str(row["type"]),
         "offline": int(row["offline"]) == 1,
         "deleted_at": None if row["deleted_at"] is None else float(row["deleted_at"]),
+        "library_id": int(row["library_id"]),
     }
 
 

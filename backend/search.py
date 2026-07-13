@@ -11,7 +11,6 @@ from fastapi.concurrency import run_in_threadpool
 
 from .errors import APIError, ErrorType
 from .fielded_search_parser import parse_fielded_query
-from .files import is_index_excluded_path
 from .metadata_store import (
     _encode_inspector_cursor,
     cleanup_stale_index,
@@ -22,7 +21,8 @@ from .metadata_store import (
     search_index_fielded,
     search_metadata,
 )
-from .paths import is_path_safe, resolve_path
+from .paths import InvalidPathError, is_path_safe, resolve_path
+from .scan import require_registered_path_allowed
 
 router = APIRouter()
 _STALE_CLEANUP_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="search-stale-cleanup")
@@ -40,15 +40,7 @@ def _registered_or_requested_root(path: str | None) -> Path:
 
 
 def _require_visible_registered_path(path: Path) -> None:
-    from .metadata_store import get_library_for_path
-
-    library = get_library_for_path(path)
-    if library is not None and is_index_excluded_path(
-        path,
-        library["matched_import_path"],
-        library["exclusion_patterns"],
-    ):
-        raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+    require_registered_path_allowed(path)
 
 
 def _cleanup_registered_library_roots(stale_paths: set[str]) -> int:
@@ -172,7 +164,7 @@ async def api_search(
         for result in section:
             try:
                 resolved = resolve_path(result["path"])
-            except (OSError, RuntimeError):
+            except (OSError, RuntimeError, InvalidPathError):
                 stale_detected = True
                 stale_paths.add(str(result["path"]))
                 continue
@@ -240,7 +232,7 @@ async def api_library_inspector(
         for row in rows:
             try:
                 resolved = resolve_path(row["path"])
-            except (OSError, RuntimeError):
+            except (OSError, RuntimeError, InvalidPathError):
                 stale = True
                 stale_paths.add(str(row["path"]))
                 continue

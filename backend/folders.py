@@ -13,7 +13,8 @@ from .config import OPEN_FOLDER_ENABLED
 from .errors import APIError, ErrorType
 from .files import is_index_excluded_path, natural_sort_key
 from .models import FileNode
-from .paths import is_path_safe, resolve_path
+from .paths import resolve_path
+from .scan import require_registered_path_allowed
 
 router = APIRouter()
 
@@ -89,16 +90,10 @@ async def api_folders(
     path: str | None = Query(None, description="Absolute path whose folder children should be listed"),
 ):
     """Return child folders under the requested path or first registered library root."""
-    target = await run_in_threadpool(_registered_or_requested_root, path)
-    if not is_path_safe(target):
-        raise APIError(403, "permission", "Access denied: path outside allowed root")
-    from .metadata_store import get_library_for_path
-
-    library = await run_in_threadpool(get_library_for_path, target)
-    import_root = library["matched_import_path"] if library is not None else None
-    exclusion_patterns = library["exclusion_patterns"] if library is not None else []
-    if is_index_excluded_path(target, import_root, exclusion_patterns):
-        raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+    requested = await run_in_threadpool(_registered_or_requested_root, path)
+    target, library = await run_in_threadpool(require_registered_path_allowed, requested)
+    import_root = library["matched_import_path"]
+    exclusion_patterns = library["exclusion_patterns"]
     return await run_in_threadpool(list_folder_children, target, import_root, exclusion_patterns)
 
 
@@ -107,9 +102,7 @@ async def api_open_folder(path: str = Query(..., description="Absolute path to f
     """Open a folder on the host when explicitly enabled by server configuration."""
     if not OPEN_FOLDER_ENABLED:
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Open folder is disabled on this server")
-    folder_path = resolve_path(path)
-    if not is_path_safe(folder_path):
-        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
+    folder_path, _library = await run_in_threadpool(require_registered_path_allowed, path)
     if not folder_path.exists():
         raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
     if not folder_path.is_dir():
