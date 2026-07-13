@@ -355,7 +355,11 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
-- Catalog schema version 8 additively creates `workflow_raw_documents`, its
+- Catalog schema version 10 additively creates
+  `asset_generation_signatures` and its library/hash candidate indexes. The
+  `.v8.bak` migration performs no inline backfill, checks foreign keys, and
+  publishes version 10 last; version 9 remains a historical reset sentinel.
+  Version 8 creates `workflow_raw_documents`, its
   external-content trigram FTS table, and visible skipped-index counters; its
   `.v7.bak` migration performs no backfill. Version 7 creates typed `workflow_nodes` and
   `workflow_property_values` with fixed per-type lookup indexes; its `.v6.bak`
@@ -380,6 +384,18 @@ Backend modules are mostly flat, with selected domain packages.
   `image_metadata`/checkpoint-resource rows. It NFKC-normalizes and casefolds
   prompt identities, keeps positive and negative values distinct, and updates
   observed model-name/hash aliases without reopening source media.
+- The enabled `generation_signatures` index reads only current persisted image
+  metadata and normalized resources. Its versioned prompt atoms are NFKC,
+  whitespace-collapsed, casefolded identities with bounded supported emphasis;
+  positive/negative prompts cap at 64 atoms and candidate queries cap at 16.
+  Compact SHA-256 layers separate prompt, generation family, recorded recipe,
+  and exact deterministic settings. Hash identities win over name fallbacks,
+  missing inputs are explicit, numeric values use canonical finite decimals,
+  and only bounded registry-typed workflow properties participate. A common
+  model, sampler, or seed without prompt evidence cannot form a strong family.
+  Metadata persistence invalidates stale rows transactionally and coalesces a
+  durable missing backfill; active assets are processed in the existing
+  200-row single-writer batches and failures degrade only this optional index.
 - The enabled `workflow_properties` index accepts only the code-owned ComfyUI
   registry advertised by search capabilities. API prompt graphs provide named
   inputs; supported UI graph widgets use a versioned positional map. Search
@@ -608,8 +624,9 @@ Header search or AdvancedSearchDrawer
   image reference before reading relation data, excludes the reference from
   results, and distinguishes missing relation coverage (409) from unusable
   persisted relation data (503). R0 exposes the complete contract while the
-  generation-signature and visual-fingerprint indexes remain intentionally
-  not ready until their later phases.
+  R1 supplies persisted generation signatures and their per-library readiness;
+  metadata profiles still return no ranked items until R2, while the
+  visual-fingerprint component remains not ready until R3.
 - Derived discovery indexes use durable per-library states and jobs. Claims
   carry worker ID, opaque token, and lease; completion is fenced. Workers read
   active assets by `asset_id` keyset in batches of at most 200, extract outside

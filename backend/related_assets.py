@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from .errors import APIError, ErrorType
+from .generation_signatures import GENERATION_SIGNATURE_EXTRACTOR_VERSION, PROMPT_NORMALIZER_VERSION
 from .metadata_store._db import _DB_LOCK, _connect, _table_exists
 from .metadata_store.path_utils import catalog_path_contains
 from .models import (
@@ -51,11 +52,33 @@ def _component_status(
 def _related_status(reference_asset_id: int) -> RelatedSearchStatusV1:
     """Report only persisted readiness; never decode or derive media here."""
     with _DB_LOCK, _connect() as conn:
-        metadata_ready = _table_exists(conn, "asset_generation_signatures") and bool(
+        asset = conn.execute("SELECT library_id FROM assets WHERE id = ?", (reference_asset_id,)).fetchone()
+        metadata_reference_ready = _table_exists(conn, "asset_generation_signatures") and bool(
             conn.execute(
-                "SELECT 1 FROM asset_generation_signatures WHERE asset_id = ?",
-                (reference_asset_id,),
+                """
+                SELECT 1
+                FROM asset_generation_signatures AS signature
+                JOIN assets AS current_asset ON current_asset.id = signature.asset_id
+                WHERE signature.asset_id = ?
+                  AND signature.source_mtime_ns = current_asset.mtime_ns
+                  AND signature.source_size = current_asset.size
+                  AND signature.normalizer_version = ?
+                  AND signature.extractor_version = ?
+                """,
+                (reference_asset_id, PROMPT_NORMALIZER_VERSION, GENERATION_SIGNATURE_EXTRACTOR_VERSION),
             ).fetchone()
+        )
+        metadata_state = (
+            conn.execute(
+                """
+                SELECT state, indexed_count, target_count
+                FROM search_index_states
+                WHERE index_name = 'generation_signatures' AND library_id = ?
+                """,
+                (int(asset["library_id"]),),
+            ).fetchone()
+            if asset is not None
+            else None
         )
         visual_ready = _table_exists(conn, "asset_visual_fingerprints") and bool(
             conn.execute(
@@ -63,8 +86,27 @@ def _related_status(reference_asset_id: int) -> RelatedSearchStatusV1:
                 (reference_asset_id,),
             ).fetchone()
         )
+    if metadata_state is None:
+        metadata = _component_status("generation_signatures", ready=False)
+    else:
+        state = str(metadata_state["state"])
+        indexed_count = int(metadata_state["indexed_count"] or 0)
+        target_count = int(metadata_state["target_count"] or 0)
+        usable = state == "ready" or (state in {"building", "degraded"} and (indexed_count > 0 or target_count == 0))
+        if state == "pending":
+            state = "not_ready"
+        if usable and not metadata_reference_ready:
+            state = "not_ready"
+            usable = False
+        metadata = RelatedIndexComponentStatusV1(
+            index_name="generation_signatures",
+            state=state,
+            usable=usable,
+            indexed_count=indexed_count,
+            target_count=target_count,
+        )
     return RelatedSearchStatusV1(
-        metadata=_component_status("generation_signatures", ready=metadata_ready),
+        metadata=metadata,
         visual=_component_status("visual_fingerprints", ready=visual_ready),
     )
 

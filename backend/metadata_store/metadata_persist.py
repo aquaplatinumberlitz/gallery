@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ..files import is_image_path, is_index_excluded_path
+from ..generation_signatures import invalidate_generation_signature_conn, schedule_generation_signature_backfill
 from ..metadata_extract import ExtractedMetadata, metadata_sidecar_identity, parse_float, parse_int, safe_text
 from ._asset_store import _upsert_asset_conn
 from ._db import _DB_LOCK, _connect
@@ -47,10 +48,10 @@ def _needs_reindex(conn: sqlite3.Connection, path: Path, mtime: float, mtime_ns:
     return row is None or tuple(row) != metadata_sidecar_identity(path)
 
 
-def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: ExtractedMetadata) -> bool:
+def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: ExtractedMetadata) -> int | None:
     owner = conn.execute(
         """
-        SELECT 1
+        SELECT a.id, a.library_id
         FROM assets AS a
         JOIN libraries AS l ON l.id = a.library_id
         WHERE a.path = ?
@@ -64,7 +65,7 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
         (metadata.path, metadata.mtime_ns, metadata.size),
     ).fetchone()
     if owner is None:
-        return False
+        return None
     conn.execute(
         """
         INSERT INTO image_metadata (
@@ -179,7 +180,8 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
         expected_size=metadata.size,
     )
     _replace_image_resources_conn(conn, metadata.path, metadata.metadata_json, metadata.lora_text, metadata.indexed_at)
-    return True
+    invalidate_generation_signature_conn(conn, int(owner["id"]))
+    return int(owner["library_id"])
 
 
 def _sync_dimensions_to_file_index(
@@ -225,13 +227,14 @@ def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: boo
         return False
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
-        persisted = _upsert_extracted_metadata_conn(conn, metadata)
-        if not persisted:
+        library_id = _upsert_extracted_metadata_conn(conn, metadata)
+        if library_id is None:
             return False
         if mark_job_done:
             job = _metadata_job_from_path(metadata.path)
             if job is not None and job.mtime == metadata.mtime and job.size == metadata.size:
                 _mark_current_metadata_done(conn, job, metadata.indexed_at)
+    schedule_generation_signature_backfill(library_id)
     return True
 
 
@@ -241,10 +244,16 @@ def upsert_metadata_batch(metadata_items: Iterable[ExtractedMetadata]) -> int:
     if not rows:
         return 0
     _initialize_database()
+    library_ids: set[int] = set()
     with _DB_LOCK, _connect() as conn:
         persisted = 0
         for metadata in rows:
-            persisted += int(_upsert_extracted_metadata_conn(conn, metadata))
+            library_id = _upsert_extracted_metadata_conn(conn, metadata)
+            if library_id is not None:
+                persisted += 1
+                library_ids.add(library_id)
+    for library_id in sorted(library_ids):
+        schedule_generation_signature_backfill(library_id)
     return persisted
 
 
@@ -258,6 +267,7 @@ def index_image(path: Path) -> bool:
         return False
 
     _initialize_database()
+    library_id: int | None = None
     with _DB_LOCK, _connect() as conn:
         if not _needs_reindex(conn, path, stat.st_mtime, stat.st_mtime_ns, stat.st_size):
             return False
@@ -265,7 +275,10 @@ def index_image(path: Path) -> bool:
             metadata = _extract_metadata(path)
         except Exception:  # noqa: BLE001
             return False
-        return _upsert_extracted_metadata_conn(conn, metadata)
+        library_id = _upsert_extracted_metadata_conn(conn, metadata)
+    if library_id is not None:
+        schedule_generation_signature_backfill(library_id)
+    return library_id is not None
 
 
 def index_images(paths: Iterable[str | Path]) -> int:
@@ -497,6 +510,7 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
     source_path, source_mtime_ns, source_size = metadata_sidecar_identity(image_path)
 
     _initialize_database()
+    library_id: int | None = None
     with _DB_LOCK, _connect() as conn:
         conn.execute(
             """
@@ -584,7 +598,7 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
             "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, 'image', ?)",
             (image_path.name, resolved_path, str(image_path.parent.resolve())),
         )
-        _upsert_asset_conn(
+        asset_id = _upsert_asset_conn(
             conn,
             path=resolved_path,
             name=image_path.name,
@@ -605,4 +619,12 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
             expected_mtime_ns=stat.st_mtime_ns,
             expected_size=stat.st_size,
         )
+        _replace_image_resources_conn(conn, resolved_path, metadata_json, None, now)
+        if asset_id:
+            owner = conn.execute("SELECT library_id FROM assets WHERE id = ?", (asset_id,)).fetchone()
+            if owner is not None:
+                library_id = int(owner["library_id"])
+                invalidate_generation_signature_conn(conn, asset_id)
+    if library_id is not None:
+        schedule_generation_signature_backfill(library_id)
     return True

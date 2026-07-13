@@ -23,7 +23,51 @@ def _gallery_metadata_db() -> Path:
     return _gallery_metadata_db_path()
 
 
-CATALOG_SCHEMA_VERSION = 8
+CATALOG_SCHEMA_VERSION = 10
+
+
+def _ensure_generation_signature_schema(
+    conn: sqlite3.Connection,
+    *,
+    execute_statement: Callable[[str], object] | None = None,
+) -> None:
+    """Create compact versioned generation-intent signatures."""
+    statements = [
+        """
+        CREATE TABLE IF NOT EXISTS asset_generation_signatures (
+          asset_id INTEGER PRIMARY KEY REFERENCES assets(id) ON DELETE CASCADE,
+          library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+          prompt_hash BLOB,
+          family_hash BLOB,
+          recipe_hash BLOB,
+          exact_hash BLOB,
+          normalizer_version INTEGER NOT NULL,
+          extractor_version INTEGER NOT NULL,
+          source_mtime_ns INTEGER NOT NULL,
+          source_size INTEGER NOT NULL,
+          indexed_at REAL NOT NULL
+        )
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_generation_signatures_prompt
+          ON asset_generation_signatures(library_id, prompt_hash, asset_id)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_generation_signatures_family
+          ON asset_generation_signatures(library_id, family_hash, asset_id)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_generation_signatures_recipe
+          ON asset_generation_signatures(library_id, recipe_hash, asset_id)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_generation_signatures_exact
+          ON asset_generation_signatures(library_id, exact_hash, asset_id)
+        """,
+    ]
+    execute = execute_statement or conn.execute
+    for statement in statements:
+        execute(statement)
 
 
 def _ensure_raw_workflow_schema(
@@ -878,6 +922,45 @@ def _migrate_v7_to_v8(conn: sqlite3.Connection) -> None:
         raise
 
 
+def _execute_v10_migration_statement(conn: sqlite3.Connection, statement: str) -> None:
+    """Execute one v8-to-v10 migration statement (test injection seam)."""
+    conn.execute(statement)
+
+
+def _backup_v8_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v10 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v8.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v8_to_v10(conn: sqlite3.Connection) -> None:
+    """Add generation signatures without performing an inline backfill.
+
+    Version 9 was used by a historical pre-versioned catalog and remains a
+    legacy reset sentinel, so the next maintained schema version is 10.
+    """
+    conn.commit()
+    _backup_v8_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _ensure_generation_signature_schema(
+            conn,
+            execute_statement=lambda statement: _execute_v10_migration_statement(conn, statement),
+        )
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v10 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 10")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     current_version = conn.execute("PRAGMA user_version").fetchone()[0]
     has_application_tables = _database_has_application_tables(conn)
@@ -915,6 +998,10 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         current_version = 8
 
     if current_version == 8:
+        _migrate_v8_to_v10(conn)
+        current_version = 10
+
+    if current_version == 10:
         _cleanup_ignored_index_conn(conn)
         _ensure_post_v1_additive_columns(conn)
         _ensure_v3_schema(conn)
@@ -922,13 +1009,14 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         _ensure_prompt_discovery_schema(conn)
         _ensure_workflow_property_schema(conn)
         _ensure_raw_workflow_schema(conn)
+        _ensure_generation_signature_schema(conn)
         return
 
     if current_version == 0 and has_application_tables:
         raise RuntimeError("Catalog database has application tables but no schema version; delete it and start fresh")
 
     if current_version != 0:
-        raise RuntimeError(f"Catalog database must be fresh (v0-v8); found v{current_version}")
+        raise RuntimeError(f"Catalog database must be fresh (v0-v10); found v{current_version}")
 
     conn.executescript(
         """
@@ -1271,6 +1359,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     _ensure_prompt_discovery_schema(conn)
     _ensure_workflow_property_schema(conn)
     _ensure_raw_workflow_schema(conn)
+    _ensure_generation_signature_schema(conn)
 
     conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")
     _cleanup_ignored_index_conn(conn)

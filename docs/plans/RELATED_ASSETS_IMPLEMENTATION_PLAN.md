@@ -278,34 +278,34 @@ Signature inputs:
 
 Rules:
 
-- [ ] Missing values are represented explicitly; they are not guessed.
-- [ ] A model hash wins as identity when present; normalized model name is a
+- [x] Missing values are represented explicitly; they are not guessed.
+- [x] A model hash wins as identity when present; normalized model name is a
       fallback, not a silent hash alias.
-- [ ] Resource identity uses resource hash when present, otherwise normalized
+- [x] Resource identity uses resource hash when present, otherwise normalized
       kind/name, with a stable sort order.
-- [ ] Numeric values have documented canonical formatting before hashing.
-- [ ] Workflow JSON text is never hashed wholesale into a family. Only typed,
+- [x] Numeric values have documented canonical formatting before hashing.
+- [x] Workflow JSON text is never hashed wholesale into a family. Only typed,
       bounded properties approved by the discovery registry may participate.
-- [ ] A weak signature containing only a common model, seed, or sampler is not
+- [x] A weak signature containing only a common model, seed, or sampler is not
       eligible to form a relation by itself.
 
 ### Lifecycle
 
-- [ ] Derive signatures when current normalized metadata is persisted.
-- [ ] Backfill through existing durable metadata/search lifecycle primitives.
-- [ ] Key backfill by active `asset_id`; use bounded batches and short writes.
-- [ ] Source mtime/size or normalizer/extractor version changes invalidate rows.
-- [ ] Offline, deleted, replaced, or unowned assets cannot remain candidates.
-- [ ] Failures are counted and observable without failing catalog or lexical search.
+- [x] Derive signatures when current normalized metadata is persisted.
+- [x] Backfill through existing durable metadata/search lifecycle primitives.
+- [x] Key backfill by active `asset_id`; use bounded batches and short writes.
+- [x] Source mtime/size or normalizer/extractor version changes invalidate rows.
+- [x] Offline, deleted, replaced, or unowned assets cannot remain candidates.
+- [x] Failures are counted and observable without failing catalog or lexical search.
 
 ### Acceptance gates
 
-- [ ] Equivalent normalized prompts produce the same prompt hash.
-- [ ] A seed-only change preserves family/recipe as designed and changes exact hash.
-- [ ] A sampler or CFG change preserves family and changes recipe/exact hashes.
-- [ ] A model or LoRA identity change changes family, recipe, and exact hashes.
-- [ ] Missing metadata never creates a false strong family from defaults.
-- [ ] Reindexing is idempotent and produces one current signature per active asset.
+- [x] Equivalent normalized prompts produce the same prompt hash.
+- [x] A seed-only change preserves family/recipe as designed and changes exact hash.
+- [x] A sampler or CFG change preserves family and changes recipe/exact hashes.
+- [x] A model or LoRA identity change changes family, recipe, and exact hashes.
+- [x] Missing metadata never creates a false strong family from defaults.
+- [x] Reindexing is idempotent and produces one current signature per active asset.
 
 ## R2 - Explainable metadata-related ranking
 
@@ -632,3 +632,4 @@ When complete, move this file to `docs/archived/` and update
 | Date | Phase | Result | Evidence |
 | --- | --- | --- | --- |
 | 2026-07-13 | R0 | Complete | Pre-change schema/runtime/catalog and managed 5,000-row search/facet baselines recorded; deterministic metadata/visual relation fixture added; versioned `/api/search/related` request/result/status/reason/error models and canonical reference authorization covered by 8 focused contracts. |
+| 2026-07-13 | R1 | Complete | Schema v10 adds compact generation signatures with rollback-safe `.v8.bak`; versioned prompt atoms and canonical numeric hashing lock family/recipe/exact boundaries; metadata persistence invalidates and coalesces durable active-only backfill; 15 focused tests plus lifecycle/API regression coverage pass. |

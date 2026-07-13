@@ -122,6 +122,14 @@ Important tables:
   recovery.
 - `search_index_states` and `asset_search_extractions`: explicit per-library
   readiness/usability plus per-asset source fingerprints and extractor status.
+- `asset_generation_signatures`: compact stdlib SHA-256 prompt/family/recipe/
+  exact digests tied to active catalog assets and maintained by the same
+  durable derived-index worker.
+
+Generation signatures require no image model, embedding runtime, vector
+extension, sidecar service, or new third-party dependency. Normalization,
+canonical JSON, decimal formatting, and hashing use the Python standard
+library; SQLite remains the only durable relation store.
 
 Search behavior:
 

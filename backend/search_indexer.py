@@ -15,6 +15,11 @@ from .config import (
     GALLERY_SEARCH_WORKFLOW_RAW_ENABLED,
 )
 from .errors import APIError, ErrorType
+from .generation_signatures import (
+    GENERATION_SIGNATURE_EXTRACTOR_VERSION,
+    extract_generation_signature,
+    persist_generation_signature,
+)
 from .metadata_store.library_store import list_libraries
 from .metadata_store.search_index_store import (
     SearchIndexClaimLost,
@@ -52,7 +57,7 @@ class SearchIndexDefinition:
     schema_version: int
     extractor_version: int
     enabled: bool
-    required_mode: Literal["prompt_groups", "workflow", "raw"]
+    required_mode: Literal["prompt_groups", "workflow", "raw", "related"]
     extractor: Any = None
     persist: Any = None
 
@@ -62,6 +67,15 @@ def _noop_persist(_conn, _asset, _payload) -> None:  # noqa: ANN001
 
 
 _DEFINITIONS: dict[str, SearchIndexDefinition] = {
+    "generation_signatures": SearchIndexDefinition(
+        name="generation_signatures",
+        schema_version=1,
+        extractor_version=GENERATION_SIGNATURE_EXTRACTOR_VERSION,
+        enabled=True,
+        required_mode="related",
+        extractor=extract_generation_signature,
+        persist=persist_generation_signature,
+    ),
     "prompt_values": SearchIndexDefinition(
         name="prompt_values",
         schema_version=1,

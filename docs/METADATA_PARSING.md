@@ -91,13 +91,14 @@ resets interrupted `running` jobs, fails exhausted attempts, and repairs
 historical rows where a done job/current metadata row exists but the asset state
 was not materialized.
 
-The shared catalog database is schema version 4. Version 1 first upgrades via a
-consistent `.v1.bak` and atomic REAL-to-INTEGER nanosecond migration. Version 2
-then creates `.v2.bak` and atomically adds catalog claim fencing and durable
-scheduled-attempt fields. Version 3 creates `.v3.bak` and backfills file-index
-library ownership only for paths with exactly one catalog owner. Metadata and catalog rows remain in the same
-single-process SQLite database; migrations do not introduce a second store or
-modify source media.
+The shared catalog database is schema version 10. Version 10 creates
+`asset_generation_signatures` through a consistent `.v8.bak`, one
+`BEGIN IMMEDIATE`, a foreign-key check, and a final `user_version` publish. It
+does not backfill inline. Version 9 remains reserved for a historical catalog
+sentinel, so maintained schema evolution advances directly from 8 to 10.
+Earlier migrations retain their documented backups and ownership rules.
+Metadata and catalog rows remain in the same single-process SQLite database;
+migrations do not introduce a second store or modify source media.
 
 ## Stored database fields
 
@@ -125,6 +126,32 @@ collapsed whitespace, casefolded search text, and SHA-256 of
 `not_applicable`; the backfill never reopens media. Observed model names and
 hashes from core metadata and checkpoint/model resources are retained as
 explicit many-to-many aliases.
+
+The separate version-1 generation prompt normalizer splits positive and
+negative prompts primarily on comma/newline atoms, applies Unicode NFKC,
+collapses whitespace, casefolds identity while retaining display text, and
+parses only supported outer emphasis syntax into a weight clamped from `0.1`
+through `2`. It rejects empty, control-heavy, and over-160-character atoms;
+each prompt is capped at 64 atoms and candidate lookup may select at most 16.
+
+The enabled `generation_signatures` derived index stores one current row per
+active asset. `prompt_hash` covers normalized positive/negative atoms;
+`family_hash` adds explicit model identity plus sorted resource identities;
+`recipe_hash` adds recorded sampler, scheduler, steps, CFG, dimensions,
+denoising, hires, VAE, resource strength, and approved typed workflow
+properties; `exact_hash` adds recorded seed/deterministic identifiers. Model
+and resource hashes win over normalized name fallbacks. Numeric inputs use a
+finite, non-exponent decimal form with trailing zeroes removed and negative
+zero mapped to `0`. Missing inputs remain explicit and a promptless record
+cannot create family, recipe, or exact hashes from common model/seed/sampler
+defaults. Raw workflow JSON is never hashed wholesale.
+
+Full metadata persistence deletes any prior signature and extraction marker in
+the same transaction, then coalesces a durable missing-index job after commit.
+Backfill uses active `asset_id` keysets in batches of at most 200; source
+mtime/size and extractor version drive refresh, and failures remain observable
+in the standard derived-index job/state tables without blocking metadata or
+lexical search.
 
 For ComfyUI, parsing also retains a bounded normalized internal workflow
 document in the stored metadata payload. The document prefers API prompt graph

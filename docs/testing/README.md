@@ -41,6 +41,11 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
   lock the bounded reference request, canonical scope authorization, typed
   readiness/error models, stable reason codes, and deterministic metadata and
   visual relation fixture cases before derived relation indexes are added.
+- Generation-signature tests: `backend/tests/test_generation_signatures.py`
+  cover bounded Unicode/emphasis prompt atoms, canonical numeric inputs,
+  layered hash sensitivity, weak-metadata rejection, schema-v10
+  backup/rollback, active-only durable backfill, idempotence, and metadata-write
+  invalidation/repair scheduling.
 - Performance contract tests: backend pytest hot-path tests such as `backend/tests/test_browse_api.py`, `backend/tests/test_search_ranked_pagination.py`, and `backend/tests/test_warm_folder_listing.py` prevent known slow-path regressions with query-plan/SQL-shape assertions rather than wall-clock unit assertions.
 - Performance diagnostics: `frontend/tests/e2e/metadata-performance.spec.ts`, `frontend/tests/e2e/perf/album-open.perf.spec.ts`, `frontend/tests/e2e/perf/lightbox.perf.spec.ts`, `scripts/bench_search.py`, `scripts/perf_library_inspector.py`, and `scripts/perf_warm_listing.py` emit compact timing reports.
 - Album-open performance reports the first thumbnail iteration as cold-cache diagnostics and gates `thumbnail_p95_ms` on later warm-cache iterations.
