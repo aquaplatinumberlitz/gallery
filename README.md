@@ -213,7 +213,7 @@ gallery-repo/
 | `GET`                  | `/api/metadata?path=...`                        | Parse AI generation metadata                                                                    |
 | `GET`                  | `/api/search`                                   | Typed folder/library/all photo/album/prompt search with opaque cursors                           |
 | `POST`                 | `/api/search/query`                             | Canonical Search V2 request with ID-based scope, prompt groups, typed workflow predicates, and opaque cursors |
-| `POST`                 | `/api/search/related`                           | Versioned reference-asset relation request with typed reason and readiness models                |
+| `POST`                 | `/api/search/related`                           | Versioned reference-asset request with explainable metadata tiers/reasons and visual readiness    |
 | `POST`                 | `/api/search/prompt-usage/query`                | Normalized positive/negative prompt groups with active-catalog counts and keyset paging           |
 | `POST`                 | `/api/search/workflow/raw`                      | Optional bounded literal trigram search over canonical workflow JSON                              |
 | `GET`                  | `/api/search/capabilities`                      | Enabled search modes, fixed limits, registries, and required derived indexes                     |

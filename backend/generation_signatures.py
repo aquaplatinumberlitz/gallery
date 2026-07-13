@@ -13,17 +13,27 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from .metadata_store._db import _DB_LOCK, _connect
-
 PROMPT_NORMALIZER_VERSION = 1
 GENERATION_SIGNATURE_EXTRACTOR_VERSION = 1
 MAX_PROMPT_ATOMS = 64
 MAX_PROMPT_ATOM_CHARS = 160
 MAX_FTS_PROMPT_ATOMS = 16
+PROMPT_BOILERPLATE_POLICY_VERSION = 1
 MIN_EMPHASIS_WEIGHT = Decimal("0.1")
 MAX_EMPHASIS_WEIGHT = Decimal("2")
 
 _EXPLICIT_WEIGHT = re.compile(r"^\((.*):([+-]?(?:\d+(?:\.\d+)?|\.\d+))\)$", re.DOTALL)
+_COMMON_PROMPT_ATOMS_V1 = frozenset(
+    {
+        "4k",
+        "8k",
+        "best quality",
+        "high quality",
+        "highres",
+        "masterpiece",
+        "ultra detailed",
+    }
+)
 _RECIPE_WORKFLOW_PROPERTIES = {
     "steps",
     "start_at_step",
@@ -149,16 +159,27 @@ def normalize_prompt_atoms(value: Any, *, limit: int = MAX_PROMPT_ATOMS) -> list
 
 def select_prompt_atoms_for_fts(atoms: list[PromptAtom], *, limit: int = MAX_FTS_PROMPT_ATOMS) -> list[PromptAtom]:
     """Select one bounded stable set of distinct atoms for candidate lookup."""
-    selected: list[PromptAtom] = []
-    seen: set[str] = set()
-    for atom in atoms:
-        if atom.identity in seen:
-            continue
-        seen.add(atom.identity)
-        selected.append(atom)
-        if len(selected) >= min(max(1, limit), MAX_FTS_PROMPT_ATOMS):
-            break
-    return selected
+    distinct: dict[str, tuple[int, PromptAtom]] = {}
+    for ordinal, atom in enumerate(atoms):
+        existing = distinct.get(atom.identity)
+        if existing is None or Decimal(atom.weight) > Decimal(existing[1].weight):
+            distinct[atom.identity] = (ordinal, atom)
+    ranked = sorted(
+        distinct.values(),
+        key=lambda item: (
+            item[1].identity in _COMMON_PROMPT_ATOMS_V1,
+            -float(Decimal(item[1].weight)),
+            -len(item[1].identity),
+            item[0],
+            item[1].identity,
+        ),
+    )
+    return [item[1] for item in ranked[: min(max(1, limit), MAX_FTS_PROMPT_ATOMS)]]
+
+
+def is_common_prompt_atom(identity: str) -> bool:
+    """Return the version-1 boilerplate classification used by ranking."""
+    return identity in _COMMON_PROMPT_ATOMS_V1
 
 
 def _clean_identity(value: Any) -> str | None:
@@ -221,6 +242,7 @@ def _typed_workflow_values(metadata_json: str | None) -> tuple[list[dict[str, An
 
 
 def _metadata_source(asset: dict[str, Any]) -> dict[str, Any] | None:
+    from .metadata_store._db import _DB_LOCK, _connect
     from .metadata_store._schema import initialize_database
 
     initialize_database()

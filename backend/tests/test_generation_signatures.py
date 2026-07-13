@@ -121,6 +121,8 @@ def test_prompt_atoms_normalize_unicode_emphasis_limits_and_fts_selection() -> N
     selected = select_prompt_atoms_for_fts(capped + capped)
     assert len(selected) == MAX_FTS_PROMPT_ATOMS
     assert len({atom.identity for atom in selected}) == MAX_FTS_PROMPT_ATOMS
+    distinctive = select_prompt_atoms_for_fts(normalize_prompt_atoms("masterpiece, best quality, rare glass fox"))
+    assert [atom.identity for atom in distinctive] == ["rare glass fox", "best quality", "masterpiece"]
 
 
 @pytest.mark.parametrize(

@@ -20,6 +20,7 @@ from .models import (
     RelatedSearchResponseV1,
     RelatedSearchStatusV1,
 )
+from .related_ranking import rank_related_metadata
 from .search_scope import SearchScopeContext, resolve_search_v2_scope
 
 router = APIRouter()
@@ -167,12 +168,22 @@ def api_search_related(request: RelatedSearchRequestV1) -> RelatedSearchResponse
                 "Required persisted relation index is unusable",
                 extra={"status": status.model_dump(mode="json")},
             )
+        items = (
+            []
+            if request.profile == "visual"
+            else rank_related_metadata(
+                int(reference["id"]),
+                context,
+                profile=request.profile,
+                limit=request.limit,
+            )
+        )
         return RelatedSearchResponseV1(
             reference_asset_id=request.reference_asset_id,
             profile=request.profile,
             scope=request.scope,
-            items=[],
-            returned=0,
+            items=items,
+            returned=len(items),
             limit=request.limit,
             status=status,
         )

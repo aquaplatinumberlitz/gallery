@@ -324,13 +324,13 @@ Build a bounded UNION of indexed candidates from:
 
 Rules:
 
-- [ ] A model, sampler, seed, orientation, or folder match alone is insufficient.
-- [ ] Prompt atoms use deterministic selection based on parsed weight, phrase
+- [x] A model, sampler, seed, orientation, or folder match alone is insufficient.
+- [x] Prompt atoms use deterministic selection based on parsed weight, phrase
       length, duplicate removal, and a versioned common-boilerplate policy.
-- [ ] FTS prompt candidates are capped before metadata rows are loaded.
-- [ ] Candidate collection is bounded before exact scoring.
-- [ ] Metadata scoring happens outside write transactions.
-- [ ] Scope and active-asset filters apply in every candidate branch.
+- [x] FTS prompt candidates are capped before metadata rows are loaded.
+- [x] Candidate collection is bounded before exact scoring.
+- [x] Metadata scoring happens outside write transactions.
+- [x] Scope and active-asset filters apply in every candidate branch.
 
 ### Fixed relation tiers
 
@@ -376,12 +376,12 @@ Initial stable reason codes:
 
 ### Acceptance gates
 
-- [ ] Same model with unrelated prompts does not outrank a same-family result.
-- [ ] Seed alone never creates a relation.
-- [ ] Common boilerplate cannot dominate rare meaningful prompt atoms.
-- [ ] Results contain deterministic tiers, order, and reason codes.
-- [ ] Cross-library, offline, deleted, stale, and unowned candidates are excluded.
-- [ ] Missing optional workflow indexes degrade to metadata-only results safely.
+- [x] Same model with unrelated prompts does not outrank a same-family result.
+- [x] Seed alone never creates a relation.
+- [x] Common boilerplate cannot dominate rare meaningful prompt atoms.
+- [x] Results contain deterministic tiers, order, and reason codes.
+- [x] Cross-library, offline, deleted, stale, and unowned candidates are excluded.
+- [x] Missing optional workflow indexes degrade to metadata-only results safely.
 
 ## R3 - Lightweight visual-variant fingerprints
 
@@ -633,3 +633,4 @@ When complete, move this file to `docs/archived/` and update
 | --- | --- | --- | --- |
 | 2026-07-13 | R0 | Complete | Pre-change schema/runtime/catalog and managed 5,000-row search/facet baselines recorded; deterministic metadata/visual relation fixture added; versioned `/api/search/related` request/result/status/reason/error models and canonical reference authorization covered by 8 focused contracts. |
 | 2026-07-13 | R1 | Complete | Schema v10 adds compact generation signatures with rollback-safe `.v8.bak`; versioned prompt atoms and canonical numeric hashing lock family/recipe/exact boundaries; metadata persistence invalidates and coalesces durable active-only backfill; 15 focused tests plus lifecycle/API regression coverage pass. |
+| 2026-07-13 | R2 | Complete | Bounded signature/model/resource/workflow/16-atom FTS candidates feed scoring outside SQLite writes; fixed explainable tiers/reasons and recipe filtering pass the golden fixture; stale, inactive, cross-scope, seed-only, model-only, LoRA-only, and boilerplate-only leakage is rejected. |

@@ -396,6 +396,18 @@ Backend modules are mostly flat, with selected domain packages.
   Metadata persistence invalidates stale rows transactionally and coalesces a
   durable missing backfill; active assets are processed in the existing
   200-row single-writer batches and failures degrade only this optional index.
+- Related metadata requests collect at most 600 distinct candidates from
+  bounded signature, model, resource, optional typed-workflow, and prompt-FTS
+  branches. Prompt FTS uses at most 16 versioned distinctive atoms and
+  deprioritizes common boilerplate. Every branch starts from the same active,
+  current-source, authorized `eligible` CTE, and FTS candidates are capped
+  before metadata rows are loaded. The SQLite read closes before deterministic
+  weighted prompt/resource/workflow/settings scoring. Fixed tiers 100/90/80/
+  70/60/40 and stable evidence codes determine ordering before mtime and
+  `asset_id` tie-breakers. Same model, sampler, seed, folder, orientation, or
+  common boilerplate alone never creates a result. The `recipe` profile keeps
+  only exact-signature and same-recipe tiers; missing workflow-property rows
+  safely reduce candidate evidence without disabling metadata ranking.
 - The enabled `workflow_properties` index accepts only the code-owned ComfyUI
   registry advertised by search capabilities. API prompt graphs provide named
   inputs; supported UI graph widgets use a versioned positional map. Search
@@ -624,8 +636,8 @@ Header search or AdvancedSearchDrawer
   image reference before reading relation data, excludes the reference from
   results, and distinguishes missing relation coverage (409) from unusable
   persisted relation data (503). R0 exposes the complete contract while the
-  R1 supplies persisted generation signatures and their per-library readiness;
-  metadata profiles still return no ranked items until R2, while the
+  R1 supplies persisted generation signatures and per-library readiness; R2
+  returns bounded explainable results for `related` and `recipe`. The
   visual-fingerprint component remains not ready until R3.
 - Derived discovery indexes use durable per-library states and jobs. Claims
   carry worker ID, opaque token, and lease; completion is fenced. Workers read

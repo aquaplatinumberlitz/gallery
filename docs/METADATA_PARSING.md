@@ -153,6 +153,17 @@ mtime/size and extractor version drive refresh, and failures remain observable
 in the standard derived-index job/state tables without blocking metadata or
 lexical search.
 
+Related metadata ranking uses the same prompt atoms. Candidate lookup selects
+at most 16 distinct atoms by parsed weight, phrase length, first occurrence,
+and a version-1 common-boilerplate policy (`masterpiece`, quality/resolution
+boilerplate, and similar fixed terms sort behind distinctive phrases). A
+bounded union of signature, model, resource, optional typed-workflow, and FTS
+sources is capped at 600 assets before rows are loaded. Weighted prompt Jaccard
+downweights boilerplate, then resource overlap, model/workflow compatibility,
+recorded-setting proximity, mtime, and asset ID produce deterministic ordering
+inside fixed relation tiers. Stable reason codes describe recorded evidence;
+they do not claim lineage, semantic understanding, or probability.
+
 For ComfyUI, parsing also retains a bounded normalized internal workflow
 document in the stored metadata payload. The document prefers API prompt graph
 named inputs and uses a versioned widget-position map only for recognized UI
