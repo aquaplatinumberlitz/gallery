@@ -158,6 +158,9 @@ from .job_store import (
     enqueue_startup_catalog_scans as enqueue_startup_catalog_scans,
 )
 from .job_store import (
+    fail_abandoned_catalog_job_claim as fail_abandoned_catalog_job_claim,
+)
+from .job_store import (
     get_job as get_job,
 )
 from .job_store import (

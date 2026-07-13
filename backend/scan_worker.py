@@ -33,6 +33,7 @@ from .metadata_store import (
     delete_rebuild_staging_for_lost_claim,
     enqueue_startup_catalog_scans,
     enumerate_to_rebuild_staging,
+    fail_abandoned_catalog_job_claim,
     get_job,
     get_library,
     get_library_for_path,
@@ -74,6 +75,27 @@ def _emit_job(job: dict[str, Any], event_type: str = "job.updated") -> None:
         publish(event_payload("library.progress", job))
 
 
+def _emit_job_and_parent_updates(job: dict[str, Any], event_type: str) -> None:
+    """Emit one catalog job and recompute any aggregate parents."""
+    _emit_job(job, event_type)
+    if job.get("type") not in {"scan", "rebuild"}:
+        return
+    from .metadata_store.job_store import list_parent_aggregate_job_ids, update_parent_aggregate_job
+
+    for parent_job_id in list_parent_aggregate_job_ids(int(job["id"])):
+        parent = update_parent_aggregate_job(parent_job_id)
+        if parent is None:
+            continue
+        parent_event = (
+            "job.completed"
+            if parent["state"] == "succeeded"
+            else "job.failed"
+            if parent["state"] == "failed"
+            else "job.updated"
+        )
+        _emit_job(parent, parent_event)
+
+
 def _transition_job(
     job_id: int,
     state: str,
@@ -99,22 +121,7 @@ def _transition_job(
         event_type = "job.failed"
     elif state == "cancelled":
         event_type = "job.cancelled"
-    _emit_job(job, event_type)
-    if job.get("type") in {"scan", "rebuild"}:
-        from .metadata_store.job_store import list_parent_aggregate_job_ids, update_parent_aggregate_job
-
-        for parent_job_id in list_parent_aggregate_job_ids(int(job["id"])):
-            parent = update_parent_aggregate_job(parent_job_id)
-            if parent is None:
-                continue
-            parent_event = (
-                "job.completed"
-                if parent["state"] == "succeeded"
-                else "job.failed"
-                if parent["state"] == "failed"
-                else "job.updated"
-            )
-            _emit_job(parent, parent_event)
+    _emit_job_and_parent_updates(job, event_type)
     return job
 
 
@@ -628,7 +635,20 @@ def run_once() -> bool:
                 error="Unsupported",
             )
     finally:
-        heartbeat.stop()
+        try:
+            heartbeat.stop()
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("Failed to stop catalog heartbeat for job %s", job["id"])
+        with _active_claims_lock:
+            _active_catalog_claims.discard((int(job["id"]), str(job["claim_token"])))
+        try:
+            abandoned = fail_abandoned_catalog_job_claim(int(job["id"]), str(job["claim_token"]))
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("Failed to close abandoned catalog claim for job %s", job["id"])
+        else:
+            if abandoned is not None:
+                LOGGER.error("Catalog job %s exited without a terminal claim write", job["id"])
+                _emit_job_and_parent_updates(abandoned, "job.failed")
     return True
 
 

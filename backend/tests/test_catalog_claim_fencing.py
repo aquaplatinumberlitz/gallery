@@ -8,7 +8,8 @@ Only dead/expired claims recover, live heartbeats win races, stale workers canno
 write catalog data, staging is cleaned, terminal library/job state is atomic,
 dependency-linked parents recover, bounded/atomic writes refresh their claim,
 metadata enqueue is claim-aware, live heartbeats survive another worker's long
-write, healthy parents stay unchanged, and v2-to-v3 migration rolls back safely.
+write, late renewal cannot orphan an executor-less job, healthy parents stay
+unchanged, and v2-to-v3 migration rolls back safely.
 
 Run when:
 Changing catalog workers, library_jobs claims, supervisor recovery, or schema.
@@ -121,6 +122,49 @@ def test_expired_claim_can_be_renewed_before_recovery_but_not_completed_first(
     assert update_job_state(job["id"], "succeeded", claim_token=job["claim_token"]) is None
     assert renew_catalog_job_lease(job["id"], job["claim_token"], lease_seconds=60)
     assert update_job_state(job["id"], "succeeded", claim_token=job["claim_token"]) is not None
+
+
+def test_run_once_closes_claim_renewed_by_late_heartbeat(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    library_id, queued = _queued_job(isolated_gallery_root, "late-heartbeat")
+
+    def abort_after_expiry(job: dict) -> bool:
+        with _DB_LOCK, _connect() as conn:
+            conn.execute(
+                "UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?",
+                (time.time() - 1, job["id"]),
+            )
+        assert update_job_state(job["id"], "succeeded", claim_token=job["claim_token"]) is None
+        return False
+
+    class LateHeartbeat:
+        def __init__(self, job_id: int, claim_token: str) -> None:
+            self.job_id = job_id
+            self.claim_token = claim_token
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            assert renew_catalog_job_lease(self.job_id, self.claim_token, lease_seconds=900)
+
+    monkeypatch.setattr(scan_worker, "execute_scan_job", abort_after_expiry)
+    monkeypatch.setattr(scan_worker, "_CatalogLeaseHeartbeat", LateHeartbeat)
+    assert scan_worker.run_once()
+
+    job = get_job(queued["id"])
+    assert job is not None
+    assert job["state"] == "failed"
+    assert job["finished_at"] is not None
+    assert get_library(library_id)["state"] == "error"
+    with _DB_LOCK, _connect() as conn:
+        claim = conn.execute(
+            "SELECT claimed_by, claim_token, lease_expires_at FROM library_jobs WHERE id = ?",
+            (queued["id"],),
+        ).fetchone()
+    assert tuple(claim) == (None, None, None)
 
 
 def test_recovery_update_allows_concurrent_heartbeat_to_win(

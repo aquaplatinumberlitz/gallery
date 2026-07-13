@@ -362,7 +362,12 @@ Backend modules are mostly flat, with selected domain packages.
   runs. Runtime recovery does not fence an expired claim whose owner thread and
   exact heartbeat token are both still live; after a global SQLite writer
   releases the lock, that token may renew even if its prior deadline passed.
-  Dead owners and startup claims have no such protection and remain recoverable.
+  When an executor returns, `run_once()` stops and unregisters the heartbeat,
+  then token-fence-fails any row that is still `running` with that same claim;
+  this closes the race where a blocked heartbeat renews after the executor has
+  already aborted. The same transaction clears claim fields, removes rebuild
+  staging, and moves an indexing library to `error`. Dead owners and startup
+  claims have no live-token protection and remain recoverable.
   Recovery deletes the recovered rebuild's staging rows in the same transaction
   and recomputes aggregate parents from both direct and dependency-table links
   only at startup or when a child actually recovered. Startup and runtime

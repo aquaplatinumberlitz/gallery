@@ -616,6 +616,48 @@ def renew_catalog_job_lease(job_id: int, claim_token: str, *, lease_seconds: flo
         return cursor.rowcount == 1
 
 
+def fail_abandoned_catalog_job_claim(
+    job_id: int,
+    claim_token: str,
+    *,
+    reason: str = "Catalog worker exited before writing a terminal state",
+) -> dict[str, Any] | None:
+    """Fence-fail a claim left running after its executor and heartbeat stop."""
+    _initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute(
+            """SELECT library_id FROM library_jobs
+               WHERE id = ? AND state = 'running' AND claim_token = ?""",
+            (job_id, claim_token),
+        ).fetchone()
+        if row is None:
+            return None
+        cursor = conn.execute(
+            """
+            UPDATE library_jobs
+            SET state = 'failed', message = ?, error = ?, updated_at = ?, finished_at = ?,
+                claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL
+            WHERE id = ? AND state = 'running' AND claim_token = ?
+            """,
+            (reason, reason, now, now, job_id, claim_token),
+        )
+        if cursor.rowcount != 1:
+            return None
+        conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
+        if row["library_id"] is not None:
+            conn.execute(
+                """
+                UPDATE libraries
+                SET state = 'error', last_error = ?, updated_at = ?
+                WHERE id = ? AND state IN ('discovering', 'indexing', 'degraded')
+                """,
+                (reason, now, int(row["library_id"])),
+            )
+        updated = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
+        return _serialize_library_job(updated)
+
+
 def get_job(job_id: int) -> dict[str, Any] | None:
     """Return one library-management job."""
     _initialize_database()
