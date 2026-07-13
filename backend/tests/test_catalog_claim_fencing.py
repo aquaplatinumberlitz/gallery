@@ -7,7 +7,8 @@ Guarantees:
 Only dead/expired claims recover, live heartbeats win races, stale workers cannot
 write catalog data, staging is cleaned, terminal library/job state is atomic,
 dependency-linked parents recover, bounded/atomic writes refresh their claim,
-healthy parents stay unchanged, and the v2-to-v3 migration rolls back safely.
+metadata enqueue is claim-aware, live heartbeats survive another worker's long
+write, healthy parents stay unchanged, and v2-to-v3 migration rolls back safely.
 
 Run when:
 Changing catalog workers, library_jobs claims, supervisor recovery, or schema.
@@ -17,12 +18,13 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from backend import scan_worker
-from backend.indexer import rebuild_index_scope
+from backend.indexer import dispatch_metadata_index_paths, rebuild_index_scope
 from backend.metadata_store import (
     _DB_LOCK,
     CatalogJobClaimLost,
@@ -35,6 +37,7 @@ from backend.metadata_store import (
     enumerate_to_rebuild_staging,
     get_job,
     get_library,
+    index_file,
     recover_stale_jobs,
     renew_catalog_job_lease,
     update_job_state,
@@ -43,14 +46,20 @@ from backend.metadata_store import (
 from backend.metadata_store import _schema as schema_module
 from backend.metadata_store import file_index as file_index_module
 from backend.metadata_store import job_store as job_store_module
+from backend.metadata_store import metadata_queue as metadata_queue_module
 from backend.metadata_store import rebuild_store as rebuild_store_module
 
 from .conftest import create_test_png
 
 
 @pytest.fixture(autouse=True)
-def _isolated_database(isolated_metadata_db: Path) -> None:
+def _isolated_database(isolated_metadata_db: Path) -> Iterator[None]:
     """Keep every claim test on a fresh schema."""
+    with scan_worker._active_claims_lock:
+        scan_worker._active_catalog_claims.clear()
+    yield
+    with scan_worker._active_claims_lock:
+        scan_worker._active_catalog_claims.clear()
 
 
 def _queued_job(root: Path, name: str) -> tuple[int, dict]:
@@ -100,7 +109,7 @@ def test_heartbeat_renewal_wins_until_lease_truly_expires(
     assert [item["id"] for item in recovered] == [job["id"]]
 
 
-def test_expired_claim_cannot_be_renewed_or_completed(
+def test_expired_claim_can_be_renewed_before_recovery_but_not_completed_first(
     isolated_gallery_root: Path,
 ) -> None:
     _queued_job(isolated_gallery_root, "expired")
@@ -109,8 +118,9 @@ def test_expired_claim_cannot_be_renewed_or_completed(
     with _DB_LOCK, _connect() as conn:
         conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, job["id"]))
 
-    assert not renew_catalog_job_lease(job["id"], job["claim_token"], lease_seconds=60)
     assert update_job_state(job["id"], "succeeded", claim_token=job["claim_token"]) is None
+    assert renew_catalog_job_lease(job["id"], job["claim_token"], lease_seconds=60)
+    assert update_job_state(job["id"], "succeeded", claim_token=job["claim_token"]) is not None
 
 
 def test_recovery_update_allows_concurrent_heartbeat_to_win(
@@ -502,6 +512,140 @@ def test_rebuild_activation_refreshes_claim_inside_long_transaction(
     )
     with _DB_LOCK, _connect() as conn:
         assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(image),)).fetchone()[0] == 1
+
+
+def test_metadata_enqueue_batches_and_refreshes_catalog_claim(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    library_id, _queued = _queued_job(isolated_gallery_root, "metadata-enqueue")
+    claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=1)
+    assert claimed is not None
+    root = isolated_gallery_root / "metadata-enqueue"
+    images = []
+    for index in range(2):
+        image = root / f"metadata-{index}.png"
+        create_test_png(image)
+        stat = image.stat()
+        assert index_file(
+            image,
+            image.name,
+            image.parent,
+            "image",
+            stat.st_mtime,
+            stat.st_size,
+            64,
+            64,
+            "image/png",
+        )
+        images.append(image)
+
+    monkeypatch.setattr(metadata_queue_module, "GALLERY_CATALOG_WRITE_BATCH_SIZE", 1)
+    original_connect = metadata_queue_module._connect
+    connection_count = 0
+
+    def counting_connect(*args, **kwargs):
+        nonlocal connection_count
+        connection_count += 1
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(metadata_queue_module, "_connect", counting_connect)
+    original_refresh = job_store_module.refresh_catalog_job_claim_before_commit_conn
+
+    def slow_refresh(*args, **kwargs):
+        time.sleep(0.6)
+        return original_refresh(*args, **kwargs)
+
+    monkeypatch.setattr(job_store_module, "refresh_catalog_job_claim_before_commit_conn", slow_refresh)
+    result = dispatch_metadata_index_paths(
+        images,
+        root,
+        catalog_claim_job_id=claimed["id"],
+        catalog_claim_token=claimed["claim_token"],
+        catalog_claim_lease_seconds=1,
+    )
+    assert result["queued"] == 2
+    assert connection_count == 2
+    assert (
+        update_job_state(
+            claimed["id"],
+            "succeeded",
+            claim_token=claimed["claim_token"],
+            lease_seconds=1,
+            library_state="ready",
+            library_scan_completed=True,
+        )
+        is not None
+    )
+    assert get_library(library_id)["state"] == "ready"
+
+
+def test_live_claim_survives_other_workers_long_activation(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root_a = isolated_gallery_root / "worker-a"
+    root_a.mkdir()
+    image_a = root_a / "image.png"
+    create_test_png(image_a)
+    library_a = int(create_library([root_a])["id"])
+    job_a, _created = create_or_coalesce_catalog_job(
+        library_a,
+        operation="rebuild",
+        trigger="manual",
+        priority=100,
+    )
+    library_b, _queued_b = _queued_job(isolated_gallery_root, "worker-b")
+    claimed_a = claim_next_catalog_job(worker_id="worker-a", lease_seconds=1)
+    claimed_b = claim_next_catalog_job(worker_id="worker-b", lease_seconds=1)
+    assert claimed_a is not None and claimed_a["id"] == job_a["id"]
+    assert claimed_b is not None
+    enumerate_to_rebuild_staging(
+        claimed_a["id"],
+        library_a,
+        [root_a],
+        claimed_a["claim_token"],
+        claim_lease_seconds=1,
+    )
+    original_scope_sql = rebuild_store_module.path_scope_sql
+
+    def slow_scope_sql(*args, **kwargs):
+        time.sleep(1.2)
+        return original_scope_sql(*args, **kwargs)
+
+    monkeypatch.setattr(rebuild_store_module, "path_scope_sql", slow_scope_sql)
+    activate_rebuild_staging(
+        claimed_a["id"],
+        library_a,
+        root_a,
+        claimed_a["claim_token"],
+        claim_lease_seconds=1,
+    )
+    with _DB_LOCK, _connect() as conn:
+        lease_b = conn.execute(
+            "SELECT lease_expires_at FROM library_jobs WHERE id = ?",
+            (claimed_b["id"],),
+        ).fetchone()[0]
+    assert float(lease_b) <= time.time()
+
+    recovered = recover_stale_jobs(
+        live_worker_ids={"worker-a", "worker-b"},
+        live_claim_tokens={(claimed_b["id"], claimed_b["claim_token"])},
+    )
+    assert recovered == []
+    assert renew_catalog_job_lease(claimed_b["id"], claimed_b["claim_token"], lease_seconds=1)
+    assert (
+        update_job_state(
+            claimed_b["id"],
+            "succeeded",
+            claim_token=claimed_b["claim_token"],
+            lease_seconds=1,
+            library_state="ready",
+            library_scan_completed=True,
+        )
+        is not None
+    )
+    assert get_library(library_b)["state"] == "ready"
 
 
 def _database_dump(path: Path) -> str:

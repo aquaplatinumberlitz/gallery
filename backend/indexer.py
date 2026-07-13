@@ -224,7 +224,13 @@ def rebuild_index_scope(
             claim_token,
             library_id=int(library["id"]) if library is not None else None,
         )
-    metadata = dispatch_metadata_index_paths(image_paths, root_path)
+    metadata = dispatch_metadata_index_paths(
+        image_paths,
+        root_path,
+        catalog_claim_job_id=claim_job_id,
+        catalog_claim_token=claim_token,
+        catalog_claim_lease_seconds=claim_lease_seconds,
+    )
 
     return {
         "path": str(root_path),
@@ -245,6 +251,9 @@ def dispatch_metadata_index_paths(
     root_path: str | Path | None = None,
     *,
     priority: int = 3,
+    catalog_claim_job_id: int | None = None,
+    catalog_claim_token: str | None = None,
+    catalog_claim_lease_seconds: float = 900,
 ) -> dict[str, int]:
     """Persist/coalesce metadata_index_jobs in SQLite and wake the DB-claim worker.
 
@@ -258,7 +267,14 @@ def dispatch_metadata_index_paths(
     path_list = list(paths)
     if not METADATA_INDEXER_ENABLED:
         return {"queued": 0, "coalesced": 0, "skipped": len(path_list), "failed": 0}
-    result = _persist_metadata_index_jobs(path_list, root_path, priority=priority)
+    result = _persist_metadata_index_jobs(
+        path_list,
+        root_path,
+        priority=priority,
+        catalog_claim_job_id=catalog_claim_job_id,
+        catalog_claim_token=catalog_claim_token,
+        catalog_claim_lease_seconds=catalog_claim_lease_seconds,
+    )
     metadata_worker.wake()
     return {
         "queued": len(result.enqueued),

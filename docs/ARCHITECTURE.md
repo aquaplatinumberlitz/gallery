@@ -355,13 +355,19 @@ Backend modules are mostly flat, with selected domain packages.
   validates the claim at entry and refreshes the same token immediately before
   commit; this remains safe if wall-clock expiry passes while its `BEGIN
   IMMEDIATE` prevents any recovery write from interleaving. Terminal job and
-  library state commit atomically. Recovery deletes the recovered rebuild's
-  staging rows in the same transaction, lets a concurrent live heartbeat win,
+  library state commit atomically. Metadata job enqueueing also receives the
+  catalog claim, splits its path list into bounded transactions, and refreshes
+  before every commit rather than relying on a pre-dispatch assertion.
+  In-process heartbeats register their active `(job_id, claim_token)` while work
+  runs. Runtime recovery does not fence an expired claim whose owner thread and
+  exact heartbeat token are both still live; after a global SQLite writer
+  releases the lock, that token may renew even if its prior deadline passed.
+  Dead owners and startup claims have no such protection and remain recoverable.
+  Recovery deletes the recovered rebuild's staging rows in the same transaction
   and recomputes aggregate parents from both direct and dependency-table links
   only at startup or when a child actually recovered. Startup and runtime
-  recovery otherwise use the same policy and restore the configured worker
-  count independently of status traffic. Library and maintenance GET endpoints
-  only observe worker and queue state.
+  recovery otherwise restore the configured worker count independently of
+  status traffic. Library and maintenance GET endpoints only observe state.
 - Scheduled reconciliation records durable attempt time before queueing, even
   when work coalesces or maintenance is busy. Eligible libraries are ordered by
   oldest attempt, with never-attempted libraries first, so bounded ticks remain

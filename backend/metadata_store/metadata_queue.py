@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE
 from ..files import is_image_path, is_index_excluded_path
 from ..metadata_extract import metadata_sidecar_identity
 from ._db import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect
@@ -159,10 +160,18 @@ def _update_asset_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: flo
     )
 
 
-def _persist_metadata_index_jobs(
-    paths: Iterable[str | Path], root_path: str | Path | None = None, *, priority: int = 3
+def _persist_metadata_index_job_batch(
+    paths: Iterable[str | Path],
+    root_path: str | Path | None = None,
+    *,
+    priority: int = 3,
+    catalog_claim_job_id: int | None = None,
+    catalog_claim_token: str | None = None,
+    catalog_claim_lease_seconds: float = 900,
 ) -> MetadataQueueResult:
-    """Create/coalesce metadata index jobs for image paths without parsing files."""
+    """Persist one bounded metadata-job batch and refresh its catalog claim."""
+    if (catalog_claim_job_id is None) != (catalog_claim_token is None):
+        raise ValueError("Catalog claim job id and token must be provided together")
     priority = max(0, min(priority, 3))
     jobs = [job for path in paths if (job := _metadata_job_from_path(path, root_path))]
     if not jobs:
@@ -176,6 +185,11 @@ def _persist_metadata_index_jobs(
     now = time.time()
 
     with _DB_LOCK, _connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if catalog_claim_job_id is not None and catalog_claim_token is not None:
+            from .job_store import assert_catalog_job_claim_conn
+
+            assert_catalog_job_claim_conn(conn, catalog_claim_job_id, catalog_claim_token)
         for job in jobs:
             if _current_metadata_is_complete(conn, job.path, job.mtime, job.size, job.mtime_ns):
                 _mark_current_metadata_done(conn, job, now)
@@ -298,6 +312,50 @@ def _persist_metadata_index_jobs(
             )
             enqueued.append(job)
 
+        if catalog_claim_job_id is not None and catalog_claim_token is not None:
+            from .job_store import refresh_catalog_job_claim_before_commit_conn
+
+            refresh_catalog_job_claim_before_commit_conn(
+                conn,
+                catalog_claim_job_id,
+                catalog_claim_token,
+                lease_seconds=catalog_claim_lease_seconds,
+            )
+
+    return MetadataQueueResult(enqueued=enqueued, coalesced=coalesced, skipped=skipped, failed=failed)
+
+
+def _persist_metadata_index_jobs(
+    paths: Iterable[str | Path],
+    root_path: str | Path | None = None,
+    *,
+    priority: int = 3,
+    catalog_claim_job_id: int | None = None,
+    catalog_claim_token: str | None = None,
+    catalog_claim_lease_seconds: float = 900,
+) -> MetadataQueueResult:
+    """Create/coalesce metadata jobs in bounded claim-refreshing transactions."""
+    path_list = list(paths)
+    if not path_list:
+        return MetadataQueueResult(enqueued=[])
+    enqueued: list[MetadataIndexJob] = []
+    coalesced = 0
+    skipped = 0
+    failed = 0
+    batch_size = max(1, GALLERY_CATALOG_WRITE_BATCH_SIZE)
+    for start in range(0, len(path_list), batch_size):
+        result = _persist_metadata_index_job_batch(
+            path_list[start : start + batch_size],
+            root_path,
+            priority=priority,
+            catalog_claim_job_id=catalog_claim_job_id,
+            catalog_claim_token=catalog_claim_token,
+            catalog_claim_lease_seconds=catalog_claim_lease_seconds,
+        )
+        enqueued.extend(result.enqueued)
+        coalesced += result.coalesced
+        skipped += result.skipped
+        failed += result.failed
     return MetadataQueueResult(enqueued=enqueued, coalesced=coalesced, skipped=skipped, failed=failed)
 
 

@@ -55,6 +55,8 @@ _last_supervisor_check_at: float | None = None
 _last_supervisor_recovered_jobs = 0
 _supervisor_failures = 0
 _SUPERVISOR_INTERVAL_SECONDS = 1.0
+_active_claims_lock = threading.RLock()
+_active_catalog_claims: set[tuple[int, str]] = set()
 
 
 TRIGGER_PRIORITIES = {
@@ -530,7 +532,13 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
                 by_root[matched_root].append(asset_path)
             for root, scoped_paths in by_root.items():
                 assert_catalog_job_claim(job_id, claim_token, library_id=library_id)
-                result = dispatch_metadata_index_paths(scoped_paths, root)
+                result = dispatch_metadata_index_paths(
+                    scoped_paths,
+                    root,
+                    catalog_claim_job_id=job_id,
+                    catalog_claim_token=claim_token,
+                    catalog_claim_lease_seconds=CATALOG_JOB_LEASE_SECONDS,
+                )
                 enqueued_total += int(result.get("queued", 0))
                 failed_total += int(result.get("failed", 0))
         counters["metadata_queued"] = enqueued_total
@@ -634,17 +642,27 @@ class _CatalogLeaseHeartbeat:
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
-        self._thread = threading.Thread(
-            target=self._run,
-            name=f"gallery-catalog-heartbeat-{self._job_id}",
-            daemon=True,
-        )
-        self._thread.start()
+        claim = (self._job_id, self._claim_token)
+        with _active_claims_lock:
+            _active_catalog_claims.add(claim)
+        try:
+            self._thread = threading.Thread(
+                target=self._run,
+                name=f"gallery-catalog-heartbeat-{self._job_id}",
+                daemon=True,
+            )
+            self._thread.start()
+        except Exception:
+            with _active_claims_lock:
+                _active_catalog_claims.discard(claim)
+            raise
 
     def stop(self) -> None:
         self._stop.set()
         if self._thread is not None and self._thread is not threading.current_thread():
             self._thread.join(timeout=max(1.0, CATALOG_LEASE_HEARTBEAT_SECONDS + 1.0))
+        with _active_claims_lock:
+            _active_catalog_claims.discard((self._job_id, self._claim_token))
 
     def _run(self) -> None:
         while not self._stop.wait(CATALOG_LEASE_HEARTBEAT_SECONDS):
@@ -729,9 +747,12 @@ def ensure_running(*, service_enabled: bool = GALLERY_CATALOG_SERVICE_ENABLED) -
                 for thread in alive
                 if getattr(thread, "_gallery_worker_id", None)
             }
+            with _active_claims_lock:
+                live_claim_tokens = set(_active_catalog_claims)
             recovered_jobs = recover_stale_jobs(
                 reason="Catalog worker stopped before completing the job",
                 live_worker_ids=live_worker_ids,
+                live_claim_tokens=live_claim_tokens,
             )
             recovered_count = len(recovered_jobs)
             for job in recovered_jobs:

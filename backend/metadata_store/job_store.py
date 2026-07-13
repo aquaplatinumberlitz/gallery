@@ -601,7 +601,7 @@ def update_job_state(
 
 
 def renew_catalog_job_lease(job_id: int, claim_token: str, *, lease_seconds: float = 900) -> bool:
-    """Renew one running catalog claim without changing its work state."""
+    """Renew one still-owned catalog claim, including after lock-delayed expiry."""
     _initialize_database()
     now = time.time()
     with _DB_LOCK, _connect() as conn:
@@ -610,9 +610,8 @@ def renew_catalog_job_lease(job_id: int, claim_token: str, *, lease_seconds: flo
             UPDATE library_jobs
             SET lease_expires_at = ?, updated_at = ?
             WHERE id = ? AND state = 'running' AND claim_token = ?
-              AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
             """,
-            (now + max(1.0, lease_seconds), now, job_id, claim_token, now),
+            (now + max(1.0, lease_seconds), now, job_id, claim_token),
         )
         return cursor.rowcount == 1
 
@@ -802,6 +801,7 @@ def recover_stale_jobs(
     *,
     reason: str = "Interrupted by server restart",
     live_worker_ids: set[str] | None = None,
+    live_claim_tokens: set[tuple[int, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Fail catalog claims whose owner is dead or whose lease expired.
 
@@ -811,6 +811,7 @@ def recover_stale_jobs(
     _initialize_database()
     startup_recovery = live_worker_ids is None
     live_workers = set(live_worker_ids or ())
+    live_claims = set(live_claim_tokens or ())
     now = time.time()
     with _DB_LOCK, _connect() as conn:
         candidates = list(
@@ -827,10 +828,11 @@ def recover_stale_jobs(
         for row in candidates:
             dead_owner = row["claimed_by"] is None or str(row["claimed_by"]) not in live_workers
             expired = row["lease_expires_at"] is None or float(row["lease_expires_at"]) <= now
-            if dead_owner or expired:
+            active_local_claim = (int(row["id"]), str(row["claim_token"] or "")) in live_claims
+            if dead_owner or (expired and not active_local_claim):
                 # A dead owner is recoverable regardless of lease. A live
-                # owner selected only for expiry must still be expired in the
-                # fenced UPDATE so a concurrent heartbeat can win safely.
+                # owner selected only for expiry must not have an active local
+                # heartbeat and must still be expired in the fenced UPDATE.
                 running_rows.append((row, not dead_owner))
         parent_ids: set[int] = set()
         if startup_recovery:
