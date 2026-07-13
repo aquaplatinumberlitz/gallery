@@ -47,7 +47,24 @@ def _needs_reindex(conn: sqlite3.Connection, path: Path, mtime: float, mtime_ns:
     return row is None or tuple(row) != metadata_sidecar_identity(path)
 
 
-def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: ExtractedMetadata) -> None:
+def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: ExtractedMetadata) -> bool:
+    owner = conn.execute(
+        """
+        SELECT 1
+        FROM assets AS a
+        JOIN libraries AS l ON l.id = a.library_id
+        WHERE a.path = ?
+          AND a.type = 'image'
+          AND a.offline = 0
+          AND a.deleted_at IS NULL
+          AND a.mtime_ns = ?
+          AND a.size = ?
+        LIMIT 1
+        """,
+        (metadata.path, metadata.mtime_ns, metadata.size),
+    ).fetchone()
+    if owner is None:
+        return False
     conn.execute(
         """
         INSERT INTO image_metadata (
@@ -162,6 +179,7 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
         expected_size=metadata.size,
     )
     _replace_image_resources_conn(conn, metadata.path, metadata.metadata_json, metadata.lora_text, metadata.indexed_at)
+    return True
 
 
 def _sync_dimensions_to_file_index(
@@ -207,7 +225,9 @@ def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: boo
         return False
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
-        _upsert_extracted_metadata_conn(conn, metadata)
+        persisted = _upsert_extracted_metadata_conn(conn, metadata)
+        if not persisted:
+            return False
         if mark_job_done:
             job = _metadata_job_from_path(metadata.path)
             if job is not None and job.mtime == metadata.mtime and job.size == metadata.size:
@@ -222,9 +242,10 @@ def upsert_metadata_batch(metadata_items: Iterable[ExtractedMetadata]) -> int:
         return 0
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
+        persisted = 0
         for metadata in rows:
-            _upsert_extracted_metadata_conn(conn, metadata)
-    return len(rows)
+            persisted += int(_upsert_extracted_metadata_conn(conn, metadata))
+    return persisted
 
 
 def index_image(path: Path) -> bool:
@@ -244,8 +265,7 @@ def index_image(path: Path) -> bool:
             metadata = _extract_metadata(path)
         except Exception:  # noqa: BLE001
             return False
-        _upsert_extracted_metadata_conn(conn, metadata)
-        return True
+        return _upsert_extracted_metadata_conn(conn, metadata)
 
 
 def index_images(paths: Iterable[str | Path]) -> int:

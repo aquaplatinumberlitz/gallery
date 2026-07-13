@@ -7,11 +7,12 @@ import time
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
+from ..catalog_maintenance_gate import MaintenanceGateBusy, maintenance_gate
 from ..config import THUMBNAIL_CACHE_DIR
 from ..files import is_index_excluded_path
 from ._db import _DB_LOCK, _active_asset_where, _connect
 from .path_utils import _catalog_paths_overlap, _path_is_within
-from .types import LibraryBusyError, LibraryOverlapError
+from .types import CatalogMaintenanceBusy, LibraryOverlapError
 
 
 class LibraryImportPathRecord(TypedDict):
@@ -622,6 +623,56 @@ def update_library(
     exclusion_patterns: list[str] | None = None,
     warm_enabled: bool | None = None,
 ) -> dict[str, Any] | None:
+    """Replace supplied fields, gating scope mutations against all producers."""
+    if import_paths is None and exclusion_patterns is None:
+        return _update_library(
+            library_id,
+            name=name,
+            warm_enabled=warm_enabled,
+        )
+    try:
+        with maintenance_gate():
+            return _update_library(
+                library_id,
+                name=name,
+                import_paths=import_paths,
+                exclusion_patterns=exclusion_patterns,
+                warm_enabled=warm_enabled,
+            )
+    except MaintenanceGateBusy as exc:
+        raise CatalogMaintenanceBusy() from exc
+
+
+def _library_has_active_work_conn(conn: sqlite3.Connection, library_id: int) -> bool:
+    return (
+        conn.execute(
+            """
+            SELECT (
+              EXISTS(SELECT 1 FROM library_jobs
+                     WHERE library_id = ? AND type IN ('scan', 'rebuild')
+                       AND state IN ('queued', 'running'))
+              OR EXISTS(SELECT 1 FROM metadata_index_jobs
+                        WHERE library_id = ? AND state IN ('queued', 'running'))
+              OR EXISTS(SELECT 1 FROM derivative_jobs AS dj
+                        JOIN asset_derivatives AS d ON d.id = dj.derivative_id
+                        JOIN assets AS a ON a.id = d.asset_id
+                        WHERE a.library_id = ? AND dj.state IN ('queued', 'running'))
+            )
+            """,
+            (library_id, library_id, library_id),
+        ).fetchone()[0]
+        == 1
+    )
+
+
+def _update_library(
+    library_id: int,
+    *,
+    name: str | None = None,
+    import_paths: list[str | Path] | None = None,
+    exclusion_patterns: list[str] | None = None,
+    warm_enabled: bool | None = None,
+) -> dict[str, Any] | None:
     """Replace supplied library fields and reconcile existing catalog scope."""
     canonical_paths = [str(Path(path).resolve()) for path in import_paths] if import_paths is not None else None
     patterns = list(exclusion_patterns) if exclusion_patterns is not None else None
@@ -637,15 +688,8 @@ def update_library(
         row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
         if row is None:
             return None
-        if canonical_paths is not None or patterns is not None:
-            active = conn.execute(
-                """SELECT 1 FROM library_jobs
-                   WHERE library_id = ? AND type IN ('scan', 'rebuild')
-                     AND state IN ('queued', 'running') LIMIT 1""",
-                (library_id,),
-            ).fetchone()
-            if active is not None:
-                raise LibraryBusyError("Library update or rebuild is active")
+        if (canonical_paths is not None or patterns is not None) and _library_has_active_work_conn(conn, library_id):
+            raise CatalogMaintenanceBusy()
         if canonical_paths is not None:
             _assert_no_import_path_overlap_conn(conn, canonical_paths, exclude_library_id=library_id)
             _replace_library_paths_conn(conn, library_id, canonical_paths, now=now)
@@ -677,19 +721,23 @@ def register_library(root_path: str | Path, name: str | None = None) -> dict[str
 
 
 def unregister_library(library_id: int) -> bool:
+    """Delete catalog records while excluding all catalog work producers."""
+    try:
+        with maintenance_gate():
+            return _unregister_library(library_id)
+    except MaintenanceGateBusy as exc:
+        raise CatalogMaintenanceBusy() from exc
+
+
+def _unregister_library(library_id: int) -> bool:
     """Delete catalog records for a library without touching source files."""
     _initialize_database()
     cache_paths: list[str] = []
     with _DB_LOCK, _connect() as conn:
         if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
             return False
-        active = conn.execute(
-            """SELECT 1 FROM library_jobs WHERE library_id = ?
-               AND type IN ('scan', 'rebuild') AND state IN ('queued', 'running') LIMIT 1""",
-            (library_id,),
-        ).fetchone()
-        if active is not None:
-            raise LibraryBusyError("Library update or rebuild is active")
+        if _library_has_active_work_conn(conn, library_id):
+            raise CatalogMaintenanceBusy()
         roots = [
             str(row["path"])
             for row in conn.execute("SELECT path FROM library_import_paths WHERE library_id = ?", (library_id,))

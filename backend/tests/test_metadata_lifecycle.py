@@ -325,6 +325,17 @@ def test_worker_does_not_hold_long_write_transactions(
     from backend.metadata_store import create_library
 
     create_library([root], name="TestLib")
+    stat = image.stat()
+    assert index_file(
+        image,
+        image.name,
+        image.parent,
+        "image",
+        stat.st_mtime,
+        stat.st_size,
+        64,
+        64,
+    )
 
     # Seed a metadata job
     _persist_metadata_index_jobs([image])
@@ -1248,11 +1259,15 @@ def test_stale_metadata_persistence_preserves_newer_asset_identity(
             (newer_mtime_ns, newer_size, stale_metadata.path),
         )
 
-    assert upsert_metadata_batch([stale_metadata]) == 1
+    assert upsert_metadata_batch([stale_metadata]) == 0
 
     with _DB_LOCK, _connect() as conn:
         asset = conn.execute(
             "SELECT mtime_ns, size, width, height FROM assets WHERE path = ?",
+            (stale_metadata.path,),
+        ).fetchone()
+        metadata_row = conn.execute(
+            "SELECT 1 FROM image_metadata WHERE path = ?",
             (stale_metadata.path,),
         ).fetchone()
     assert asset is not None
@@ -1260,6 +1275,7 @@ def test_stale_metadata_persistence_preserves_newer_asset_identity(
     assert asset["size"] == newer_size
     assert asset["width"] == 999
     assert asset["height"] == 888
+    assert metadata_row is None
 
 
 # ---------------------------------------------------------------------------

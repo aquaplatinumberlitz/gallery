@@ -37,6 +37,10 @@ dimensions, gathers image text/EXIF fields, and dispatches sources in this order
 
 The first successful parser wins. Sidecars therefore do not override supported embedded
 metadata. Only `.txt` sidecars produced by `path.with_suffix(".txt")` are considered.
+Before a sidecar is read, its size is checked against
+`GALLERY_METADATA_SIDECAR_MAX_BYTES` (1 MiB by default). Oversized sidecars are
+never truncated; API reads return `413` and lifecycle jobs persist a bounded
+failure.
 
 ## API and cache flow
 
@@ -53,6 +57,10 @@ metadata. Only `.txt` sidecars produced by `path.with_suffix(".txt")` are consid
 
 Background indexing uses the same `extract_metadata()` function, so the API and indexer
 share one parser implementation.
+
+Catalog status metadata coverage counts active image assets only. Videos never
+enter the metadata denominator, so a video-only library converges with zero
+metadata assets.
 
 ## Background lifecycle
 

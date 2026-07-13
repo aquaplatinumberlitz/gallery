@@ -734,10 +734,6 @@ async def _api_update_library(library_id: int, payload: LibraryUpdate) -> Librar
     library = await run_in_threadpool(get_library, library_id)
     if library is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
-    if {"import_paths", "exclusion_patterns"} & payload.model_fields_set:
-        active = await run_in_threadpool(_active_library_job, library_id, "scan", "rebuild")
-        if active is not None:
-            raise APIError(409, "library_busy", "Library update or rebuild is active")
     normalized_paths: list[str] | None = None
     normalized_patterns: list[str] | None = None
     if payload.import_paths is not None or payload.exclusion_patterns is not None:
@@ -776,6 +772,8 @@ async def _api_update_library(library_id: int, payload: LibraryUpdate) -> Librar
         raise APIError(409, "library_overlap", str(exc)) from exc
     except LibraryBusyError as exc:
         raise APIError(409, "library_busy", str(exc)) from exc
+    except CatalogMaintenanceBusy as exc:
+        raise APIError(409, "maintenance_busy", "Maintenance cannot run while jobs are active") from exc
     if updated is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
     if payload.import_paths is not None:
@@ -928,13 +926,12 @@ async def api_unregister_library(
     """Unregister a library and delete only its catalog rows."""
     if not confirm:
         raise APIError(400, "confirmation_required", "Unregister requires explicit confirmation")
-    active = await run_in_threadpool(_active_library_job, library_id, "scan", "rebuild")
-    if active is not None:
-        raise APIError(409, "library_busy", "Library update or rebuild is active")
     try:
         removed = await run_in_threadpool(unregister_library, library_id)
     except LibraryBusyError as exc:
         raise APIError(409, "library_busy", str(exc)) from exc
+    except CatalogMaintenanceBusy as exc:
+        raise APIError(409, "maintenance_busy", "Maintenance cannot run while jobs are active") from exc
     if not removed:
         raise APIError(404, ErrorType.NOT_FOUND, "Library not found")
     await run_in_threadpool(file_watcher.reconcile_watcher)

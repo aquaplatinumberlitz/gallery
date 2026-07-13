@@ -24,6 +24,10 @@ PROFILE_ENDPOINTS = {
 PROFILE_DIR = Path(__file__).resolve().parent / "profiles"
 
 METADATA_CACHE_MAX_BYTES = 100 * 1024 * 1024  # 100 MB
+METADATA_SIDECAR_MAX_BYTES = max(
+    0,
+    int(os.getenv("GALLERY_METADATA_SIDECAR_MAX_BYTES", str(1024 * 1024))),
+)
 
 _thumbnail_cache_env = os.getenv("GALLERY_THUMBNAIL_CACHE_DIR")
 THUMBNAIL_CACHE_DIR = (

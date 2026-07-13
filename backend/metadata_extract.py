@@ -11,6 +11,8 @@ from typing import Any
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from .config import METADATA_SIDECAR_MAX_BYTES
+
 LORA_PATTERN = re.compile(r"<lora:([^:>]+)(?::([^>]+))?>", re.IGNORECASE)
 CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 GENERIC_TEXT_KEYS = ("Description", "Comment", "UserComment", "Software", "parameters", "prompt", "workflow")
@@ -59,6 +61,17 @@ class ExtractedMetadata:
     source_path: str | None = None
     source_mtime_ns: int | None = None
     source_size: int | None = None
+
+
+class MetadataSidecarTooLargeError(ValueError):
+    """Raised when a text sidecar exceeds the configured read limit."""
+
+    def __init__(self, path: Path, size: int, max_bytes: int):
+        """Capture the rejected path, observed size, and configured limit."""
+        self.path = path
+        self.size = size
+        self.max_bytes = max_bytes
+        super().__init__(f"Metadata sidecar exceeds {max_bytes} bytes")
 
 
 def metadata_sidecar_identity(path: Path) -> tuple[str | None, int | None, int | None]:
@@ -698,7 +711,12 @@ def _api_metadata_from_sources(path: Path, info: dict[str, str]) -> tuple[dict[s
         txt_path = path.with_suffix(".txt")
         if txt_path.exists():
             try:
+                sidecar_size = txt_path.stat().st_size
+                if sidecar_size > METADATA_SIDECAR_MAX_BYTES:
+                    raise MetadataSidecarTooLargeError(txt_path, sidecar_size, METADATA_SIDECAR_MAX_BYTES)
                 text = txt_path.read_text(encoding="utf-8", errors="ignore")
+            except MetadataSidecarTooLargeError:
+                raise
             except OSError:
                 text = ""
             parsed = parse_ai_text_parameters(text)

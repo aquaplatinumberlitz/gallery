@@ -517,7 +517,7 @@ def _metadata_counts_for_scope(conn: Any, library_id: int, scope_path: str | Non
           ON mij.path = a.path AND mij.size = a.size
          AND ({asset_matches_metadata_job_sql(job_alias="mij")})
         WHERE a.library_id = ?
-          AND a.type IN ('image', 'video')
+          AND a.type = 'image'
           AND a.deleted_at IS NULL
           AND a.offline = 0
           {scope_filter}
@@ -568,7 +568,7 @@ def _batch_metadata_counts(conn: Any, library_ids: list[int]) -> dict[int, dict[
           ON mij.path = a.path AND mij.size = a.size
          AND ({asset_matches_metadata_job_sql(job_alias="mij")})
         WHERE a.library_id IN ({placeholders})
-          AND a.type IN ('image', 'video')
+          AND a.type = 'image'
           AND a.deleted_at IS NULL
           AND a.offline = 0
         GROUP BY a.library_id
@@ -599,7 +599,7 @@ def _last_index_at_for_scope(conn: Any, library_id: int, scope_path: str | None)
           ON im.path = a.path AND im.size = a.size
          AND ({asset_matches_image_metadata_sql()})
         WHERE a.library_id = ?
-          AND a.type IN ('image', 'video')
+          AND a.type = 'image'
           AND a.deleted_at IS NULL
           AND a.offline = 0
           AND a.metadata_state = 'done'
@@ -622,7 +622,7 @@ def _batch_last_index_at(conn: Any, library_ids: list[int]) -> dict[int, int | N
           ON im.path = a.path AND im.size = a.size
          AND ({asset_matches_image_metadata_sql()})
         WHERE a.library_id IN ({placeholders})
-          AND a.type IN ('image', 'video')
+          AND a.type = 'image'
           AND a.deleted_at IS NULL
           AND a.offline = 0
           AND a.metadata_state = 'done'
@@ -646,7 +646,7 @@ def _latest_metadata_issue_for_scope(conn: Any, library_id: int, scope_path: str
           ON mij.path = a.path AND mij.size = a.size
          AND ({asset_matches_metadata_job_sql(job_alias="mij")})
         WHERE a.library_id = ?
-          AND a.type IN ('image', 'video')
+          AND a.type = 'image'
           AND a.deleted_at IS NULL
           AND a.offline = 0
           AND mij.state = 'failed'
@@ -678,7 +678,7 @@ def _batch_metadata_issues(conn: Any, library_ids: list[int]) -> dict[int, Issue
           ON mij.path = a.path AND mij.size = a.size
          AND ({asset_matches_metadata_job_sql(job_alias="mij")})
         WHERE a.library_id IN ({placeholders})
-          AND a.type IN ('image', 'video')
+          AND a.type = 'image'
           AND a.deleted_at IS NULL
           AND a.offline = 0
           AND mij.state = 'failed'

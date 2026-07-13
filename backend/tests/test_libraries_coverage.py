@@ -470,7 +470,7 @@ def test_api_patch_library_busy(isolated_app: TestClient, isolated_gallery_root:
     create_job("scan", library_id=library_id)
     response = isolated_app.patch(f"/api/libraries/{library_id}", json={"import_paths": [str(root)]})
     assert response.status_code == 409
-    assert response.json()["detail"]["error"] == "library_busy"
+    assert response.json()["detail"]["error"] == "maintenance_busy"
 
 
 def test_api_patch_library_empty_name(isolated_app: TestClient, isolated_gallery_root: Path):
@@ -584,7 +584,7 @@ def test_api_unregister_library_busy(isolated_app: TestClient, isolated_gallery_
     create_job("scan", library_id=library_id)
     response = isolated_app.delete(f"/api/libraries/{library_id}?confirm=true")
     assert response.status_code == 409
-    assert response.json()["detail"]["error"] == "library_busy"
+    assert response.json()["detail"]["error"] == "maintenance_busy"
 
 
 def test_api_unregister_library_not_found(isolated_app: TestClient):

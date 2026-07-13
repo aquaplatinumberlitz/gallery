@@ -32,6 +32,7 @@ from .metadata_store import (
     get_library,
     get_library_for_path,
     list_libraries,
+    reconcile_library_assets,
     recover_stale_jobs,
     update_job_state,
     update_library_state,
@@ -288,6 +289,8 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
         library_id, scan_paths = _scan_paths_for_job(job)
         online_paths = [p for p in scan_paths if Path(p).is_dir()]
         offline_paths = [p for p in scan_paths if not Path(p).is_dir()]
+        for offline_path in offline_paths:
+            reconcile_library_assets(library_id, set(), scope_path=offline_path)
         if not online_paths:
             update_library_state(library_id, "offline", last_error="All import paths are offline")
             _transition_job(job_id, "failed", message="Update failed", error="All update paths are offline")

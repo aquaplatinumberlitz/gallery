@@ -14,7 +14,12 @@ from fastapi.concurrency import run_in_threadpool
 from .config import METADATA_CACHE_MAX_BYTES
 from .errors import APIError, ErrorType
 from .files import check_image_limits, is_image
-from .metadata_extract import extract_metadata, extracted_metadata_to_api, metadata_sidecar_identity
+from .metadata_extract import (
+    MetadataSidecarTooLargeError,
+    extract_metadata,
+    extracted_metadata_to_api,
+    metadata_sidecar_identity,
+)
 from .metadata_store import get_lightbox_metadata, upsert_extracted_metadata
 from .scan import require_media_path_allowed
 
@@ -43,6 +48,8 @@ def _parse_metadata_uncached(path: Path) -> dict:
         upsert_extracted_metadata(extracted, mark_job_done=True)
         return extracted_metadata_to_api(extracted)
 
+    except MetadataSidecarTooLargeError as exc:
+        raise APIError(413, "metadata_sidecar_too_large", "Metadata sidecar is too large") from exc
     except APIError:
         raise
     except Exception as exc:  # noqa: BLE001

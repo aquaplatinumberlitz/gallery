@@ -57,9 +57,11 @@ metadata_worker._worker_loop
    `BEGIN IMMEDIATE` transactions. `extract_metadata` (PIL + JSON parsing) runs
    outside any transaction, matching `DerivativeScheduler._run_job`.
 
-4. **Identity is `path + mtime_ns + size`.** The stale guard compares job identity
-   against the current asset row. `library_id` is a secondary diagnostic field,
-   not a required key component.
+4. **Identity is the image plus its optional sidecar.** Image freshness uses
+   `path + mtime_ns + size`; completion additionally requires the stored
+   same-stem `.txt` identity (`path + mtime_ns + size`) to match. Sidecar create,
+   replacement, modification, or deletion requeues extraction without requiring
+   the image to change. `library_id` is a secondary diagnostic field.
 
 ### Legacy fallback
 
@@ -71,8 +73,9 @@ tolerance.
 
 `recover_metadata_index_jobs()` resets interrupted `running` jobs to `queued`,
 fails jobs whose attempts have been exhausted, and repairs `done` jobs whose
-asset state never materialised. Queued jobs are left claimable — they survive
-restart because SQLite is the queue.
+asset state never materialised. It also demotes `done` jobs whose sidecar
+identity changed. Queued jobs are left claimable — they survive restart because
+SQLite is the queue.
 
 ### Diagnostics
 

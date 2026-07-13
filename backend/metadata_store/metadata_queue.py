@@ -61,18 +61,7 @@ def _current_metadata_is_complete(
     size: int,
     mtime_ns: int | None = None,
 ) -> bool:
-    row = conn.execute(
-        f"""
-        SELECT metadata_json FROM image_metadata
-        WHERE path = ?
-          AND ({image_metadata_params_match_sql()})
-          AND size = ?
-        """,
-        (path, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime_ns, mtime, size),
-    ).fetchone()
-    if row is None:
-        return False
-    return bool(row["metadata_json"])
+    return _image_metadata_exists_for_job(conn, path, mtime, size, mtime_ns)
 
 
 def _metadata_job_from_path(path_value: str | Path, root_path: str | Path | None = None) -> MetadataIndexJob | None:
@@ -849,10 +838,7 @@ def repair_inconsistent_asset_states(
                a.metadata_state AS asset_metadata_state
         FROM metadata_index_jobs mj
         LEFT JOIN assets a ON a.path = mj.path
-        WHERE (
-            (mj.state = 'done' AND (a.path IS NULL OR a.metadata_state IS NULL OR a.metadata_state != 'done'))
-            OR mj.state = 'stale'
-          )
+        WHERE mj.state IN ('done', 'stale')
           {scope_where}
         """,
         scope_params,
@@ -898,6 +884,8 @@ def repair_inconsistent_asset_states(
         im_exists = _image_metadata_exists_for_job(conn, path, mtime, size, mtime_ns)
 
         if im_exists:
+            if state == "done" and row["asset_metadata_state"] == "done":
+                continue
             # image_metadata is current — repair job and asset state
             conn.execute(
                 f"""
@@ -934,9 +922,7 @@ def repair_inconsistent_asset_states(
             if state == "stale":
                 counters["stale_repaired"] += 1
         else:
-            if state == "stale":
-                continue
-            # image_metadata missing or stale — demote job to queued
+            # image_metadata missing or stale (including sidecar mismatch) — demote to queued
             if mtime_ns is not None:
                 conn.execute(
                     """
@@ -945,7 +931,7 @@ def repair_inconsistent_asset_states(
                         started_at=NULL,
                         finished_at=NULL,
                         updated_at=?
-                    WHERE path=? AND mtime_ns = ? AND size=? AND state='done'
+                    WHERE path=? AND mtime_ns = ? AND size=? AND state IN ('done', 'stale')
                     """,
                     (now, path, mtime_ns, size),
                 )
@@ -957,7 +943,7 @@ def repair_inconsistent_asset_states(
                         started_at=NULL,
                         finished_at=NULL,
                         updated_at=?
-                    WHERE path=? AND mtime=? AND size=? AND state='done'
+                    WHERE path=? AND mtime=? AND size=? AND state IN ('done', 'stale')
                     """,
                     (now, path, mtime, size),
                 )

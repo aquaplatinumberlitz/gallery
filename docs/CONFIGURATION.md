@@ -90,6 +90,7 @@ curl -I http://150.230.56.153/
 | `GALLERY_ROOT`                                         | path                    | unset                                                 | Deprecated fallback for `PATH_SAFETY_ROOT`; emits a warning when used.                                   |
 | `GALLERY_OPEN_FOLDER`                                  | boolean (`"true"`)      | `false`                                               | Enables the OS "open folder" operation for directories within `PATH_SAFETY_ROOT`.                        |
 | `GALLERY_METADATA_DB`                                  | path                    | `backend/.cache/gallery_metadata.db`                  | SQLite metadata/index database.                                                                          |
+| `GALLERY_METADATA_SIDECAR_MAX_BYTES`                   | integer, minimum 0      | `1048576`                                             | Maximum same-stem `.txt` metadata sidecar size. Larger sidecars are not truncated: API reads return `413` and background jobs fail with a bounded error. |
 | `GALLERY_INDEX_EXCLUDE_DIRS`                           | comma-separated names   | unset                                                 | Additional directory names excluded from indexing.                                                       |
 | `GALLERY_INDEX_EXCLUDE_PATTERNS`                       | comma-separated globs   | unset                                                 | Additional path/name patterns excluded from indexing.                                                    |
 
