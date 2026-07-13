@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mobile Sidebar — 6 mẫu demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ===== Tokens (giống gallery-repo tokens.css) ===== */
+  :root {
+    --brand-album-paper: #ffffff;
+    --brand-album-paper-border: #e5ddd4;
+    --brand-album-title: #143d60;
+    --brand-album-muted: #4a6587;
+    --brand-album-accent: #ff6b35;
+    --brand-hero-text: #143d60;
+    --brand-hero-muted: #4a6587;
+    --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+    --font-code: "JetBrains Mono", monospace;
+    --sidebar-bg: #faf7f2;
+    --sidebar-border: #e5ddd4;
+    --sidebar-fg: #143d60;
+    --sidebar-muted: #4a6587;
+    --sidebar-accent: rgba(20, 61, 96, 0.06);
+    --sidebar-accent-strong: rgba(20, 61, 96, 0.12);
+    --bg: #f5f0e8;
+    --fg: #143d60;
+  }
+  :root[data-theme="dark"] {
+    --brand-album-paper: #242321;
+    --brand-album-paper-border: #2d2b28;
+    --brand-album-title: #d6a15d;
+    --brand-album-muted: #b0b3b8;
+    --brand-album-accent: #d6a15d;
+    --sidebar-bg: #1a1815;
+    --sidebar-border: #2d2b28;
+    --sidebar-fg: #e8e2d6;
+    --sidebar-muted: #9a9590;
+    --sidebar-accent: rgba(255, 255, 255, 0.05);
+    --sidebar-accent-strong: rgba(255, 255, 255, 0.1);
+    --bg: #15140f;
+    --fg: #f5f0e8;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    background: var(--bg);
+    color: var(--fg);
+    min-height: 100dvh;
+  }
+
+  /* ===== Demo chrome ===== */
+  .demo-header {
+    position: sticky; top: 0; z-index: 100;
+    background: color-mix(in srgb, var(--brand-album-paper) 92%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--sidebar-border);
+    padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .demo-header h1 { font-size: 14px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .demo-header p { font-size: 11px; margin: 2px 0 0; color: var(--sidebar-muted); font-family: var(--font-code); }
+  .theme-btn {
+    font: 500 11px/1 var(--font-code);
+    padding: 8px 12px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--sidebar-border); background: transparent; color: inherit;
+    letter-spacing: 0.3px;
+  }
+
+  .section-label {
+    padding: 28px 16px 10px;
+    display: flex; align-items: center; gap: 10px;
+    max-width: 480px; margin: 0 auto;
+  }
+  .section-label .num {
+    font: 700 11px/1 var(--font-code);
+    color: var(--brand-album-accent);
+    background: color-mix(in srgb, var(--brand-album-accent) 14%, transparent);
+    padding: 5px 8px; border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  .section-label .title {
+    font-size: 15px; font-weight: 700; letter-spacing: -0.01em;
+  }
+  .section-label .desc {
+    font: 400 11px/1.45 var(--font-code);
+    color: var(--sidebar-muted);
+    margin-left: auto; text-align: right; max-width: 200px;
+  }
+
+  /* ===== Mỗi mẫu hiển thị trong 1 frame giả điện thoại ===== */
+  .phone-frame {
+    max-width: 380px;
+    margin: 0 auto 24px;
+    padding: 0 12px;
+  }
+  .phone {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 9/19;
+    max-height: 720px;
+    border-radius: 28px;
+    overflow: hidden;
+    background: var(--bg);
+    border: 6px solid #0a0a0a;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+  }
+  :root[data-theme="dark"] .phone { border-color: #000; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+  .phone-notch {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 110px; height: 22px;
+    background: #0a0a0a; border-radius: 0 0 16px 16px;
+    z-index: 50;
+  }
+  .phone-status {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 36px; padding: 10px 22px 0;
+    display: flex; align-items: center; justify-content: space-between;
+    font: 600 11px/1 var(--font-body);
+    color: var(--fg);
+    z-index: 40;
+  }
+  .phone-status .right { display: inline-flex; gap: 4px; align-items: center; }
+  .phone-status .right span { font-size: 10px; }
+
+  /* Sidebar drawer mở chiếm full width phone */
+  .drawer {
+    position: absolute; top: 36px; left: 0; right: 0; bottom: 0;
+    background: var(--sidebar-bg);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Nút đóng giả (chỉ để demo) */
+  .close-btn {
+    position: absolute; top: 8px; right: 8px; z-index: 30;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    border: none; background: transparent;
+    color: var(--sidebar-muted); cursor: pointer;
+    display: grid; place-items: center;
+    font-size: 18px; line-height: 1;
+  }
+  .close-btn:active { background: var(--sidebar-accent); }
+
+  /* ============================================================= */
+  /* Common: folder tree rows (dùng chung cho mọi mẫu)             */
+  /* ============================================================= */
+  .tree { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto; }
+  .tree::-webkit-scrollbar { width: 4px; }
+  .tree::-webkit-scrollbar-thumb { background: var(--sidebar-accent-strong); border-radius: 2px; }
+  .tree-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 8px 9px 10px; cursor: pointer;
+    border-radius: 8px; margin: 1px 6px;
+    font-size: 13px; color: var(--sidebar-fg);
+    transition: background 120ms ease;
+    min-height: 40px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tree-row:active { background: var(--sidebar-accent-strong); }
+  .tree-row.active { background: var(--sidebar-accent-strong); color: var(--brand-album-title); font-weight: 600; }
+  :root[data-theme="dark"] .tree-row.active { color: var(--brand-album-accent); }
+  .tree-row .twisty {
+    width: 12px; flex-shrink: 0; color: var(--sidebar-muted);
+    font-size: 9px; text-align: center;
+    transition: transform 180ms ease;
+  }
+  .tree-row.expanded .twisty { transform: rotate(90deg); }
+  .tree-row .ficon {
+    width: 18px; height: 18px; flex-shrink: 0;
+    color: var(--brand-album-accent);
+    display: grid; place-items: center;
+  }
+  .tree-row .ficon svg { width: 16px; height: 16px; }
+  .tree-row .name {
+    flex: 1; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tree-row .count {
+    flex-shrink: 0;
+    font: 500 10px/1 var(--font-code);
+    color: var(--sidebar-muted);
+    padding: 2px 6px; border-radius: 999px;
+    background: var(--sidebar-accent);
+  }
+  .tree-row .children { list-style: none; margin: 0; padding: 0 0 0 14px; }
+
+  /* SVG icons inline */
+  .ic-folder { display: inline-block; }
+
+  /* ============================================================= */
+  /* MẪU 1 — Current baseline (giữ nguyên để so sánh)             */
+  /* ============================================================= */
+  .m1 .drawer-header {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+  .m1 .lib-label {
+    font: 600 10px/1 var(--font-code);
+    color: var(--sidebar-muted);
+    letter-spacing: 0.8px; text-transform: uppercase;
+    margin: 0 0 8px;
+  }
+  .m1 .lib-btn {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 10px 12px; border-radius: 10px;
+    background: var(--sidebar-accent); border: 1px solid var(--sidebar-border);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    cursor: pointer; text-align: left;
+  }
+  .m1 .lib-btn .lib-icon { color: var(--brand-album-accent); flex-shrink: 0; }
+  .m1 .lib-btn .lib-text { flex: 1; min-width: 0; }
+  .m1 .lib-btn .lib-name { font: 600 13px/1.3 var(--font-body); color: var(--sidebar-fg); display: block; }
+  .m1 .lib-btn .lib-path { font: 400 10px/1.4 var(--font-code); color: var(--sidebar-muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m1 .manage-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; margin-top: 8px; padding: 7px 10px;
+    border-radius: 8px; border: 1px solid var(--sidebar-border);
+    background: var(--brand-album-paper); color: var(--sidebar-fg);
+    font: 500 12px/1 var(--font-body); cursor: pointer;
+  }
+  .m1 .tree-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px 6px;
+  }
+  .m1 .tree-title { font: 600 12px/1 var(--font-body); color: var(--sidebar-fg); }
+  .m1 .tree-actions { display: flex; gap: 4px; }
+  .m1 .tree-action {
+    font: 500 10px/1 var(--font-code);
+    padding: 5px 8px; border-radius: 6px;
+    border: 1px solid var(--sidebar-border); background: var(--brand-album-paper);
+    color: var(--sidebar-fg); cursor: pointer;
+  }
+  .m1 .drawer-footer {
+    padding: 10px 14px; border-top: 1px solid var(--sidebar-border);
+    display: flex; align-items: center; gap: 8px;
+    font: 500 11px/1.3 var(--font-code);
+    color: var(--sidebar-muted);
+  }
+  .m1 .index-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #22c55e; flex-shrink: 0;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+  }
+
+  /* ============================================================= */
+  /* MẪU 2 — Library Hero Card                                     */
+  /* Library thành hero card có gradient + avatar library ở đầu   */
+  /* ============================================================= */
+  .m2 .hero {
+    position: relative;
+    padding: 14px;
+    background: linear-gradient(135deg, #143d60 0%, #1e5285 60%, #ff6b35 200%);
+    color: #fff;
+  }
+  :root[data-theme="dark"] .m2 .hero {
+    background: linear-gradient(135deg, #2a2520 0%, #3a322a 60%, #d6a15d 200%);
+  }
+  .m2 .hero-top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .m2 .hero-eyebrow {
+    font: 600 9px/1 var(--font-code); letter-spacing: 1.5px; text-transform: uppercase;
+    color: rgba(255,255,255,0.75);
+  }
+  .m2 .hero-close {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: rgba(255,255,255,0.12);
+    border: none; color: #fff; cursor: pointer;
+    display: grid; place-items: center; font-size: 16px;
+  }
+  .m2 .hero-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px; border-radius: 14px;
+    background: rgba(255,255,255,0.12);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
+    cursor: pointer;
+  }
+  .m2 .hero-avatar {
+    width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, #ff6b35, #ffb300);
+    display: grid; place-items: center;
+    color: #fff; font: 800 18px/1 var(--font-body);
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4);
+  }
+  .m2 .hero-text { flex: 1; min-width: 0; }
+  .m2 .hero-name {
+    font: 700 14px/1.2 var(--font-body); color: #fff;
+    margin: 0 0 3px; letter-spacing: -0.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .m2 .hero-path {
+    font: 500 10px/1.4 var(--font-code); color: rgba(255,255,255,0.75);
+    margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .m2 .hero-chev { color: rgba(255,255,255,0.7); flex-shrink: 0; font-size: 14px; }
+  .m2 .hero-stats {
+    display: flex; gap: 10px; margin-top: 10px;
+  }
+  .m2 .stat-pill {
+    flex: 1; padding: 8px 10px; border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  }
+  .m2 .stat-num {
+    font: 700 14px/1 var(--font-body); color: #fff; display: block;
+  }
+  .m2 .stat-lbl {
+    font: 500 9px/1 var(--font-code); color: rgba(255,255,255,0.7);
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .m2 .section-tab {
+    padding: 12px 14px 6px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .m2 .section-tab .lbl { font: 700 13px/1 var(--font-body); color: var(--sidebar-fg); }
+  .m2 .section-tab .actions { display: flex; gap: 4px; }
+  .m2 .icon-btn {
+    width: 28px; height: 28px; border-radius: 7px;
+    border: 1px solid var(--sidebar-border); background: var(--brand-album-paper);
+    color: var(--sidebar-fg); cursor: pointer;
+    display: grid; place-items: center; font-size: 12px;
+  }
+  .m2 .drawer-footer {
+    padding: 10px 14px; border-top: 1px solid var(--sidebar-border);
+    display: flex; align-items: center; gap: 8px;
+    font: 500 11px/1.3 var(--font-code); color: var(--sidebar-muted);
+  }
+  .m2 .index-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+
+  /* ============================================================= */
+  /* MẪU 3 — Compact Pill Header                                   */
+  /* Header siêu mỏng: library là pill có thể tap, dồn space cho  */
+  /* folder tree. Linear/Notion mobile style                      */
+  /* ============================================================= */
+  .m3 .drawer-header {
+    padding: 10px 12px;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+  .m3 .lib-pill {
+    flex: 1; min-width: 0;
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 12px; border-radius: 999px;
+    background: var(--sidebar-accent);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .m3 .lib-pill:active { background: var(--sidebar-accent-strong); }
+  .m3 .lib-pill .lib-dot {
+    width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #ff6b35, #ffb300);
+    box-shadow: 0 0 0 2px var(--sidebar-bg), 0 0 0 3px var(--sidebar-border);
+  }
+  .m3 .lib-pill .lib-name {
+    flex: 1; min-width: 0;
+    font: 600 13px/1.2 var(--font-body); color: var(--sidebar-fg);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .m3 .lib-pill .lib-chev {
+    flex-shrink: 0; color: var(--sidebar-muted); font-size: 12px;
+  }
+  .m3 .icon-btn {
+    width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+    border: 1px solid var(--sidebar-border); background: var(--brand-album-paper);
+    color: var(--sidebar-fg); cursor: pointer;
+    display: grid; place-items: center; font-size: 14px;
+  }
+  .m3 .tree-subhead {
+    padding: 14px 14px 4px;
+    font: 600 10px/1 var(--font-code);
+    color: var(--sidebar-muted);
+    letter-spacing: 1px; text-transform: uppercase;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .m3 .tree-subhead .mini-actions { display: flex; gap: 4px; }
+  .m3 .mini-btn {
+    font: 500 9px/1 var(--font-code);
+    padding: 4px 6px; border-radius: 4px;
+    border: 1px solid var(--sidebar-border); background: transparent;
+    color: var(--sidebar-muted); cursor: pointer;
+    letter-spacing: 0.5px;
+  }
+  .m3 .drawer-footer {
+    padding: 8px 12px; border-top: 1px solid var(--sidebar-border);
+    display: flex; align-items: center; gap: 6px;
+    font: 500 10px/1.3 var(--font-code); color: var(--sidebar-muted);
+  }
+  .m3 .index-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; flex-shrink: 0; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+
+  /* ============================================================= */
+  /* MẪU 4 — Segmented Tabs (Folders | Libraries | Recent)         */
+  /* iOS Files app style — tab segmented control ở đầu            */
+  /* ============================================================= */
+  .m4 .drawer-header {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+  .m4 .header-top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .m4 .header-title {
+    font: 700 16px/1 var(--font-body); color: var(--sidebar-fg);
+    letter-spacing: -0.01em;
+  }
+  .m4 .seg {
+    display: flex; padding: 3px; border-radius: 9px;
+    background: var(--sidebar-accent);
+  }
+  .m4 .seg-btn {
+    flex: 1; padding: 7px 10px; border-radius: 7px;
+    border: none; background: transparent;
+    font: 600 12px/1 var(--font-body); color: var(--sidebar-muted);
+    cursor: pointer; transition: all 160ms ease;
+  }
+  .m4 .seg-btn.active {
+    background: var(--brand-album-paper);
+    color: var(--sidebar-fg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  :root[data-theme="dark"] .m4 .seg-btn.active { background: #2d2b28; }
+  .m4 .seg-btn .badge {
+    display: inline-block; margin-left: 4px;
+    font: 600 9px/1 var(--font-code);
+    padding: 2px 5px; border-radius: 999px;
+    background: var(--sidebar-accent-strong); color: var(--sidebar-muted);
+  }
+  .m4 .seg-btn.active .badge { background: var(--brand-album-accent); color: #fff; }
+  .m4 .tab-content { flex: 1; overflow-y: auto; }
+  .m4 .recent-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; cursor: pointer;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+  .m4 .recent-row:active { background: var(--sidebar-accent); }
+  .m4 .recent-thumb {
+    width: 40px; height: 40px; border-radius: 8px; flex-shrink: 0;
+    background-size: cover; background-position: center;
+  }
+  .m4 .recent-info { flex: 1; min-width: 0; }
+  .m4 .recent-name {
+    font: 600 13px/1.3 var(--font-body); color: var(--sidebar-fg);
+    margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .m4 .recent-meta {
+    font: 400 11px/1.4 var(--font-code); color: var(--sidebar-muted);
+    margin: 2px 0 0;
+  }
+  .m4 .lib-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; cursor: pointer;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+  .m4 .lib-row:active { background: var(--sidebar-accent); }
+  .m4 .lib-row.active { background: var(--sidebar-accent-strong); }
+  .m4 .lib-avatar {
+    width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+    display: grid; place-items: center;
+    color: #fff; font: 700 16px/1 var(--font-body);
+  }
+  .m4 .lib-info { flex: 1; min-width: 0; }
+  .m4 .lib-name { font: 600 13px/1.3 var(--font-body); color: var(--sidebar-fg); margin: 0; }
+  .m4 .lib-path { font: 400 10px/1.4 var(--font-code); color: var(--sidebar-muted); margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m4 .lib-radio {
+    width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--sidebar-border);
+  }
+  .m4 .lib-row.active .lib-radio {
+    border-color: var(--brand-album-accent);
+    background: radial-gradient(circle, var(--brand-album-accent) 40%, transparent 45%);
+  }
+  .m4 .drawer-footer {
+    padding: 10px 14px; border-top: 1px solid var(--sidebar-border);
+    display: flex; align-items: center; gap: 8px;
+    font: 500 11px/1.3 var(--font-code); color: var(--sidebar-muted);
+  }
+  .m4 .index-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+
+  /* ============================================================= */
+  /* MẪU 5 — Search-First                                          */
+  /* Search box ở đầu sidebar, folder tree ở dưới.                */
+  /* iOS Files app / Apple Music "Search" style                   */
+  /* ============================================================= */
+  .m5 .drawer-header {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--sidebar-border);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .m5 .header-row {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .m5 .header-title {
+    font: 700 15px/1 var(--font-body); color: var(--sidebar-fg);
+    letter-spacing: -0.01em;
+  }
+  .m5 .header-actions { display: flex; gap: 6px; }
+  .m5 .icon-btn {
+    width: 30px; height: 30px; border-radius: 8px;
+    border: 1px solid var(--sidebar-border); background: var(--brand-album-paper);
+    color: var(--sidebar-fg); cursor: pointer;
+    display: grid; place-items: center; font-size: 13px;
+  }
+  .m5 .search {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px; border-radius: 10px;
+    background: var(--sidebar-accent);
+    border: 1px solid var(--sidebar-border);
+  }
+  .m5 .search-icon { color: var(--sidebar-muted); flex-shrink: 0; font-size: 13px; }
+  .m5 .search-input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font: 400 13px/1.4 var(--font-body); color: var(--sidebar-fg);
+  }
+  .m5 .search-input::placeholder { color: var(--sidebar-muted); }
+  .m5 .lib-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-radius: 8px;
+    background: var(--sidebar-accent);
+    cursor: pointer;
+  }
+  .m5 .lib-pill:active { background: var(--sidebar-accent-strong); }
+  .m5 .lib-pill .lib-dot {
+    width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0;
+    background: linear-gradient(135deg, #ff6b35, #ffb300);
+  }
+  .m5 .lib-pill .lib-name {
+    flex: 1; min-width: 0;
+    font: 600 12px/1.2 var(--font-body); color: var(--sidebar-fg);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .m5 .lib-pill .lib-chev { color: var(--sidebar-muted); font-size: 11px; }
+  .m5 .tree-subhead {
+    padding: 12px 14px 4px;
+    font: 600 10px/1 var(--font-code);
+    color: var(--sidebar-muted);
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .m5 .drawer-footer {
+    padding: 10px 14px; border-top: 1px solid var(--sidebar-border);
+    display: flex; align-items: center; gap: 8px;
+    font: 500 11px/1.3 var(--font-code); color: var(--sidebar-muted);
+  }
+  .m5 .index-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+
+  /* ============================================================= */
+  /* MẪU 6 — Glass Sheet                                           */
+  /* Sidebar dạng sheet kính mờ backdrop-blur, hiện đại.          */
+  /* Apple Vision Pro / iOS 17 Liquid Glass style                 */
+  /* ============================================================= */
+  .m6 .phone { background: linear-gradient(180deg, #4a6587 0%, #143d60 100%); }
+  :root[data-theme="dark"] .m6 .phone { background: linear-gradient(180deg, #2a2520 0%, #15140f 100%); }
+  /* Background "gallery" giả để thấy hiệu ứng kính */
+  .m6 .gallery-bg {
+    position: absolute; inset: 36px 0 0 0;
+    background:
+      linear-gradient(135deg, rgba(255,107,53,0.4), transparent 50%),
+      radial-gradient(circle at 20% 30%, rgba(255,179,0,0.5), transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(20,61,96,0.6), transparent 50%),
+      linear-gradient(180deg, #4a6587, #143d60);
+    z-index: 1;
+  }
+  :root[data-theme="dark"] .m6 .gallery-bg {
+    background:
+      linear-gradient(135deg, rgba(214,161,93,0.3), transparent 50%),
+      radial-gradient(circle at 20% 30%, rgba(255,179,0,0.25), transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(20,61,96,0.6), transparent 50%),
+      linear-gradient(180deg, #2a2520, #15140f);
+  }
+  .m6 .gallery-bg::after {
+    content: "Gallery"; position: absolute; bottom: 24px; left: 16px;
+    font: 800 28px/1 var(--font-body); color: rgba(255,255,255,0.4);
+    letter-spacing: -0.02em;
+  }
+  .m6 .drawer {
+    top: 36px; left: 0; right: 0; bottom: 0;
+    background: color-mix(in srgb, var(--brand-album-paper) 72%, transparent);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    backdrop-filter: blur(28px) saturate(160%);
+    z-index: 10;
+    box-shadow: inset 1px 0 0 rgba(255,255,255,0.1);
+  }
+  :root[data-theme="dark"] .m6 .drawer {
+    background: color-mix(in srgb, #1a1815 65%, transparent);
+  }
+  .m6 .drawer-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  :root[data-theme="dark"] .m6 .drawer-header { border-bottom-color: rgba(255,255,255,0.06); }
+  .m6 .header-top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .m6 .header-title {
+    font: 700 16px/1 var(--font-body); color: var(--sidebar-fg);
+    letter-spacing: -0.01em;
+  }
+  .m6 .lib-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 12px;
+    background: color-mix(in srgb, var(--sidebar-fg) 8%, transparent);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sidebar-fg) 10%, transparent);
+    cursor: pointer;
+  }
+  .m6 .lib-card:active { background: color-mix(in srgb, var(--sidebar-fg) 14%, transparent); }
+  .m6 .lib-avatar {
+    width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, #ff6b35, #ffb300);
+    display: grid; place-items: center;
+    color: #fff; font: 700 15px/1 var(--font-body);
+    box-shadow: 0 2px 6px rgba(255,107,53,0.3);
+  }
+  .m6 .lib-text { flex: 1; min-width: 0; }
+  .m6 .lib-name {
+    font: 600 13px/1.2 var(--font-body); color: var(--sidebar-fg);
+    margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .m6 .lib-path {
+    font: 400 10px/1.3 var(--font-code); color: var(--sidebar-muted);
+    margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .m6 .lib-chev { color: var(--sidebar-muted); font-size: 13px; }
+  .m6 .tree-subhead {
+    padding: 14px 16px 4px;
+    font: 600 10px/1 var(--font-code);
+    color: var(--sidebar-muted);
+    letter-spacing: 1px; text-transform: uppercase;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .m6 .mini-actions { display: flex; gap: 4px; }
+  .m6 .mini-btn {
+    font: 500 9px/1 var(--font-code);
+    padding: 4px 7px; border-radius: 5px;
+    border: 1px solid color-mix(in srgb, var(--sidebar-fg) 12%, transparent);
+    background: color-mix(in srgb, var(--sidebar-fg) 5%, transparent);
+    color: var(--sidebar-muted); cursor: pointer;
+    letter-spacing: 0.5px;
+  }
+  .m6 .drawer-footer {
+    padding: 10px 16px;
+    border-top: 1px solid color-mix(in srgb, var(--sidebar-fg) 8%, transparent);
+    display: flex; align-items: center; gap: 8px;
+    font: 500 11px/1.3 var(--font-code); color: var(--sidebar-muted);
+  }
+  .m6 .index-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+
+  /* ===== Footer hint ===== */
+  .hint {
+    max-width: 480px; margin: 32px auto 0; padding: 16px;
+    font: 400 11px/1.6 var(--font-code); color: var(--sidebar-muted);
+    border-top: 1px solid color-mix(in srgb, var(--sidebar-muted) 14%, transparent);
+  }
+  .hint b { color: var(--sidebar-fg); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header class="demo-header">
+  <div>
+    <h1>Mobile Sidebar — 6 mẫu demo</h1>
+    <p>tap vào row để xem active state · toggle theme ↔</p>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">toggle theme</button>
+</header>
+
+<!-- Mẫu folder tree data (dùng chung) -->
+<!-- =================== MẪU 1 =================== -->
+<div class="section-label">
+  <span class="num">1</span>
+  <span class="title">Current baseline</span>
+  <span class="desc">giữ nguyên để so sánh · header dày · label uppercase + button library + manage</span>
+</div>
+<div class="phone-frame">
+  <div class="phone m1">
+    <div class="phone-notch"></div>
+    <div class="phone-status">
+      <span>9:41</span>
+      <span class="right"><span>●●●</span> <span>📶</span> <span>🔋</span></span>
+    </div>
+    <div class="drawer">
+      <button class="close-btn">×</button>
+      <div class="drawer-header">
+        <p class="lib-label">Active library</p>
+        <div class="lib-btn">
+          <span class="lib-icon">📁</span>
+          <span class="lib-text">
+            <span class="lib-name">Photo Library 2024</span>
+            <span class="lib-path">D:/Photos/2024</span>
+          </span>
+        </div>
+        <button class="manage-btn">⚙️ Manage Libraries</button>
+      </div>
+      <div class="tree-header">
+        <span class="tree-title">Folder Tree</span>
+        <div class="tree-actions">
+          <button class="tree-action">Expand</button>
+          <button class="tree-action">Collapse</button>
+        </div>
+      </div>
+      <ul class="tree">
+        <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">2024</span><span class="count">1.2k</span>
+          <ul class="children">
+            <li class="tree-row active"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Hà Nội đêm thu</span><span class="count">128</span></li>
+            <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">Sapa</span><span class="count">42</span>
+              <ul class="children">
+                <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Fansipan</span><span class="count">18</span></li>
+                <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cát Cát</span><span class="count">24</span></li>
+              </ul>
+            </li>
+            <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cửa lò biển xanh</span><span class="count">256</span></li>
+          </ul>
+        </li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2023</span><span class="count">3.4k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2022</span><span class="count">2.1k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">Archive</span><span class="count">5.6k</span></li>
+      </ul>
+      <div class="drawer-footer">
+        <span class="index-dot"></span>
+        <span>Indexed · 12,847 files · up to date</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MẪU 2 =================== -->
+<div class="section-label">
+  <span class="num">2</span>
+  <span class="title">Library Hero Card</span>
+  <span class="desc">hero gradient + avatar + stats · Apple Music "Library" header style</span>
+</div>
+<div class="phone-frame">
+  <div class="phone m2">
+    <div class="phone-notch"></div>
+    <div class="phone-status" style="color: #fff;">
+      <span>9:41</span>
+      <span class="right"><span>●●●</span> <span>📶</span> <span>🔋</span></span>
+    </div>
+    <div class="drawer">
+      <div class="hero">
+        <div class="hero-top">
+          <span class="hero-eyebrow">Library</span>
+          <button class="hero-close">×</button>
+        </div>
+        <div class="hero-card">
+          <div class="hero-avatar">P</div>
+          <div class="hero-text">
+            <h3 class="hero-name">Photo Library 2024</h3>
+            <p class="hero-path">D:/Photos/2024</p>
+          </div>
+          <span class="hero-chev">›</span>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-pill">
+            <span class="stat-num">12,847</span>
+            <span class="stat-lbl">Files</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-num">8</span>
+            <span class="stat-lbl">Albums</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-num">42 GB</span>
+            <span class="stat-lbl">Size</span>
+          </div>
+        </div>
+      </div>
+      <div class="section-tab">
+        <span class="lbl">Folders</span>
+        <div class="actions">
+          <button class="icon-btn">⤢</button>
+          <button class="icon-btn">⤣</button>
+        </div>
+      </div>
+      <ul class="tree">
+        <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">2024</span><span class="count">1.2k</span>
+          <ul class="children">
+            <li class="tree-row active"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Hà Nội đêm thu</span><span class="count">128</span></li>
+            <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">Sapa</span><span class="count">42</span>
+              <ul class="children">
+                <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Fansipan</span><span class="count">18</span></li>
+                <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cát Cát</span><span class="count">24</span></li>
+              </ul>
+            </li>
+            <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cửa lò biển xanh</span><span class="count">256</span></li>
+          </ul>
+        </li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2023</span><span class="count">3.4k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2022</span><span class="count">2.1k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">Archive</span><span class="count">5.6k</span></li>
+      </ul>
+      <div class="drawer-footer">
+        <span class="index-dot"></span>
+        <span>Indexed · up to date</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MẪU 3 =================== -->
+<div class="section-label">
+  <span class="num">3</span>
+  <span class="title">Compact Pill Header</span>
+  <span class="desc">header siêu mỏng · library là pill · dồn space cho tree · Linear/Notion style</span>
+</div>
+<div class="phone-frame">
+  <div class="phone m3">
+    <div class="phone-notch"></div>
+    <div class="phone-status">
+      <span>9:41</span>
+      <span class="right"><span>●●●</span> <span>📶</span> <span>🔋</span></span>
+    </div>
+    <div class="drawer">
+      <div class="drawer-header">
+        <div class="lib-pill">
+          <span class="lib-dot"></span>
+          <span class="lib-name">Photo Library 2024</span>
+          <span class="lib-chev">⌄</span>
+        </div>
+        <button class="icon-btn">×</button>
+      </div>
+      <div class="tree-subhead">
+        <span>Folders</span>
+        <div class="mini-actions">
+          <button class="mini-btn">EXPAND</button>
+          <button class="mini-btn">COLLAPSE</button>
+        </div>
+      </div>
+      <ul class="tree">
+        <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">2024</span><span class="count">1.2k</span>
+          <ul class="children">
+            <li class="tree-row active"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Hà Nội đêm thu</span><span class="count">128</span></li>
+            <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">Sapa</span><span class="count">42</span>
+              <ul class="children">
+                <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Fansipan</span><span class="count">18</span></li>
+                <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cát Cát</span><span class="count">24</span></li>
+              </ul>
+            </li>
+            <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cửa lò biển xanh</span><span class="count">256</span></li>
+            <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Hội về phố cổ</span><span class="count">96</span></li>
+            <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Chân dung cuối năm</span><span class="count">68</span></li>
+            <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Đêm thành phố</span><span class="count">34</span></li>
+          </ul>
+        </li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2023</span><span class="count">3.4k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2022</span><span class="count">2.1k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2021</span><span class="count">1.8k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">Archive</span><span class="count">5.6k</span></li>
+      </ul>
+      <div class="drawer-footer">
+        <span class="index-dot"></span>
+        <span>12,847 files · up to date</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MẪU 4 =================== -->
+<div class="section-label">
+  <span class="num">4</span>
+  <span class="title">Segmented Tabs</span>
+  <span class="desc">tab Folders | Libraries | Recent · iOS Files app style ·切换 content</span>
+</div>
+<div class="phone-frame">
+  <div class="phone m4">
+    <div class="phone-notch"></div>
+    <div class="phone-status">
+      <span>9:41</span>
+      <span class="right"><span>●●●</span> <span>📶</span> <span>🔋</span></span>
+    </div>
+    <div class="drawer">
+      <div class="drawer-header">
+        <div class="header-top">
+          <span class="header-title">Browse</span>
+          <button class="close-btn" style="position: static; width: 28px; height: 28px;">×</button>
+        </div>
+        <div class="seg">
+          <button class="seg-btn active" onclick="switchTab(this, 'folders')">Folders <span class="badge">8</span></button>
+          <button class="seg-btn" onclick="switchTab(this, 'libs')">Libraries <span class="badge">3</span></button>
+          <button class="seg-btn" onclick="switchTab(this, 'recent')">Recent</button>
+        </div>
+      </div>
+      <div class="tab-content" data-tab="folders">
+        <ul class="tree" style="padding: 6px 0;">
+          <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">2024</span><span class="count">1.2k</span>
+            <ul class="children">
+              <li class="tree-row active"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Hà Nội đêm thu</span><span class="count">128</span></li>
+              <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">Sapa</span><span class="count">42</span>
+                <ul class="children">
+                  <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Fansipan</span><span class="count">18</span></li>
+                  <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cát Cát</span><span class="count">24</span></li>
+                </ul>
+              </li>
+              <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cửa lò biển xanh</span><span class="count">256</span></li>
+            </ul>
+          </li>
+          <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2023</span><span class="count">3.4k</span></li>
+          <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2022</span><span class="count">2.1k</span></li>
+          <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">Archive</span><span class="count">5.6k</span></li>
+        </ul>
+      </div>
+      <div class="tab-content" data-tab="libs" style="display: none;">
+        <div class="lib-row active">
+          <div class="lib-avatar" style="background: linear-gradient(135deg, #ff6b35, #ffb300);">P</div>
+          <div class="lib-info">
+            <p class="lib-name">Photo Library 2024</p>
+            <p class="lib-path">D:/Photos/2024</p>
+          </div>
+          <span class="lib-radio"></span>
+        </div>
+        <div class="lib-row">
+          <div class="lib-avatar" style="background: linear-gradient(135deg, #143d60, #1e5285);">F</div>
+          <div class="lib-info">
+            <p class="lib-name">Family Archive</p>
+            <p class="lib-path">D:/Family/Photos</p>
+          </div>
+          <span class="lib-radio"></span>
+        </div>
+        <div class="lib-row">
+          <div class="lib-avatar" style="background: linear-gradient(135deg, #22c55e, #16a34a);">W</div>
+          <div class="lib-info">
+            <p class="lib-name">Work Projects</p>
+            <p class="lib-path">D:/Work/Images</p>
+          </div>
+          <span class="lib-radio"></span>
+        </div>
+        <div style="padding: 14px;">
+          <button style="width: 100%; padding: 10px; border-radius: 10px; border: 1px dashed var(--sidebar-border); background: transparent; color: var(--sidebar-muted); font: 500 12px/1 var(--font-body); cursor: pointer;">+ Add Library</button>
+        </div>
+      </div>
+      <div class="tab-content" data-tab="recent" style="display: none;">
+        <div class="recent-row">
+          <div class="recent-thumb" style="background-image: url('https://picsum.photos/seed/album-hanoi/80/80');"></div>
+          <div class="recent-info">
+            <p class="recent-name">Hà Nội đêm thu 2024</p>
+            <p class="recent-meta">128 ảnh · hôm nay</p>
+          </div>
+        </div>
+        <div class="recent-row">
+          <div class="recent-thumb" style="background-image: url('https://picsum.photos/seed/album-sapa/80/80');"></div>
+          <div class="recent-info">
+            <p class="recent-name">Sapa — trekking Fansipan</p>
+            <p class="recent-meta">42 ảnh · 2 ngày trước</p>
+          </div>
+        </div>
+        <div class="recent-row">
+          <div class="recent-thumb" style="background-image: url('https://picsum.photos/seed/album-beach/80/80');"></div>
+          <div class="recent-info">
+            <p class="recent-name">Cửa lò biển xanh</p>
+            <p class="recent-meta">256 ảnh · 1 tuần trước</p>
+          </div>
+        </div>
+        <div class="recent-row">
+          <div class="recent-thumb" style="background-image: url('https://picsum.photos/seed/album-festival/80/80');"></div>
+          <div class="recent-info">
+            <p class="recent-name">Hội về trong phố cổ</p>
+            <p class="recent-meta">96 ảnh · 2 tuần trước</p>
+          </div>
+        </div>
+      </div>
+      <div class="drawer-footer">
+        <span class="index-dot"></span>
+        <span>12,847 files · up to date</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MẪU 5 =================== -->
+<div class="section-label">
+  <span class="num">5</span>
+  <span class="title">Search-First</span>
+  <span class="desc">search box đầu · library pill mỏng · iOS Files / Apple Music search style</span>
+</div>
+<div class="phone-frame">
+  <div class="phone m5">
+    <div class="phone-notch"></div>
+    <div class="phone-status">
+      <span>9:41</span>
+      <span class="right"><span>●●●</span> <span>📶</span> <span>🔋</span></span>
+    </div>
+    <div class="drawer">
+      <div class="drawer-header">
+        <div class="header-row">
+          <span class="header-title">Browse</span>
+          <div class="header-actions">
+            <button class="icon-btn">⚙</button>
+            <button class="icon-btn">×</button>
+          </div>
+        </div>
+        <label class="search">
+          <span class="search-icon">🔍</span>
+          <input class="search-input" placeholder="Search folders, photos..." />
+        </label>
+        <div class="lib-pill">
+          <span class="lib-dot"></span>
+          <span class="lib-name">Photo Library 2024 · D:/Photos/2024</span>
+          <span class="lib-chev">⌄</span>
+        </div>
+      </div>
+      <div class="tree-subhead">Folders</div>
+      <ul class="tree">
+        <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">2024</span><span class="count">1.2k</span>
+          <ul class="children">
+            <li class="tree-row active"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Hà Nội đêm thu</span><span class="count">128</span></li>
+            <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">Sapa</span><span class="count">42</span>
+              <ul class="children">
+                <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Fansipan</span><span class="count">18</span></li>
+                <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cát Cát</span><span class="count">24</span></li>
+              </ul>
+            </li>
+            <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cửa lò biển xanh</span><span class="count">256</span></li>
+          </ul>
+        </li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2023</span><span class="count">3.4k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2022</span><span class="count">2.1k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">Archive</span><span class="count">5.6k</span></li>
+      </ul>
+      <div class="drawer-footer">
+        <span class="index-dot"></span>
+        <span>12,847 files · up to date</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MẪU 6 =================== -->
+<div class="section-label">
+  <span class="num">6</span>
+  <span class="title">Glass Sheet</span>
+  <span class="desc">sheet kính mờ backdrop-blur · iOS 17 Liquid Glass / Vision Pro style</span>
+</div>
+<div class="phone-frame">
+  <div class="phone m6">
+    <div class="phone-notch"></div>
+    <div class="phone-status" style="color: #fff;">
+      <span>9:41</span>
+      <span class="right"><span>●●●</span> <span>📶</span> <span>🔋</span></span>
+    </div>
+    <div class="gallery-bg"></div>
+    <div class="drawer">
+      <div class="drawer-header">
+        <div class="header-top">
+          <span class="header-title">Browse</span>
+          <button class="close-btn" style="position: static; width: 28px; height: 28px;">×</button>
+        </div>
+        <div class="lib-card">
+          <div class="lib-avatar">P</div>
+          <div class="lib-text">
+            <p class="lib-name">Photo Library 2024</p>
+            <p class="lib-path">D:/Photos/2024</p>
+          </div>
+          <span class="lib-chev">›</span>
+        </div>
+      </div>
+      <div class="tree-subhead">
+        <span>Folders</span>
+        <div class="mini-actions">
+          <button class="mini-btn">EXPAND</button>
+          <button class="mini-btn">COLLAPSE</button>
+        </div>
+      </div>
+      <ul class="tree">
+        <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">2024</span><span class="count">1.2k</span>
+          <ul class="children">
+            <li class="tree-row active"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Hà Nội đêm thu</span><span class="count">128</span></li>
+            <li class="tree-row expanded"><span class="twisty">▶</span><span class="ficon">📂</span><span class="name">Sapa</span><span class="count">42</span>
+              <ul class="children">
+                <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Fansipan</span><span class="count">18</span></li>
+                <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cát Cát</span><span class="count">24</span></li>
+              </ul>
+            </li>
+            <li class="tree-row"><span class="twisty"></span><span class="ficon">📁</span><span class="name">Cửa lò biển xanh</span><span class="count">256</span></li>
+          </ul>
+        </li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2023</span><span class="count">3.4k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">2022</span><span class="count">2.1k</span></li>
+        <li class="tree-row"><span class="twisty">▶</span><span class="ficon">📁</span><span class="name">Archive</span><span class="count">5.6k</span></li>
+      </ul>
+      <div class="drawer-footer">
+        <span class="index-dot"></span>
+        <span>12,847 files · up to date</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="hint">
+  <b>Cách xem:</b> mở file này trên điện thoại hoặc bật DevTools → mobile view (390×844). Tap vào folder row để xem active state.
+  Nút <b>toggle theme</b> phía trên để xem light/dark. Mẫu 4 (Segmented Tabs) có thể bấm chuyển tab Folders/Libraries/Recent.
+  Khi implement thật, library avatar + stats sẽ lấy từ <code>activeLibrary</code> + <code>useActiveLibrarySelection</code>.
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const cur = html.getAttribute('data-theme') || 'light';
+    html.setAttribute('data-theme', cur === 'light' ? 'dark' : 'light');
+  }
+  function switchTab(btn, tab) {
+    const drawer = btn.closest('.drawer');
+    drawer.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    drawer.querySelectorAll('.tab-content').forEach(c => {
+      c.style.display = c.dataset.tab === tab ? '' : 'none';
+    });
+  }
+</script>
+</body>
+</html>

@@ -26,7 +26,7 @@ const onCoverError = () => {
 </script>
 
 <template>
-  <div
+  <article
     class="album-card-mobile"
     data-testid="album-card"
     :data-album-name="node.name"
@@ -34,10 +34,11 @@ const onCoverError = () => {
     @keydown.enter="emit('click')"
     @keydown.space.prevent="emit('click')"
   >
-    <div class="album-cover">
+    <div class="cover">
       <div v-if="node.cover_images?.[0] && !loaded" class="cover-skeleton" aria-hidden="true">
         <div class="shimmer-wave" />
       </div>
+
       <img
         v-if="node.cover_images?.[0]"
         :src="getThumbnailUrl(node.cover_images[0])"
@@ -46,202 +47,263 @@ const onCoverError = () => {
         @load="onCoverLoad"
         @error="onCoverError"
       />
-      <div v-else class="placeholder flex-center">
+      <div v-else class="placeholder">
         <span class="fa-placeholder-svg" v-html="placeholderSvg" />
       </div>
-    </div>
 
-    <div class="album-info">
-      <h3 class="album-name">
-        {{ node.name }}
-      </h3>
-      <div class="album-meta">
-        <FolderOpen class="gallery-icon-meta album-meta-icon" />
-        <span
-          v-if="node.image_count !== undefined && node.image_count !== null"
-          class="album-count-badge"
-          >{{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span
-        >
+      <!-- Bottom gradient scrim — always rendered so the overlay title stays legible -->
+      <div class="scrim" aria-hidden="true" />
+
+      <!-- Top-right count chip with backdrop blur -->
+      <div
+        v-if="node.image_count !== undefined && node.image_count !== null"
+        class="count-chip"
+      >
+        <FolderOpen class="count-chip-icon" />
+        <span class="count-chip-text">{{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span>
+      </div>
+
+      <!-- Bottom title block — editorial accent bar + magazine-style title -->
+      <div class="title-block">
+        <span class="title-accent" aria-hidden="true" />
+        <h3 class="album-name">{{ node.name }}</h3>
       </div>
     </div>
-  </div>
+  </article>
 </template>
 
 <style scoped lang="scss">
 .album-card-mobile {
-  --album-frame-bg: var(--brand-album-paper);
-  --album-frame-border: var(--brand-album-paper-border);
-  --album-title-color: var(--brand-album-title);
-  --album-meta-color: var(--brand-album-muted);
-  --album-card-radius: 10px;
+  // Local tokens — fall back to brand palette but allow override
+  --acm-paper: var(--brand-album-paper);
+  --acm-paper-border: var(--brand-album-paper-border);
+  --acm-title: #ffffff; // Title is always white — it sits on a scrim over the image
+  --acm-muted: var(--brand-album-muted);
+  --acm-accent: var(--brand-album-accent, #ff6b35);
+  --acm-radius: 14px;
 
+  position: relative;
+  display: block;
   width: 100%;
-  min-height: 44px; // Ensure tap target stays above 44px
+  min-height: 44px; // Tap target safety net
   cursor: pointer;
-  border-radius: var(--album-card-radius);
-  overflow: hidden; // Outer card clips content — clean straight edge at bottom
-  background: var(--album-frame-bg);
-  border: 1px solid var(--album-frame-border);
-  // Subtle layered elevation for visual hierarchy on small screens
+  border-radius: var(--acm-radius);
+  overflow: hidden;
+  background: var(--acm-paper);
+  border: none; // Editorial style — no border, let the shadow do the framing
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.05),
-    0 2px 6px rgba(0, 0, 0, 0.04);
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 6px 16px rgba(0, 0, 0, 0.07);
   transition:
-    transform 160ms ease,
-    box-shadow 160ms ease,
-    border-color 160ms ease,
-    opacity 160ms ease;
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
 
-  .album-cover {
-    position: relative; // Anchor for the in-card skeleton overlay
+  .cover {
+    position: relative;
     width: 100%;
-    aspect-ratio: 1 / 1;
-    border-radius: var(--album-card-radius) var(--album-card-radius) 0 0; // Only top corners rounded
+    aspect-ratio: 4 / 5; // Portrait — magazine cover feel
     overflow: hidden;
-    border: none; // Removed border for cleaner look (Apple Photos style)
-    background: var(--album-frame-bg);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); // Subtle depth (Google Photos style)
+    background: var(--acm-paper);
+    // Subtle inner frame so the image edge feels intentional, not floating
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 
     img {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      // Fade the cover in once it loads, hiding the swap from skeleton → image
+      // Slow Ken Burns zoom on hover/tap — the editorial signature
+      transform: scale(1) translateZ(0);
+      transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 240ms ease;
       opacity: 1;
-      transition: opacity 200ms ease;
+      will-change: transform;
     }
 
     .placeholder {
-      width: 100%;
-      height: 100%;
-      background: color-mix(in srgb, var(--album-meta-color) 14%, transparent);
+      position: absolute;
+      inset: 0;
       display: grid;
       place-items: center;
-      color: var(--album-meta-color);
+      // Warm cream gradient (light) — replaced in dark mode below
+      background:
+        radial-gradient(120% 120% at 30% 20%, color-mix(in srgb, var(--acm-muted) 10%, var(--acm-paper)) 0%, var(--acm-paper) 60%),
+        var(--acm-paper);
+      color: color-mix(in srgb, var(--acm-muted) 55%, transparent);
     }
 
-    // Card-shape loading skeleton shown until the cover image finishes loading.
+    // Loading skeleton — same shape as the cover, hidden once the image loads
     .cover-skeleton {
       position: absolute;
       inset: 0;
       background: linear-gradient(
         90deg,
-        color-mix(in srgb, var(--album-meta-color) 10%, transparent),
-        color-mix(in srgb, var(--album-meta-color) 6%, transparent),
-        color-mix(in srgb, var(--album-meta-color) 10%, transparent)
+        color-mix(in srgb, var(--acm-muted) 10%, transparent),
+        color-mix(in srgb, var(--acm-muted) 6%, transparent),
+        color-mix(in srgb, var(--acm-muted) 10%, transparent)
       );
       overflow: hidden;
       pointer-events: none;
+      z-index: 1;
     }
   }
 
-  .album-info {
-    padding: 0 10px 10px;
-    margin-top: 7px;
+  // Bottom-to-top dark gradient — guarantees the overlay title is readable on any photo
+  .scrim {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0) 0%,
+      rgba(0, 0, 0, 0) 42%,
+      rgba(0, 0, 0, 0.45) 72%,
+      rgba(0, 0, 0, 0.82) 100%
+    );
+    z-index: 2;
+  }
 
-    .album-name {
-      font-family: var(--font-body);
-      font-weight: 600;
-      font-size: 13px;
-      line-height: 1.3;
-      color: var(--album-title-color);
-      margin: 0;
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      word-break: break-word; // Prevent long words breaking layout
-      overflow-wrap: break-word; // Fallback for word-break
-    }
+  // Top-right count chip — frosted glass, mono caption
+  .count-chip {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px 4px 7px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.42);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    backdrop-filter: blur(10px) saturate(160%);
+    color: rgba(255, 255, 255, 0.95);
+    font-family: var(--font-code);
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    // Hairline ring so the chip separates from bright photo areas
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 
-    .album-meta {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-family: var(--font-code);
-      font-size: 11px; // Increased from 10px → 11px (better readability)
-      color: var(--album-meta-color);
-      margin: 6px 0 0;
-      letter-spacing: 0.4px;
-    }
-    .album-meta-icon {
+    .count-chip-icon {
+      width: 11px;
+      height: 11px;
       flex-shrink: 0;
-      color: var(--album-meta-color);
-    }
-    .gallery-icon-meta {
-      width: var(--gallery-icon-meta);
-      height: var(--gallery-icon-meta);
+      opacity: 0.85;
     }
 
-    // Count/stat badge — pill shape, subtle tinted background, clear hierarchy
-    .album-count-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 1px 8px;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--album-meta-color) 12%, transparent);
-      color: var(--album-meta-color);
-      font-size: 10.5px;
-      line-height: 1.55;
-      letter-spacing: 0.3px;
-      white-space: nowrap;
+    .count-chip-text {
+      transform: translateY(0.5px); // Optical alignment with the icon
     }
   }
 
-  // Hover only for devices with hover capability (desktop/trackpad)
+  // Bottom title block — accent bar + magazine title
+  .title-block {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 10px;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none; // Clicks fall through to the card
+  }
+
+  .title-accent {
+    width: 18px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--acm-accent);
+    // Subtle glow on the accent bar for a premium "printed" feel
+    box-shadow: 0 0 8px color-mix(in srgb, var(--acm-accent) 60%, transparent);
+  }
+
+  .album-name {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1.22;
+    letter-spacing: -0.01em; // Tighter — editorial display feel
+    color: var(--acm-title);
+    margin: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); // Extra legibility on top of the scrim
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  // Hover only on devices that actually hover (desktop/trackpad preview)
   @media (hover: hover) {
     &:hover {
       transform: translateY(-2px);
       box-shadow:
-        0 4px 10px rgba(0, 0, 0, 0.08),
-        0 8px 18px rgba(0, 0, 0, 0.06);
-      border-color: color-mix(in srgb, var(--album-meta-color) 28%, var(--album-frame-border));
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        0 12px 28px rgba(0, 0, 0, 0.14);
 
-      .album-cover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-        transition:
-          box-shadow 200ms ease;
+      .cover img {
+        transform: scale(1.04) translateZ(0);
       }
     }
   }
 
+  // Tap feedback — gentle press + continued Ken Burns
+  &:active {
+    transform: scale(0.985);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.1),
+      0 2px 6px rgba(0, 0, 0, 0.06);
+
+    .cover img {
+      transform: scale(1.03) translateZ(0);
+    }
+  }
+
+  // Dark mode — deep shadow + subtle ring instead of light shadow
   html[data-theme="dark"] & {
-    box-shadow: 0 0 8px rgba(255, 255, 255, 0.04);
+    background: var(--acm-paper);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 6px 16px rgba(0, 0, 0, 0.45);
 
-    .album-cover {
-      box-shadow: 0 0 8px rgba(255, 255, 255, 0.04); // Subtle glow in dark mode
-      border: none;
+    .cover {
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+
+      .placeholder {
+        background:
+          radial-gradient(120% 120% at 30% 20%, color-mix(in srgb, var(--acm-muted) 14%, var(--acm-paper)) 0%, var(--acm-paper) 60%),
+          var(--acm-paper);
+        color: color-mix(in srgb, var(--acm-muted) 65%, transparent);
+      }
     }
 
-    .album-name {
-      color: var(--album-title-color);
-    }
-
-    .album-count-badge {
-      background: color-mix(in srgb, var(--album-meta-color) 18%, transparent);
+    // Count chip stays legible on dark imagery either way — keep the dark frosted bg
+    .count-chip {
+      background: rgba(0, 0, 0, 0.5);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
     }
 
     @media (hover: hover) {
       &:hover {
-        box-shadow: 0 0 14px rgba(255, 255, 255, 0.08);
-        .album-cover {
-          box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
-        }
+        box-shadow:
+          0 0 0 1px rgba(255, 255, 255, 0.08),
+          0 12px 28px rgba(0, 0, 0, 0.55);
       }
     }
-  }
 
-  // Tap feedback — subtle press scale, slight border tighten
-  &:active {
-    transform: scale(0.97);
-    opacity: 0.9;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    border-color: color-mix(in srgb, var(--album-meta-color) 40%, var(--album-frame-border));
+    &:active {
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 2px 6px rgba(0, 0, 0, 0.4);
+    }
   }
 }
 
-// Shimmer animation reused from SkeletonLoader pattern — kept local & lightweight
+// ── Shimmer animation (skeleton) ────────────────────────────────────────────
 @keyframes album-shimmer {
   0% {
     transform: translateX(-100%);
@@ -262,7 +324,7 @@ const onCoverError = () => {
   animation: album-shimmer 1.5s infinite;
 }
 
-// Disable shimmer animation on touch devices (prefers reduced motion / no hover)
+// Disable shimmer on touch / no-hover devices — keep the soft static gradient
 @media (hover: none) {
   .cover-skeleton .shimmer-wave {
     animation: none;
@@ -278,32 +340,29 @@ html[data-theme="dark"] .cover-skeleton .shimmer-wave {
 html[data-theme="dark"] .cover-skeleton {
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--album-meta-color) 16%, transparent),
-    color-mix(in srgb, var(--album-meta-color) 10%, transparent),
-    color-mix(in srgb, var(--album-meta-color) 16%, transparent)
+    color-mix(in srgb, var(--brand-album-muted) 16%, transparent),
+    color-mix(in srgb, var(--brand-album-muted) 10%, transparent),
+    color-mix(in srgb, var(--brand-album-muted) 16%, transparent)
   );
 }
 
-.flex-center {
-  display: grid;
-  place-items: center;
-}
-
+// ── Focus rings (keyboard nav) ──────────────────────────────────────────────
 .album-card-mobile:focus {
   outline: none;
 }
 
 .album-card-mobile:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring-shadow);
-  border-radius: 8px;
+  box-shadow: var(--focus-ring-shadow), 0 6px 16px rgba(0, 0, 0, 0.07);
+  border-radius: 14px;
 }
 
-// FA placeholder SVG - :deep needed because v-html lacks scoped attr
+// ── FA placeholder SVG (v-html needs :deep for scoped styles) ────────────────
 .fa-placeholder-svg :deep(svg) {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: block;
-  color: var(--album-meta-color);
+  color: currentColor;
+  opacity: 0.7;
 }
 </style>
