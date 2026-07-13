@@ -2,6 +2,7 @@
 import { computed, inject, onBeforeUnmount, ref, useTemplateRef, watch, type ComponentPublicInstance } from "vue";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
+import { useRelatedAssetsStore } from "../stores/relatedAssets";
 import type { FileNode, SortValue, UnifiedSearchResult } from "../types";
 import { normalizeAssetType } from "../utils/assetType";
 import AlbumScroller from "./AlbumScroller.vue";
@@ -24,7 +25,7 @@ import { useDelayedBoolean } from "../composables/useDelayedBoolean";
 import { useInfiniteBrowseQuery } from "../composables/useInfiniteBrowseQuery";
 import { useInfiniteLoadSentinel } from "../composables/useInfiniteLoadSentinel";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
-import { buildSearchRequestV1 } from "@/utils/searchRequest";
+import { buildSearchRequestV1, buildSearchScopeV1 } from "@/utils/searchRequest";
 import { chunkGridRows, useVirtualGridRows } from "../composables/useVirtualGridRows";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import type { ErrorType } from "../services/api";
@@ -59,6 +60,7 @@ import { useRouter } from "vue-router";
 const galleryStore = useGalleryStore();
 const router = useRouter();
 const lightboxStore = useLightboxStore();
+const relatedAssetsStore = useRelatedAssetsStore();
 const librarySelectorOpen = ref(false);
 const activeLibraryId = computed(() => galleryStore.activeLibraryId);
 const activeBrowsePath = computed(() => galleryStore.currentBrowsePath || null);
@@ -145,6 +147,17 @@ const canonicalSearchRequest = computed(() =>
     mode: galleryStore.searchMode,
     filters: galleryStore.searchFilters,
   }),
+);
+const relatedScope = computed(
+  () =>
+    canonicalSearchRequest.value?.scope ??
+    buildSearchScopeV1({
+      scope: "current",
+      libraryId: galleryStore.activeLibraryId,
+      importPathId: galleryStore.activeImportPathId,
+      importRootPath: galleryStore.activeImportRootPath,
+      folderPath: searchContextPath.value || galleryStore.activeImportRootPath,
+    }),
 );
 const hasStructuredSearch = computed(
   () =>
@@ -236,6 +249,10 @@ const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   height: result.height ?? undefined,
   duration_ms: result.duration_ms,
   mime_type: result.mime_type,
+  asset_id: result.asset_id,
+  library_id: result.library_id,
+  library_name: result.library_name,
+  relation_scope: canonicalSearchRequest.value?.scope,
 });
 
 const searchAlbums = computed(() => unifiedSearchQuery.albums.value);
@@ -434,6 +451,20 @@ const handleOpenMedia = (item: FileNode) => {
     return;
   }
   handleOpenImage(item.path, item.name);
+};
+
+const handleFindRelated = (item: FileNode) => {
+  const scope = item.relation_scope ?? relatedScope.value;
+  if (!item.asset_id || !scope) return;
+  relatedAssetsStore.open(
+    {
+      assetId: item.asset_id,
+      path: item.path,
+      name: item.name,
+      libraryId: item.library_id ?? galleryStore.activeLibraryId,
+    },
+    scope,
+  );
 };
 
 const handlePhotoDimensions = (dimensions: { path: string; width: number; height: number }) => {
@@ -721,6 +752,7 @@ useInfiniteLoadSentinel({
       :show-all-indexed-hint="showAllIndexedHint"
       @open-folder="handleOpenFolder"
       @open-media="handleOpenMedia(searchResultToFileNode($event))"
+      @find-related="handleFindRelated(searchResultToFileNode($event))"
       @dimensions="handlePhotoDimensions"
       @retry="unifiedSearchQuery.refetch()"
       @retry-next="unifiedSearchQuery.fetchNextPage()"
@@ -762,8 +794,10 @@ useInfiniteLoadSentinel({
                   v-else
                   :src="item.path"
                   :name="item.name"
+                  :can-find-related="Boolean(item.asset_id)"
                   @dimensions="handlePhotoDimensions"
                   @click="handleOpenMedia(item)"
+                  @find-related="handleFindRelated(item)"
                 />
               </template>
             </div>
@@ -808,8 +842,10 @@ useInfiniteLoadSentinel({
                 v-else
                 :src="item.path"
                 :name="item.name"
+                :can-find-related="Boolean(item.asset_id)"
                 @dimensions="handlePhotoDimensions"
                 @click="handleOpenMedia(item)"
+                @find-related="handleFindRelated(item)"
               />
             </template>
           </div>

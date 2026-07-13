@@ -110,6 +110,17 @@ describe("queryKeys", () => {
     expect(queryKeys.promptUsage(request)).toEqual(["prompt-usage", request]);
   });
 
+  it("related assets keys partition reference, scope, profile, and limit", () => {
+    const request = {
+      schema_version: 1 as const,
+      reference_asset_id: 9,
+      profile: "visual" as const,
+      scope: { kind: "library" as const, library_id: 4 },
+      limit: 60,
+    };
+    expect(queryKeys.relatedAssets(request)).toEqual(["related-assets", request]);
+  });
+
   it.each([
     [4, "/p", ["status", "path", 4, "/p"]],
     [4, "", ["status", "path", 4, null]],

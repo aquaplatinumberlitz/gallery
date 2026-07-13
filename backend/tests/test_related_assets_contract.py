@@ -26,7 +26,7 @@ from fastapi.testclient import TestClient
 import backend.related_assets as related_module
 from backend.metadata_store import register_library
 from backend.metadata_store._db import _connect
-from backend.models import RelatedIndexComponentStatusV1, RelatedSearchStatusV1
+from backend.models import RelatedIndexComponentStatusV1, RelatedSearchResultV1, RelatedSearchStatusV1
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "related_assets_v1.json"
 
@@ -232,3 +232,43 @@ def test_related_openapi_documents_request_result_status_and_errors(isolated_app
         "RelatedAPIErrorResponseV1",
     ):
         assert name in components
+
+
+def test_combined_profile_merges_metadata_and_visual_evidence_deterministically() -> None:
+    base = {
+        "asset_id": 2,
+        "library_id": 1,
+        "library_name": "Library",
+        "name": "candidate.png",
+        "path": "/library/candidate.png",
+        "type": "image",
+        "parent_path": "/library",
+        "relative_path": "",
+        "mtime": 2,
+        "width": 512,
+        "height": 512,
+    }
+    metadata = RelatedSearchResultV1(
+        **base,
+        match_type="related",
+        relation_tier=60,
+        relation_reasons=["strong_prompt_overlap", "same_model_hash"],
+        metadata_score=0.7,
+    )
+    visual = RelatedSearchResultV1(
+        **base,
+        match_type="visual_variant",
+        relation_tier=80,
+        relation_reasons=["visual_variant"],
+        visual_distance=2,
+    )
+    merged = related_module._merge_related_items([metadata], [visual], limit=60)
+    assert len(merged) == 1
+    assert merged[0].relation_tier == 80
+    assert [reason.value for reason in merged[0].relation_reasons] == [
+        "strong_prompt_overlap",
+        "same_model_hash",
+        "visual_variant",
+    ]
+    assert merged[0].metadata_score == 0.7
+    assert merged[0].visual_distance == 2

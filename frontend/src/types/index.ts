@@ -33,6 +33,9 @@ export interface FileNode {
   width?: number | null; // Image width in pixels when available
   height?: number | null; // Image height in pixels when available
   asset_id?: number | null;
+  library_id?: number | null;
+  library_name?: string | null;
+  relation_scope?: SearchScopeV1;
   metadata_state?: string | null;
   derivative_ready?: Record<string, boolean> | null;
   duration_ms?: number | null;
@@ -306,6 +309,64 @@ export interface UnifiedSearchResult {
   prompt_snippet: string;
   duration_ms?: number | null;
   mime_type?: string | null;
+}
+
+export type RelatedProfileV1 = "related" | "recipe" | "visual";
+export type RelationReasonCodeV1 =
+  | "same_exact_signature"
+  | "same_recipe"
+  | "same_generation_family"
+  | "same_prompt"
+  | "strong_prompt_overlap"
+  | "same_model_hash"
+  | "same_model_name"
+  | "shared_lora"
+  | "shared_resource"
+  | "shared_workflow_property"
+  | "similar_generation_settings"
+  | "visual_variant";
+
+export interface RelatedIndexComponentStatusV1 {
+  index_name: "generation_signatures" | "visual_fingerprints";
+  state: "not_ready" | "ready" | "building" | "degraded" | "failed" | "disabled" | "unavailable";
+  usable: boolean;
+  indexed_count: number;
+  target_count: number;
+}
+
+export interface RelatedSearchStatusV1 {
+  metadata: RelatedIndexComponentStatusV1;
+  visual: RelatedIndexComponentStatusV1;
+}
+
+export interface RelatedSearchRequestV1 {
+  schema_version: 1;
+  reference_asset_id: number;
+  profile: RelatedProfileV1;
+  scope: SearchScopeV1;
+  limit: number;
+}
+
+export interface RelatedSearchResultV1 extends UnifiedSearchResult {
+  asset_id: number;
+  library_id: number;
+  library_name: string;
+  type: "image";
+  relation_tier: 100 | 90 | 80 | 70 | 60 | 40;
+  relation_reasons: RelationReasonCodeV1[];
+  visual_distance: number | null;
+  metadata_score: number | null;
+}
+
+export interface RelatedSearchResponseV1 {
+  schema_version: 1;
+  reference_asset_id: number;
+  profile: RelatedProfileV1;
+  scope: SearchScopeV1;
+  items: RelatedSearchResultV1[];
+  returned: number;
+  limit: number;
+  status: RelatedSearchStatusV1;
 }
 
 export interface UnifiedSearchResults {

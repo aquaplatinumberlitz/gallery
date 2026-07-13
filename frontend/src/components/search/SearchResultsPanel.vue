@@ -40,6 +40,7 @@ const props = withDefaults(defineProps<Props>(), { errorMessage: "Unable to load
 const emit = defineEmits<{
   openFolder: [path: string];
   openMedia: [result: UnifiedSearchResult];
+  findRelated: [result: UnifiedSearchResult];
   dimensions: [dimensions: { path: string; width: number; height: number }];
   retry: [];
   retryNext: [];
@@ -266,8 +267,10 @@ const displayFolder = (result: UnifiedSearchResult) => {
                 v-else
                 :src="item.path"
                 :name="item.name"
+                :can-find-related="Boolean(item.asset_id)"
                 @dimensions="emit('dimensions', $event)"
                 @click="emit('openMedia', item)"
+                @find-related="emit('findRelated', item)"
                 @keydown.enter="emit('openMedia', item)"
                 @keydown.space.prevent="emit('openMedia', item)"
               />

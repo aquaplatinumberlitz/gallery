@@ -20,6 +20,7 @@ import { useSearchUrlSync } from "./composables/useSearchUrlSync";
 import type { FieldFilter, PersistableSearchRequestV1 } from "./types";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
+const RelatedAssetsPanel = defineAsyncComponent(() => import("./components/RelatedAssetsPanel.vue"));
 const DesktopLayout = defineAsyncComponent(() => import("./layouts/DesktopLayout.vue"));
 const TabletLayout = defineAsyncComponent(() => import("./layouts/TabletLayout.vue"));
 const MobileLayout = defineAsyncComponent(() => import("./layouts/MobileLayout.vue"));
@@ -263,6 +264,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
       />
 
       <Lightbox />
+      <RelatedAssetsPanel />
       <AdvancedSearchDrawer
         v-if="isAdvancedSearchOpen"
         :is-open="isAdvancedSearchOpen"

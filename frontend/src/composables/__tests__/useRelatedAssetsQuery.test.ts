@@ -1,0 +1,93 @@
+/**
+ * Purpose: Protect adaptable Related Assets query keys, retries, and reference isolation.
+ * Guarantees: Plain/ref/getter inputs work; reference changes clear prior data; refetch errors retain successful data.
+ * Run when: Changing Related Assets requests, TanStack Query policy, or panel refresh behavior.
+ */
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
+import { mount } from "@vue/test-utils";
+import { defineComponent, h, ref } from "vue";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fetchRelatedAssets, GalleryAPIError } from "@/services/api";
+import type { RelatedSearchRequestV1, RelatedSearchResponseV1 } from "@/types";
+import { useRelatedAssetsQuery } from "../useRelatedAssetsQuery";
+
+vi.mock("@/services/api", async () => {
+  const actual = await vi.importActual<typeof import("@/services/api")>("@/services/api");
+  return { ...actual, fetchRelatedAssets: vi.fn() };
+});
+
+const request = (assetId: number): RelatedSearchRequestV1 => ({
+  schema_version: 1,
+  reference_asset_id: assetId,
+  profile: "related",
+  scope: { kind: "library", library_id: 1 },
+  limit: 60,
+});
+
+const response = (assetId: number): RelatedSearchResponseV1 => ({
+  schema_version: 1,
+  reference_asset_id: assetId,
+  profile: "related",
+  scope: { kind: "library", library_id: 1 },
+  items: [],
+  returned: 0,
+  limit: 60,
+  status: {
+    metadata: { index_name: "generation_signatures", state: "ready", usable: true, indexed_count: 1, target_count: 1 },
+    visual: { index_name: "visual_fingerprints", state: "building", usable: false, indexed_count: 0, target_count: 1 },
+  },
+});
+
+function setup(initial: RelatedSearchRequestV1 | null) {
+  const source = ref(initial);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  let result!: ReturnType<typeof useRelatedAssetsQuery>;
+  mount(
+    defineComponent({
+      setup() {
+        result = useRelatedAssetsQuery(() => source.value);
+        return () => h("div");
+      },
+    }),
+    { global: { plugins: [[VueQueryPlugin, { queryClient }]] } },
+  );
+  return { result, source };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(fetchRelatedAssets).mockImplementation(async (value) => response(value.reference_asset_id));
+});
+
+describe("useRelatedAssetsQuery", () => {
+  it("accepts a getter and fetches the complete reference request", async () => {
+    const { result } = setup(request(10));
+    await vi.waitFor(() => expect(result.data.value?.reference_asset_id).toBe(10));
+    expect(fetchRelatedAssets).toHaveBeenCalledWith(request(10), expect.any(AbortSignal));
+  });
+
+  it("does not leak prior results when the reference changes", async () => {
+    const { result, source } = setup(request(10));
+    await vi.waitFor(() => expect(result.data.value?.reference_asset_id).toBe(10));
+    let resolveNext!: (value: RelatedSearchResponseV1) => void;
+    vi.mocked(fetchRelatedAssets).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveNext = resolve;
+      }),
+    );
+    source.value = request(20);
+    await vi.waitFor(() => expect(fetchRelatedAssets).toHaveBeenCalledWith(request(20), expect.any(AbortSignal)));
+    expect(result.data.value).toBeUndefined();
+    resolveNext(response(20));
+    await vi.waitFor(() => expect(result.data.value?.reference_asset_id).toBe(20));
+  });
+
+  it("retains successful data when a background refetch fails", async () => {
+    const { result } = setup(request(10));
+    await vi.waitFor(() => expect(result.data.value?.reference_asset_id).toBe(10));
+    vi.mocked(fetchRelatedAssets).mockRejectedValue(new GalleryAPIError("server_error", "Failed", "Retry", true));
+    await result.refetch();
+    expect(result.data.value?.reference_asset_id).toBe(10);
+    expect(result.isRefetchError.value).toBe(true);
+  });
+});

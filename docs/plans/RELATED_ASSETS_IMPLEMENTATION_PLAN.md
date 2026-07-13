@@ -489,19 +489,19 @@ gallery and lightbox surfaces.
 
 ### Required behavior
 
-- [ ] Add `Find related` to image-card and lightbox overflow actions.
-- [ ] Default to the combined `related` profile.
-- [ ] Offer `Same recipe` and `Visual variants` as explicit filters, not hidden modes.
-- [ ] Reuse the canonical gallery result card/grid; do not add a second media viewer.
-- [ ] Show relation tier labels and concise reason chips.
-- [ ] Never show a probability percentage or AI-generated explanation.
-- [ ] A generation-family summary says `same recorded settings`, not same lineage.
-- [ ] Compare changed seed, sampler, scheduler, steps, CFG, dimensions, model,
+- [x] Add `Find related` to image-card and lightbox overflow actions.
+- [x] Default to the combined `related` profile.
+- [x] Offer `Same recipe` and `Visual variants` as explicit filters, not hidden modes.
+- [x] Reuse the canonical gallery result card/grid; do not add a second media viewer.
+- [x] Show relation tier labels and concise reason chips.
+- [x] Never show a probability percentage or AI-generated explanation.
+- [x] A generation-family summary says `same recorded settings`, not same lineage.
+- [x] Compare changed seed, sampler, scheduler, steps, CFG, dimensions, model,
       LoRA/resources, denoising, hires, and VAE fields when present.
-- [ ] Preserve successful results during background refresh errors and expose retry.
-- [ ] Missing visual coverage still permits metadata-related results.
-- [ ] Related sessions are not written to saved/recent-search storage.
-- [ ] Desktop, tablet, mobile, keyboard, and screen-reader semantics match.
+- [x] Preserve successful results during background refresh errors and expose retry.
+- [x] Missing visual coverage still permits metadata-related results.
+- [x] Related sessions are not written to saved/recent-search storage.
+- [x] Desktop, tablet, mobile, keyboard, and screen-reader semantics match.
 
 ### Smart collections
 
@@ -519,13 +519,13 @@ canonical query so results remain current.
 
 ### Acceptance gates
 
-- [ ] Find Related opens the correct reference and scope.
-- [ ] Reason codes map to stable, localized, accessible copy.
-- [ ] Recipe/family wording never overclaims provenance.
-- [ ] Metadata-only, visual-only, combined, building, degraded, and failed
+- [x] Find Related opens the correct reference and scope.
+- [x] Reason codes map to stable, localized, accessible copy.
+- [x] Recipe/family wording never overclaims provenance.
+- [x] Metadata-only, visual-only, combined, building, degraded, and failed
       states render distinctly.
-- [ ] Back/Forward and reference changes do not leak prior results.
-- [ ] Related-result selection opens the existing lightbox correctly.
+- [x] Back/Forward and reference changes do not leak prior results.
+- [x] Related-result selection opens the existing lightbox correctly.
 
 ## R5 - Reliability, performance, tests, and documentation
 
@@ -635,3 +635,4 @@ When complete, move this file to `docs/archived/` and update
 | 2026-07-13 | R1 | Complete | Schema v10 adds compact generation signatures with rollback-safe `.v8.bak`; versioned prompt atoms and canonical numeric hashing lock family/recipe/exact boundaries; metadata persistence invalidates and coalesces durable active-only backfill; 15 focused tests plus lifecycle/API regression coverage pass. |
 | 2026-07-13 | R2 | Complete | Bounded signature/model/resource/workflow/16-atom FTS candidates feed scoring outside SQLite writes; fixed explainable tiers/reasons and recipe filtering pass the golden fixture; stale, inactive, cross-scope, seed-only, model-only, LoRA-only, and boilerplate-only leakage is rejected. |
 | 2026-07-13 | R3 | Complete | Schema v11 adds fixed Pillow-only dHash/color fingerprints and eight indexed bands without inline decode; derivative-backed durable extraction, 500-row exact/one-bit band candidates, bit-count/color/aspect ranking, typed coverage, disable isolation, and honest transform limits pass focused tests. |
+| 2026-07-13 | R4 | Complete | Global card/lightbox `Find related` actions open one responsive combined/recipe/visual sheet; Query-owned keyed results preserve stale successes but isolate reference changes; stable tiers/reasons, metadata-only coverage, recorded-setting comparison, smart-collection descriptors, and existing-lightbox handoff pass focused units and managed E2E. |

@@ -489,7 +489,9 @@ Key paths:
 | `frontend/src/App.vue`                                    | Root shell, layout dispatch, lightbox/settings/toast mounting, Query Devtools in dev                                           |
 | `frontend/src/layouts/`                                   | Desktop, tablet, and mobile layout shells                                                                                      |
 | `frontend/src/components/GalleryGrid.vue`                 | Main gallery renderer, browse album/photo sections, and search-query orchestration                                             |
-| `frontend/src/components/Lightbox.vue`                    | Device-dispatch lightbox orchestrator                                                                                          |
+| `frontend/src/components/Lightbox.vue`                    | Device-dispatch lightbox orchestrator with the image-level Related Assets action                                               |
+| `frontend/src/components/RelatedAssetsPanel.vue`          | Canonical metadata/visual relation sheet, profile filters, coverage states, evidence, and lightbox handoff                     |
+| `frontend/src/components/GenerationFamilySummary.vue`     | Recorded family/recipe counts and generation-setting comparison without provenance claims                                     |
 | `frontend/src/components/LibraryInspector.vue`            | Desktop metadata inspection table at `/metadata`; TanStack Table for returned-row sorting plus TanStack Virtual for table rows |
 | `frontend/src/components/admin/LibraryListPage.vue`       | Admin registered-library list, update-all entrypoint, status summaries, and navigation to library detail pages                  |
 | `frontend/src/components/admin/LibraryDetailPage.vue`     | Admin library detail with status/progress, generated-image coverage, live watcher/refresh state, problems, jobs, and dialogs   |
@@ -506,10 +508,10 @@ Key paths:
 | `frontend/src/components/search/SearchFeedback.vue`       | Pending, blocking-error, stale-warning, pagination-error, and successful-empty search states                                   |
 | `frontend/src/components/search/SearchResultMetadata.vue` | Escaped match/snippet/generation/library context for one search result                                                         |
 | `frontend/src/components/ui/`                             | shadcn-vue/Reka-inspired local UI primitives                                                                                   |
-| `frontend/src/composables/`                               | Query wrappers, device detection, PhotoSwipe lifecycle, metadata helpers, theme, haptics                                       |
+| `frontend/src/composables/`                               | Query wrappers including Related Assets, device detection, PhotoSwipe lifecycle, metadata/comparison helpers, theme, haptics  |
 | `frontend/src/query/`                                     | TanStack Query client, normalized query keys, browse prefetch helpers                                                          |
 | `frontend/src/db/`                                        | TanStack DB beta foundation and landing-pages pilot collection                                                                 |
-| `frontend/src/stores/`                                    | Pinia stores for gallery UI/navigation, lightbox, and toasts                                                                   |
+| `frontend/src/stores/`                                    | Pinia stores for gallery UI/navigation, lightbox, Related Assets session UI, and toasts                                        |
 | `frontend/src/services/api.ts`                            | Axios client, endpoint wrappers, URL helpers, API error mapping                                                                |
 | `frontend/src/styles/`                                    | Tailwind 4 entry, shadcn token bridge, SCSS tokens, breakpoints, lightbox styles                                               |
 
@@ -517,10 +519,11 @@ Key paths:
 
 | Layer                | Responsibilities                                                                                                                                      |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TanStack Query       | `/api/browse`, `/api/folders`, `/api/search/query`, `/api/metadata`, `/api/facets`, library status/jobs/stats, generated-image status/actions, Library Inspector rows/details, landing page fetches |
+| TanStack Query       | `/api/browse`, `/api/folders`, `/api/search/query`, `/api/search/related`, `/api/metadata`, `/api/facets`, library status/jobs/stats, generated-image status/actions, Library Inspector rows/details, landing page fetches |
 | TanStack DB          | Beta local reactive collection foundation; currently only the landing-pages collection is a runtime pilot                                             |
 | Pinia gallery store  | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state                                 |
 | Pinia lightbox store | Open image, current index, visible item list, navigation                                                                                              |
+| Pinia related store  | Ephemeral open/reference/scope/profile UI state; no related result payloads and no saved/recent-search persistence                                  |
 | Pinia toast store    | Toast API adapter (Gallery API → Sonner): IDs, variants, durations, dismiss, clear, actions, visible-toast limit; Sonner owns render/dismiss mechanics |
 
 Query keys are centralized in `frontend/src/query/keys.ts`. Paths are normalized by trimming, converting backslashes to forward slashes, collapsing duplicate slashes, and removing a trailing slash except for `/`.
@@ -550,6 +553,7 @@ Core keys:
 ["search", query, scope, normalizedPath, limit]
 ["metadata", normalizedPath]
 ["facets", canonicalScope, libraryId, normalizedPath]
+["related-assets", canonicalRequest]
 ["status"]
 ["status", "libraries", "batch"]
 ["status", "library", libraryId]
@@ -655,10 +659,11 @@ Header search or AdvancedSearchDrawer
   reuses the canonical folder/library/all scope union, authorizes an active
   image reference before reading relation data, excludes the reference from
   results, and distinguishes missing relation coverage (409) from unusable
-  persisted relation data (503). R0 exposes the complete contract while the
-  R1 supplies persisted generation signatures and per-library readiness; R2
-  returns bounded explainable results for `related` and `recipe`. The
-  visual-fingerprint component remains not ready until R3.
+  persisted relation data (503). Generation signatures supply bounded
+  metadata candidates and visual fingerprints supply indexed near-duplicate
+  candidates. The combined `related` profile merges both result streams by
+  stable asset identity, retains all typed evidence, and keeps metadata results
+  available when visual coverage is disabled, building, degraded, or failed.
 - Derived discovery indexes use durable per-library states and jobs. Claims
   carry worker ID, opaque token, and lease; completion is fenced. Workers read
   active assets by `asset_id` keyset in batches of at most 200, extract outside
@@ -714,6 +719,21 @@ Header search or AdvancedSearchDrawer
   active query/scope/mode/filters and navigation/UI state. Filter-only prompt
   or workflow requests are active searches even when their lexical text is empty.
 - Active search replaces browse sorting with a visible `Relevance` label. Search feedback distinguishes initial pending, blocking error, stale-data warning, next-page error, and successful empty states on desktop, tablet, and mobile.
+- Image-card and lightbox overflow actions open the global Related Assets
+  sheet with the current canonical scope. `related` is the default profile;
+  `recipe` and `visual` are explicit tabs. TanStack Query owns each complete
+  reference/profile/scope response and forwards cancellation through Axios.
+  Reference changes use a new key and do not show the prior reference's data;
+  a failed background refresh retains the last successful response with a
+  visible retry action. The ephemeral Pinia store owns only sheet state.
+- Related results reuse `PhotoCard` and the existing lightbox item list. Stable
+  reason codes map to concise evidence chips and fixed tier labels. The family
+  summary compares only recorded seed, sampler, scheduler, steps, CFG,
+  dimensions, model, LoRA/resources, denoising, hires, and VAE values and says
+  `same recorded settings`, never lineage or probability.
+- Smart-collection descriptors contain either a canonical Search V2 request or
+  a persisted relation/fact descriptor. They do not persist materialized asset
+  membership and Related Assets sessions never enter saved/recent search state.
 - Search URL state uses `search_v=1` plus bounded base64url structured groups.
   Debounced edits replace browser history; committed actions push; guarded
   hydration applies Back/Forward without a write loop. Saved searches (50) and

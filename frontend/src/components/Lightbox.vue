@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { FocusScope } from "reka-ui";
 import { useLightboxStore } from "../stores/lightbox";
 import { useClipboard } from "../composables/useClipboard";
@@ -15,10 +15,16 @@ import MobilePhotoSwipe from "./MobilePhotoSwipe.vue";
 import TabletPhotoSwipe from "./TabletPhotoSwipe.vue";
 import PhotoSwipeViewer from "./PhotoSwipeViewer.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import AssetActionMenu from "@/components/AssetActionMenu.vue";
+import { useGalleryStore } from "@/stores/gallery";
+import { useRelatedAssetsStore } from "@/stores/relatedAssets";
+import { buildSearchScopeV1 } from "@/utils/searchRequest";
 
 const { isDesktop, isTablet, isMobile, isWide } = useDevice();
 
 const lightbox = useLightboxStore();
+const galleryStore = useGalleryStore();
+const relatedAssets = useRelatedAssetsStore();
 const { copyStatus, copyText } = useClipboard();
 
 // Refs for focus management
@@ -28,6 +34,7 @@ const desktopPhotoSwipeRef = ref<{ loadOriginalForCurrent: (reason?: "fullscreen
 const show = computed(() => lightbox.isOpen);
 const metadataPath = computed(() => lightbox.itemPath);
 const metadataQuery = usePhotoMetadataQuery(show, metadataPath);
+const currentItem = computed(() => lightbox.galleryItems[lightbox.currentIndex] ?? null);
 const isLoading = computed(() => metadataQuery.isLoading.value);
 const meta = computed(() => metadataQuery.data.value ?? null);
 const isFullscreen = ref(false);
@@ -78,6 +85,24 @@ function handleClose() {
   }
   showSheet.value = false;
   lightbox.close();
+}
+
+async function handleFindRelated() {
+  const item = currentItem.value;
+  if (!item?.asset_id) return;
+  const scope =
+    item.relation_scope ??
+    buildSearchScopeV1({
+      scope: "current",
+      libraryId: item.library_id ?? galleryStore.activeLibraryId,
+      importPathId: galleryStore.activeImportPathId,
+      importRootPath: galleryStore.activeImportRootPath,
+      folderPath: galleryStore.currentBrowsePath || galleryStore.activeImportRootPath,
+    });
+  if (!scope) return;
+  handleClose();
+  await nextTick();
+  relatedAssets.open({ assetId: item.asset_id, path: item.path, name: item.name, libraryId: item.library_id }, scope);
 }
 
 // PhotoSwipe handlers (mobile only)
@@ -261,6 +286,13 @@ function handleToggleFullscreen() {
           class="lightbox-overlay"
           :style="{ '--lightbox-sidebar-width': sidebarWidthStyle }"
         >
+          <AssetActionMenu
+            v-if="currentItem?.asset_id"
+            class="lightbox-related-actions"
+            label="Lightbox image actions"
+            :dark="true"
+            @find-related="handleFindRelated"
+          />
           <!-- Desktop/Wide: PhotoSwipe + Sidebar -->
           <template v-if="isDesktop || isWide">
             <PhotoSwipeViewer
@@ -409,6 +441,20 @@ function handleToggleFullscreen() {
 
 .lightbox-overlay:focus {
   outline: none;
+}
+
+.lightbox-related-actions {
+  position: absolute;
+  top: 18px;
+  right: calc(var(--lightbox-sidebar-width, 0px) + 68px);
+  z-index: calc(var(--gallery-z-lightbox, 100000) + 2);
+}
+
+@media (max-width: 767px) {
+  .lightbox-related-actions {
+    top: max(12px, env(safe-area-inset-top));
+    right: 58px;
+  }
 }
 
 .fs-controls {

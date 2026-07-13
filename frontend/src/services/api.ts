@@ -31,6 +31,8 @@ import type {
   PromptUsageQueryRequestV1,
   PromptUsageResponseV1,
   RawWorkflowSearchResponseV1,
+  RelatedSearchRequestV1,
+  RelatedSearchResponseV1,
   SearchCapabilitiesV1,
   SearchIndexJobV1,
   SearchIndexStateV1,
@@ -103,6 +105,8 @@ export type ErrorType =
   | "feature_disabled"
   | "search_index_not_ready"
   | "search_timeout"
+  | "relation_index_not_ready"
+  | "reference_not_indexed"
   | "network"
   | LibraryErrorType;
 
@@ -263,6 +267,22 @@ export class GalleryAPIError extends Error {
           true,
         );
 
+      case "relation_index_not_ready":
+        return new GalleryAPIError(
+          "relation_index_not_ready",
+          "Related assets are still indexing",
+          parsed?.message || "Wait for relation coverage to become usable, then try again.",
+          true,
+        );
+
+      case "reference_not_indexed":
+        return new GalleryAPIError(
+          "reference_not_indexed",
+          "Visual coverage is not ready",
+          parsed?.message || "Build visual fingerprints for this image, then try again.",
+          true,
+        );
+
       default:
         return new GalleryAPIError(
           "server_error",
@@ -358,6 +378,14 @@ export const unifiedSearchV2 = async (
   signal?: AbortSignal,
 ): Promise<UnifiedSearchResponse> => {
   const { data } = await api.post<UnifiedSearchResponse>("/api/search/query", request, { signal });
+  return data;
+};
+
+export const fetchRelatedAssets = async (
+  request: RelatedSearchRequestV1,
+  signal?: AbortSignal,
+): Promise<RelatedSearchResponseV1> => {
+  const { data } = await api.post<RelatedSearchResponseV1>("/api/search/related", request, { signal });
   return data;
 };
 

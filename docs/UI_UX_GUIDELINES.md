@@ -225,3 +225,22 @@ Icon rules:
   similar colors/layouts can produce false positives.
 - A missing current visual fingerprint is a coverage state, not an empty result.
   Show rebuild/index status context without blocking metadata-related results.
+- `Find related` is an image-level overflow action on gallery/search cards and
+  the lightbox. It opens one responsive sheet for the current reference and
+  canonical folder/library/all scope.
+- The sheet defaults to `Related`; `Same recipe` and `Visual variants` remain
+  visible tabs with at least 44px touch targets. Mobile uses the full viewport
+  width; tablet/desktop use the same right-side sheet and content order.
+- Results reuse the normal photo card and existing lightbox. Show a fixed tier
+  label plus short reason chips from typed backend codes. Do not show a
+  probability, confidence percentage, generated explanation, or inferred
+  lineage.
+- Family summaries say `same recorded settings` and compare only values
+  actually recorded for both images. One-sided metadata remains visible and is
+  not guessed.
+- Coverage badges distinguish metadata and visual `ready`, `building`,
+  `degraded`, `failed`, `disabled`, and unavailable states. A refresh error
+  keeps the last successful results visible with an alert and Retry action;
+  changing the reference clears the previous result surface.
+- Overflow buttons, result titles, tabs, status/alert regions, and evidence
+  lists must remain keyboard operable and screen-reader labelled.

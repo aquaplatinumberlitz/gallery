@@ -44,6 +44,7 @@ import {
   fetchMaintenanceRuntime,
   fetchMetadata,
   fetchPromptUsage,
+  fetchRelatedAssets,
   fetchSearchCapabilities,
   fetchSearchIndexes,
   GalleryAPIError,
@@ -85,6 +86,8 @@ describe("GalleryAPIError", () => {
     ["permission", "permission"],
     ["invalid_file", "invalid_file"],
     ["confirmation_required", "confirmation_required"],
+    ["relation_index_not_ready", "relation_index_not_ready"],
+    ["reference_not_indexed", "reference_not_indexed"],
   ])("maps %s error", (errorCode, expectedType) => {
     const err = { response: { data: { detail: { error: errorCode, message: "msg" } } } } as unknown as AxiosError;
     expect(GalleryAPIError.fromAxiosError(err).type).toBe(expectedType);
@@ -221,6 +224,21 @@ describe("openFolder", () => {
     mockApi.post.mockResolvedValueOnce({});
     await openFolder("/p");
     expect(mockApi.post).toHaveBeenCalledWith("/api/open-folder", null, { params: { path: "/p" } });
+  });
+});
+
+describe("fetchRelatedAssets", () => {
+  it("posts a non-persistable reference request", async () => {
+    const request = {
+      schema_version: 1 as const,
+      reference_asset_id: 9,
+      profile: "related" as const,
+      scope: { kind: "library" as const, library_id: 4 },
+      limit: 60,
+    };
+    mockApi.post.mockResolvedValueOnce({ data: { reference_asset_id: 9, items: [] } });
+    await fetchRelatedAssets(request);
+    expect(mockApi.post).toHaveBeenCalledWith("/api/search/related", request, { signal: undefined });
   });
 });
 

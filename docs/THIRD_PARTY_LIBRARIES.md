@@ -253,6 +253,8 @@ Pinia stores UI/navigation state:
 
 - `gallery.ts`: root/current path, history, expanded folders, search input/scope, sort, loaded flags.
 - `lightbox.ts`: open item, current index, visible image list, navigation.
+- `relatedAssets.ts`: ephemeral Related Assets sheet reference, scope, and
+  profile UI state; result payloads remain in TanStack Query.
 - `toast.ts`: toast queue.
 
 Pinia should not duplicate new server/API response state that belongs in TanStack Query.
@@ -282,6 +284,7 @@ Integration files:
 - `frontend/src/composables/usePromptUsageQuery.ts`
 - `frontend/src/composables/useSearchIndexStatusQuery.ts`
 - `frontend/src/composables/usePhotoMetadataQuery.ts`
+- `frontend/src/composables/useRelatedAssetsQuery.ts`
 - `frontend/src/composables/useFacetsQuery.ts`
 - `frontend/src/composables/useCatalogStatusQuery.ts`
 - `frontend/src/composables/useInfiniteLibraryInspectorQuery.ts`
@@ -297,6 +300,17 @@ Capabilities, prompt usage, and search-index status also use complete scoped
 keys. Status polling runs only while the discovery sheet is open and an index
 is pending/building; rebuild and cancellation are mutations that invalidate the
 matching status key.
+
+Related Assets uses a complete schema/reference/profile/scope/limit query key,
+forwards cancellation to Axios, and retries only typed retryable API errors.
+Reference changes intentionally do not retain the prior reference response;
+background refetch failures retain the last successful Query-owned response.
+No relation result payload is copied into Pinia or saved/recent search storage.
+
+The relation feature adds no image or ML dependency. Pillow, already used by
+the backend image pipeline, computes persisted fingerprints in bounded
+background work; Vue, Pinia, Axios, and TanStack Query provide the UI and
+request lifecycle without a model runtime, vector extension, or sidecar.
 
 Vue Router owns the shareable Search V2 URL codec. Pinia owns the active search
 session, while versioned saved/recent searches remain bounded in browser

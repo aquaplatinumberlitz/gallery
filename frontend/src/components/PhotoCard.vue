@@ -2,6 +2,7 @@
 import { ref, watch, computed, onBeforeUnmount } from "vue";
 import { getThumbnailUrl, getImageUrl } from "../services/api";
 import { Image } from "lucide-vue-next";
+import AssetActionMenu from "@/components/AssetActionMenu.vue";
 
 // ── Global image load cache ──
 // Persists across virtualized mount/unmount cycles so shimmer doesn't re-appear
@@ -14,6 +15,7 @@ const props = withDefaults(
     thumbnailSize?: number;
     fetchPriority?: "auto" | "high" | "low";
     loadDelayMs?: number;
+    canFindRelated?: boolean;
   }>(),
   {
     src: undefined,
@@ -21,12 +23,14 @@ const props = withDefaults(
     thumbnailSize: 512,
     fetchPriority: "auto",
     loadDelayMs: 0,
+    canFindRelated: false,
   },
 );
 
 const emit = defineEmits<{
   (e: "click"): void;
   (e: "dimensions", dimensions: { path: string; width: number; height: number }): void;
+  (e: "find-related"): void;
 }>();
 
 const isLoaded = ref(props.src ? loadedImages.has(props.src) : false);
@@ -140,53 +144,69 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    data-testid="photo-card"
-    class="photo-card"
-    :class="{ loaded: isLoaded }"
-    @click="emit('click')"
-    @mouseenter="onMouseEnter"
-    @mouseleave="onMouseLeave"
-    @keydown.enter="emit('click')"
-    @keydown.space.prevent="emit('click')"
-  >
-    <!-- Shimmer placeholder -->
-    <div v-if="!isLoaded && !hasError" class="shimmer-placeholder">
-      <div class="shimmer-wave" />
+  <div class="photo-card-shell" @mouseenter="onMouseEnter" @mouseleave="onMouseLeave">
+    <div
+      data-testid="photo-card"
+      class="photo-card"
+      :class="{ loaded: isLoaded }"
+      @click="emit('click')"
+      @keydown.enter="emit('click')"
+      @keydown.space.prevent="emit('click')"
+      role="button"
+      tabindex="0"
+      :aria-label="props.name ? `Open ${props.name}` : 'Open gallery image'"
+    >
+      <!-- Shimmer placeholder -->
+      <div v-if="!isLoaded && !hasError" class="shimmer-placeholder">
+        <div class="shimmer-wave" />
+      </div>
+
+      <!-- Static Thumbnail (Always visible initially) -->
+      <img
+        v-if="thumbnailSrc && !hasError"
+        :src="thumbnailSrc"
+        loading="lazy"
+        decoding="async"
+        :fetchpriority="props.fetchPriority"
+        @load="onImageLoad"
+        @error="onImageError"
+        :alt="props.name || 'Gallery image'"
+        class="thumbnail-img"
+      />
+
+      <!-- Animated Preview (Overlay on hover) -->
+      <transition name="fade">
+        <img v-if="shouldPlay && previewSrc && !hasError" :src="previewSrc" class="preview-overlay" alt="" />
+      </transition>
+
+      <!-- Badge for animated files -->
+      <div v-if="isAnimated && isLoaded" class="type-badge">
+        <span v-if="shouldPlay">PLAYING</span>
+        <span v-else>GIF</span>
+      </div>
+
+      <div v-if="!props.src || hasError" class="placeholder">
+        <Image class="gallery-icon-xl" />
+        <span class="placeholder-text" data-testid="placeholder-text">{{ hasError ? "Preview unavailable" : "" }}</span>
+      </div>
     </div>
 
-    <!-- Static Thumbnail (Always visible initially) -->
-    <img
-      v-if="thumbnailSrc && !hasError"
-      :src="thumbnailSrc"
-      loading="lazy"
-      decoding="async"
-      :fetchpriority="props.fetchPriority"
-      @load="onImageLoad"
-      @error="onImageError"
-      :alt="props.name || 'Gallery image'"
-      class="thumbnail-img"
+    <AssetActionMenu
+      v-if="props.canFindRelated"
+      class="photo-action-menu"
+      :label="props.name ? `Image actions for ${props.name}` : 'Image actions'"
+      @find-related="emit('find-related')"
+      @click.stop
     />
-
-    <!-- Animated Preview (Overlay on hover) -->
-    <transition name="fade">
-      <img v-if="shouldPlay && previewSrc && !hasError" :src="previewSrc" class="preview-overlay" alt="" />
-    </transition>
-
-    <!-- Badge for animated files -->
-    <div v-if="isAnimated && isLoaded" class="type-badge">
-      <span v-if="shouldPlay">PLAYING</span>
-      <span v-else>GIF</span>
-    </div>
-
-    <div v-if="!props.src || hasError" class="placeholder">
-      <Image class="gallery-icon-xl" />
-      <span class="placeholder-text" data-testid="placeholder-text">{{ hasError ? "Preview unavailable" : "" }}</span>
-    </div>
   </div>
 </template>
 
 <style scoped lang="scss">
+.photo-card-shell {
+  position: relative;
+  width: 100%;
+}
+
 .photo-card {
   position: relative;
   width: 100%;
@@ -244,6 +264,26 @@ onBeforeUnmount(() => {
     &:active {
       transform: scale(0.97);
     }
+  }
+}
+
+.photo-action-menu {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.photo-card-shell:hover .photo-action-menu,
+.photo-card-shell:focus-within .photo-action-menu {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .photo-action-menu {
+    opacity: 1;
   }
 }
 

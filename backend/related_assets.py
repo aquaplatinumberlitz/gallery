@@ -19,6 +19,7 @@ from .models import (
     RelatedIndexComponentStatusV1,
     RelatedSearchRequestV1,
     RelatedSearchResponseV1,
+    RelatedSearchResultV1,
     RelatedSearchStatusV1,
 )
 from .related_ranking import rank_related_metadata
@@ -230,6 +231,39 @@ def _required_component(request: RelatedSearchRequestV1, status: RelatedSearchSt
     return status.visual if request.profile == "visual" else status.metadata
 
 
+def _merge_related_items(
+    metadata_items: list[RelatedSearchResultV1],
+    visual_items: list[RelatedSearchResultV1],
+    *,
+    limit: int,
+) -> list[RelatedSearchResultV1]:
+    merged = {item.asset_id: item for item in metadata_items}
+    for visual in visual_items:
+        existing = merged.get(visual.asset_id)
+        if existing is None:
+            merged[visual.asset_id] = visual
+            continue
+        reasons = list(existing.relation_reasons)
+        reasons.extend(reason for reason in visual.relation_reasons if reason not in reasons)
+        merged[visual.asset_id] = existing.model_copy(
+            update={
+                "relation_tier": max(existing.relation_tier, visual.relation_tier),
+                "relation_reasons": reasons,
+                "visual_distance": visual.visual_distance,
+            }
+        )
+    return sorted(
+        merged.values(),
+        key=lambda item: (
+            -item.relation_tier,
+            -(item.metadata_score or 0),
+            item.visual_distance if item.visual_distance is not None else float("inf"),
+            -item.mtime,
+            item.asset_id,
+        ),
+    )[:limit]
+
+
 @router.post(
     "/api/search/related",
     response_model=RelatedSearchResponseV1,
@@ -274,16 +308,21 @@ def api_search_related(request: RelatedSearchRequestV1) -> RelatedSearchResponse
                 "Required persisted relation index is unusable",
                 extra={"status": status.model_dump(mode="json")},
             )
-        items = (
-            query_visual_variants(int(reference["id"]), context, limit=request.limit)
-            if request.profile == "visual"
-            else rank_related_metadata(
+        if request.profile == "visual":
+            items = query_visual_variants(int(reference["id"]), context, limit=request.limit)
+        else:
+            metadata_items = rank_related_metadata(
                 int(reference["id"]),
                 context,
                 profile=request.profile,
                 limit=request.limit,
             )
-        )
+            visual_items = (
+                query_visual_variants(int(reference["id"]), context, limit=request.limit)
+                if request.profile == "related" and status.visual.usable
+                else []
+            )
+            items = _merge_related_items(metadata_items, visual_items, limit=request.limit)
         return RelatedSearchResponseV1(
             reference_asset_id=request.reference_asset_id,
             profile=request.profile,
