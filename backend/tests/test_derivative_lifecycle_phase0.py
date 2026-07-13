@@ -68,7 +68,8 @@ def test_baseline_reports_preview_coverage_gap_with_no_current_preview_row(
             """,
             (asset_id,),
         ).fetchone()[0]
-    assert status["expected_derivatives"] == 2
+    expected_variants = sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+    assert status["expected_derivatives"] == expected_variants
     assert status["ready_derivatives"] == 0
     assert preview_rows == 0
     assert preview_jobs == 0
@@ -118,8 +119,9 @@ def test_target_reconciler_creates_both_current_configured_variants(
     """Target contract: one new image receives one current row/job per default kind."""
     _image, _asset_id, library_id = _indexed_image(isolated_gallery_root)
     summary = DerivativeScheduler().reconcile_desired_derivatives(library_id=library_id, reason="phase_1")
-    assert summary.created_derivative_rows == 2
-    assert summary.created_jobs == 2
+    variant_count = sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+    assert summary.created_derivative_rows == variant_count
+    assert summary.created_jobs == variant_count
 
 
 def test_target_successful_scan_queues_thumbnail_and_preview(
@@ -133,7 +135,8 @@ def test_target_successful_scan_queues_thumbnail_and_preview(
     assert catalog_service.run_once() is True
     with sqlite3.connect(isolated_metadata_db) as conn:
         rows = conn.execute("SELECT kind, count(*) FROM asset_derivatives GROUP BY kind ORDER BY kind").fetchall()
-    assert rows == [("preview", 1), ("thumbnail", 1)]
+    expected = sorted((kind, len(variants)) for kind, variants in DERIVATIVE_VARIANTS.items())
+    assert rows == expected
 
 
 @pytest.mark.xfail(
@@ -154,7 +157,8 @@ def test_phase_7_scan_converges_thumbnail_and_preview_files(
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         rows = conn.execute("SELECT kind, status FROM asset_derivatives ORDER BY kind").fetchall()
-    assert rows == [("preview", "queued"), ("thumbnail", "queued")]
+    configured_kinds = sorted(kind for kind, variants in DERIVATIVE_VARIANTS.items() for _variant in variants)
+    assert rows == [(kind, "queued") for kind in configured_kinds]
 
     scheduler = DerivativeScheduler(worker_count=1)
     scheduler.start()
@@ -166,7 +170,7 @@ def test_phase_7_scan_converges_thumbnail_and_preview_files(
                 ready_rows = conn.execute(
                     "SELECT kind, status, cache_path FROM asset_derivatives ORDER BY kind"
                 ).fetchall()
-            if len(ready_rows) == 2 and all(
+            if len(ready_rows) == len(configured_kinds) and all(
                 status == "ready" and cache_path is not None and Path(cache_path).is_file()
                 for _kind, status, cache_path in ready_rows
             ):
@@ -176,8 +180,7 @@ def test_phase_7_scan_converges_thumbnail_and_preview_files(
         scheduler.stop()
 
     assert [(kind, status) for kind, status, _cache_path in ready_rows] == [
-        ("preview", "ready"),
-        ("thumbnail", "ready"),
+        (kind, "ready") for kind in configured_kinds
     ]
     assert all(cache_path is not None and Path(cache_path).is_file() for _, _, cache_path in ready_rows)
     assert any(isolated_thumbnail_cache.rglob("*"))

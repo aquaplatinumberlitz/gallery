@@ -27,6 +27,8 @@ from backend.metadata_store import (
     _replace_image_resources_conn,
     index_file,
     initialize_database,
+    register_library,
+    unregister_library,
 )
 
 client = TestClient(app)
@@ -38,6 +40,7 @@ client = TestClient(app)
 _TEST_SEMANTIC_DIR = Path(tempfile.mkdtemp(prefix="test_fielded_semantic_"))
 _TEST_SCOPE_DIR = Path(tempfile.mkdtemp(prefix="test_fielded_scope_"))
 _TEST_INSERTED_PATHS: list[str] = []
+_TEST_SCOPE_LIBRARY_ID: int | None = None
 
 
 def _create_png(path: Path) -> None:
@@ -48,6 +51,7 @@ def _create_png(path: Path) -> None:
 
 def _setup_test_data() -> None:
     """Insert fixture metadata rows into the shared DB for semantic tests."""
+    global _TEST_SCOPE_LIBRARY_ID
     initialize_database()
 
     now = time.time()
@@ -198,6 +202,7 @@ def _setup_test_data() -> None:
 
     # scope test data
     scope_root = _TEST_SCOPE_DIR.resolve()
+    _TEST_SCOPE_LIBRARY_ID = int(register_library(scope_root)["id"])
     scope_files = [
         (scope_root / "current" / "rain_current.png", "rain_current.png", scope_root / "current"),
         (scope_root / "other" / "rain_other.png", "rain_other.png", scope_root / "other"),
@@ -254,6 +259,10 @@ def _setup_test_data() -> None:
 
 def _teardown_test_data() -> None:
     """Remove test data from DB and filesystem."""
+    global _TEST_SCOPE_LIBRARY_ID
+    if _TEST_SCOPE_LIBRARY_ID is not None:
+        unregister_library(_TEST_SCOPE_LIBRARY_ID)
+        _TEST_SCOPE_LIBRARY_ID = None
     with _connect() as conn:
         for p in _TEST_INSERTED_PATHS:
             conn.execute("DELETE FROM file_index_fts WHERE path = ?", (p,))

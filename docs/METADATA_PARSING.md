@@ -81,6 +81,12 @@ resets interrupted `running` jobs, fails exhausted attempts, and repairs
 historical rows where a done job/current metadata row exists but the asset state
 was not materialized.
 
+The shared catalog database is schema version 2. Upgrading a version 1 database
+creates a consistent `.v1.bak` before atomically rebuilding legacy REAL-affinity
+nanosecond identity columns as INTEGER. Metadata and catalog rows remain in the
+same single-process SQLite database; the migration does not introduce a second
+store or modify source media.
+
 ## Stored database fields
 
 The `image_metadata` table stores:

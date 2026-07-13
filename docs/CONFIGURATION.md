@@ -72,6 +72,8 @@ curl -I http://150.230.56.153/
 | `PORT`                                                 | integer                 | `4701` in `backend/main.py` fallback                  | Uvicorn port when running `python3 -m backend.main` directly.                                            |
 | `FRONTEND_ORIGIN`                                      | URL/string              | unset                                                 | Extra CORS origin; trailing slash is stripped.                                                           |
 | `FRONTEND_PORT`                                        | integer/string          | unset                                                 | Adds localhost and 127.0.0.1 CORS origins for the active frontend port.                                  |
+| `GALLERY_CORS_ORIGINS`                                 | comma-separated URLs    | unset                                                 | Additional exact HTTP(S) CORS origins. Invalid URLs and origins containing credentials, paths, queries, or fragments are ignored. |
+| `GALLERY_CORS_ALLOW_CREDENTIALS`                       | boolean-like flag       | `0`                                                   | Allows credentialed CORS requests when set to `1`, `true`, or `yes`; nginx Basic Auth normally uses same-origin requests. |
 | `ENABLE_METRICS`                                       | boolean flag            | true unless `PRODUCTION=1`                            | Enables optional Prometheus instrumentation.                                                             |
 | `ENABLE_PROFILER`                                      | boolean flag            | false                                                 | Enables pyinstrument middleware where configured.                                                        |
 | `PROFILE_ENDPOINTS`                                    | comma-separated strings | `/api/browse,/api/metadata,/api/thumbnail,/api/preview` | Endpoints selected for profiling.                                                                        |
@@ -156,6 +158,7 @@ desired derivative coverage.
 | `GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED`              | boolean flag            | true                                                  | Enables low-priority startup scan for every registered library.                                          |
 | `GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS`           | integer, minimum 0      | `600`                                                 | Max queue wait before a queued catalog job is priority-promoted.                                         |
 | `GALLERY_CATALOG_WRITE_BATCH_SIZE`                     | integer, minimum 1      | `500`                                                 | Catalog write batch size for discovery/staging.                                                          |
+| `GALLERY_CATALOG_SHUTDOWN_TIMEOUT_SECONDS`             | float, minimum 0        | `30`                                                  | Absolute catalog-service stop deadline shared across worker and supervisor joins.                        |
 
 Invalid numeric strings raise during configuration import; the code does not provide a
 fallback for malformed numbers.

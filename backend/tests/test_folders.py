@@ -30,6 +30,14 @@ from fastapi.testclient import TestClient
 
 from backend.errors import APIError, ErrorType
 from backend.folders import list_folder_children
+from backend.metadata_store import register_library
+
+
+@pytest.fixture
+def registered_gallery_root(isolated_gallery_root: Path) -> Path:
+    register_library(isolated_gallery_root)
+    return isolated_gallery_root
+
 
 # ---------------------------------------------------------------------------
 # list_folder_children
@@ -198,15 +206,15 @@ class TestListFolderChildren:
 
 
 class TestApiFoldersRoute:
-    def test_default_root(self, isolated_app: TestClient, isolated_gallery_root: Path):
-        (isolated_gallery_root / "album").mkdir()
-        resp = isolated_app.get("/api/folders", params={"path": str(isolated_gallery_root)})
+    def test_default_root(self, isolated_app: TestClient, registered_gallery_root: Path):
+        (registered_gallery_root / "album").mkdir()
+        resp = isolated_app.get("/api/folders", params={"path": str(registered_gallery_root)})
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
 
-    def test_safe_path(self, isolated_app: TestClient, isolated_gallery_root: Path):
-        sub = isolated_gallery_root / "subdir"
+    def test_safe_path(self, isolated_app: TestClient, registered_gallery_root: Path):
+        sub = registered_gallery_root / "subdir"
         sub.mkdir()
         resp = isolated_app.get("/api/folders", params={"path": str(sub)})
         assert resp.status_code == 200
@@ -215,13 +223,13 @@ class TestApiFoldersRoute:
         resp = isolated_app.get("/api/folders", params={"path": "/etc"})
         assert resp.status_code == 403
 
-    def test_missing_folder_returns_404(self, isolated_app: TestClient, isolated_gallery_root: Path):
-        missing = isolated_gallery_root / "nope"
+    def test_missing_folder_returns_404(self, isolated_app: TestClient, registered_gallery_root: Path):
+        missing = registered_gallery_root / "nope"
         resp = isolated_app.get("/api/folders", params={"path": str(missing)})
         assert resp.status_code == 404
 
-    def test_file_path_returns_400(self, isolated_app: TestClient, isolated_gallery_root: Path):
-        f = isolated_gallery_root / "file.txt"
+    def test_file_path_returns_400(self, isolated_app: TestClient, registered_gallery_root: Path):
+        f = registered_gallery_root / "file.txt"
         f.write_text("hello")
         resp = isolated_app.get("/api/folders", params={"path": str(f)})
         assert resp.status_code == 400
@@ -233,11 +241,11 @@ class TestApiOpenFolderRoute:
         assert resp.status_code == 403
 
     def test_enabled_missing_path_returns_404(
-        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path
+        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, registered_gallery_root: Path
     ):
         monkeypatch.setattr("backend.config.OPEN_FOLDER_ENABLED", True)
         monkeypatch.setattr("backend.folders.OPEN_FOLDER_ENABLED", True)
-        missing = isolated_gallery_root / "gone"
+        missing = registered_gallery_root / "gone"
         resp = isolated_app.post("/api/open-folder", params={"path": str(missing)})
         assert resp.status_code == 404
 
@@ -255,17 +263,17 @@ class TestApiOpenFolderRoute:
         assert popen_calls == []
 
     def test_enabled_file_path_returns_400(
-        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path
+        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, registered_gallery_root: Path
     ):
         monkeypatch.setattr("backend.config.OPEN_FOLDER_ENABLED", True)
         monkeypatch.setattr("backend.folders.OPEN_FOLDER_ENABLED", True)
-        f = isolated_gallery_root / "file.txt"
+        f = registered_gallery_root / "file.txt"
         f.write_text("data")
         resp = isolated_app.post("/api/open-folder", params={"path": str(f)})
         assert resp.status_code == 400
 
     def test_enabled_success_calls_popen(
-        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path
+        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, registered_gallery_root: Path
     ):
         monkeypatch.setattr("backend.config.OPEN_FOLDER_ENABLED", True)
         monkeypatch.setattr("backend.folders.OPEN_FOLDER_ENABLED", True)
@@ -277,16 +285,16 @@ class TestApiOpenFolderRoute:
                 popen_calls.append(args)
 
         monkeypatch.setattr(subprocess, "Popen", FakePopen)
-        resp = isolated_app.post("/api/open-folder", params={"path": str(isolated_gallery_root)})
+        resp = isolated_app.post("/api/open-folder", params={"path": str(registered_gallery_root)})
         assert resp.status_code == 200
         assert resp.json()["message"] == "Opened successfully"
         assert len(popen_calls) == 1
 
     def test_enabled_opener_failure_returns_500(
-        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, isolated_gallery_root: Path
+        self, isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch, registered_gallery_root: Path
     ):
         monkeypatch.setattr("backend.config.OPEN_FOLDER_ENABLED", True)
         monkeypatch.setattr("backend.folders.OPEN_FOLDER_ENABLED", True)
         monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: (_ for _ in ()).throw(OSError("failed to launch")))
-        resp = isolated_app.post("/api/open-folder", params={"path": str(isolated_gallery_root)})
+        resp = isolated_app.post("/api/open-folder", params={"path": str(registered_gallery_root)})
         assert resp.status_code == 500

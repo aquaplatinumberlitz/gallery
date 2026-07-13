@@ -1,5 +1,6 @@
 """Search indexed gallery files, metadata, and library inspector rows."""
 
+import logging
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -25,6 +26,7 @@ from .paths import InvalidPathError, is_path_safe, resolve_path
 from .scan import require_registered_path_allowed
 
 router = APIRouter()
+LOGGER = logging.getLogger(__name__)
 _STALE_CLEANUP_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="search-stale-cleanup")
 _STALE_CLEANUP_LOCK = threading.Lock()
 _STALE_CLEANUP_ROOTS: set[str] = set()
@@ -97,7 +99,8 @@ async def api_search_metadata(
     try:
         data = await run_in_threadpool(search_metadata, q, limit, offset)
     except Exception as exc:  # noqa: BLE001
-        raise APIError(500, ErrorType.SERVER_ERROR, f"Metadata search failed: {exc}") from exc
+        LOGGER.exception("Metadata search failed")
+        raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
     safe_results = [result for result in data["results"] if is_path_safe(resolve_path(result["path"]))]
     return {
@@ -153,7 +156,8 @@ async def api_search(
         else:
             data = await run_in_threadpool(search_index, q, scope, root_path, limit, cursor)
     except Exception as exc:  # noqa: BLE001
-        raise APIError(500, ErrorType.SERVER_ERROR, f"Search failed: {exc}") from exc
+        LOGGER.exception("Search failed")
+        raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
     stale_detected = False
     stale_paths: set[str] = set()
@@ -258,7 +262,8 @@ async def api_library_inspector(
     except ValueError as exc:
         raise APIError(400, ErrorType.BAD_REQUEST, "Invalid pagination cursor") from exc
     except Exception as exc:  # noqa: BLE001
-        raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
+        LOGGER.exception("Library inspector failed")
+        raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
     query_truncated = bool(data.get("truncated"))
     safe_rows, stale_detected, stale_paths = _filter_safe_rows(data["rows"])
@@ -281,7 +286,8 @@ async def api_library_inspector(
         except ValueError as exc:
             raise APIError(400, ErrorType.BAD_REQUEST, "Invalid pagination cursor") from exc
         except Exception as exc:  # noqa: BLE001
-            raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector failed: {exc}") from exc
+            LOGGER.exception("Library inspector pagination failed")
+            raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
         overscan_safe_rows, overscan_stale_detected, overscan_stale_paths = _filter_safe_rows(overscan_data["rows"])
         data = overscan_data
         query_truncated = bool(overscan_data.get("truncated")) or len(overscan_safe_rows) > limit
@@ -318,7 +324,8 @@ async def api_library_inspector_metadata(
     try:
         data = await run_in_threadpool(get_library_inspector_metadata, resolved)
     except Exception as exc:  # noqa: BLE001
-        raise APIError(500, ErrorType.SERVER_ERROR, f"Library inspector metadata failed: {exc}") from exc
+        LOGGER.exception("Library inspector metadata failed")
+        raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
     if data is None:
         raise APIError(404, ErrorType.NOT_FOUND, "Indexed metadata unavailable for this path")

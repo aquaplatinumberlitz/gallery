@@ -22,7 +22,7 @@ def _gallery_metadata_db() -> Path:
     return _gallery_metadata_db_path()
 
 
-CATALOG_SCHEMA_VERSION = 1
+CATALOG_SCHEMA_VERSION = 2
 
 
 def _ensure_catalog_schema(conn: sqlite3.Connection) -> None:
@@ -189,7 +189,6 @@ def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_catalog_job_dependencies_child ON catalog_job_dependencies(child_job_id)"
     )
-    _migrate_nanosecond_affinity(conn)
 
 
 def _column_type(conn: sqlite3.Connection, table: str, column: str) -> str | None:
@@ -197,23 +196,32 @@ def _column_type(conn: sqlite3.Connection, table: str, column: str) -> str | Non
     return str(row["type"]).upper() if row is not None else None
 
 
-def _migrate_nanosecond_affinity(conn: sqlite3.Connection) -> None:
-    """Rebuild legacy REAL nanosecond columns without changing row identities."""
+def _execute_v2_migration_statement(conn: sqlite3.Connection, statement: str) -> None:
+    """Execute one v1-to-v2 migration statement (test injection seam)."""
+    conn.execute(statement)
+
+
+def _backup_v1_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before destructive v2 migration work."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v1.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_nanosecond_affinity_v1_to_v2(conn: sqlite3.Connection) -> None:
+    """Rebuild legacy REAL nanosecond columns inside the caller transaction."""
     if (
         _column_type(conn, "assets", "mtime_ns") == "INTEGER"
         and _column_type(conn, "asset_derivatives", "source_mtime_ns") == "INTEGER"
     ):
         return
-    conn.commit()
-    conn.execute("PRAGMA foreign_keys=OFF")
-    conn.execute("PRAGMA legacy_alter_table=ON")
-    try:
-        conn.executescript(
-            """
-            ALTER TABLE asset_derivatives RENAME TO asset_derivatives_real_ns;
-            ALTER TABLE assets RENAME TO assets_real_ns;
-
-            CREATE TABLE assets (
+    statements = [
+        "ALTER TABLE asset_derivatives RENAME TO asset_derivatives_real_ns",
+        "ALTER TABLE assets RENAME TO assets_real_ns",
+        """CREATE TABLE assets (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               library_id INTEGER NOT NULL REFERENCES libraries(id),
               path TEXT NOT NULL, parent_path TEXT NOT NULL, name TEXT NOT NULL,
@@ -222,13 +230,12 @@ def _migrate_nanosecond_affinity(conn: sqlite3.Connection) -> None:
               metadata_state TEXT DEFAULT 'pending', offline INTEGER NOT NULL DEFAULT 0,
               deleted_at REAL, mime_type TEXT, duration_ms INTEGER, codec TEXT,
               last_seen_scan_job_id INTEGER, UNIQUE(library_id, path)
-            );
-            INSERT INTO assets SELECT id, library_id, path, parent_path, name, type,
+            )""",
+        """INSERT INTO assets SELECT id, library_id, path, parent_path, name, type,
               CAST(mtime_ns AS INTEGER), size, width, height, orientation, indexed_at,
               metadata_state, offline, deleted_at, mime_type, duration_ms, codec,
-              last_seen_scan_job_id FROM assets_real_ns;
-
-            CREATE TABLE asset_derivatives (
+              last_seen_scan_job_id FROM assets_real_ns""",
+        """CREATE TABLE asset_derivatives (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               asset_id INTEGER NOT NULL REFERENCES assets(id), kind TEXT NOT NULL,
               variant TEXT NOT NULL, source_mtime_ns INTEGER NOT NULL,
@@ -239,23 +246,43 @@ def _migrate_nanosecond_affinity(conn: sqlite3.Connection) -> None:
               created_at REAL NOT NULL DEFAULT (julianday('now')),
               updated_at REAL NOT NULL DEFAULT (julianday('now')),
               UNIQUE(asset_id, kind, variant, source_mtime_ns, source_size)
-            );
-            INSERT INTO asset_derivatives SELECT id, asset_id, kind, variant,
+            )""",
+        """INSERT INTO asset_derivatives SELECT id, asset_id, kind, variant,
               CAST(source_mtime_ns AS INTEGER), source_size, format, quality,
               max_long_edge, status, cache_path, byte_size, last_accessed_at,
-              attempts, last_error, created_at, updated_at FROM asset_derivatives_real_ns;
+              attempts, last_error, created_at, updated_at FROM asset_derivatives_real_ns""",
+        "DROP TABLE asset_derivatives_real_ns",
+        "DROP TABLE assets_real_ns",
+        "CREATE INDEX idx_assets_library_path ON assets(library_id, path)",
+        "CREATE INDEX idx_assets_library_parent ON assets(library_id, parent_path)",
+        "CREATE INDEX idx_assets_reconcile_scan ON assets(library_id, parent_path, last_seen_scan_job_id)",
+        "CREATE INDEX idx_assets_library_seen ON assets(library_id, last_seen_scan_job_id)",
+        "CREATE INDEX idx_assets_metadata_state ON assets(metadata_state)",
+        "CREATE INDEX idx_derivatives_status ON asset_derivatives(status)",
+        "CREATE INDEX idx_derivatives_asset ON asset_derivatives(asset_id)",
+    ]
+    for statement in statements:
+        _execute_v2_migration_statement(conn, statement)
 
-            DROP TABLE asset_derivatives_real_ns;
-            DROP TABLE assets_real_ns;
-            CREATE INDEX idx_assets_library_path ON assets(library_id, path);
-            CREATE INDEX idx_assets_library_parent ON assets(library_id, parent_path);
-            CREATE INDEX idx_assets_reconcile_scan ON assets(library_id, parent_path, last_seen_scan_job_id);
-            CREATE INDEX idx_assets_library_seen ON assets(library_id, last_seen_scan_job_id);
-            CREATE INDEX idx_assets_metadata_state ON assets(metadata_state);
-            CREATE INDEX idx_derivatives_status ON asset_derivatives(status);
-            CREATE INDEX idx_derivatives_asset ON asset_derivatives(asset_id);
-            """
-        )
+
+def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
+    """Apply the versioned migration atomically and set user_version last."""
+    conn.commit()
+    _backup_v1_database(conn)
+    conn.execute("PRAGMA foreign_keys=OFF")
+    conn.execute("PRAGMA legacy_alter_table=ON")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _ensure_post_v1_additive_columns(conn)
+        _migrate_nanosecond_affinity_v1_to_v2(conn)
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v2 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 2")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.execute("PRAGMA legacy_alter_table=OFF")
         conn.execute("PRAGMA foreign_keys=ON")
@@ -270,6 +297,11 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         current_version = 1
 
     if current_version == 1:
+        _migrate_v1_to_v2(conn)
+        _cleanup_ignored_index_conn(conn)
+        return
+
+    if current_version == 2:
         _cleanup_ignored_index_conn(conn)
         _ensure_post_v1_additive_columns(conn)
         return
@@ -278,7 +310,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         raise RuntimeError("Catalog database has application tables but no schema version; delete it and start fresh")
 
     if current_version != 0:
-        raise RuntimeError(f"Catalog database must be fresh (v0) or v1; found v{current_version}")
+        raise RuntimeError(f"Catalog database must be fresh (v0), v1, or v2; found v{current_version}")
 
     conn.executescript(
         """

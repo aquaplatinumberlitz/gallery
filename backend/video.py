@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 from contextlib import suppress
+from email.utils import formatdate, parsedate_to_datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Query, Request
@@ -123,6 +124,7 @@ async def api_video(request: Request, path: str = Query(...)):
     common_headers = {
         "Accept-Ranges": "bytes",
         "ETag": etag,
+        "Last-Modified": formatdate(stat.st_mtime, usegmt=True),
         "Cache-Control": _REVALIDATE_CACHE_CONTROL,
     }
 
@@ -132,6 +134,17 @@ async def api_video(request: Request, path: str = Query(...)):
     range_header = request.headers.get("range", "").strip()
     if not range_header:
         return FileResponse(file_path, media_type=content_type, headers=common_headers)
+
+    if_range = request.headers.get("if-range", "").strip()
+    if if_range:
+        validator_matches = if_range == etag
+        if not validator_matches and not if_range.startswith(('"', "W/")):
+            try:
+                validator_matches = int(stat.st_mtime) <= int(parsedate_to_datetime(if_range).timestamp())
+            except (TypeError, ValueError, OverflowError):
+                validator_matches = False
+        if not validator_matches:
+            return FileResponse(file_path, media_type=content_type, headers=common_headers)
 
     # Reject multi-range requests cleanly; only a single range is supported.
     if "," in range_header:
@@ -157,8 +170,9 @@ async def api_video(request: Request, path: str = Query(...)):
         start = int(start_str)
         end = int(end_str) if end_str else file_size - 1
 
-    if start >= file_size or end >= file_size or start > end:
+    if file_size == 0 or start >= file_size or start > end:
         return Response(status_code=416, headers={"Content-Range": f"bytes */{file_size}"})
+    end = min(end, file_size - 1)
 
     content_length = end - start + 1
     return StreamingResponse(

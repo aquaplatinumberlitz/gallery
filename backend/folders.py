@@ -1,5 +1,6 @@
 """Folder listing and local open-folder API endpoints."""
 
+import logging
 import os
 import subprocess
 import sys
@@ -17,6 +18,7 @@ from .paths import resolve_path
 from .scan import require_registered_path_allowed
 
 router = APIRouter()
+LOGGER = logging.getLogger(__name__)
 
 
 def _registered_or_requested_root(path: str | None) -> Path:
@@ -79,7 +81,8 @@ def list_folder_children(
     except PermissionError as exc:
         raise APIError(403, ErrorType.PERMISSION_DENIED, "Permission denied") from exc
     except OSError as exc:
-        raise APIError(500, ErrorType.SERVER_ERROR, f"Unable to list folder: {exc}") from exc
+        LOGGER.exception("Unable to list folder %s", target_path)
+        raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
     folders.sort(key=lambda x: natural_sort_key(x.name))
     return folders
@@ -116,4 +119,5 @@ async def api_open_folder(path: str = Query(..., description="Absolute path to f
             subprocess.Popen([opener, str(folder_path)])
         return {"message": "Opened successfully"}
     except OSError as exc:
-        raise APIError(500, ErrorType.SERVER_ERROR, f"Failed to open: {exc}") from exc
+        LOGGER.exception("Failed to open folder %s", folder_path)
+        raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc

@@ -87,6 +87,10 @@ export interface GlobalRuntime {
   catalog_alive_workers?: number;
   catalog_active_jobs: number;
   catalog_queue_depth: number;
+  catalog_supervisor_alive?: boolean;
+  catalog_supervisor_last_check_at?: number | null;
+  catalog_supervisor_last_recovered_jobs?: number;
+  catalog_supervisor_failures?: number;
   metadata_worker_count: number;
   metadata_active_jobs: number;
   metadata_queue_depth: number;

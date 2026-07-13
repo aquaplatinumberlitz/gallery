@@ -311,7 +311,7 @@ async def _serve_derivative(
         f'{stat.st_size}-{max_long_edge}-{normalized_format}-{quality}"'
     )
     headers = {
-        "Cache-Control": "public, max-age=86400, immutable",
+        "Cache-Control": "public, max-age=0, must-revalidate",
         "ETag": etag,
     }
     if request.headers.get("if-none-match") == etag:

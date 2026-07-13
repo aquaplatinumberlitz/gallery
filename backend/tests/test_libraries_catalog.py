@@ -60,7 +60,7 @@ def test_no_implicit_library_on_fresh_startup(isolated_metadata_db: Path):
     initialize_database()
     assert list_libraries() == []
     with sqlite3.connect(isolated_metadata_db) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
         columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
         assert "root_path" not in columns
 
@@ -282,10 +282,15 @@ def test_library_update_marks_removed_or_excluded_assets_offline_and_reactivates
     create_test_png(visible)
     create_test_png(excluded)
     library = register_library(first)
-    updated = update_library(int(library["id"]), import_paths=[first, second])
+    updated = update_library(int(library["id"]), import_paths=[first, second], warm_enabled=False)
     assert updated is not None
     finished = _run_scan(int(library["id"]))
     assert finished["counters"]["indexed"] >= 5
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE metadata_index_jobs SET state = 'cancelled' WHERE library_id = ? AND state IN ('queued', 'running')",
+            (int(library["id"]),),
+        )
 
     updated = update_library(
         int(library["id"]),

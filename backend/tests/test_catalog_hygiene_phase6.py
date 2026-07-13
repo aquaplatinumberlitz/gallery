@@ -37,6 +37,7 @@ from pathlib import Path
 import pytest
 
 from backend import files as files_module
+from backend.config import DERIVATIVE_VARIANTS
 from backend.indexer import rebuild_index_scope
 from backend.metadata_store import (
     index_directory_tree,
@@ -276,9 +277,10 @@ def test_scan_reconciles_already_indexed_test_artifacts_offline(
 
     status = scheduler.library_status(library_id)
     assert status["total_assets"] == 1
-    assert status["expected_derivatives"] == status["total_assets"] * 2
+    variant_count = sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+    assert status["expected_derivatives"] == status["total_assets"] * variant_count
     # No phantom expected coverage for the three offline artifacts.
-    assert status["expected_derivatives"] == 2
+    assert status["expected_derivatives"] == variant_count
 
 
 def test_fresh_scan_never_indexes_test_artifacts(

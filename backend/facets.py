@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import suppress
 from typing import Any
 
@@ -20,6 +21,7 @@ except ImportError:
     Histogram = None
 
 router = APIRouter()
+LOGGER = logging.getLogger(__name__)
 
 FACET_FIELDS = {
     "tool": ("COALESCE(m.tool, '')", 50),
@@ -240,6 +242,7 @@ async def api_facets(
     try:
         facets = await run_in_threadpool(build_facets, folder_path, max_values)
     except Exception as exc:
-        raise APIError(500, ErrorType.SERVER_ERROR, f"Facet build failed: {exc}") from exc
+        LOGGER.exception("Facet build failed")
+        raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
     return facets

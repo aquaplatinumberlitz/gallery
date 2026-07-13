@@ -31,7 +31,7 @@ from backend.metadata_store import (
     update_job_state,
     update_library,
 )
-from backend.metadata_store.types import LibraryBusyError
+from backend.metadata_store.types import CatalogMaintenanceBusy
 from tests.conftest import create_test_png
 
 
@@ -116,7 +116,7 @@ def test_library_configuration_change_rechecks_active_job_atomically(
 ):
     library = register_library(isolated_gallery_root)
     create_job("scan", library_id=int(library["id"]))
-    with pytest.raises(LibraryBusyError):
+    with pytest.raises(CatalogMaintenanceBusy):
         update_library(int(library["id"]), exclusion_patterns=["*.tmp"])
 
 

@@ -1,7 +1,9 @@
 """Configure the FastAPI application, routers, middleware, and startup hooks."""
 
+import logging
 import os
 import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 
@@ -45,6 +47,8 @@ from .video import router as video_router
 from .watcher import start_watcher as _start_watcher
 from .watcher import stop_watcher as _stop_watcher
 
+LOGGER = logging.getLogger(__name__)
+
 
 def _get_cors_origins() -> list[str]:
     origin = os.getenv("FRONTEND_ORIGIN")
@@ -86,30 +90,36 @@ def _get_cors_origins() -> list[str]:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    validate_trusted_proxy_configuration()
-    recover_stale_jobs()
-    if metadata_indexer.METADATA_INDEXER_ENABLED:
-        recover_metadata_index_jobs()
-    if GALLERY_CATALOG_SERVICE_ENABLED:
-        start()
-        if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
-            queue_startup_scans()
-    if metadata_indexer.METADATA_INDEXER_ENABLED:
-        metadata_worker.start()
-    if INTEGRITY_CHECK_ENABLED:
-        integrity_checker.start()
-    scheduler.start()
-    _start_refresh()
-    _start_watcher()
+    cleanups: list[tuple[str, Callable[[], object]]] = []
     try:
+        validate_trusted_proxy_configuration()
+        recover_stale_jobs()
+        if metadata_indexer.METADATA_INDEXER_ENABLED:
+            recover_metadata_index_jobs()
+        if GALLERY_CATALOG_SERVICE_ENABLED:
+            start()
+            cleanups.append(("catalog", stop))
+            if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
+                queue_startup_scans()
+        if metadata_indexer.METADATA_INDEXER_ENABLED:
+            metadata_worker.start()
+            cleanups.append(("metadata", metadata_worker.stop))
+        if INTEGRITY_CHECK_ENABLED:
+            integrity_checker.start()
+            cleanups.append(("integrity", integrity_checker.stop))
+        scheduler.start()
+        cleanups.append(("derivative", scheduler.stop))
+        _start_refresh()
+        cleanups.append(("refresh", _stop_refresh))
+        _start_watcher()
+        cleanups.append(("watcher", _stop_watcher))
         yield
     finally:
-        _stop_watcher()
-        _stop_refresh()
-        stop()
-        metadata_worker.stop()
-        scheduler.stop()
-        integrity_checker.stop()
+        for service_name, cleanup in reversed(cleanups):
+            try:
+                cleanup()
+            except Exception:  # noqa: BLE001
+                LOGGER.exception("Backend service shutdown failed: %s", service_name)
 
 
 app = FastAPI(title="Museum Art Gallery API", lifespan=_lifespan)
@@ -155,6 +165,16 @@ async def invalid_path_handler(_request: Request, _exc: InvalidPathError) -> JSO
     return JSONResponse(
         status_code=400,
         content={"detail": {"error": "bad_request", "message": "Invalid path"}},
+    )
+
+
+@app.exception_handler(Exception)
+async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Log unexpected failures with traceback without disclosing internals."""
+    LOGGER.exception("Unhandled backend error for %s", request.url.path, exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": {"error": "server_error", "message": "Internal server error"}},
     )
 
 

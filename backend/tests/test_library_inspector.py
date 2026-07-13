@@ -65,6 +65,7 @@ def _seed_mika_lora_resource_metadata(gallery_root: Path) -> None:
             cfg_scale=7.0,
             raw_metadata_text="detail_lora lora-resource-abc resource-hash-xyz",
             metadata_json=json.dumps(metadata, ensure_ascii=False, sort_keys=True),
+            mtime_ns=stat.st_mtime_ns,
             tool="A1111",
             scheduler="karras",
             model_hash="checkpoint-abc",
@@ -88,7 +89,7 @@ def test_library_inspector_scoped_current_returns_only_path_descendants(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from backend.metadata_store import index_directory_tree
+    from backend.metadata_store import index_directory_tree, register_library
 
     from .conftest import create_test_png_with_metadata
 
@@ -96,6 +97,7 @@ def test_library_inspector_scoped_current_returns_only_path_descendants(
     album_b = isolated_gallery_root / "album_b" / "ocean.png"
     create_test_png_with_metadata(album_a, prompt="blue sky", seed="1")
     create_test_png_with_metadata(album_b, prompt="deep ocean", seed="2")
+    register_library(isolated_gallery_root)
 
     collected: list[Path] = []
     index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
@@ -169,7 +171,7 @@ def test_library_inspector_applies_model_and_prompt_filters_before_cursor_pagina
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from backend.metadata_store import _DB_LOCK, _connect, index_directory_tree
+    from backend.metadata_store import _DB_LOCK, _connect, index_directory_tree, register_library
 
     from .conftest import create_test_png_with_metadata
 
@@ -182,6 +184,7 @@ def test_library_inspector_applies_model_and_prompt_filters_before_cursor_pagina
     for name, model, prompt in fixtures:
         create_test_png_with_metadata(album / name, model=model, prompt=prompt, seed=name)
 
+    register_library(isolated_gallery_root)
     collected: list[Path] = []
     index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
     with _DB_LOCK, _connect() as conn:
@@ -214,13 +217,15 @@ def test_library_inspector_indexes_lora_from_json_when_lora_text_empty(
     import time as _time
 
     from backend.metadata_extract import ExtractedMetadata
-    from backend.metadata_store import index_directory_tree, upsert_extracted_metadata
+    from backend.metadata_store import index_directory_tree, register_library, upsert_extracted_metadata
 
     from .conftest import create_test_png_with_metadata
 
     path = isolated_gallery_root / "json_lora" / "json-lora.png"
     create_test_png_with_metadata(path, prompt="json lora prompt", seed="10")
     stat = path.stat()
+    register_library(isolated_gallery_root)
+    index_directory_tree(isolated_gallery_root, include_metadata=False)
     metadata = {
         "loras": [
             {
@@ -250,6 +255,7 @@ def test_library_inspector_indexes_lora_from_json_when_lora_text_empty(
             cfg_scale=None,
             raw_metadata_text="",
             metadata_json=json.dumps(metadata, ensure_ascii=False),
+            mtime_ns=stat.st_mtime_ns,
             tool="test",
             scheduler="",
             model_hash="",
@@ -267,8 +273,6 @@ def test_library_inspector_indexes_lora_from_json_when_lora_text_empty(
             indexed_at=_time.time(),
         )
     )
-    index_directory_tree(isolated_gallery_root, include_metadata=False)
-
     resp = isolated_app.get("/api/library/inspector", params={"q": "", "scope": "all", "limit": 20})
     assert resp.status_code == 200
     row = next(item for item in resp.json()["rows"] if item["name"] == "json-lora.png")
@@ -316,7 +320,7 @@ def test_library_inspector_accepts_gallery_sort_contract(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from backend.metadata_store import index_directory_tree
+    from backend.metadata_store import index_directory_tree, register_library
 
     from .conftest import create_test_png_with_metadata
 
@@ -333,6 +337,7 @@ def test_library_inspector_accepts_gallery_sort_contract(
         create_test_png_with_metadata(path, prompt=name, seed=str(mtime))
         os.utime(path, (mtime, mtime))
 
+    register_library(isolated_gallery_root)
     collected: list[Path] = []
     index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
 
@@ -353,7 +358,7 @@ def test_library_inspector_cursor_paginates_all_sort_options(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from backend.metadata_store import index_directory_tree
+    from backend.metadata_store import index_directory_tree, register_library
 
     from .conftest import create_test_png_with_metadata
 
@@ -370,6 +375,7 @@ def test_library_inspector_cursor_paginates_all_sort_options(
         create_test_png_with_metadata(path, prompt=f"cursor_prompt {name}", seed=str(mtime))
         os.utime(path, (mtime, mtime))
 
+    register_library(isolated_gallery_root)
     collected: list[Path] = []
     index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
 
@@ -433,7 +439,7 @@ def test_library_inspector_excludes_app_build_assets_but_keeps_gallery_dist_fold
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from backend.metadata_store import _connect, index_directory_tree
+    from backend.metadata_store import _connect, index_directory_tree, register_library
 
     from .conftest import create_test_png_with_metadata
 
@@ -446,6 +452,7 @@ def test_library_inspector_excludes_app_build_assets_but_keeps_gallery_dist_fold
     create_test_png_with_metadata(node_modules_image, prompt="dependency asset", seed="2")
     create_test_png_with_metadata(gallery_dist_image, prompt="real gallery image", seed="3")
 
+    register_library(isolated_gallery_root)
     collected: list[Path] = []
     index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
 

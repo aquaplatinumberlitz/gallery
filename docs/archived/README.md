@@ -2,7 +2,7 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-07-10
+Last reviewed: 2026-07-13
 
 This directory retains completed or superseded plans, historical contracts,
 and dated reports. These files preserve implementation context but do not
@@ -12,6 +12,7 @@ current system.
 
 Notable groups include:
 
+- Completed Backend Audit Findings Remediation Plan — five phase-gated changes covering proxy security and catalog-only paths, metadata/catalog convergence, supervised services, derivative/poster hardening, HTTP semantics, transactional schema v2 migration, and diagnostics.
 - Catalog Scan Pipeline and Unified Status — 11-phase implementation with migration, status builder, browse API, and documentation.
 - Metadata Lifecycle D Full Clean — durable SQLite-backed metadata queue, DB-claim worker, completion invariants, startup recovery, lifecycle diagnostics, and integrity checker.
 - Library Management V1 plan, phase contract, and final implementation status.

@@ -25,6 +25,8 @@ from backend.facets import build_facets
 from backend.metadata_extract import ExtractedMetadata
 from backend.metadata_store import (
     index_directory_tree,
+    index_file,
+    register_library,
     update_folder_index_state,
     upsert_extracted_metadata,
 )
@@ -41,6 +43,7 @@ def _seed_metadata(tmp_path: Path) -> None:
     """Create a folder with images and seed metadata into SQLite."""
     album = tmp_path / "album"
     album.mkdir()
+    register_library(album)
 
     images_data = [
         (
@@ -62,6 +65,17 @@ def _seed_metadata(tmp_path: Path) -> None:
         white.save(str(path))
 
         stat = path.stat()
+        assert index_file(
+            path,
+            path.name,
+            path.parent,
+            "image",
+            stat.st_mtime,
+            stat.st_size,
+            512,
+            512,
+            "image/png" if fname.endswith(".png") else "image/jpeg",
+        )
         ext_meta = ExtractedMetadata(
             path=str(path.resolve()),
             name=fname,
@@ -81,6 +95,7 @@ def _seed_metadata(tmp_path: Path) -> None:
             cfg_scale=None,
             raw_metadata_text="",
             metadata_json='{"tool":"' + meta["tool"] + '"}',
+            mtime_ns=stat.st_mtime_ns,
             tool=meta["tool"],
             scheduler=meta["scheduler"],
             model_hash=None,
@@ -251,6 +266,7 @@ def test_facets_scope_prefix_escapes_like_wildcards(tmp_path: Path):
 def test_facets_lora_facet(tmp_path: Path):
     album = tmp_path / "album"
     album.mkdir()
+    register_library(album)
 
     from PIL import Image
 
@@ -262,6 +278,17 @@ def test_facets_lora_facet(tmp_path: Path):
     white.save(str(path))
 
     stat = path.stat()
+    assert index_file(
+        path,
+        path.name,
+        path.parent,
+        "image",
+        stat.st_mtime,
+        stat.st_size,
+        512,
+        512,
+        "image/png",
+    )
     ext_meta = ExtractedMetadata(
         path=str(path.resolve()),
         name="img1.png",
@@ -281,6 +308,7 @@ def test_facets_lora_facet(tmp_path: Path):
         cfg_scale=None,
         raw_metadata_text="",
         metadata_json="{}",
+        mtime_ns=stat.st_mtime_ns,
         tool="test",
         scheduler="",
         model_hash=None,
@@ -331,11 +359,23 @@ def test_facets_lora_respects_output_limit(tmp_path: Path, monkeypatch: pytest.M
 
     album = tmp_path / "album"
     album.mkdir()
+    register_library(album)
     for i in range(5):
         path = album / f"img{i}.png"
         white = Image.new("RGB", (512, 512), (255, 255, 255))
         white.save(str(path))
         stat = path.stat()
+        assert index_file(
+            path,
+            path.name,
+            path.parent,
+            "image",
+            stat.st_mtime,
+            stat.st_size,
+            512,
+            512,
+            "image/png",
+        )
         ext_meta = ExtractedMetadata(
             path=str(path.resolve()),
             name=f"img{i}.png",
@@ -355,6 +395,7 @@ def test_facets_lora_respects_output_limit(tmp_path: Path, monkeypatch: pytest.M
             cfg_scale=None,
             raw_metadata_text="",
             metadata_json="{}",
+            mtime_ns=stat.st_mtime_ns,
             tool="test",
             scheduler="",
             model_hash=None,

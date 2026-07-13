@@ -77,7 +77,8 @@ def test_background_reconcile_defers_when_quota_exceeded(
     _image, asset_id, library_id = _catalog_image(isolated_gallery_root)
     scheduler = DerivativeScheduler(quota_bytes=100)
     summary = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase4")
-    assert summary.deferred_capacity == 2
+    variant_count = sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+    assert summary.deferred_capacity == variant_count
     assert summary.created_jobs == 0
     with _connect(isolated_metadata_db) as conn:
         states = {
@@ -102,14 +103,15 @@ def test_quota_increase_reconsiders_deferred_work(
     scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase4")
     scheduler.quota_bytes = 10 * 1024**3
     summary = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase4")
-    assert summary.created_jobs == 2
+    variant_count = sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+    assert summary.created_jobs == variant_count
     assert summary.deferred_capacity == 0
     with sqlite3.connect(isolated_metadata_db) as conn:
         jobs = conn.execute(
             "SELECT count(*) FROM derivative_jobs j JOIN asset_derivatives d ON d.id = j.derivative_id WHERE d.asset_id = ?",
             (asset_id,),
         ).fetchone()[0]
-    assert jobs == 2
+    assert jobs == variant_count
 
 
 def test_integrity_closes_missing_current_preview_row(
@@ -154,7 +156,8 @@ def test_integrity_repairs_queued_without_job(
             "SELECT count(*) FROM derivative_jobs j JOIN asset_derivatives d ON d.id = j.derivative_id WHERE d.asset_id = ? AND j.state IN ('queued', 'running')",
             (asset_id,),
         ).fetchone()[0]
-    assert job_count == 2
+    variant_count = sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
+    assert job_count == variant_count
     assert summary["issues"]["generated_image_queued_without_job"] >= 1
 
 

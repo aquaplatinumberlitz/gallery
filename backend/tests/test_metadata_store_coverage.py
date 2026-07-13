@@ -932,16 +932,14 @@ def test_get_metadata_index_status_populated_db_with_path_scope(isolated_metadat
     assert status["counts"]["queued"] == 1
 
 
-def test_shortcut_marks_job_done_but_not_asset(
+def test_current_metadata_shortcut_marks_job_and_asset_done(
     isolated_metadata_db: Path,
     tmp_path: Path,
 ):
     """
     Purpose:
-    Characterize Bug 2: the 'metadata already current' shortcut in
-    _persist_metadata_index_jobs calls _mark_current_metadata_done which
-    updates metadata_index_jobs.state='done' but does NOT update
-    assets.metadata_state='done'.
+    Verify the 'metadata already current' shortcut completes both the durable
+    job and the owning catalog asset atomically.
 
     Run when:
     Changing _persist_metadata_index_jobs coalesce/skip/fail policy.
@@ -953,6 +951,7 @@ def test_shortcut_marks_job_done_but_not_asset(
         _persist_metadata_index_jobs,
         create_library,
         get_metadata_index_status,
+        index_file,
         upsert_extracted_metadata,
     )
 
@@ -966,6 +965,17 @@ def test_shortcut_marks_job_done_but_not_asset(
 
     create_test_png(image)
     stat = image.stat()
+    assert index_file(
+        image,
+        image.name,
+        image.parent,
+        "image",
+        stat.st_mtime,
+        stat.st_size,
+        64,
+        64,
+        "image/png",
+    )
 
     # Pre-populate image_metadata and asset row to simulate 'already current' state
     import time as time_mod
@@ -1005,7 +1015,6 @@ def test_shortcut_marks_job_done_but_not_asset(
     # shortcut because image_metadata exists with matching mtime/size
     _persist_metadata_index_jobs([image])
 
-    # THE BUG: metadata_index_jobs.state='done' but assets.metadata_state is still 'reset'
     status = get_metadata_index_status(path=root)
     assert status["counts"].get("done", 0) > 0 or status["counts"].get("skipped", 0) > 0, (
         "Job should be marked done/skipped (metadata already current)"

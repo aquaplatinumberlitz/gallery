@@ -27,6 +27,7 @@ from fastapi.testclient import TestClient
 
 import backend.libraries as libraries_module
 from backend import scan_worker as catalog_service
+from backend.config import DERIVATIVE_VARIANTS
 from backend.errors import APIError, ErrorType
 from backend.libraries import (
     LibraryCreate,
@@ -640,7 +641,7 @@ def test_api_warm_derivatives_accepts_kind(isolated_app: TestClient, isolated_ga
     assert response.status_code == 202
     assert response.json()["state"] == "queued"
     assert response.json()["assets"] == 1
-    assert response.json()["derivatives_considered"] == 1
+    assert response.json()["derivatives_considered"] == len(DERIVATIVE_VARIANTS["thumbnail"])
     assert response.json()["kind"] == "thumbnail"
     with _connect() as conn:
         kinds = [

@@ -40,6 +40,7 @@ def test_watcher_debounce_is_clamped_and_drain_order_is_stable(monkeypatch: pyte
 
 
 def test_scheduled_refresh_fairness_visits_every_library(
+    isolated_metadata_db: Path,
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):

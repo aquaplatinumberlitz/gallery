@@ -616,12 +616,11 @@ for (const viewport of [
         localStorage.setItem("intro_mode", "disabled");
         localStorage.setItem("gallery-active-library-id", "1");
         localStorage.setItem("gallery-active-import-path-id", "10");
+        localStorage.setItem("gallery-sidebar-open", "false");
       });
 
       await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
       await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
-      const closeSidebar = page.getByRole("button", { name: /(Collapse|Close) sidebar/i });
-      if (await closeSidebar.isVisible()) await closeSidebar.click();
       await page.getByLabel("Open search").click();
       await page.getByRole("button", { name: "Advanced Search" }).click();
 

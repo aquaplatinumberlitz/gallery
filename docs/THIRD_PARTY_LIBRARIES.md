@@ -95,6 +95,10 @@ Derivative cache keys include:
 - output format and quality
 
 Changing the source file or derivative settings creates a new cache entry automatically.
+HTTP derivative responses require revalidation rather than advertising
+immutability; the source-derived ETag therefore exposes a changed catalog
+identity on the next request while diskcache continues to store paths, not image
+bytes.
 
 ### cachetools
 

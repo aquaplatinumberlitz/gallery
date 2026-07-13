@@ -73,7 +73,10 @@ def test_cache_version_bump_clears_legacy_bytes(isolated_thumbnail_cache: Path):
     assert thumbnails._thumbnail_disk_cache.get(thumbnails._CACHE_VERSION_KEY) == "v3"
 
 
-def test_renewed_claim_is_not_reclaimed_by_integrity_snapshot(isolated_gallery_root: Path):
+def test_renewed_claim_is_not_reclaimed_by_integrity_snapshot(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
     image, asset_id = _catalog_image(isolated_gallery_root / "lease")
     local = DerivativeScheduler(quota_bytes=1024 * 1024)
     derivative_id = local.schedule_derivative(asset_id, "thumbnail", "thumb_128", max_long_edge=128, quality=78)
@@ -110,7 +113,11 @@ def test_renewed_claim_is_not_reclaimed_by_integrity_snapshot(isolated_gallery_r
     assert state == "running"
 
 
-def test_integrity_removes_unsupported_variant_cache(isolated_gallery_root: Path, tmp_path: Path):
+def test_integrity_removes_unsupported_variant_cache(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
     image, asset_id = _catalog_image(isolated_gallery_root / "legacy")
     stat = image.stat()
     cache_path = tmp_path / "legacy.webp"
