@@ -535,8 +535,12 @@ Header search or AdvancedSearchDrawer
 -> GalleryGrid renders first-page Album suggestions and an appended Media stream
 ```
 
-- Default scope is `current`, meaning the current folder recursively.
-- `all` searches indexed assets from explicit registered libraries.
+- Canonical scopes are `folder` (one authorized folder recursively), `library`
+  (one registered library across all import paths), and `all`. Legacy GET
+  `current` resolves through the same folder context and responses report the
+  canonical `folder` value.
+- Search and facets share one registered-ID/path resolver. A folder outside the
+  selected library returns `404`; invalid/missing scope values are `422`.
 - `/api/search` returns bounded `media` pages with opaque string `next_cursor`, `has_more`,
   `returned`, and `limit`. Legacy `albums`, `photos`, `videos`, and `prompt`
   fields remain for compatibility; the active gallery search UI renders
@@ -570,6 +574,10 @@ Header search or AdvancedSearchDrawer
 - `GET /api/search-metadata` remains available for older callers, returns the
   catalog-filtered global total, and follows the same DB-only response policy;
   the main gallery UI uses `/api/search`.
+- Search, legacy metadata search, and facets use regular Pydantic response
+  models and explicit synchronous FastAPI path operations. OpenAPI documents
+  canonical media/album rows, legacy projections, facet values, opaque cursor
+  types, and sanitized 400/404/503/500 envelopes.
 - Desktop/tablet gallery sorting uses `SortSelect.vue`, a local shadcn-vue Select wrapper. `MobileHeader.vue` still uses `SortDropdown.vue`.
 
 ### Library Inspector

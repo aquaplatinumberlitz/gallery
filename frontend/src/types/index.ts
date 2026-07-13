@@ -119,8 +119,12 @@ export interface BrowseResponse {
 export type FolderChildrenResponse = FolderTreeNode[];
 
 export type SearchScope = "current" | "all";
+export type CanonicalSearchScope = "folder" | "library" | "all";
 
 export interface UnifiedSearchResult {
+  asset_id?: number;
+  library_id?: number;
+  library_name?: string;
   name: string;
   path: string;
   // Width is `LegacySearchAssetType` (not `AssetType`) because the unified
@@ -154,10 +158,10 @@ export interface UnifiedSearchResults {
 
 export interface UnifiedSearchResponse extends UnifiedSearchResults {
   query: string;
-  scope: SearchScope;
+  scope: CanonicalSearchScope;
   root: string;
   media: UnifiedSearchResult[];
-  next_cursor: number | null;
+  next_cursor: string | null;
   has_more: boolean;
   returned: number;
   limit: number;

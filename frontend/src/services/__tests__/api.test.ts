@@ -217,15 +217,15 @@ describe("unifiedSearch", () => {
     mockApi.get.mockResolvedValueOnce({ data: { query: "cat", total: 0, results: [] } });
     const r = await unifiedSearch("cat");
     expect(mockApi.get).toHaveBeenCalledWith("/api/search", {
-      params: { q: "cat", scope: "current", limit: 50, cursor: 0 },
+      params: { q: "cat", scope: "current", limit: 50, cursor: undefined },
     });
     expect(r.query).toBe("cat");
   });
   it("passes scope and path", async () => {
     mockApi.get.mockResolvedValueOnce({ data: { query: "", total: 0, results: [] } });
-    await unifiedSearch("*", { scope: "all", path: "/p", limit: 10, cursor: 20 });
+    await unifiedSearch("*", { scope: "all", path: "/p", limit: 10, cursor: "opaque-20" });
     expect(mockApi.get).toHaveBeenCalledWith("/api/search", {
-      params: { q: "*", scope: "all", path: "/p", limit: 10, cursor: 20 },
+      params: { q: "*", scope: "all", path: "/p", limit: 10, cursor: "opaque-20" },
     });
   });
 });

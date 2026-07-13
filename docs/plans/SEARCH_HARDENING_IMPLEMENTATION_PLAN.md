@@ -247,21 +247,21 @@ with the frontend.
 
 ### Public contract changes
 
-- [ ] Add regular Pydantic models for search result, album result, legacy
+- [x] Add regular Pydantic models for search result, album result, legacy
       metadata result, search response, and facet response. Do not use
       `RootModel`.
-- [ ] Use explicit endpoint return types and `Annotated[..., Query(...)]`.
-- [ ] Change `next_cursor` from `number | null` to `string | null`.
-- [ ] Add `asset_id`, `library_id`, and `library_name` to canonical media rows.
-- [ ] Support three canonical scopes:
+- [x] Use explicit endpoint return types and `Annotated[..., Query(...)]`.
+- [x] Change `next_cursor` from `number | null` to `string | null`.
+- [x] Add `asset_id`, `library_id`, and `library_name` to canonical media rows.
+- [x] Support three canonical scopes:
   - `folder`: one folder recursively;
   - `library`: one registered library;
   - `all`: all registered libraries.
-- [ ] Preserve `current` as the legacy GET alias for `folder`.
-- [ ] Give `/api/facets` the same scope, library, and folder semantics as search.
-- [ ] Keep `albums`, `photos`, `videos`, `prompt`, and `media`; derive the legacy
+- [x] Preserve `current` as the legacy GET alias for `folder`.
+- [x] Give `/api/facets` the same scope, library, and folder semantics as search.
+- [x] Keep `albums`, `photos`, `videos`, `prompt`, and `media`; derive the legacy
       arrays from canonical rows without additional queries or path validation.
-- [ ] Fix `/api/search-metadata.total` to report the real global match total.
+- [x] Fix `/api/search-metadata.total` to report the real global match total.
 
 ### Error policy
 
@@ -279,10 +279,10 @@ operation is blocking, or use the existing threadpool boundary deliberately.
 
 ### Acceptance gates
 
-- [ ] OpenAPI shows the complete response and error schemas.
-- [ ] Legacy grouped arrays are projections of `media` and remain consistent.
-- [ ] Folder/library/all search and facets share the same context tests.
-- [ ] All-scope UI can identify the owning library without parsing paths.
+- [x] OpenAPI shows the complete response and error schemas.
+- [x] Legacy grouped arrays are projections of `media` and remain consistent.
+- [x] Folder/library/all search and facets share the same context tests.
+- [x] All-scope UI can identify the owning library without parsing paths.
 
 ## H5 - Vue search state, parser parity, and result UX
 
@@ -399,3 +399,4 @@ When complete, move this file to `docs/archived/` and update
 | 2026-07-13 | H1 | Complete | Schema v4 ownership backfill and rollback tests; shared predicate remains indexed by `(library_id, path)` and rejects cross-library same-path rows. |
 | 2026-07-13 | H2 | Complete | DB-only search joins and browse-shared album aggregation; 82 focused backend tests passed with filesystem hot-path guards and library/import ownership coverage. |
 | 2026-07-13 | H3 | Complete | Unified tiered candidate CTE and request-bound opaque keyset cursors; 176 focused search tests plus 9 ranking/cursor goldens passed. |
+| 2026-07-13 | H4 | Complete | Typed Pydantic/OpenAPI contracts and shared canonical scope resolver; 7 contract goldens plus 183 focused backend tests and 74 frontend cursor/API tests passed. |

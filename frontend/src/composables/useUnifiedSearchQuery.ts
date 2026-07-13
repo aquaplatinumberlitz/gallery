@@ -47,10 +47,10 @@ export function useUnifiedSearchQuery(query: Ref<string>, scope: Ref<SearchScope
         scope: requestScope as SearchScope,
         path: pathForRequest,
         limit,
-        cursor: pageParam,
+        cursor: pageParam ?? undefined,
       });
     },
-    initialPageParam: 0,
+    initialPageParam: null as string | null,
     getNextPageParam: (lastPage: UnifiedSearchResponse) => lastPage.next_cursor ?? undefined,
     enabled: computed(() => debouncedQuery.value.length > 0),
   });

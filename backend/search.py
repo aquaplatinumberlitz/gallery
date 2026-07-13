@@ -2,10 +2,11 @@
 
 import logging
 import os
+import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Response
 from fastapi.concurrency import run_in_threadpool
@@ -22,8 +23,10 @@ from .metadata_store import (
     search_index_fielded,
     search_metadata,
 )
+from .models import APIErrorResponse, MetadataSearchResponse, SearchResponse
 from .paths import InvalidPathError, is_path_safe, resolve_path
 from .scan import require_registered_path_allowed
+from .search_scope import SearchScopeInput, resolve_search_scope
 
 router = APIRouter()
 LOGGER = logging.getLogger(__name__)
@@ -119,87 +122,100 @@ def _schedule_stale_cleanup(stale_paths: set[str]) -> None:
     _STALE_CLEANUP_EXECUTOR.submit(run)
 
 
-@router.get("/api/search-metadata")
-async def api_search_metadata(
-    q: str = Query("", description="Prompt, model, sampler, filename, or metadata text to search"),
-    limit: int = Query(100, ge=1, le=200, description="Maximum search results"),
-    offset: int = Query(0, ge=0, description="Result offset"),
-):
+_SEARCH_ERROR_RESPONSES = {
+    400: {"model": APIErrorResponse, "description": "Malformed or incompatible cursor"},
+    404: {"model": APIErrorResponse, "description": "Library or folder scope not found"},
+    503: {"model": APIErrorResponse, "description": "Required search index unavailable"},
+    500: {"model": APIErrorResponse, "description": "Sanitized internal failure"},
+}
+
+
+@router.get("/api/search-metadata", responses=_SEARCH_ERROR_RESPONSES)
+def api_search_metadata(
+    q: Annotated[str, Query(description="Prompt, model, sampler, filename, or metadata text to search")] = "",
+    limit: Annotated[int, Query(ge=1, le=200, description="Maximum search results")] = 100,
+    offset: Annotated[int, Query(ge=0, description="Result offset")] = 0,
+) -> MetadataSearchResponse:
     """Search current catalog-owned image metadata without filesystem probes."""
     if not q.strip():
-        return {"query": q, "total": 0, "results": []}
+        return MetadataSearchResponse(query=q, total=0, results=[])
 
     try:
-        data = await run_in_threadpool(search_metadata, q, limit, offset)
+        data = search_metadata(q, limit, offset)
+    except sqlite3.OperationalError as exc:
+        raise APIError(503, ErrorType.SERVER_ERROR, "Search index temporarily unavailable") from exc
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Metadata search failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
-    return data
+    return MetadataSearchResponse.model_validate(data)
 
 
-@router.get("/api/search")
-async def api_search(
+@router.get("/api/search", responses=_SEARCH_ERROR_RESPONSES)
+def api_search(
     response: Response,
-    q: str = Query("", description="Filename, album name, prompt, or metadata text to search"),
-    scope: Literal["current", "all"] = Query(
-        "current", description="Search current folder recursively or all indexed files"
-    ),
-    path: str | None = Query(None, description="Current folder path when scope=current"),
-    limit: int = Query(50, ge=1, le=200, description="Maximum results per section"),
-    cursor: str | None = Query(None, description="Opaque result cursor; decimal offsets are deprecated"),
-):
+    q: Annotated[str, Query(description="Filename, album name, prompt, or metadata text to search")] = "",
+    scope: Annotated[
+        SearchScopeInput,
+        Query(description="Folder, library, or all-library search scope; current is a legacy folder alias"),
+    ] = "current",
+    library_id: Annotated[int | None, Query(ge=1, description="Registered library for folder/library scope")] = None,
+    path: Annotated[str | None, Query(description="Absolute registered folder path for folder scope")] = None,
+    limit: Annotated[int, Query(ge=1, le=200, description="Maximum media rows per page")] = 50,
+    cursor: Annotated[str | None, Query(description="Opaque result cursor; decimal offsets are deprecated")] = None,
+) -> SearchResponse:
     """Search albums, photos, and prompts in either current folder or all indexed files."""
     if cursor is not None and cursor.isdecimal():
         response.headers["Deprecation"] = "true"
         response.headers["Warning"] = '299 - "Decimal search cursors are deprecated; use next_cursor"'
+    context = resolve_search_scope(scope, library_id=library_id, path=path)
     if not q.strip():
-        root = await run_in_threadpool(_validated_search_root, path) if scope == "current" else None
-        return {
-            "query": q,
-            "scope": scope,
-            "root": str(root) if root is not None else "/",
-            "albums": [],
-            "photos": [],
-            "videos": [],
-            "prompt": [],
-            "media": [],
-            "next_cursor": None,
-            "has_more": False,
-            "returned": 0,
-            "limit": limit,
-        }
-
-    root_path: Path | None = None
-    if scope == "current":
-        root_path = await run_in_threadpool(_validated_search_root, path)
+        return SearchResponse.model_validate(
+            {
+                "query": q,
+                "scope": context.kind,
+                "root": context.folder_path or "/",
+                "albums": [],
+                "photos": [],
+                "videos": [],
+                "prompt": [],
+                "media": [],
+                "next_cursor": None,
+                "has_more": False,
+                "returned": 0,
+                "limit": limit,
+            }
+        )
 
     try:
         parsed = parse_fielded_query(q)
         if parsed.fields:
-            data = await run_in_threadpool(search_index_fielded, q, scope, root_path, limit, cursor)
+            data = search_index_fielded(
+                q,
+                context.kind,
+                context.folder_path,
+                limit,
+                cursor,
+                library_id=context.library_id,
+            )
         else:
-            data = await run_in_threadpool(search_index, q, scope, root_path, limit, cursor)
+            data = search_index(
+                q,
+                context.kind,
+                context.folder_path,
+                limit,
+                cursor,
+                library_id=context.library_id,
+            )
     except ValueError as exc:
         raise APIError(400, ErrorType.BAD_REQUEST, "Invalid search cursor") from exc
+    except sqlite3.OperationalError as exc:
+        raise APIError(503, ErrorType.SERVER_ERROR, "Search index temporarily unavailable") from exc
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Search failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
-    return {
-        "query": data["query"],
-        "scope": data["scope"],
-        "root": data["root"],
-        "albums": data["albums"],
-        "photos": data["photos"],
-        "videos": data.get("videos", []),
-        "prompt": data["prompt"],
-        "media": data.get("media", []),
-        "next_cursor": data.get("next_cursor"),
-        "has_more": bool(data.get("has_more")),
-        "returned": int(data.get("returned", len(data.get("media", [])))),
-        "limit": data.get("limit", limit),
-    }
+    return SearchResponse.model_validate(data)
 
 
 @router.get("/api/library/inspector")

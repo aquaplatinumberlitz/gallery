@@ -66,14 +66,12 @@ def test_search_metadata_failure_returns_500(isolated_app: TestClient, monkeypat
 # ---------------------------------------------------------------------------
 
 
-def test_search_scope_current_unsafe_path_returns_403(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
-    # Force is_path_safe to False to trigger the 403 branch
-    monkeypatch.setattr(search_module, "is_path_safe", lambda _: False)
+def test_search_scope_current_outside_registered_library_returns_404(isolated_app: TestClient):
     resp = isolated_app.get(
         "/api/search",
         params={"q": "hello", "scope": "current", "path": "/etc"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 404
 
 
 def test_search_scope_current_missing_folder_returns_404(isolated_app: TestClient, isolated_gallery_root: Path):

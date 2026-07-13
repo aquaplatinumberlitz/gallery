@@ -134,6 +134,10 @@ Search behavior:
   not enumerate folders, stat results, or schedule stale-index cleanup.
 - `scope=current` searches the current folder recursively.
 - `scope=all` searches only current active image/video assets owned by registered libraries; `PATH_SAFETY_ROOT` remains an outer boundary, not ownership.
+- Canonical API scopes are `folder`, `library`, and `all`; legacy `current`
+  adapts to `folder`. Search and facets share the same registered library/path
+  authorization, and their regular Pydantic models expose complete OpenAPI
+  response schemas. Blocking SQLite work runs in synchronous path operations.
 - Fielded queries are parsed by `fielded_search_parser.py` and executed by
   metadata-store search helpers. Metadata predicates apply only to
   filterable image/prompt media; filename-only videos are excluded from

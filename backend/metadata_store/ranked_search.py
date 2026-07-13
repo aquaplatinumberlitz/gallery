@@ -61,10 +61,18 @@ def _like_pattern(query: str) -> str:
     return f"%{_like_escape(query)}%"
 
 
-def request_fingerprint(query: str, scope: str, root_path: str | Path | None, *, fielded: bool) -> str:
+def request_fingerprint(
+    query: str,
+    scope: str,
+    root_path: str | Path | None,
+    *,
+    fielded: bool,
+    library_id: int | None = None,
+) -> str:
     """Return the stable request identity bound into pagination cursors."""
     payload = {
         "fielded": fielded,
+        "library_id": library_id,
         "query": query.strip(),
         "root": canonicalize_catalog_path(root_path) if root_path is not None else None,
         "scope": scope,
@@ -420,13 +428,22 @@ def search_ranked_media_page(
     cursor: str | int | None,
     *,
     parsed: ParsedQuery | None = None,
+    library_id: int | None = None,
 ) -> tuple[list[sqlite3.Row], bool, str]:
     """Return one ranked media page plus its request fingerprint."""
     scope_sql, scope_params = ("", {})
     if scope == "current" and root_path is not None:
         scope_sql, scope_params = named_path_scope_sql(root_path, column="fi.path", leading_and=True)
+    elif scope == "folder" and root_path is not None:
+        scope_sql, scope_params = named_path_scope_sql(root_path, column="fi.path", leading_and=True)
+        if library_id is not None:
+            scope_sql += " AND fi.library_id = :scope_library_id"
+            scope_params["scope_library_id"] = library_id
+    elif scope == "library":
+        scope_sql = " AND fi.library_id = :scope_library_id"
+        scope_params = {"scope_library_id": library_id}
     is_fielded = parsed is not None
-    fingerprint = request_fingerprint(query, scope, root_path, fielded=is_fielded)
+    fingerprint = request_fingerprint(query, scope, root_path, fielded=is_fielded, library_id=library_id)
     cursor_position, legacy_offset = _cursor_state(cursor, fingerprint)
     residual = parsed.residual_text.strip() if parsed is not None else query.strip()
 

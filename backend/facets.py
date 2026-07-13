@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from contextlib import suppress
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
-from fastapi.concurrency import run_in_threadpool
 
 from .errors import APIError, ErrorType
 from .metadata_store import _DB_LOCK, _connect, initialize_database
 from .metadata_store.identity import active_catalog_file_sql, current_file_metadata_sql
 from .metadata_store.path_utils import named_path_scope_sql
+from .models import APIErrorResponse, FacetResponse
 from .scan import require_registered_path_allowed
+from .search_scope import SearchScopeInput, resolve_search_scope
 
 try:
     from prometheus_client import Histogram
@@ -58,11 +60,24 @@ def _build_facet_query(field: str, value_expr: str, max_values: int, scope_where
     """
 
 
-def _build_scope(folder_path: str | None) -> tuple[str, dict]:
-    if not folder_path:
+def _build_scope(
+    folder_path: str | None,
+    *,
+    scope: str = "all",
+    library_id: int | None = None,
+) -> tuple[str, dict]:
+    if folder_path and scope == "all":
+        scope = "folder"
+    if scope == "library":
+        return " AND fi.library_id = :scope_library_id", {"scope_library_id": library_id}
+    if scope != "folder" or not folder_path:
         return "", {}
     try:
-        return named_path_scope_sql(folder_path, column="fi.path", leading_and=True)
+        scope_where, scope_params = named_path_scope_sql(folder_path, column="fi.path", leading_and=True)
+        if library_id is not None:
+            scope_where += " AND fi.library_id = :scope_library_id"
+            scope_params["scope_library_id"] = library_id
+        return scope_where, scope_params
     except OSError:
         return "", {}
 
@@ -198,12 +213,18 @@ def _get_lora_facet(scope_where: str, scope_params: dict, max_values: int) -> li
         ]
 
 
-def build_facets(folder_path: str | None = None, max_values: int = FACET_DEFAULT_LIMIT) -> dict[str, Any]:
+def build_facets(
+    folder_path: str | None = None,
+    max_values: int = FACET_DEFAULT_LIMIT,
+    *,
+    scope: str = "all",
+    library_id: int | None = None,
+) -> dict[str, Any]:
     """Aggregate indexed metadata values into filter facets, optionally scoped to a folder."""
     import time
 
     start = time.perf_counter()
-    scope_where, scope_params = _build_scope(folder_path)
+    scope_where, scope_params = _build_scope(folder_path, scope=scope, library_id=library_id)
     scope_params["limit"] = max_values
     result: dict[str, Any] = {}
 
@@ -234,22 +255,38 @@ def build_facets(folder_path: str | None = None, max_values: int = FACET_DEFAULT
     return result
 
 
-@router.get("/api/facets")
-async def api_facets(
-    path: str | None = Query(None, description="Scope facets to this folder and its children"),
-    max_values: int = Query(FACET_DEFAULT_LIMIT, ge=1, le=200, description="Maximum facet values per field"),
-):
+_FACET_ERROR_RESPONSES = {
+    404: {"model": APIErrorResponse, "description": "Library or folder scope not found"},
+    503: {"model": APIErrorResponse, "description": "Required facet index unavailable"},
+    500: {"model": APIErrorResponse, "description": "Sanitized internal failure"},
+}
+
+
+@router.get("/api/facets", responses=_FACET_ERROR_RESPONSES)
+def api_facets(
+    scope: Annotated[
+        SearchScopeInput,
+        Query(description="Folder, library, or all-library facet scope; current is a legacy folder alias"),
+    ] = "all",
+    library_id: Annotated[int | None, Query(ge=1, description="Registered library for folder/library scope")] = None,
+    path: Annotated[str | None, Query(description="Absolute registered folder path for folder scope")] = None,
+    max_values: Annotated[int, Query(ge=1, le=200, description="Maximum facet values per field")] = FACET_DEFAULT_LIMIT,
+) -> FacetResponse:
     """Return metadata facet counts for the requested folder scope."""
-    folder_path = None
-    if path:
-        folder_path = await run_in_threadpool(_validate_facet_scope, path)
-        if folder_path is None:
-            return {}
+    effective_scope: SearchScopeInput = "current" if scope == "all" and path else scope
+    context = resolve_search_scope(effective_scope, library_id=library_id, path=path)
 
     try:
-        facets = await run_in_threadpool(build_facets, folder_path, max_values)
+        facets = build_facets(
+            context.folder_path,
+            max_values,
+            scope=context.kind,
+            library_id=context.library_id,
+        )
+    except sqlite3.OperationalError as exc:
+        raise APIError(503, ErrorType.SERVER_ERROR, "Facet index temporarily unavailable") from exc
     except Exception as exc:
         LOGGER.exception("Facet build failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
-    return facets
+    return FacetResponse.model_validate(facets)

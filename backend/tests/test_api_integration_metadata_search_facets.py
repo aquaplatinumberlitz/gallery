@@ -249,7 +249,9 @@ class TestFacetsEndpoint:
             params={"path": str(temp_gallery_with_metadata / "nonexistent")},
         )
         assert resp.status_code == 200
-        assert resp.json() == {}
+        data = resp.json()
+        assert data["tool"] == []
+        assert data["folders"] == []
 
     def test_facets_handles_empty_db(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         # No seeding - should handle empty gracefully

@@ -81,7 +81,7 @@ describe("useUnifiedSearchQuery", () => {
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
 
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
-    expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "all", path: "", limit: 60, cursor: 0 });
+    expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "all", path: "", limit: 60, cursor: undefined });
   });
 
   it("does not fetch when query is empty", () => {
@@ -145,12 +145,19 @@ describe("useUnifiedSearchQuery", () => {
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
 
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
-    expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "current", path: "/photos", limit: 60, cursor: 0 });
+    expect(unifiedSearch).toHaveBeenCalledWith("cat", {
+      scope: "current",
+      path: "/photos",
+      limit: 60,
+      cursor: undefined,
+    });
   });
 
   it("fetches the next page with the previous next_cursor", async () => {
     vi.mocked(unifiedSearch)
-      .mockResolvedValueOnce(makeMockResults({ media: [makeSearchResult("1.png")], next_cursor: 1, has_more: true }))
+      .mockResolvedValueOnce(
+        makeMockResults({ media: [makeSearchResult("1.png")], next_cursor: "cursor-1", has_more: true }),
+      )
       .mockResolvedValueOnce(makeMockResults({ media: [makeSearchResult("2.png")], next_cursor: null }));
     const { result } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
@@ -159,7 +166,12 @@ describe("useUnifiedSearchQuery", () => {
     await result.fetchNextPage();
 
     await vi.waitFor(() => expect(result.results.value.media?.map((item) => item.name)).toEqual(["1.png", "2.png"]));
-    expect(unifiedSearch).toHaveBeenLastCalledWith("cat", { scope: "all", path: "", limit: 60, cursor: 1 });
+    expect(unifiedSearch).toHaveBeenLastCalledWith("cat", {
+      scope: "all",
+      path: "",
+      limit: 60,
+      cursor: "cursor-1",
+    });
   });
 
   it("has isPending true while loading", () => {

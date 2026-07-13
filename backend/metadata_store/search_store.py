@@ -99,11 +99,21 @@ def _path_prefix(root: Path) -> tuple[str, str]:
     return root_str, f"{_like_escape(root_prefix)}%"
 
 
-def _scope_clause(scope: str, root_path: str | Path | None, alias: str = "fi") -> tuple[str, list[Any], Path]:
-    root = Path(root_path).resolve() if scope == "current" and root_path else None
+def _scope_clause(
+    scope: str,
+    root_path: str | Path | None,
+    alias: str = "fi",
+    library_id: int | None = None,
+) -> tuple[str, list[Any], Path]:
+    root = Path(root_path) if scope in {"current", "folder"} and root_path else None
+    if scope == "library":
+        return f" AND {alias}.library_id = ?", [library_id], Path(os.sep)
     if root is None:
         return "", [], Path(os.sep)
     clause, params = path_scope_sql(root, column=f"{alias}.path", leading_and=True)
+    if scope == "folder" and library_id is not None:
+        clause += f" AND {alias}.library_id = ?"
+        params.append(library_id)
     return clause, params, root
 
 
@@ -168,8 +178,9 @@ def _search_file_index_fts(
     scope: str,
     root_path: str | Path | None,
     limit: int,
+    library_id: int | None = None,
 ) -> tuple[list[sqlite3.Row], Path]:
-    scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
+    scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi", library_id)
     type_sql = "fi.type IN ('image', 'photo')" if file_type in {"image", "photo"} else "fi.type = ?"
     type_params = [] if file_type in {"image", "photo"} else [file_type]
     is_folder = file_type == "folder"
@@ -809,25 +820,33 @@ def search_index(
     root_path: str | Path | None = None,
     limit: int = 50,
     cursor: str | int | None = None,
+    *,
+    library_id: int | None = None,
 ) -> dict[str, Any]:
     """Search indexed albums, photos, and prompts using free-text query semantics."""
     initialize_database()
     trimmed = query.strip()
-    normalized_scope = "all" if scope == "all" else "current"
+    normalized_scope = scope if scope in {"folder", "library", "all"} else "folder"
     limit = max(1, min(limit, 200))
-    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
+    root = Path(root_path) if normalized_scope == "folder" and root_path else None
     display_root = root if root is not None else Path(os.sep)
 
     if not trimmed:
         return _empty_search_response(query, normalized_scope, display_root, limit)
 
-    if normalized_scope == "current" and root is None:
+    if normalized_scope == "folder" and root is None:
         return _empty_search_response(query, normalized_scope, "", limit)
 
     with _DB_LOCK, _connect() as conn:
         if is_first_search_page(cursor):
             album_rows, root = _search_file_index_fts(
-                conn, trimmed, "folder", normalized_scope, root_path, ALBUM_SUGGESTION_LIMIT
+                conn,
+                trimmed,
+                "folder",
+                normalized_scope,
+                root_path,
+                ALBUM_SUGGESTION_LIMIT,
+                library_id,
             )
         else:
             album_rows = []
@@ -842,6 +861,7 @@ def search_index(
             root_path,
             limit,
             cursor,
+            library_id=library_id,
         )
 
     format_root = root if root is not None else Path(os.sep)
@@ -877,6 +897,8 @@ def search_index_fielded(
     root_path: str | Path | None = None,
     limit: int = 50,
     cursor: str | int | None = None,
+    *,
+    library_id: int | None = None,
 ) -> dict[str, Any]:
     """Search indexed albums and photos with structured field filters."""
     from ..fielded_search_parser import (
@@ -885,15 +907,15 @@ def search_index_fielded(
 
     initialize_database()
     trimmed = query.strip()
-    normalized_scope = "all" if scope == "all" else "current"
+    normalized_scope = scope if scope in {"folder", "library", "all"} else "folder"
     limit = max(1, min(limit, 200))
-    root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
+    root = Path(root_path) if normalized_scope == "folder" and root_path else None
     display_root = root if root is not None else Path(os.sep)
 
     if not trimmed:
         return _empty_search_response(query, normalized_scope, display_root, limit)
 
-    if normalized_scope == "current" and root is None:
+    if normalized_scope == "folder" and root is None:
         return _empty_search_response(query, normalized_scope, "", limit)
 
     parsed = parse_fielded_query(trimmed)
@@ -910,7 +932,13 @@ def search_index_fielded(
     with _DB_LOCK, _connect() as conn:
         if album_query and is_first_search_page(cursor):
             album_rows, root = _search_file_index_fts(
-                conn, album_query, "folder", normalized_scope, root_path, ALBUM_SUGGESTION_LIMIT
+                conn,
+                album_query,
+                "folder",
+                normalized_scope,
+                root_path,
+                ALBUM_SUGGESTION_LIMIT,
+                library_id,
             )
         else:
             album_rows = []
@@ -926,6 +954,7 @@ def search_index_fielded(
             limit,
             cursor,
             parsed=parsed,
+            library_id=library_id,
         )
 
     format_root = root if root is not None else Path(os.sep)
