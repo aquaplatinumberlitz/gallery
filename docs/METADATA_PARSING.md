@@ -126,6 +126,15 @@ collapsed whitespace, casefolded search text, and SHA-256 of
 hashes from core metadata and checkpoint/model resources are retained as
 explicit many-to-many aliases.
 
+For ComfyUI, parsing also retains a bounded normalized internal workflow
+document in the stored metadata payload. The document prefers API prompt graph
+named inputs and uses a versioned widget-position map only for recognized UI
+graph node types. The durable `workflow_properties` index converts the fixed
+registry's scalar values into text, integer, real, boolean, or canonical uint64
+rows. Links, arrays, objects, NaN/Infinity, oversized identifiers/text, and
+unknown widget layouts are not indexed; internal workflow keys are stripped
+from public metadata DTOs.
+
 ## Normalized API shape
 
 The parser returns a dictionary containing at least:

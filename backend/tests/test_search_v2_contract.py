@@ -150,7 +150,7 @@ def test_search_v2_scope_and_request_bounds(
 
 
 def test_search_v2_decoded_body_limit_and_persistable_shape(isolated_app: TestClient) -> None:
-    predicate = {"property": "text", "op": "eq", "value": "\n" * 512}
+    predicate = {"property": "filename_prefix", "op": "eq", "value": "\n" * 512}
     oversized = {
         "schema_version": 1,
         "mode": "workflow",
@@ -158,7 +158,7 @@ def test_search_v2_decoded_body_limit_and_persistable_shape(isolated_app: TestCl
         "scope": {"kind": "all"},
         "filters": {
             "prompt_groups": [],
-            "workflow_groups": [{"node_type": f"Node{group}", "predicates": [predicate] * 8} for group in range(4)],
+            "workflow_groups": [{"node_type": "SaveImage", "predicates": [predicate] * 8} for _ in range(4)],
         },
         "limit": 60,
     }

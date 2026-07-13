@@ -352,7 +352,10 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
-- Catalog schema version 6 additively creates normalized
+- Catalog schema version 7 additively creates typed `workflow_nodes` and
+  `workflow_property_values` with fixed per-type lookup indexes; its `.v6.bak`
+  migration creates storage only and leaves extraction to the durable
+  `workflow_properties` index. Version 6 creates normalized
   `asset_prompt_values`, per-asset observed model identities, and
   `model_identity_aliases`; its `.v5.bak` migration creates storage only and
   leaves backfill to the durable `prompt_values` search-index job. Version 5
@@ -372,6 +375,11 @@ Backend modules are mostly flat, with selected domain packages.
   `image_metadata`/checkpoint-resource rows. It NFKC-normalizes and casefolds
   prompt identities, keeps positive and negative values distinct, and updates
   observed model-name/hash aliases without reopening source media.
+- The enabled `workflow_properties` index accepts only the code-owned ComfyUI
+  registry advertised by search capabilities. API prompt graphs provide named
+  inputs; supported UI graph widgets use a versioned positional map. Search
+  predicates compile to fixed same-node `EXISTS` SQL with bound values, while
+  links, containers, non-finite numbers, and unsupported identifiers are not indexed.
 - FastAPI lifespan startup registers each stop callback immediately after its service starts. Startup failures and normal shutdown unwind callbacks in reverse order, attempt every cleanup, and log incomplete stops without masking the initiating failure.
 - Unexpected exceptions are logged server-side with tracebacks. Public `500` responses use a generic message; durable background-job error fields retain bounded operational detail.
 - The catalog service owns a supervisor thread. Each running job has a durable

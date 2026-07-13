@@ -368,7 +368,7 @@ def test_capabilities_status_rebuild_cancel_and_readiness_errors(
     assert isolated_app.post(f"/api/search/index-jobs/{queued.json()['id']}/cancel").json()["state"] == "cancelled"
 
     disabled = isolated_app.post(
-        "/api/search/indexes/workflow_properties/rebuild",
+        "/api/search/indexes/workflow_raw/rebuild",
         json={"library_id": library["id"]},
     )
     assert disabled.status_code == 409

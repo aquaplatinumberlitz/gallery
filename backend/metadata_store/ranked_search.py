@@ -13,6 +13,7 @@ from typing import Any
 
 from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
 from ..metadata_extract import contains_cjk
+from ..workflow_discovery import build_workflow_group_conditions
 from .identity import asset_owns_file_index_sql, catalog_import_path_owns_sql, file_index_matches_image_metadata_sql
 from .path_utils import canonicalize_catalog_path, named_path_scope_sql
 
@@ -69,6 +70,7 @@ def request_fingerprint(
     fielded: bool,
     library_id: int | None = None,
     prompt_groups: list[tuple[str, bytes]] | None = None,
+    workflow_groups: list[Any] | None = None,
 ) -> str:
     """Return the stable request identity bound into pagination cursors."""
     payload = {
@@ -78,6 +80,7 @@ def request_fingerprint(
         "root": canonicalize_catalog_path(root_path) if root_path is not None else None,
         "scope": scope,
         "prompt_groups": [{"kind": kind, "value_hash": value_hash.hex()} for kind, value_hash in (prompt_groups or [])],
+        "workflow_groups": [group.model_dump(mode="json") for group in (workflow_groups or [])],
     }
     canonical = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -432,6 +435,7 @@ def search_ranked_media_page(
     parsed: ParsedQuery | None = None,
     library_id: int | None = None,
     prompt_groups: list[tuple[str, bytes]] | None = None,
+    workflow_groups: list[Any] | None = None,
 ) -> tuple[list[sqlite3.Row], bool, str]:
     """Return one ranked media page plus its request fingerprint."""
     scope_sql, scope_params = ("", {})
@@ -453,6 +457,7 @@ def search_ranked_media_page(
         fielded=is_fielded,
         library_id=library_id,
         prompt_groups=prompt_groups,
+        workflow_groups=workflow_groups,
     )
     cursor_position, legacy_offset = _cursor_state(cursor, fingerprint)
     residual = parsed.residual_text.strip() if parsed is not None else query.strip()
@@ -470,6 +475,9 @@ def search_ranked_media_page(
             )
             raw_params[f"prompt_kind_{index}"] = kind
             raw_params[f"prompt_hash_{index}"] = value_hash
+        workflow_conditions, workflow_params = build_workflow_group_conditions(workflow_groups or [])
+        conditions.extend(workflow_conditions)
+        raw_params.update(workflow_params)
         field_where = " AND ".join(conditions) if conditions else "1=1"
         field_where, field_params = _prefix_sql_params(field_where, raw_params, "field_")
 

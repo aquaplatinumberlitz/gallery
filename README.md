@@ -212,7 +212,7 @@ gallery-repo/
 | `GET`                  | `/api/video/poster?path=...`                    | Serve a cached WebP video poster                                                                |
 | `GET`                  | `/api/metadata?path=...`                        | Parse AI generation metadata                                                                    |
 | `GET`                  | `/api/search`                                   | Typed folder/library/all photo/album/prompt search with opaque cursors                           |
-| `POST`                 | `/api/search/query`                             | Canonical Search V2 request with ID-based scope, structured filters, and opaque cursors          |
+| `POST`                 | `/api/search/query`                             | Canonical Search V2 request with ID-based scope, prompt groups, typed workflow predicates, and opaque cursors |
 | `POST`                 | `/api/search/prompt-usage/query`                | Normalized positive/negative prompt groups with active-catalog counts and keyset paging           |
 | `GET`                  | `/api/search/capabilities`                      | Enabled search modes, fixed limits, registries, and required derived indexes                     |
 | `GET`                  | `/api/search/indexes`                           | Per-library derived-index state, usability, progress, and sanitized failures                     |

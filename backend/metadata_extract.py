@@ -401,6 +401,17 @@ def parse_ai_text_parameters(params_text: str) -> dict[str, Any]:
 
 def parse_comfy(prompt_json: str, workflow_json: str | None) -> dict[str, Any]:
     """Parse ComfyUI prompt or workflow JSON into normalized metadata fields."""
+    from .workflow_discovery import MAX_WORKFLOW_SOURCE_BYTES
+
+    authoritative_source = prompt_json or workflow_json or ""
+    if len(authoritative_source.encode("utf-8")) > MAX_WORKFLOW_SOURCE_BYTES:
+        return {
+            "tool": "ComfyUI",
+            "prompt": "",
+            "negative_prompt": "",
+            "params": {},
+            "_workflow_error": "workflow_source_too_large",
+        }
     try:
         data = json.loads(prompt_json)
     except json.JSONDecodeError:
@@ -412,6 +423,15 @@ def parse_comfy(prompt_json: str, workflow_json: str | None) -> dict[str, Any]:
             data = None
     if not isinstance(data, dict):
         return {}
+
+    workflow_document: dict[str, Any] | None = None
+    workflow_error: str | None = None
+    try:
+        from .workflow_discovery import WorkflowExtractionError, normalize_workflow_document
+
+        workflow_document = normalize_workflow_document(data)
+    except WorkflowExtractionError as exc:
+        workflow_error = exc.code
 
     nodes = data.get("nodes") if isinstance(data.get("nodes"), list) else data
 
@@ -521,12 +541,17 @@ def parse_comfy(prompt_json: str, workflow_json: str | None) -> dict[str, Any]:
     if all_loras:
         params["Lora"] = all_loras
 
-    return {
+    result = {
         "tool": "ComfyUI",
         "prompt": prompt,
         "negative_prompt": negative_prompt,
         "params": params,
     }
+    if workflow_document is not None:
+        result["_workflow_document"] = workflow_document
+    if workflow_error is not None:
+        result["_workflow_error"] = workflow_error
+    return result
 
 
 def _parse_swarm_metadata(text: str) -> dict[str, Any] | None:
@@ -869,7 +894,7 @@ def extracted_metadata_to_api(metadata: ExtractedMetadata) -> dict[str, Any]:
         try:
             parsed = json.loads(metadata.metadata_json)
             if isinstance(parsed, dict):
-                result = parsed
+                result = {key: value for key, value in parsed.items() if not str(key).startswith("_")}
         except (json.JSONDecodeError, TypeError):
             result = {}
 

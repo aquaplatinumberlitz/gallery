@@ -23,7 +23,118 @@ def _gallery_metadata_db() -> Path:
     return _gallery_metadata_db_path()
 
 
-CATALOG_SCHEMA_VERSION = 6
+CATALOG_SCHEMA_VERSION = 7
+
+
+def _ensure_workflow_property_schema(
+    conn: sqlite3.Connection,
+    *,
+    execute_statement: Callable[[str], object] | None = None,
+) -> None:
+    """Create typed, registry-backed ComfyUI node/property storage."""
+    statements = [
+        """
+        CREATE TABLE IF NOT EXISTS workflow_nodes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+          node_key TEXT NOT NULL,
+          node_type TEXT NOT NULL,
+          title TEXT,
+          extractor_version INTEGER NOT NULL,
+          source_fingerprint TEXT NOT NULL,
+          UNIQUE(asset_id, node_key)
+        )
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_nodes_type_asset
+          ON workflow_nodes(node_type, asset_id, id)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_nodes_asset
+          ON workflow_nodes(asset_id, id)
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS workflow_property_values (
+          node_id INTEGER NOT NULL REFERENCES workflow_nodes(id) ON DELETE CASCADE,
+          property_key TEXT NOT NULL,
+          ordinal INTEGER NOT NULL DEFAULT 0,
+          value_type TEXT NOT NULL CHECK (
+            value_type IN ('text', 'integer', 'real', 'boolean', 'uint64_token')
+          ),
+          value_text TEXT,
+          value_text_folded TEXT,
+          value_integer INTEGER,
+          value_real REAL,
+          value_boolean INTEGER,
+          PRIMARY KEY(node_id, property_key, ordinal),
+          CHECK (
+            (value_type = 'text' AND value_text IS NOT NULL AND value_text_folded IS NOT NULL
+              AND value_integer IS NULL AND value_real IS NULL AND value_boolean IS NULL)
+            OR (value_type = 'integer' AND value_text IS NULL AND value_text_folded IS NULL
+              AND value_integer IS NOT NULL AND value_real IS NULL AND value_boolean IS NULL)
+            OR (value_type = 'real' AND value_text IS NULL AND value_text_folded IS NULL
+              AND value_integer IS NULL AND value_real IS NOT NULL AND value_boolean IS NULL)
+            OR (value_type = 'boolean' AND value_text IS NULL AND value_text_folded IS NULL
+              AND value_integer IS NULL AND value_real IS NULL AND value_boolean IN (0, 1))
+            OR (value_type = 'uint64_token' AND value_text IS NOT NULL AND value_text_folded IS NULL
+              AND value_integer IS NULL AND value_real IS NULL AND value_boolean IS NULL)
+          )
+        )
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_property_text
+          ON workflow_property_values(property_key, value_text_folded, node_id)
+          WHERE value_type = 'text'
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_property_integer
+          ON workflow_property_values(property_key, value_integer, node_id)
+          WHERE value_type = 'integer'
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_property_real
+          ON workflow_property_values(property_key, value_real, node_id)
+          WHERE value_type = 'real'
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_property_boolean
+          ON workflow_property_values(property_key, value_boolean, node_id)
+          WHERE value_type = 'boolean'
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_property_uint64
+          ON workflow_property_values(property_key, value_text, node_id)
+          WHERE value_type = 'uint64_token'
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_property_node_text
+          ON workflow_property_values(node_id, property_key, value_text_folded)
+          WHERE value_type = 'text'
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_property_node_integer
+          ON workflow_property_values(node_id, property_key, value_integer)
+          WHERE value_type = 'integer'
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_property_node_real
+          ON workflow_property_values(node_id, property_key, value_real)
+          WHERE value_type = 'real'
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_property_node_boolean
+          ON workflow_property_values(node_id, property_key, value_boolean)
+          WHERE value_type = 'boolean'
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_workflow_property_node_uint64
+          ON workflow_property_values(node_id, property_key, value_text)
+          WHERE value_type = 'uint64_token'
+        """,
+    ]
+    execute = execute_statement or conn.execute
+    for statement in statements:
+        execute(statement)
 
 
 def _ensure_prompt_discovery_schema(
@@ -627,6 +738,41 @@ def _migrate_v5_to_v6(conn: sqlite3.Connection) -> None:
         raise
 
 
+def _execute_v7_migration_statement(conn: sqlite3.Connection, statement: str) -> None:
+    """Execute one v6-to-v7 migration statement (test injection seam)."""
+    conn.execute(statement)
+
+
+def _backup_v6_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v7 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v6.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v6_to_v7(conn: sqlite3.Connection) -> None:
+    """Add typed workflow-property tables without performing a backfill."""
+    conn.commit()
+    _backup_v6_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _ensure_workflow_property_schema(
+            conn,
+            execute_statement=lambda statement: _execute_v7_migration_statement(conn, statement),
+        )
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v7 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 7")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     current_version = conn.execute("PRAGMA user_version").fetchone()[0]
     has_application_tables = _database_has_application_tables(conn)
@@ -656,18 +802,23 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         current_version = 6
 
     if current_version == 6:
+        _migrate_v6_to_v7(conn)
+        current_version = 7
+
+    if current_version == 7:
         _cleanup_ignored_index_conn(conn)
         _ensure_post_v1_additive_columns(conn)
         _ensure_v3_schema(conn)
         _ensure_search_index_schema(conn)
         _ensure_prompt_discovery_schema(conn)
+        _ensure_workflow_property_schema(conn)
         return
 
     if current_version == 0 and has_application_tables:
         raise RuntimeError("Catalog database has application tables but no schema version; delete it and start fresh")
 
     if current_version != 0:
-        raise RuntimeError(f"Catalog database must be fresh (v0-v6); found v{current_version}")
+        raise RuntimeError(f"Catalog database must be fresh (v0-v7); found v{current_version}")
 
     conn.executescript(
         """
@@ -1008,6 +1159,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     _ensure_v3_schema(conn)
     _ensure_search_index_schema(conn)
     _ensure_prompt_discovery_schema(conn)
+    _ensure_workflow_property_schema(conn)
 
     conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")
     _cleanup_ignored_index_conn(conn)

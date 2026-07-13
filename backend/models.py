@@ -228,6 +228,14 @@ class SearchWorkflowGroupV1(BaseModel):
     node_type: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
     predicates: list[SearchWorkflowPredicateV1] = Field(min_length=1, max_length=8)
 
+    @model_validator(mode="after")
+    def validate_registry_contract(self) -> "SearchWorkflowGroupV1":
+        """Validate the code-owned node/property/type/operator registry."""
+        from .workflow_discovery import validate_workflow_groups
+
+        validate_workflow_groups([self])
+        return self
+
 
 class SearchFiltersV1(BaseModel):
     """Structured discovery filters carried by the canonical request."""

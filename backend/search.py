@@ -214,9 +214,9 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
         require_search_index_mode("workflow", library_id=context.library_id)
     if request.mode == "raw":
         require_search_index_mode("raw", library_id=context.library_id)
-    if request.mode != "lexical" or request.filters.workflow_groups:
+    if request.mode == "raw":
         raise APIError(409, ErrorType.FEATURE_DISABLED, f"Search mode '{request.mode}' is not enabled")
-    if not request.text.strip() and not request.filters.prompt_groups:
+    if not request.text.strip() and not request.filters.prompt_groups and not request.filters.workflow_groups:
         return SearchResponse.model_validate(
             {
                 "query": request.text,
@@ -239,7 +239,7 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
         decoded_prompt_groups = [
             (group.kind, decode_prompt_value_id(group.value_id)) for group in request.filters.prompt_groups
         ]
-        if parsed.fields or decoded_prompt_groups:
+        if parsed.fields or decoded_prompt_groups or request.filters.workflow_groups:
             data = search_index_fielded(
                 request.text,
                 context.kind,
@@ -248,6 +248,7 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
                 request.cursor,
                 library_id=context.library_id,
                 prompt_groups=decoded_prompt_groups,
+                workflow_groups=request.filters.workflow_groups,
             )
         else:
             data = search_index(

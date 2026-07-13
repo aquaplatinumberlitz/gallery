@@ -435,15 +435,15 @@ for node type/asset and for each typed `(property_key, value, node_id)` lookup.
 
 ### Extraction flow
 
-- [ ] Extend the Comfy parser to return a normalized internal workflow document
+- [x] Extend the Comfy parser to return a normalized internal workflow document
       together with existing metadata.
-- [ ] Do not parse the workflow twice in extraction and persistence.
-- [ ] Persist normalized metadata, workflow nodes/properties, and extraction
+- [x] Do not parse the workflow twice in extraction and persistence.
+- [x] Persist normalized metadata, workflow nodes/properties, and extraction
       state in the same asset transaction.
-- [ ] API prompt graphs are authoritative for named inputs.
-- [ ] UI graph widget positions require a versioned mapping; unknown widgets
+- [x] API prompt graphs are authoritative for named inputs.
+- [x] UI graph widget positions require a versioned mapping; unknown widgets
       store node type/title only.
-- [ ] Parse failure does not fail asset import. Mark the extraction failed and
+- [x] Parse failure does not fail asset import. Mark the extraction failed and
       the index degraded.
 
 ### Search semantics
@@ -470,12 +470,12 @@ contains at most four groups.
 
 ### Acceptance gates
 
-- [ ] Same-asset predicates on different KSampler nodes do not incorrectly
+- [x] Same-asset predicates on different KSampler nodes do not incorrectly
       satisfy one same-node group.
-- [ ] Unsupported node/property/operator combinations return field-specific 422 errors.
-- [ ] Injection strings remain data and cannot become SQL identifiers.
-- [ ] Property query plans use the appropriate typed indexes.
-- [ ] Representative workflow queries remain at or below 300 ms on the
+- [x] Unsupported node/property/operator combinations return field-specific 422 errors.
+- [x] Injection strings remain data and cannot become SQL identifiers.
+- [x] Property query plans use the appropriate typed indexes.
+- [x] Representative workflow queries remain at or below 300 ms on the
       25,000-asset/500,000-property fixture.
 
 ## D4 - Optional opt-in raw workflow search
@@ -647,3 +647,4 @@ is complete, move this file to `docs/archived/` and update the plans index.
 | 2026-07-13 | D0 | Complete | Versioned `POST /api/search/query` with discriminated ID scopes and legacy GET parity; canonical query keys, Vue Router push/replace hydration, bounded browser-local saved/recent searches, 224 focused backend/frontend tests, 105 backend API tests, and 18 managed search E2E tests passed. |
 | 2026-07-13 | D1 | Complete | Additive schema v5 with rollback backup/no inline backfill; supervised single-writer registry, 200-row asset keysets, per-asset atomic fingerprints, fenced resume/cancel, typed capability/status/rebuild APIs, distinct disabled/not-ready errors, and stale-index usability; 117 broad backend regressions, 16 focused contracts, and 105 backend API tests passed. |
 | 2026-07-13 | D2 | Complete | Additive schema v6 and durable DB-only `prompt_values` backfill; fixed NFKC/casefold/kind-separated prompt identities, active-catalog usage paging and exact Search V2 groups, cursor privacy, and deterministic many-to-many observed model aliases; 113 focused and 227 broad backend contracts passed, including 25,000-asset sub-300 ms usage/exact-filter gates. |
+| 2026-07-13 | D3 | Complete | Additive schema v7 and enabled durable `workflow_properties` index; normalized API/UI Comfy graphs, fixed registry v1, bounded typed scalar extraction, canonical uint64 seeds, same-node fixed SQL, field-specific validation, and degraded parse failures; 97 focused contracts passed plus the 25,000-asset/500,000-property sub-300 ms gate. |

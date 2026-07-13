@@ -18,6 +18,7 @@ from .metadata_store import (
     request_search_index_job_cancel,
 )
 from .search_indexer import get_search_index_definition, list_search_index_definitions, search_index_worker
+from .workflow_discovery import workflow_registry_capability
 
 router = APIRouter()
 
@@ -129,7 +130,7 @@ def api_search_capabilities() -> SearchCapabilitiesResponse:
                 "workflow_groups_max": 4,
                 "workflow_predicates_per_group_max": 8,
             },
-            "workflow_registry": {},
+            "workflow_registry": workflow_registry_capability(),
             "raw_search": {
                 "enabled": "raw" in enabled_modes,
                 "query_min_chars": 3,

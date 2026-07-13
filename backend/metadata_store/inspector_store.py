@@ -324,11 +324,17 @@ def get_library_inspector_metadata(path: str | Path) -> dict[str, Any] | None:
                             }
                         )
 
+    public_metadata = (
+        {key: value for key, value in metadata.items() if not str(key).startswith("_")}
+        if isinstance(metadata, dict)
+        else metadata
+    )
+
     return {
         "path": row["path"],
         "prompt": row["prompt"] or "",
         "negative_prompt": row["negative_prompt"] or "",
-        "raw_metadata": metadata,
+        "raw_metadata": public_metadata,
         "model": row["model"] or "",
         "tool": row["tool"] or "",
         "sampler": row["sampler"] or "",
