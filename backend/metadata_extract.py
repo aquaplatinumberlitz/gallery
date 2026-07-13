@@ -771,11 +771,8 @@ def _metadata_param(metadata: dict[str, Any], *names: str) -> Any:
     return None
 
 
-def _api_metadata_from_sources(
-    path: Path,
-    info: dict[str, str],
-    sidecar: MetadataSidecarSnapshot | None = None,
-) -> tuple[dict[str, Any], str]:
+def _embedded_metadata_from_sources(info: dict[str, str]) -> tuple[dict[str, Any] | None, str]:
+    """Return the first recognized embedded metadata result without touching a sidecar."""
     parameters = info.get("parameters", "")
     prompt_json = info.get("prompt", "")
     workflow_json = info.get("workflow", "")
@@ -821,6 +818,16 @@ def _api_metadata_from_sources(
                 }
         if result:
             raw_source_text = parameters
+
+    return result, raw_source_text
+
+
+def _api_metadata_from_sources(
+    path: Path,
+    info: dict[str, str],
+    sidecar: MetadataSidecarSnapshot | None = None,
+) -> tuple[dict[str, Any], str]:
+    result, raw_source_text = _embedded_metadata_from_sources(info)
 
     # 4. Exact .txt sidecars stay opt-in and deterministic.
     if not result and sidecar is not None:
@@ -908,8 +915,16 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
         info = {}
 
-    sidecar = _metadata_sidecar_snapshot(path, read_content=True)
-    result, raw_source_text = _api_metadata_from_sources(path, info, sidecar)
+    embedded_result, embedded_raw_source_text = _embedded_metadata_from_sources(info)
+    if embedded_result:
+        # Persist sidecar identity so watcher/lifecycle invalidation stays
+        # stable, but do not read or size-reject content that precedence will
+        # not use.
+        sidecar = _metadata_sidecar_snapshot(path, read_content=False)
+        result, raw_source_text = embedded_result, embedded_raw_source_text
+    else:
+        sidecar = _metadata_sidecar_snapshot(path, read_content=True)
+        result, raw_source_text = _api_metadata_from_sources(path, info, sidecar)
     result = sanitize_metadata_for_json(result)
     if result is _JSON_OMIT or not isinstance(result, dict):
         result = {"tool": "Unknown", "prompt": "", "negative_prompt": "", "params": {}}

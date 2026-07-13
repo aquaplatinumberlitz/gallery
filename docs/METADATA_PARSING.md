@@ -37,6 +37,11 @@ dimensions, gathers image text/EXIF fields, and dispatches sources in this order
 
 The first successful parser wins. Sidecars therefore do not override supported embedded
 metadata. Only `.txt` sidecars produced by `path.with_suffix(".txt")` are considered.
+Embedded parsers run before sidecar content is opened. When supported embedded
+metadata wins, the sidecar's validated descriptor identity is still persisted
+for cache/watcher invalidation, but unused content is not read or rejected for
+size. The bounded content read and `413` behavior apply only when precedence
+actually reaches the sidecar parser.
 The sidecar is accepted only for an active registered image asset, beside the
 authorized image, inside its matched import root and `PATH_SAFETY_ROOT`, and
 outside exclusion patterns. Symlinks are rejected without following them for

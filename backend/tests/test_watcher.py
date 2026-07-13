@@ -6,6 +6,7 @@ Guarantees:
 * watcher is enabled by default and handles missing watchdog dependency safely
 * only registered, watch-enabled library roots are monitored
 * file events debounce to scoped catalog scan requests
+* database/path lookup failures are contained inside each event callback
 
 Run when:
 * changing watcher config, debounce behavior, image event handling, or catalog trigger routing
@@ -265,6 +266,32 @@ def test_non_asset_path_is_ignored(monkeypatch: pytest.MonkeyPatch):
     time.sleep(0.02)
     ready_folders = handler.get_and_clear_debounced()
     assert "/test" not in ready_folders
+
+
+def test_sidecar_lookup_failure_is_contained_per_event_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    monkeypatch.setattr(
+        watcher,
+        "has_active_image_sibling_for_sidecar",
+        lambda _path: (_ for _ in ()).throw(RuntimeError("database unavailable")),
+    )
+    handler = watcher._DebouncedHandler(roots=["/test"])
+    event = type(
+        "MoveEvent",
+        (),
+        {
+            "src_path": "/test/broken.txt",
+            "dest_path": "/test/healthy.jpg",
+            "event_type": "moved",
+            "is_directory": False,
+        },
+    )()
+
+    handler.handle_event(event)
+    time.sleep(0.02)
+    assert handler.get_and_clear_debounced() == ["/test"]
 
 
 def test_excluded_paths_are_ignored(monkeypatch: pytest.MonkeyPatch):

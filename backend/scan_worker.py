@@ -22,12 +22,15 @@ from .config import (
 from .indexer import dispatch_metadata_index_paths, rebuild_index_scope
 from .library_events import event_payload, publish
 from .metadata_store import (
+    CatalogJobClaimLost,
     CatalogMaintenanceBusy,
     activate_rebuild_staging,
+    assert_catalog_job_claim,
     catalog_path_contains,
     claim_next_catalog_job,
     create_or_coalesce_catalog_job,
     delete_rebuild_staging,
+    delete_rebuild_staging_for_lost_claim,
     enqueue_startup_catalog_scans,
     enumerate_to_rebuild_staging,
     get_job,
@@ -38,7 +41,6 @@ from .metadata_store import (
     recover_stale_jobs,
     renew_catalog_job_lease,
     update_job_state,
-    update_library_state,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -53,10 +55,6 @@ _last_supervisor_check_at: float | None = None
 _last_supervisor_recovered_jobs = 0
 _supervisor_failures = 0
 _SUPERVISOR_INTERVAL_SECONDS = 1.0
-
-
-class CatalogJobClaimLost(RuntimeError):
-    """Raised when a worker no longer owns the durable catalog claim."""
 
 
 TRIGGER_PRIORITIES = {
@@ -332,11 +330,19 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
     library_id = int(job["library_id"])
     claim_token = str(job["claim_token"]) if job.get("claim_token") else None
     try:
+        if claim_token is None:
+            raise CatalogJobClaimLost(f"Catalog job {job_id} has no claim token")
         library_id, scan_paths = _scan_paths_for_job(job)
         online_paths = [p for p in scan_paths if Path(p).is_dir()]
         offline_paths = [p for p in scan_paths if not Path(p).is_dir()]
         for offline_path in offline_paths:
-            reconcile_library_assets(library_id, set(), scope_path=offline_path)
+            reconcile_library_assets(
+                library_id,
+                set(),
+                scope_path=offline_path,
+                claim_job_id=job_id,
+                claim_token=claim_token,
+            )
         if not online_paths:
             _transition_job(
                 job_id,
@@ -344,13 +350,10 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
                 claim_token=claim_token,
                 message="Update failed",
                 error="All update paths are offline",
+                library_state="offline",
+                library_last_error="All import paths are offline",
             )
-            update_library_state(library_id, "offline", last_error="All import paths are offline")
             return False
-        if offline_paths:
-            update_library_state(library_id, "degraded", last_error=f"{len(offline_paths)} import path(s) offline")
-        else:
-            update_library_state(library_id, "indexing")
         counters = {
             "indexed": 0,
             "reconciled": 0,
@@ -367,9 +370,15 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
             progress_total=len(online_paths),
             message="Updating library",
             counters=counters,
+            library_state="degraded" if offline_paths else "indexing",
+            library_last_error=f"{len(offline_paths)} import path(s) offline" if offline_paths else None,
         )
         for index, scan_path in enumerate(online_paths, start=1):
-            result = rebuild_index_scope(scan_path)
+            result = rebuild_index_scope(
+                scan_path,
+                claim_job_id=job_id,
+                claim_token=claim_token,
+            )
             counters["indexed"] += int(result.get("indexed", 0))
             counters["reconciled"] += int(result.get("reconciled", 0))
             for key in ("queued", "coalesced", "skipped", "failed"):
@@ -398,13 +407,10 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
             progress_total=len(online_paths),
             message=success_message,
             counters=counters,
+            library_state="degraded" if offline_paths else "ready" if scan_completed else "indexing",
+            library_last_error=f"{len(offline_paths)} import path(s) offline" if offline_paths else None,
+            library_scan_completed=scan_completed,
         )
-        if offline_paths:
-            update_library_state(library_id, "degraded", scan_completed=scan_completed)
-        elif scan_completed:
-            update_library_state(library_id, "ready", scan_completed=True)
-        else:
-            update_library_state(library_id, "indexing", scan_completed=False)
         _reconcile_derivatives_after_catalog_commit(job, library_id)
         return True
     except CatalogJobClaimLost:
@@ -413,11 +419,19 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Catalog scan job %s failed: %s", job_id, exc)
         try:
-            _transition_job(job_id, "failed", claim_token=claim_token, message="Update failed", error=str(exc))
+            _transition_job(
+                job_id,
+                "failed",
+                claim_token=claim_token,
+                message="Update failed",
+                error=str(exc),
+                library_state="error",
+                library_last_error=str(exc),
+                library_scan_completed=job.get("scope_path") is None,
+            )
         except CatalogJobClaimLost:
             LOGGER.warning("Catalog scan job %s failure ignored after claim loss", job_id)
             return False
-        update_library_state(library_id, "error", last_error=str(exc), scan_completed=job.get("scope_path") is None)
         return False
 
 
@@ -434,6 +448,8 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
     library_id = int(job["library_id"])
     claim_token = str(job["claim_token"]) if job.get("claim_token") else None
     try:
+        if claim_token is None:
+            raise CatalogJobClaimLost(f"Catalog job {job_id} has no claim token")
         library_id, scan_paths = _scan_paths_for_job(job)
         online_paths = [p for p in scan_paths if Path(p).is_dir()]
         offline_paths = [p for p in scan_paths if not Path(p).is_dir()]
@@ -444,13 +460,10 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
                 claim_token=claim_token,
                 message="Rebuild failed",
                 error="All rebuild paths are offline",
+                library_state="offline",
+                library_last_error="All import paths are offline",
             )
-            update_library_state(library_id, "offline", last_error="All import paths are offline")
             return False
-        if offline_paths:
-            update_library_state(library_id, "degraded", last_error=f"{len(offline_paths)} import path(s) offline")
-        else:
-            update_library_state(library_id, "indexing")
         counters = {
             "discovered": 0,
             "folders": 0,
@@ -470,8 +483,10 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
             progress_total=len(online_paths),
             message="Rebuild enumerating",
             counters=counters,
+            library_state="degraded" if offline_paths else "indexing",
+            library_last_error=f"{len(offline_paths)} import path(s) offline" if offline_paths else None,
         )
-        discovery, asset_paths = enumerate_to_rebuild_staging(job_id, library_id, online_paths)
+        discovery, asset_paths = enumerate_to_rebuild_staging(job_id, library_id, online_paths, claim_token)
         counters["discovered"] = int(discovery["discovered"])
         counters["folders"] = int(discovery["folders"])
         counters["assets"] = int(discovery["assets"])
@@ -484,7 +499,7 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
             message="Rebuild activating",
             counters=counters,
         )
-        activation = activate_rebuild_staging(job_id, library_id, job.get("scope_path"))
+        activation = activate_rebuild_staging(job_id, library_id, job.get("scope_path"), claim_token)
         counters["created"] = int(activation["created"])
         counters["updated"] = int(activation["updated"])
         counters["offline"] = int(activation["offline"])
@@ -500,6 +515,7 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
                 )
                 by_root[matched_root].append(asset_path)
             for root, scoped_paths in by_root.items():
+                assert_catalog_job_claim(job_id, claim_token, library_id=library_id)
                 result = dispatch_metadata_index_paths(scoped_paths, root)
                 enqueued_total += int(result.get("queued", 0))
                 failed_total += int(result.get("failed", 0))
@@ -520,22 +536,30 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
             progress_total=len(online_paths),
             message=success_message,
             counters=counters,
+            library_state="degraded" if offline_paths else "ready" if scan_completed else "indexing",
+            library_last_error=f"{len(offline_paths)} import path(s) offline" if offline_paths else None,
+            library_scan_completed=scan_completed,
         )
-        if offline_paths:
-            update_library_state(library_id, "degraded", scan_completed=scan_completed)
-        elif scan_completed:
-            update_library_state(library_id, "ready", scan_completed=True)
-        else:
-            update_library_state(library_id, "indexing", scan_completed=False)
         _reconcile_derivatives_after_catalog_commit(job, library_id)
         return True
     except CatalogJobClaimLost:
         LOGGER.warning("Catalog rebuild job %s stopped after losing its claim", job_id)
+        try:
+            delete_rebuild_staging_for_lost_claim(job_id, claim_token)
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("Failed to clean stale staging rows for rebuild job %s", job_id)
         return False
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Catalog rebuild job %s failed: %s", job_id, exc)
         try:
-            delete_rebuild_staging(job_id)
+            delete_rebuild_staging(job_id, claim_token=claim_token)
+        except CatalogJobClaimLost:
+            try:
+                delete_rebuild_staging_for_lost_claim(job_id, claim_token)
+            except Exception:  # noqa: BLE001
+                LOGGER.exception("Failed to clean stale staging rows for rebuild job %s", job_id)
+            LOGGER.warning("Catalog rebuild job %s failure ignored after claim loss", job_id)
+            return False
         except Exception:  # noqa: BLE001
             LOGGER.exception("Failed to clean staging rows for rebuild job %s", job_id)
         try:
@@ -545,11 +569,13 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
                 claim_token=claim_token,
                 message="Rebuild failed; previous catalog remains active",
                 error=str(exc),
+                library_state="error",
+                library_last_error=str(exc),
+                library_scan_completed=job.get("scope_path") is None,
             )
         except CatalogJobClaimLost:
             LOGGER.warning("Catalog rebuild job %s failure ignored after claim loss", job_id)
             return False
-        update_library_state(library_id, "error", last_error=str(exc), scan_completed=job.get("scope_path") is None)
         return False
 
 
@@ -656,7 +682,7 @@ def start() -> None:
             _spawn_supervisor_locked()
             return
         # Recover orphaned running jobs before spawning workers
-        recovered_jobs = recover_stale_jobs(live_worker_ids=set())
+        recovered_jobs = recover_stale_jobs()
         for job in recovered_jobs:
             LOGGER.warning("Recovered orphaned catalog job %s after server restart", job["id"])
         _emit_recovered_jobs(recovered_jobs)

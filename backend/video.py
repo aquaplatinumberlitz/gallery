@@ -10,11 +10,12 @@ import time
 from contextlib import suppress
 from email.utils import formatdate, parsedate_to_datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from starlette.background import BackgroundTask
 from starlette.responses import FileResponse, Response, StreamingResponse
+from starlette.types import Receive, Scope, Send
 
 from .config import (
     THUMBNAIL_CACHE_DIR,
@@ -114,6 +115,20 @@ class _PosterServingLease:
             return
         self._released = True
         _release_poster_serving(str(self.path))
+
+
+class _LeasedPosterResponse(FileResponse):
+    """Release poster eviction protection even when response sending fails."""
+
+    def __init__(self, lease: _PosterServingLease, **kwargs: Any) -> None:
+        self._lease = lease
+        super().__init__(lease.path, **kwargs)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            self._lease.release()
 
 
 def _enforce_poster_quota(*, protect: str | None = None) -> bool:
@@ -315,12 +330,11 @@ async def api_video_poster(request: Request, path: str = Query(...)):
         if request.headers.get("if-none-match") == etag:
             lease.release()
             return Response(status_code=304, headers=headers)
-        return FileResponse(
-            lease.path,
+        return _LeasedPosterResponse(
+            lease,
             media_type="image/webp",
             headers=headers,
             stat_result=cached_stat,
-            background=BackgroundTask(lease.release),
         )
     except Exception:
         lease.release()

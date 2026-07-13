@@ -143,7 +143,8 @@ def file_index_matches_image_metadata_sql(*, fi_alias: str = "fi", im_alias: str
 def asset_owns_file_index_sql(*, asset_alias: str = "a", fi_alias: str = "fi") -> str:
     """Return the active registered-asset ownership predicate for a file row."""
     return (
-        f"({asset_alias}.path = {fi_alias}.path "
+        f"({asset_alias}.library_id = {fi_alias}.library_id "
+        f"AND {asset_alias}.path = {fi_alias}.path "
         f"AND {asset_alias}.offline = 0 AND {asset_alias}.deleted_at IS NULL "
         f"AND {asset_alias}.mtime_ns IS NOT NULL AND ("
         f"({fi_alias}.mtime_ns IS NOT NULL AND {asset_alias}.mtime_ns = {fi_alias}.mtime_ns) "

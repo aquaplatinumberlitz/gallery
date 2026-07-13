@@ -171,9 +171,12 @@ and remove legacy unsupported variants after committing their terminal state.
 Video posters use a separate 1 GiB default LRU quota plus a global bounded
 ffmpeg semaphore. A reference-counted serving lease is acquired before quota
 protection is released and remains held through response stat/revalidation and
-stream completion. Duplicate requests wait on the per-video lock before using
-an ffmpeg slot. Queue saturation returns `503`, subprocess output is discarded,
-and temporary files and leases are cleaned on every exit path.
+stream completion. The response itself releases the lease in an ASGI-level
+`finally`, including file-open, send, disconnect, and cancellation failures;
+cleanup does not depend on a Starlette background task running. Duplicate
+requests wait on the per-video lock before using an ffmpeg slot. Queue
+saturation returns `503`, subprocess output is discarded, and temporary files
+and leases are cleaned on every exit path.
 
 Desired-state reconciliation has explicit trigger ownership:
 
@@ -335,6 +338,9 @@ Backend modules are mostly flat, with selected domain packages.
 - Derivative claims use fenced tokens and 15-minute leases. Missing/inactive/current-source races terminate only their job; the supervisor replaces dead workers and recovers abandoned claims.
 - The metadata DB defaults to `backend/.cache/gallery_metadata.db` and can be overridden with `GALLERY_METADATA_DB`.
 - SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
+- Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
+  matching the catalog's composite index instead of performing a per-file asset
+  table scan.
 - Catalog schema version 3 adds durable scheduled-attempt recency and catalog job claim owner/token/lease fields. The explicit v2-to-v3 migration creates a SQLite-consistent `.v2.bak`, applies additive changes under one `BEGIN IMMEDIATE`, checks foreign keys, and publishes `user_version=3` only at commit. The earlier v1-to-v2 migration still creates `.v1.bak` and atomically converts legacy REAL-affinity nanosecond identity columns to INTEGER before v3 is applied.
 - Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`.
 - `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_cursor`, legacy alias `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, `request_path`, `index_source`, `library_id`, and `path`. Image media rows also include `derivative_ready` for thumbnail/preview readiness; the frontend treats this as a loading/preload hint, not visible user-facing status. Catalog update and status are managed through library endpoints; imported-data clear, rebuild, and catalog reset are managed through maintenance endpoints.
@@ -343,10 +349,15 @@ Backend modules are mostly flat, with selected domain packages.
 - Unexpected exceptions are logged server-side with tracebacks. Public `500` responses use a generic message; durable background-job error fields retain bounded operational detail.
 - The catalog service owns a supervisor thread. Each running job has a durable
   worker owner, unique claim token, and renewable lease; progress/completion is
-  fenced by the token. Startup and runtime recovery use the same policy and
-  recover only dead owners or expired leases while restoring the configured
-  worker count independently of status traffic. Library and maintenance GET
-  endpoints only observe worker and queue state.
+  fenced by the token and unexpired lease. Scan batches, rebuild staging flushes,
+  rebuild activation, reconciliation, and terminal library/job state writes
+  validate that claim inside the same SQLite transaction. Terminal job and
+  library state commit atomically. Recovery deletes the recovered rebuild's
+  staging rows in the same transaction, lets a concurrent live heartbeat win,
+  and recomputes aggregate parents only at startup or when a child actually
+  recovered. Startup and runtime recovery otherwise use the same policy and
+  restore the configured worker count independently of status traffic. Library
+  and maintenance GET endpoints only observe worker and queue state.
 - Scheduled reconciliation records durable attempt time before queueing, even
   when work coalesces or maintenance is busy. Eligible libraries are ordered by
   oldest attempt, with never-attempted libraries first, so bounded ticks remain

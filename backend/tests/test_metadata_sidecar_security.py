@@ -5,7 +5,8 @@ Exercise catalog-scoped, descriptor-based, bounded same-stem sidecar reads.
 
 Guarantees:
 Outside-root symlinks, replacement races, and growth races never disclose
-content; oversized API reads return 413; normal sidecars persist one identity.
+content; used oversized API reads return 413; unused sidecars cannot break
+embedded metadata; normal sidecars persist one identity.
 
 Run when:
 Changing metadata extraction, sidecar identity, metadata cache keys, or jobs.
@@ -159,3 +160,33 @@ def test_already_oversized_sidecar_returns_413(
 
     response = isolated_app.get("/api/metadata", params={"path": str(image)})
     assert response.status_code == 413
+
+
+def test_unused_oversized_sidecar_does_not_override_or_break_embedded_metadata(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image = _catalog_image(isolated_gallery_root / "library")
+    image.with_suffix(".txt").write_bytes(b"x" * 65)
+    monkeypatch.setattr(metadata_extract, "METADATA_SIDECAR_MAX_BYTES", 64)
+    monkeypatch.setattr(
+        metadata_extract,
+        "_read_image_info",
+        lambda _path: (
+            64,
+            64,
+            "PNG",
+            "RGB",
+            0,
+            {"parameters": "embedded prompt\nSteps: 20, Sampler: Euler a, Seed: 123"},
+        ),
+    )
+
+    response = isolated_app.get("/api/metadata", params={"path": str(image)})
+    assert response.status_code == 200
+    assert response.json()["prompt"] == "embedded prompt"
+    extracted = extract_metadata(image)
+    assert extracted.prompt == "embedded prompt"
+    assert extracted.source_path == str(image.with_suffix(".txt"))
+    assert extracted.source_size == 65

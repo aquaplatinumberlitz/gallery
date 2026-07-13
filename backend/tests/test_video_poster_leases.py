@@ -5,7 +5,7 @@ Exercise atomic poster serving protection and duplicate generation locking.
 
 Guarantees:
 Posters cannot be evicted during handoff/streaming, duplicate requests consume
-one ffmpeg slot, and 304/error/normal response paths release every lease.
+one ffmpeg slot, and 304/send-failure/error/normal paths release every lease.
 
 Run when:
 Changing video poster generation, quota eviction, concurrency, or responses.
@@ -13,6 +13,7 @@ Changing video poster generation, quota eviction, concurrency, or responses.
 
 from __future__ import annotations
 
+import asyncio
 import threading
 from pathlib import Path
 
@@ -180,4 +181,42 @@ def test_poster_stat_error_releases_lease(
     monkeypatch.setattr(video, "_get_or_generate_poster", leased)
     response = isolated_app.get("/api/video/poster", params={"path": str(source)})
     assert response.status_code == 500
+    assert video._POSTER_SERVING_COUNTS == {}
+
+
+def test_response_send_failure_releases_serving_lease(tmp_path: Path) -> None:
+    poster = tmp_path / "poster.webp"
+    poster.write_bytes(b"RIFFposter")
+    video._acquire_poster_serving(str(poster))
+    lease = video._PosterServingLease(poster)
+    response = video._LeasedPosterResponse(
+        lease,
+        media_type="image/webp",
+        stat_result=poster.stat(),
+    )
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/poster",
+        "raw_path": b"/poster",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [],
+        "client": ("test", 1),
+        "server": ("test", 80),
+        "extensions": {},
+    }
+
+    async def receive():
+        return {"type": "http.disconnect"}
+
+    async def send(message):
+        if message["type"] == "http.response.body":
+            raise RuntimeError("client disconnected")
+
+    with pytest.raises(RuntimeError, match="client disconnected"):
+        asyncio.run(response(scope, receive, send))
     assert video._POSTER_SERVING_COUNTS == {}

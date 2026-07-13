@@ -18,6 +18,46 @@ CATALOG_WORK_JOB_TYPES = ("scan", "rebuild")
 CATALOG_PARENT_JOB_TYPES = ("scan_all", "rebuild_imported_data")
 
 
+class CatalogJobClaimLost(RuntimeError):
+    """Raised when a catalog writer no longer owns a live durable claim."""
+
+
+def assert_catalog_job_claim_conn(
+    conn: sqlite3.Connection,
+    job_id: int,
+    claim_token: str,
+    *,
+    library_id: int | None = None,
+) -> sqlite3.Row:
+    """Require a live matching catalog claim inside the caller's transaction."""
+    now = time.time()
+    params: list[Any] = [job_id, claim_token, now]
+    library_sql = ""
+    if library_id is not None:
+        library_sql = " AND library_id = ?"
+        params.append(library_id)
+    row = conn.execute(
+        f"""
+        SELECT id, library_id, claim_token, lease_expires_at
+        FROM library_jobs
+        WHERE id = ? AND state = 'running' AND claim_token = ?
+          AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
+          {library_sql}
+        """,
+        params,
+    ).fetchone()
+    if row is None:
+        raise CatalogJobClaimLost(f"Catalog job {job_id} claim was lost")
+    return row
+
+
+def assert_catalog_job_claim(job_id: int, claim_token: str, *, library_id: int | None = None) -> None:
+    """Require a live matching catalog claim in a short read transaction."""
+    _initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        assert_catalog_job_claim_conn(conn, job_id, claim_token, library_id=library_id)
+
+
 def _initialize_database() -> None:
     from ._schema import initialize_database
 
@@ -415,6 +455,9 @@ def update_job_state(
     counters: dict[str, int] | None = None,
     claim_token: str | None = None,
     lease_seconds: float = 900,
+    library_state: str | None = None,
+    library_last_error: str | None = None,
+    library_scan_completed: bool = False,
 ) -> dict[str, Any] | None:
     """Apply a valid lifecycle/progress update and return the updated job."""
     allowed_states = {"queued", "running", *LIBRARY_JOB_TERMINAL_STATES}
@@ -426,8 +469,10 @@ def update_job_state(
             row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
         else:
             row = conn.execute(
-                "SELECT * FROM library_jobs WHERE id = ? AND state = 'running' AND claim_token = ?",
-                (job_id, claim_token),
+                """SELECT * FROM library_jobs
+                   WHERE id = ? AND state = 'running' AND claim_token = ?
+                     AND lease_expires_at IS NOT NULL AND lease_expires_at > ?""",
+                (job_id, claim_token, time.time()),
             ).fetchone()
         if row is None:
             return None
@@ -451,8 +496,10 @@ def update_job_state(
         where_sql = "id = ?"
         where_params: tuple[Any, ...] = (job_id,)
         if claim_token is not None:
-            where_sql += " AND state = 'running' AND claim_token = ?"
-            where_params = (job_id, claim_token)
+            where_sql += (
+                " AND state = 'running' AND claim_token = ? AND lease_expires_at IS NOT NULL AND lease_expires_at > ?"
+            )
+            where_params = (job_id, claim_token, now)
         cursor = conn.execute(
             f"""
             UPDATE library_jobs
@@ -491,6 +538,28 @@ def update_job_state(
         )
         if cursor.rowcount != 1:
             return None
+        if library_state is not None:
+            library_id = row["library_id"]
+            if library_id is None:
+                raise RuntimeError(f"Catalog job {job_id} has no library")
+            library_cursor = conn.execute(
+                """
+                UPDATE libraries
+                SET state = ?, last_error = ?, updated_at = ?,
+                    last_scan_at = CASE WHEN ? THEN ? ELSE last_scan_at END
+                WHERE id = ?
+                """,
+                (
+                    library_state,
+                    library_last_error,
+                    now,
+                    int(library_scan_completed),
+                    now,
+                    int(library_id),
+                ),
+            )
+            if library_cursor.rowcount != 1:
+                raise RuntimeError(f"Catalog job {job_id} library disappeared")
         updated = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
         return _serialize_library_job(updated)
 
@@ -505,8 +574,9 @@ def renew_catalog_job_lease(job_id: int, claim_token: str, *, lease_seconds: flo
             UPDATE library_jobs
             SET lease_expires_at = ?, updated_at = ?
             WHERE id = ? AND state = 'running' AND claim_token = ?
+              AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
             """,
-            (now + max(1.0, lease_seconds), now, job_id, claim_token),
+            (now + max(1.0, lease_seconds), now, job_id, claim_token, now),
         )
         return cursor.rowcount == 1
 
@@ -613,6 +683,18 @@ def update_parent_aggregate_job(parent_job_id: int) -> dict[str, Any] | None:
         counters = {"total": total, "succeeded": succeeded, "failed": failed, "cancelled": cancelled}
         if parent_type == "scan_all":
             counters["coalesced"] = int(existing_counters.get("coalesced", 0))
+        materially_changed = (
+            str(parent["state"]) != state
+            or int(parent["progress_current"] or 0) != finished
+            or (int(parent["progress_total"]) if parent["progress_total"] is not None else None) != total
+            or parent["message"] != message
+            or existing_counters != counters
+            or (state == "running" and parent["finished_at"] is not None)
+            or (state != "running" and parent["finished_at"] is None)
+            or parent["started_at"] is None
+        )
+        if not materially_changed:
+            return None
         conn.execute(
             """
             UPDATE library_jobs
@@ -691,6 +773,7 @@ def recover_stale_jobs(
     low-priority catch-up scan without losing work.
     """
     _initialize_database()
+    startup_recovery = live_worker_ids is None
     live_workers = set(live_worker_ids or ())
     now = time.time()
     with _DB_LOCK, _connect() as conn:
@@ -704,41 +787,52 @@ def recover_stale_jobs(
                 CATALOG_WORK_JOB_TYPES,
             )
         )
-        running_rows = [
-            row
-            for row in candidates
-            if row["claimed_by"] is None
-            or str(row["claimed_by"]) not in live_workers
-            or row["lease_expires_at"] is None
-            or float(row["lease_expires_at"]) <= now
-        ]
-        parent_ids = {
-            int(row["id"])
-            for row in conn.execute(
-                """
-                SELECT id
-                FROM library_jobs
-                WHERE state IN ('queued', 'running')
-                  AND type IN (?, ?)
-                """,
-                CATALOG_PARENT_JOB_TYPES,
-            )
-        }
+        running_rows: list[tuple[sqlite3.Row, bool]] = []
+        for row in candidates:
+            dead_owner = row["claimed_by"] is None or str(row["claimed_by"]) not in live_workers
+            expired = row["lease_expires_at"] is None or float(row["lease_expires_at"]) <= now
+            if dead_owner or expired:
+                # A dead owner is recoverable regardless of lease. A live
+                # owner selected only for expiry must still be expired in the
+                # fenced UPDATE so a concurrent heartbeat can win safely.
+                running_rows.append((row, not dead_owner))
+        parent_ids: set[int] = set()
+        if startup_recovery:
+            parent_ids = {
+                int(row["id"])
+                for row in conn.execute(
+                    """
+                    SELECT id
+                    FROM library_jobs
+                    WHERE state IN ('queued', 'running')
+                      AND type IN (?, ?)
+                    """,
+                    CATALOG_PARENT_JOB_TYPES,
+                )
+            }
     recovered: list[dict[str, Any]] = []
-    touched_parent_ids = {int(row["parent_job_id"]) for row in running_rows if row["parent_job_id"] is not None}
+    touched_parent_ids = {
+        int(row["parent_job_id"]) for row, _require_expired in running_rows if row["parent_job_id"] is not None
+    }
     with _DB_LOCK, _connect() as conn:
-        for row in running_rows:
+        for row, require_expired in running_rows:
+            expiry_sql = " AND (lease_expires_at IS NULL OR lease_expires_at <= ?)" if require_expired else ""
+            params: tuple[Any, ...] = (reason, reason, now, now, int(row["id"]), row["claim_token"])
+            if require_expired:
+                params = (*params, now)
             cursor = conn.execute(
-                """
+                f"""
                 UPDATE library_jobs
                 SET state = 'failed', message = ?, error = ?, updated_at = ?, finished_at = ?,
                     claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL
                 WHERE id = ? AND state = 'running' AND claim_token IS ?
+                  {expiry_sql}
                 """,
-                (reason, reason, now, now, int(row["id"]), row["claim_token"]),
+                params,
             )
             if cursor.rowcount != 1:
                 continue
+            conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (int(row["id"]),))
             updated = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (int(row["id"]),)).fetchone()
             recovered.append(_serialize_library_job(updated))
     seen_ids = {int(job["id"]) for job in recovered}

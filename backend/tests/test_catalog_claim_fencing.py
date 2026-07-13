@@ -4,8 +4,9 @@ Purpose:
 Verify multi-worker catalog ownership, fenced terminal writes, and schema v3.
 
 Guarantees:
-Only dead/expired claims recover, live heartbeats remain owned, stale workers
-cannot complete newer claims, and the v2-to-v3 migration backs up and rolls back.
+Only dead/expired claims recover, live heartbeats win races, stale workers cannot
+write catalog data, staging is cleaned, terminal library/job state is atomic,
+healthy parents stay unchanged, and the v2-to-v3 migration rolls back safely.
 
 Run when:
 Changing catalog workers, library_jobs claims, supervisor recovery, or schema.
@@ -20,17 +21,28 @@ from pathlib import Path
 import pytest
 
 from backend import scan_worker
+from backend.indexer import rebuild_index_scope
 from backend.metadata_store import (
     _DB_LOCK,
+    CatalogJobClaimLost,
     _connect,
+    activate_rebuild_staging,
     claim_next_catalog_job,
+    create_job,
     create_library,
     create_or_coalesce_catalog_job,
+    enumerate_to_rebuild_staging,
+    get_job,
+    get_library,
     recover_stale_jobs,
     renew_catalog_job_lease,
     update_job_state,
+    update_parent_aggregate_job,
 )
 from backend.metadata_store import _schema as schema_module
+from backend.metadata_store import job_store as job_store_module
+
+from .conftest import create_test_png
 
 
 @pytest.fixture(autouse=True)
@@ -83,6 +95,49 @@ def test_heartbeat_renewal_wins_until_lease_truly_expires(
         conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, job["id"]))
     recovered = recover_stale_jobs(live_worker_ids={"live-worker"})
     assert [item["id"] for item in recovered] == [job["id"]]
+
+
+def test_expired_claim_cannot_be_renewed_or_completed(
+    isolated_gallery_root: Path,
+) -> None:
+    _queued_job(isolated_gallery_root, "expired")
+    job = claim_next_catalog_job(worker_id="worker", lease_seconds=60)
+    assert job is not None
+    with _DB_LOCK, _connect() as conn:
+        conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, job["id"]))
+
+    assert not renew_catalog_job_lease(job["id"], job["claim_token"], lease_seconds=60)
+    assert update_job_state(job["id"], "succeeded", claim_token=job["claim_token"]) is None
+
+
+def test_recovery_update_allows_concurrent_heartbeat_to_win(
+    isolated_gallery_root: Path,
+    isolated_metadata_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _queued_job(isolated_gallery_root, "heartbeat-race")
+    job = claim_next_catalog_job(worker_id="live-worker", lease_seconds=60)
+    assert job is not None
+    with _DB_LOCK, _connect() as conn:
+        conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, job["id"]))
+
+    original_connect = job_store_module._connect
+    calls = 0
+
+    def racing_connect(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            with sqlite3.connect(isolated_metadata_db) as raw:
+                raw.execute(
+                    "UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?",
+                    (time.time() + 60, job["id"]),
+                )
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(job_store_module, "_connect", racing_connect)
+    assert recover_stale_jobs(live_worker_ids={"live-worker"}) == []
+    assert get_job(job["id"])["state"] == "running"
 
 
 def test_stale_completion_cannot_overwrite_newer_claim(
@@ -158,6 +213,132 @@ def test_supervisor_recovery_with_one_live_worker(
             )
         }
     assert states == {dead_job["id"]: "failed", live_job["id"]: "running"}
+
+
+def test_stale_scan_claim_cannot_write_catalog(
+    isolated_gallery_root: Path,
+) -> None:
+    library_id, _queued = _queued_job(isolated_gallery_root, "stale-scan")
+    root = isolated_gallery_root / "stale-scan"
+    image = root / "late.png"
+    create_test_png(image)
+    claimed = claim_next_catalog_job(worker_id="worker-a", lease_seconds=60)
+    assert claimed is not None
+    with _DB_LOCK, _connect() as conn:
+        conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, claimed["id"]))
+
+    with pytest.raises(CatalogJobClaimLost):
+        rebuild_index_scope(
+            root,
+            claim_job_id=int(claimed["id"]),
+            claim_token=str(claimed["claim_token"]),
+        )
+    with _DB_LOCK, _connect() as conn:
+        assert conn.execute("SELECT count(*) FROM file_index WHERE path = ?", (str(image),)).fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM assets WHERE library_id = ?", (library_id,)).fetchone()[0] == 0
+
+
+def test_stale_rebuild_activation_is_fenced_and_recovery_cleans_staging(
+    isolated_gallery_root: Path,
+) -> None:
+    root = isolated_gallery_root / "stale-rebuild"
+    root.mkdir()
+    image = root / "late.png"
+    create_test_png(image)
+    library_id = int(create_library([root])["id"])
+    queued, _created = create_or_coalesce_catalog_job(
+        library_id,
+        operation="rebuild",
+        trigger="manual",
+        priority=100,
+    )
+    claimed = claim_next_catalog_job(worker_id="worker-a", lease_seconds=60)
+    assert claimed is not None and claimed["id"] == queued["id"]
+    enumerate_to_rebuild_staging(claimed["id"], library_id, [root], claimed["claim_token"])
+    with _DB_LOCK, _connect() as conn:
+        assert (
+            conn.execute("SELECT count(*) FROM catalog_rebuild_entries WHERE job_id = ?", (claimed["id"],)).fetchone()[
+                0
+            ]
+            > 0
+        )
+        conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, claimed["id"]))
+
+    with pytest.raises(CatalogJobClaimLost):
+        activate_rebuild_staging(claimed["id"], library_id, None, claimed["claim_token"])
+    with _DB_LOCK, _connect() as conn:
+        assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(image),)).fetchone()[0] == 0
+
+    recovered = recover_stale_jobs(live_worker_ids={"worker-a"})
+    assert [job["id"] for job in recovered] == [claimed["id"]]
+    with _DB_LOCK, _connect() as conn:
+        assert (
+            conn.execute("SELECT count(*) FROM catalog_rebuild_entries WHERE job_id = ?", (claimed["id"],)).fetchone()[
+                0
+            ]
+            == 0
+        )
+
+
+@pytest.mark.parametrize("operation", ["scan", "rebuild"])
+def test_terminal_job_and_library_state_commit_atomically(
+    isolated_gallery_root: Path,
+    operation: str,
+) -> None:
+    root = isolated_gallery_root / f"atomic-{operation}"
+    root.mkdir()
+    library_id = int(create_library([root])["id"])
+    queued, _created = create_or_coalesce_catalog_job(
+        library_id,
+        operation=operation,
+        trigger="manual",
+        priority=100,
+    )
+    claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=60)
+    assert claimed is not None and claimed["id"] == queued["id"]
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """
+            CREATE TRIGGER reject_ready_library
+            BEFORE UPDATE OF state ON libraries
+            WHEN NEW.state = 'ready'
+            BEGIN
+              SELECT RAISE(ABORT, 'injected library state failure');
+            END
+            """
+        )
+
+    execute = scan_worker.execute_scan_job if operation == "scan" else scan_worker.execute_rebuild_job
+    assert execute(claimed) is False
+    assert get_job(claimed["id"])["state"] == "failed"
+    assert get_library(library_id)["state"] == "error"
+
+
+def test_runtime_recovery_does_not_rewrite_healthy_aggregate_parent(
+    isolated_gallery_root: Path,
+) -> None:
+    root = isolated_gallery_root / "aggregate"
+    root.mkdir()
+    library_id = int(create_library([root])["id"])
+    parent = create_job("scan_all", progress_total=1, message="Updating all libraries")
+    child, _created = create_or_coalesce_catalog_job(
+        library_id,
+        operation="scan",
+        trigger="manual",
+        priority=100,
+        parent_job_id=parent["id"],
+    )
+    claimed = claim_next_catalog_job(worker_id="live-worker", lease_seconds=60)
+    assert claimed is not None and claimed["id"] == child["id"]
+    assert update_parent_aggregate_job(parent["id"])["state"] == "running"
+    with _DB_LOCK, _connect() as conn:
+        before = conn.execute("SELECT updated_at FROM library_jobs WHERE id = ?", (parent["id"],)).fetchone()[0]
+
+    assert recover_stale_jobs(live_worker_ids={"live-worker"}) == []
+    assert recover_stale_jobs(live_worker_ids={"live-worker"}) == []
+    with _DB_LOCK, _connect() as conn:
+        after = conn.execute("SELECT updated_at FROM library_jobs WHERE id = ?", (parent["id"],)).fetchone()[0]
+    assert after == before
 
 
 def _database_dump(path: Path) -> str:

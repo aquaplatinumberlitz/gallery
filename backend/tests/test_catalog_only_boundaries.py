@@ -5,7 +5,8 @@ Verify that legacy index/metadata rows cannot bypass active registered assets.
 
 Guarantees:
 Search, metadata search, inspector rows/details, folders, facets, and metadata
-availability exclude unowned, offline, deleted, wrong-type, and stale identities.
+availability exclude unowned, offline, deleted, wrong-type, and stale identities;
+ownership probes use the indexed library/path key rather than scanning assets.
 
 Run when:
 Changing search/inspector/facet SQL, file identity matching, or catalog ownership.
@@ -19,6 +20,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.metadata_store import _DB_LOCK, _connect, index_file, register_library, upsert_metadata_result
+from backend.metadata_store.identity import active_catalog_file_sql
 
 from .conftest import create_test_png
 
@@ -133,3 +135,18 @@ def test_all_metadata_boundaries_require_current_active_assets(
         {"value": "available", "count": 1},
         {"value": "missing", "count": 0},
     ]
+
+
+def test_catalog_ownership_predicate_uses_library_path_index(isolated_gallery_root: Path) -> None:
+    _seed_boundary_rows(isolated_gallery_root)
+    predicate = active_catalog_file_sql(fi_alias="fi")
+    with _DB_LOCK, _connect() as conn:
+        plan = [
+            str(row["detail"])
+            for row in conn.execute(f"EXPLAIN QUERY PLAN SELECT count(*) FROM file_index AS fi WHERE {predicate}")
+        ]
+
+    catalog_steps = [detail for detail in plan if "catalog_asset" in detail]
+    assert catalog_steps
+    assert all("SCAN catalog_asset" not in detail for detail in catalog_steps)
+    assert any("library_id" in detail and "path" in detail for detail in catalog_steps)

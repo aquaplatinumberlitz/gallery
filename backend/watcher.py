@@ -118,7 +118,10 @@ class _DebouncedHandler:
         _record_event(kind)
 
         for path_str in path_strings:
-            self._record_path(path_str, is_directory=is_directory, event_type=kind)
+            try:
+                self._record_path(path_str, is_directory=is_directory, event_type=kind)
+            except Exception:  # noqa: BLE001
+                LOGGER.exception("Watcher callback ignored an event path after lookup failure: %s", path_str)
 
     def get_and_clear_debounced(self, max_count: int = WATCHER_MAX_EVENTS_PER_TICK) -> list[str]:
         """Drain at most max_count ready folders in deterministic debounce order."""

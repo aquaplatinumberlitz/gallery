@@ -25,6 +25,7 @@ def enumerate_to_rebuild_staging(
     job_id: int,
     library_id: int,
     scope_paths: list[str | Path],
+    claim_token: str,
 ) -> tuple[dict[str, int], list[str]]:
     """Walk scope_paths and write discovered entries to catalog_rebuild_entries.
 
@@ -53,8 +54,13 @@ def enumerate_to_rebuild_staging(
         batch = []
         _initialize_database()
         with _DB_LOCK, _connect() as conn:
-            conn.executemany(
-                """
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                from .job_store import assert_catalog_job_claim_conn
+
+                assert_catalog_job_claim_conn(conn, job_id, claim_token, library_id=library_id)
+                conn.executemany(
+                    """
                 INSERT INTO catalog_rebuild_entries (
                   job_id, library_id, path, parent_path, name, type,
                   mtime_ns, size, width, height, mime_type, duration_ms,
@@ -72,8 +78,12 @@ def enumerate_to_rebuild_staging(
                   duration_ms=excluded.duration_ms,
                   codec=excluded.codec
                 """,
-                rows,
-            )
+                    rows,
+                )
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
 
     def stage_entry(
         *,
@@ -173,6 +183,7 @@ def activate_rebuild_staging(
     job_id: int,
     library_id: int,
     scope_path: str | Path | None,
+    claim_token: str,
 ) -> dict[str, int]:
     """Merge staged rebuild rows into the canonical catalog in one short transaction.
 
@@ -188,6 +199,9 @@ def activate_rebuild_staging(
     with _DB_LOCK, _connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
+            from .job_store import assert_catalog_job_claim_conn
+
+            assert_catalog_job_claim_conn(conn, job_id, claim_token, library_id=library_id)
             staged = conn.execute(
                 """
                 SELECT path, parent_path, name, type, mtime_ns, size, mime_type,
@@ -327,11 +341,38 @@ def activate_rebuild_staging(
             raise
 
 
-def delete_rebuild_staging(job_id: int) -> None:
+def delete_rebuild_staging(job_id: int, *, claim_token: str | None = None) -> None:
     """Remove orphaned rebuild staging rows for a failed/cancelled job."""
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
+        if claim_token is not None:
+            from .job_store import assert_catalog_job_claim_conn
+
+            assert_catalog_job_claim_conn(conn, job_id, claim_token)
         conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
+
+
+def delete_rebuild_staging_for_lost_claim(job_id: int, claim_token: str) -> bool:
+    """Delete stale staging unless the job has already gained a newer live claim."""
+    _initialize_database()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute(
+            "SELECT state, claim_token, lease_expires_at FROM library_jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        if row is None:
+            return False
+        newer_live_claim = (
+            row["state"] == "running"
+            and row["claim_token"] != claim_token
+            and row["lease_expires_at"] is not None
+            and float(row["lease_expires_at"]) > now
+        )
+        if newer_live_claim:
+            return False
+        conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
+        return True
 
 
 def _reconcile_assets_conn(
@@ -375,9 +416,17 @@ def reconcile_library_assets(
     discovered_paths: set[str | Path],
     *,
     scope_path: str | Path | None = None,
+    claim_job_id: int | None = None,
+    claim_token: str | None = None,
 ) -> int:
     """Reconcile active assets for a library or scoped subtree."""
     normalized = {str(Path(path).resolve()) for path in discovered_paths}
+    if (claim_job_id is None) != (claim_token is None):
+        raise ValueError("Catalog claim job id and token must be provided together")
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
+        if claim_job_id is not None and claim_token is not None:
+            from .job_store import assert_catalog_job_claim_conn
+
+            assert_catalog_job_claim_conn(conn, claim_job_id, claim_token, library_id=library_id)
         return _reconcile_assets_conn(conn, library_id, normalized, scope_path=scope_path)

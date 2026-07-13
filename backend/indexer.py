@@ -27,6 +27,7 @@ from .metadata_store import (
     MetadataIndexJob,
     _connect,
     _persist_metadata_index_jobs,
+    assert_catalog_job_claim,
     asset_matches_image_metadata_sql,
     claim_next_metadata_job,
     complete_metadata_job,
@@ -183,8 +184,15 @@ def get_indexer_runtime_status(scope_path: str | Path | None = None) -> dict[str
     }
 
 
-def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
+def rebuild_index_scope(
+    root: str | Path,
+    *,
+    claim_job_id: int | None = None,
+    claim_token: str | None = None,
+) -> dict[str, Any]:
     """Rebuild non-destructively for files: recreate DB index rows for a scoped root."""
+    if (claim_job_id is None) != (claim_token is None):
+        raise ValueError("Catalog claim job id and token must be provided together")
     root_path = Path(root).resolve()
     image_paths: list[Path] = []
     asset_paths: set[str] = set()
@@ -193,12 +201,26 @@ def rebuild_index_scope(root: str | Path) -> dict[str, Any]:
         include_metadata=False,
         collected_image_paths=image_paths,
         collected_asset_paths=asset_paths,
+        claim_job_id=claim_job_id,
+        claim_token=claim_token,
     )
     library = get_library_for_path(root_path)
     reconciled = 0
     if library is not None:
-        reconciled = reconcile_library_assets(int(library["id"]), asset_paths, scope_path=root_path)
+        reconciled = reconcile_library_assets(
+            int(library["id"]),
+            asset_paths,
+            scope_path=root_path,
+            claim_job_id=claim_job_id,
+            claim_token=claim_token,
+        )
 
+    if claim_job_id is not None and claim_token is not None:
+        assert_catalog_job_claim(
+            claim_job_id,
+            claim_token,
+            library_id=int(library["id"]) if library is not None else None,
+        )
     metadata = dispatch_metadata_index_paths(image_paths, root_path)
 
     return {

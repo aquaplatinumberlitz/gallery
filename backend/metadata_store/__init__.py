@@ -137,6 +137,15 @@ from .inspector_store import (
     list_library_inspector_rows as list_library_inspector_rows,
 )
 from .job_store import (
+    CatalogJobClaimLost as CatalogJobClaimLost,
+)
+from .job_store import (
+    assert_catalog_job_claim as assert_catalog_job_claim,
+)
+from .job_store import (
+    assert_catalog_job_claim_conn as assert_catalog_job_claim_conn,
+)
+from .job_store import (
     claim_next_catalog_job as claim_next_catalog_job,
 )
 from .job_store import (
@@ -306,6 +315,9 @@ from .rebuild_store import (
 )
 from .rebuild_store import (
     delete_rebuild_staging as delete_rebuild_staging,
+)
+from .rebuild_store import (
+    delete_rebuild_staging_for_lost_claim as delete_rebuild_staging_for_lost_claim,
 )
 from .rebuild_store import (
     enumerate_to_rebuild_staging as enumerate_to_rebuild_staging,
