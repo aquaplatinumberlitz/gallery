@@ -15,7 +15,7 @@ import { useGalleryStore } from "@/stores/gallery";
 
 const galleryStore = useGalleryStore();
 const { isMobile } = useDevice();
-const { setOpen } = useSidebar();
+const { isMobile: isSidebarSheet, setOpen } = useSidebar();
 const { librariesQuery, libraries, activeLibrary, activeImportPath } = useActiveLibrarySelection();
 const sheetOpen = ref(false);
 const eligibleLibraries = computed(() => libraries.value.filter((library) => library.import_paths.length > 0));
@@ -48,6 +48,7 @@ function openLibrarySelector() {
 <template>
   <div class="relative bg-sidebar p-4 pb-3 group-data-[collapsible=icon]:p-1">
     <SidebarTrigger
+      v-if="!isSidebarSheet"
       class="sidebar-close-trigger absolute right-2 top-2 z-20 size-7 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mx-auto"
     />
     <IconTooltipButton

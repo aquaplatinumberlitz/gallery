@@ -157,7 +157,7 @@ function handleUpdate(value: unknown) {
   box-shadow: inset 1px 0 0 color-mix(in srgb, var(--border) 72%, transparent);
 }
 
-:deep(.search-scope-select-trigger-icon .lucide-chevron-down) {
+.search-scope-select-trigger-icon :deep(.lucide-chevron-down) {
   display: none;
 }
 

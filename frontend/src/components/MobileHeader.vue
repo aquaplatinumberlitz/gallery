@@ -193,12 +193,12 @@ const gallerySortValue = computed<SortValue>({
             class="search-focus-input"
             data-focus-ring="none"
           />
-          <div class="flex shrink-0 items-center gap-3">
+          <div class="search-focus-actions">
             <SearchScopeSelect
               :model-value="searchScope"
               :current-label="folderName"
               all-label="All libraries"
-              size="compact"
+              size="icon"
               class="mobile-search-scope"
               @update:model-value="emit('scope-change', $event)"
             />
@@ -210,11 +210,12 @@ const gallerySortValue = computed<SortValue>({
             >
               <X />
             </button>
+            <span class="search-focus-divider" aria-hidden="true"></span>
+            <button class="search-focus-advanced" @click="openAdvancedSearch" aria-label="Advanced Search">
+              <SlidersHorizontal />
+            </button>
           </div>
         </div>
-        <button class="mh-btn search-focus-advanced" @click="openAdvancedSearch" aria-label="Advanced Search">
-          <SlidersHorizontal />
-        </button>
       </motion.div>
     </div>
 
@@ -426,7 +427,7 @@ const gallerySortValue = computed<SortValue>({
   display: flex;
   align-items: center;
   transform-origin: right center;
-  gap: 4px;
+  gap: 0;
 }
 
 /* ============================================================
@@ -440,7 +441,7 @@ const gallerySortValue = computed<SortValue>({
   min-width: 0;
   height: 48px;
   overflow: hidden;
-  padding: 0 2px 0 10px;
+  padding: 0 0 0 10px;
   border: 1px solid var(--input);
   border-radius: 14px;
   background: color-mix(in srgb, var(--card) 92%, var(--background));
@@ -509,63 +510,132 @@ const gallerySortValue = computed<SortValue>({
 }
 
 /* ============================================================
-   Clear button — matches scope button shape & background
+   Clear button — ghost, compact
    ============================================================ */
 .search-focus-clear {
-  width: 44px;
-  height: 44px;
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border-radius: 9999px;
+  border-radius: 6px;
   border: 0;
-  background: color-mix(in srgb, var(--muted) 76%, transparent);
+  background: transparent;
   padding: 0;
-  color: var(--foreground);
+  color: var(--muted-foreground);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition:
     background 150ms ease,
+    color 150ms ease,
     transform 150ms ease;
 }
 
 .search-focus-clear:hover {
-  background: var(--muted);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
 }
 
 .search-focus-clear:active {
-  transform: scale(0.96);
+  transform: scale(0.92);
 }
 
 .search-focus-clear svg {
-  width: var(--gallery-icon-md);
-  height: var(--gallery-icon-md);
+  width: 14px;
+  height: 14px;
 }
 
+/* ============================================================
+   Scope select — icon-only, ghost
+   ============================================================ */
 :deep(.mobile-search-scope) {
-  width: auto;
-  min-width: 96px;
-  max-width: 96px;
-  height: 44px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  height: 36px;
   flex: 0 0 auto;
-  border-color: transparent;
-  border-radius: var(--gallery-radius-full);
-  background: color-mix(in srgb, var(--muted) 76%, transparent);
-  padding-inline: 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0;
   box-shadow: none;
   -webkit-tap-highlight-color: transparent;
+  transition: background 150ms ease;
 }
 
 :deep(.mobile-search-scope:hover),
 :deep(.mobile-search-scope[data-state="open"]) {
   border-color: transparent;
-  background: var(--muted);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
   box-shadow: none;
 }
 
-:deep(.mobile-search-scope .search-scope-select-label) {
-  max-width: 56px;
+:deep(.mobile-search-scope .search-scope-select-icon) {
+  width: 16px;
+  height: 16px;
+  color: var(--muted-foreground);
+  transition: color 150ms ease;
+}
+
+:deep(.mobile-search-scope:hover .search-scope-select-icon),
+:deep(.mobile-search-scope[data-state="open"] .search-scope-select-icon) {
+  color: var(--foreground);
+}
+
+/* ============================================================
+   Actions container — scope + clear + divider + advanced
+   ============================================================ */
+.search-focus-actions {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+/* Subtle vertical divider */
+.search-focus-divider {
+  width: 1px;
+  height: 20px;
+  background: color-mix(in srgb, var(--border) 72%, transparent);
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+/* ============================================================
+   Advanced search — flush right inside pill
+   ============================================================ */
+.search-focus-advanced {
+  width: 40px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 0 13px 13px 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.search-focus-advanced:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+
+.search-focus-advanced:active {
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.search-focus-advanced svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ============================================================
@@ -673,7 +743,7 @@ const gallerySortValue = computed<SortValue>({
 
   .search-focus-input-wrap {
     height: 48px;
-    padding: 0 2px 0 8px;
+    padding: 0 0 0 8px;
     gap: 6px;
   }
 
@@ -688,12 +758,22 @@ const gallerySortValue = computed<SortValue>({
 }
 
 /* ============================================================
-   Very small screens (<420px) — tighter scope button
+   Very small screens (<420px) — tighter icons
    ============================================================ */
 @media (max-width: 420px) {
   :deep(.mobile-search-scope) {
-    min-width: 76px;
-    max-width: 76px;
+    width: 32px;
+    min-width: 32px;
+    max-width: 32px;
+    height: 32px;
+  }
+
+  .search-focus-advanced {
+    width: 36px;
+  }
+
+  .search-focus-divider {
+    height: 18px;
   }
 }
 

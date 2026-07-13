@@ -215,3 +215,32 @@ test.describe("SidebarTrigger", () => {
       .toBeLessThan(100);
   });
 });
+
+test.describe("Mobile sidebar close control", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("shows one close control without the desktop collapse trigger", async ({ page }) => {
+    const dialogAccessibilityWarnings: string[] = [];
+    page.on("console", (message) => {
+      const text = message.text();
+      if (text.includes("DialogTitle") || text.includes("Missing `Description`")) {
+        dialogAccessibilityWarnings.push(text);
+      }
+    });
+
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
+    await expect(sidebar).toBeVisible({ timeout: 5_000 });
+    await expect(sidebar.locator('[data-sidebar="trigger"]')).toHaveCount(0);
+
+    const closeButton = sidebar.getByRole("button", { name: "Close" });
+    await expect(closeButton).toBeVisible();
+    await expect(closeButton).toHaveCount(1);
+    expect(dialogAccessibilityWarnings).toEqual([]);
+
+    await closeButton.click();
+    await expect(sidebar).not.toBeVisible({ timeout: 3_000 });
+  });
+});

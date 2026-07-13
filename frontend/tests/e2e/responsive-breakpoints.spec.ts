@@ -219,12 +219,17 @@ test.describe("Mobile layout (375px)", () => {
 
     const metrics = await page.locator(".mobile-header").evaluate((header) => {
       const scope = header.querySelector<HTMLElement>('[aria-label^="Search scope:"]');
+      const scopeIcon = scope?.querySelector<SVGElement>(".search-scope-select-icon");
+      const scopeChevron = scope?.querySelector<SVGElement>(".lucide-chevron-down");
       const advanced = header.querySelector<HTMLElement>('[aria-label="Advanced Search"]');
       const input = header.querySelector<HTMLElement>(".search-focus-input");
-      if (!scope || !advanced || !input) throw new Error("Missing mobile search controls");
+      if (!scope || !scopeIcon || !scopeChevron || !advanced || !input) {
+        throw new Error("Missing mobile search controls");
+      }
 
       const headerRect = header.getBoundingClientRect();
       const scopeRect = scope.getBoundingClientRect();
+      const scopeIconRect = scopeIcon.getBoundingClientRect();
       const advancedRect = advanced.getBoundingClientRect();
       const inputRect = input.getBoundingClientRect();
 
@@ -234,6 +239,9 @@ test.describe("Mobile layout (375px)", () => {
         headerRight: headerRect.right,
         scopeWidth: scopeRect.width,
         scopeRight: scopeRect.right,
+        scopeIconLeft: scopeIconRect.left,
+        scopeIconRight: scopeIconRect.right,
+        scopeChevronDisplay: getComputedStyle(scopeChevron).display,
         advancedRight: advancedRect.right,
         inputWidth: inputRect.width,
       };
@@ -242,6 +250,9 @@ test.describe("Mobile layout (375px)", () => {
     expect(metrics.scrollWidth).toBe(metrics.clientWidth);
     expect(metrics.scopeWidth).toBeLessThanOrEqual(44);
     expect(metrics.scopeRight).toBeLessThanOrEqual(metrics.headerRight);
+    expect(metrics.scopeIconLeft).toBeGreaterThanOrEqual(metrics.scopeRight - metrics.scopeWidth);
+    expect(metrics.scopeIconRight).toBeLessThanOrEqual(metrics.scopeRight);
+    expect(metrics.scopeChevronDisplay).toBe("none");
     expect(metrics.advancedRight).toBeLessThanOrEqual(metrics.headerRight);
     expect(metrics.inputWidth).toBeGreaterThanOrEqual(80);
   });

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SidebarProps } from ".";
 import { cn } from "@/lib/utils";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { SIDEBAR_WIDTH_MOBILE, useSidebar } from "./utils";
 
 defineOptions({
@@ -31,11 +31,13 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
       data-sidebar="sidebar"
       data-mobile="true"
       :side="side"
-      class="w-[var(--sidebar-width)] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+      class="w-[var(--sidebar-width)] bg-sidebar p-0 text-sidebar-foreground"
       :style="{
         '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
       }"
     >
+      <SheetTitle class="sr-only">Sidebar navigation</SheetTitle>
+      <SheetDescription class="sr-only">Browse libraries, folders, and gallery status.</SheetDescription>
       <div class="flex h-full w-full flex-col">
         <slot />
       </div>
