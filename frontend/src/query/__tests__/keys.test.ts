@@ -51,7 +51,7 @@ describe("queryKeys", () => {
     ["statusLibrary", [4], ["status", "library", 4]],
     ["statusPathRoot", [4], ["status", "path", 4]],
     ["libraryInspectorRoot", [], ["library-inspector"]],
-    ["facets", ["/p"], ["facets", "/p"]],
+    ["facets", ["folder", 4, "/p"], ["facets", "folder", 4, "/p"]],
     ["maintenanceRoot", [], ["maintenance"]],
     ["maintenanceFileHealth", [], ["maintenance", "file-health"]],
     ["maintenanceRuntime", [], ["maintenance", "runtime"]],

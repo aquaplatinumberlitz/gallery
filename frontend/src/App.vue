@@ -16,7 +16,6 @@ import { useRouteChrome } from "@/composables/useRouteChrome";
 import { useSidebarTreeQuery } from "./composables/useSidebarTreeQuery";
 import { MotionConfig } from "motion-v";
 import { useFieldedSearch } from "./composables/useFieldedSearch";
-import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "./utils/serializeAdvancedSearchToQuery";
 import type { FieldFilter } from "./types";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
@@ -72,23 +71,22 @@ watch(
 
 const galleryStore = useGalleryStore();
 const librariesQuery = useLibrariesQuery();
-const { applyFilters, clearAll: clearFieldedSearch } = useFieldedSearch();
+const rawSearchQuery = computed(() => galleryStore.searchQuery);
+const fieldedSearch = useFieldedSearch(rawSearchQuery);
 const isAdvancedSearchOpen = shallowRef(false);
 const advancedSearchInitialFilters = shallowRef<FieldFilter[]>([]);
 
 function handleSearchQueryUpdate(value: string) {
   galleryStore.setSearchQuery(value);
-  if (!parseFieldedQuery(value).length) clearFieldedSearch();
 }
 
 function openAdvancedSearch() {
-  advancedSearchInitialFilters.value = parseFieldedQuery(galleryStore.searchQuery);
+  advancedSearchInitialFilters.value = [...fieldedSearch.fieldedFilters.value];
   isAdvancedSearchOpen.value = true;
 }
 
 function handleAdvancedSearchApply(filters: FieldFilter[]) {
-  applyFilters(filters);
-  galleryStore.setSearchQuery(serializeAdvancedSearchToQuery(filters));
+  galleryStore.setSearchQuery(fieldedSearch.applyFilters(filters));
 }
 
 watch(

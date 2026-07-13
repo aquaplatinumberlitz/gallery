@@ -201,7 +201,7 @@ describe("AdvancedSearchDrawer", () => {
     facetState.isError.value = failed;
     const wrapper = createWrapper();
     await openGroup(wrapper, "Generation settings");
-    expect(wrapper.text().match(new RegExp(expected, "g"))).toHaveLength(3);
+    expect(wrapper.text().match(new RegExp(expected, "g"))).toHaveLength(4);
     expect(wrapper.get("#advanced-search-model").attributes("disabled")).toBeUndefined();
     expect(wrapper.get("#advanced-search-sampler").attributes("disabled")).toBeUndefined();
     expect(wrapper.get("#advanced-search-scheduler").attributes("disabled")).toBeUndefined();

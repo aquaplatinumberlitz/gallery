@@ -56,7 +56,7 @@ interface Props {
   searchScope: "current" | "all";
   searchLoading: boolean;
 }
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
   "update:searchQuery": [value: string];
@@ -71,10 +71,9 @@ const { resolvedTheme, toggleTheme } = useGalleryTheme();
 const {
   fieldedFilters,
   isActive: isFieldedSearchActive,
-  queryString: fieldedQueryString,
   removeFilter,
   clearAll,
-} = useFieldedSearch();
+} = useFieldedSearch(() => props.searchQuery);
 const galleryStore = useGalleryStore();
 const { activeNav, isMetadataRoute, isAdminRoute, showBackToGallery } = useRouteChrome();
 const isLibrariesRoute = computed(() => activeNav.value === "libraries");
@@ -199,7 +198,6 @@ onMounted(() => {
 });
 
 function clearSearch() {
-  clearAll();
   emit("update:searchQuery", "");
 }
 
@@ -208,13 +206,11 @@ function submitSearch() {
 }
 
 function handleRemoveFilter(index: number) {
-  removeFilter(index);
-  emit("update:searchQuery", fieldedQueryString.value);
+  emit("update:searchQuery", removeFilter(index));
 }
 
 function handleClearAll() {
-  clearAll();
-  emit("update:searchQuery", "");
+  emit("update:searchQuery", clearAll());
 }
 </script>
 

@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import { computed, inject, onBeforeUnmount, ref, useTemplateRef, watch, type ComponentPublicInstance } from "vue";
-import { useResizeObserver } from "@vueuse/core";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { FileNode, SortValue, UnifiedSearchResult } from "../types";
 import { normalizeAssetType } from "../utils/assetType";
-import AlbumCard from "./AlbumCard.vue";
-import AlbumCardMobile from "./AlbumCardMobile.vue";
-import AlbumCardTablet from "./AlbumCardTablet.vue";
 import AlbumScroller from "./AlbumScroller.vue";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
 import GlowContainer from "./GlowContainer.vue";
@@ -28,7 +24,7 @@ import { useDelayedBoolean } from "../composables/useDelayedBoolean";
 import { useInfiniteBrowseQuery } from "../composables/useInfiniteBrowseQuery";
 import { useInfiniteLoadSentinel } from "../composables/useInfiniteLoadSentinel";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
-import { chunkGridRows, chunkItems, useVirtualGridRows } from "../composables/useVirtualGridRows";
+import { chunkGridRows, useVirtualGridRows } from "../composables/useVirtualGridRows";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import type { ErrorType } from "../services/api";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
@@ -44,11 +40,9 @@ import {
   X,
   ArrowDownToLine,
   Images,
-  Folder,
-  FolderOpen,
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
-import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
+import SearchResultsPanel from "./search/SearchResultsPanel.vue";
 import Badge from "./ui/Badge.vue";
 import { GALLERY_SEARCH_MIN_CHARS } from "@/constants";
 import {
@@ -97,14 +91,8 @@ const props = withDefaults(defineProps<Props>(), {
   showToolbarBreadcrumb: true,
   showDesktopToolbar: true,
 });
-const SEARCH_ALBUM_CARD_DESKTOP_WIDTH = 240;
-const SEARCH_ALBUM_CARD_TABLET_WIDTH = 180;
-const SEARCH_ALBUM_GRID_GAP = 20;
-const SEARCH_ALBUM_ROW_HORIZONTAL_PADDING = 16;
 const injectedScrollContainerRef = inject(galleryScrollContainerRefKey, null);
 const scrollParentRef = ref<HTMLElement | null>(null);
-const searchScrollParentRef = ref<HTMLElement | null>(null);
-const searchScrollContentWidth = ref(0);
 
 const resolveTemplateRefElement = (target: Element | ComponentPublicInstance | null) => {
   if (!target) return null;
@@ -231,91 +219,8 @@ const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   mime_type: result.mime_type,
 });
 
-const normalizeSearchPath = (path: string): string =>
-  path.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "").toLowerCase();
-
-const formatDisplayFilename = (name: string, maxLen = 28): string => {
-  if (name.length <= maxLen) return name;
-
-  const minSegmentLength = 3;
-  const ellipsis = "…";
-  const dotIndex = name.lastIndexOf(".");
-  const hasExtension = dotIndex > 0 && dotIndex < name.length - 1;
-  const baseName = hasExtension ? name.slice(0, dotIndex) : name;
-  const extension = hasExtension ? name.slice(dotIndex) : "";
-  const availableBaseLength = maxLen - extension.length - ellipsis.length;
-
-  if (availableBaseLength < minSegmentLength * 2) {
-    const fallbackBaseLength = Math.max(1, maxLen - extension.length - ellipsis.length);
-    return `${baseName.slice(0, fallbackBaseLength)}${ellipsis}${extension}`;
-  }
-
-  const prefixLength = Math.ceil(availableBaseLength / 2);
-  const suffixLength = Math.floor(availableBaseLength / 2);
-  return `${baseName.slice(0, prefixLength)}${ellipsis}${baseName.slice(-suffixLength)}${extension}`;
-};
-
-const splitDisplayName = (name: string): { base: string; ext: string } => {
-  const dotIndex = name.lastIndexOf(".");
-  const hasExtension = dotIndex > 0 && dotIndex < name.length - 1;
-  return {
-    base: hasExtension ? name.slice(0, dotIndex) : name,
-    ext: hasExtension ? name.slice(dotIndex) : "",
-  };
-};
-
-const displayFilenameParts = (name: string): { base: string; ext: string } => {
-  const maxLen = columnCount.value >= 7 ? 20 : 28;
-  return splitDisplayName(formatDisplayFilename(name, maxLen));
-};
-
-const normalizeDisplayFolderPath = (path: string): string =>
-  path.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
-
-const folderPathFromRelativePath = (relativePath: string, filename: string): string => {
-  const normalizedRelative = normalizeDisplayFolderPath(relativePath);
-  if (!normalizedRelative || normalizedRelative === "." || normalizedRelative === filename) return "";
-  const parts = normalizedRelative.split("/").filter(Boolean);
-  if (!parts.length) return "";
-  if (parts[parts.length - 1] === filename) {
-    parts.pop();
-  }
-  return parts.join("/");
-};
-
-const searchResultFolderPath = (result: UnifiedSearchResult): string => {
-  const normalizedRelativePath = normalizeDisplayFolderPath(result.relative_path);
-  const relativeFolderPath = folderPathFromRelativePath(result.relative_path, result.name);
-  if (
-    relativeFolderPath ||
-    !normalizedRelativePath ||
-    normalizedRelativePath === "." ||
-    normalizedRelativePath === result.name
-  ) {
-    return relativeFolderPath;
-  }
-  return folderPathFromRelativePath(result.parent_path, result.name);
-};
-
 const searchAlbums = computed(() => unifiedSearchQuery.albums.value);
 const searchMediaResults = computed(() => unifiedSearchQuery.media.value);
-const searchAlbumNodesRef = computed(() =>
-  searchAlbums.value.map((album) => {
-    const node = searchResultToFileNode(album);
-    if (!node.cover_images || node.cover_images.length === 0) {
-      const match = scanFolders.value.find(
-        (folder) => normalizeSearchPath(folder.path) === normalizeSearchPath(album.path),
-      );
-      if (match && match.cover_images && match.cover_images.length > 0) {
-        node.cover_images = match.cover_images;
-        if (!node.image_count && match.image_count) {
-          node.image_count = match.image_count;
-        }
-      }
-    }
-    return node;
-  }),
-);
 const searchImageNodes = computed(() =>
   searchMediaResults.value.filter((result) => normalizeAssetType(result.type) !== "video").map(searchResultToFileNode),
 );
@@ -336,11 +241,6 @@ const isRefetching = computed(
     infiniteBrowseQuery.isFetching.value &&
     !infiniteBrowseQuery.isLoading.value &&
     !infiniteBrowseQuery.isFetchingNextPage.value,
-);
-const isSearchLoading = computed(
-  () =>
-    hasSearchQuery.value &&
-    (isSearchSettling.value || unifiedSearchQuery.isLoading.value || unifiedSearchQuery.isFetching.value),
 );
 const isSearchIndicatorActive = computed(
   () =>
@@ -389,19 +289,33 @@ onBeforeUnmount(() => {
 const hasNoPath = computed(() => galleryStore.activeLibraryHydrated && !galleryStore.activeImportPathId);
 const showBrowsePreparingEmpty = computed(() => !hasSearchQuery.value && browsePreparing.value && !browseLoading.value);
 const showGallerySkeleton = computed(() => !hasSearchQuery.value && browseLoading.value);
-const showSearchSkeleton = computed(
-  () => hasSearchQuery.value && isSearchLoading.value && !searchAlbums.value.length && !searchMediaResults.value.length,
-);
-const noSearchResults = computed(
+const hasSearchResults = computed(() => searchAlbums.value.length > 0 || searchMediaResults.value.length > 0);
+const searchInitialPending = computed(
   () =>
     hasSearchQuery.value &&
-    !isSearchLoading.value &&
-    !isSearchSettling.value &&
+    !hasSearchResults.value &&
+    (isSearchSettling.value || unifiedSearchQuery.isPending.value || unifiedSearchQuery.isLoading.value),
+);
+const searchBlockingError = computed(
+  () => hasSearchQuery.value && unifiedSearchQuery.isError.value && !hasSearchResults.value,
+);
+const searchStaleError = computed(
+  () => hasSearchQuery.value && Boolean(unifiedSearchQuery.isRefetchError?.value) && hasSearchResults.value,
+);
+const searchPaginationError = computed(
+  () => hasSearchQuery.value && Boolean(unifiedSearchQuery.isFetchNextPageError?.value),
+);
+const searchSuccessfulEmpty = computed(
+  () =>
+    hasSearchQuery.value &&
     unifiedSearchQuery.isSuccess.value &&
     !unifiedSearchQuery.isFetching.value &&
-    searchAlbums.value.length === 0 &&
-    searchMediaResults.value.length === 0,
+    !hasSearchResults.value,
 );
+const searchErrorMessage = computed(() => {
+  const error = unifiedSearchQuery.error.value;
+  return error instanceof Error ? error.message : "Unable to load search results.";
+});
 
 function openLibrarySelector() {
   librarySelectorOpen.value = true;
@@ -476,7 +390,7 @@ const errorActionConfig = computed(() => {
       };
   }
 });
-const showAllIndexedHint = computed(() => noSearchResults.value && galleryStore.searchScope === "current");
+const showAllIndexedHint = computed(() => searchSuccessfulEmpty.value && galleryStore.searchScope === "current");
 
 const handleOpenFolder = (path: string) => {
   galleryStore.selectFolder(path);
@@ -520,33 +434,7 @@ const isSearchFetchingNextPage = computed(() => unifiedSearchQuery.isFetchingNex
 // --- Virtual scroller state ---
 const { isTablet } = useDevice();
 const deviceCategory = computed(() => (props.isMobile ? "mobile" : isTablet.value ? "tablet" : "desktop"));
-const searchAlbumCardComponent = computed(() =>
-  props.isMobile ? AlbumCardMobile : isTablet.value ? AlbumCardTablet : AlbumCard,
-);
 const { columnCount, sliderLevel, rowHeight, setGridRef } = useColumnResize(deviceCategory);
-
-const updateSearchScrollContentWidth = (el: HTMLElement | null) => {
-  if (!el) {
-    searchScrollContentWidth.value = 0;
-    return;
-  }
-
-  const style = window.getComputedStyle(el);
-  searchScrollContentWidth.value =
-    el.clientWidth - Number.parseFloat(style.paddingLeft || "0") - Number.parseFloat(style.paddingRight || "0");
-};
-
-const setSearchScrollContainerRef = (target: Element | ComponentPublicInstance | null) => {
-  const el = resolveTemplateRefElement(target);
-  searchScrollParentRef.value = el;
-  updateSearchScrollContentWidth(el);
-  setScrollContainerRef(target);
-  setGridRef(target);
-};
-
-useResizeObserver(searchScrollParentRef, ([entry]) => {
-  updateSearchScrollContentWidth(entry?.target instanceof HTMLElement ? entry.target : searchScrollParentRef.value);
-});
 
 // Density dropdown options
 const densityOptions = computed(() => {
@@ -589,108 +477,6 @@ const browseVirtualSpacerStyle = browseVirtualGrid.virtualSpacerStyle;
 const getBrowseVirtualRowStyle = (start: number) =>
   browseVirtualGrid.getVirtualRowStyle(start, { gridTemplateColumns: `repeat(${columnCount.value}, 1fr)` });
 
-type SearchSection = "albums" | "media";
-type SearchVirtualRow =
-  | { id: string; kind: "header"; section: SearchSection; count: number }
-  | { id: string; kind: "albums"; items: FileNode[] }
-  | { id: string; kind: "media"; items: UnifiedSearchResult[]; rowIndex: number };
-
-const searchAlbumColumnCount = computed(() => {
-  if (props.isMobile) return 2;
-
-  const cardWidth = isTablet.value ? SEARCH_ALBUM_CARD_TABLET_WIDTH : SEARCH_ALBUM_CARD_DESKTOP_WIDTH;
-  const maxColumns = isTablet.value ? 3 : 5;
-  const gridGap = isTablet.value ? 12 : SEARCH_ALBUM_GRID_GAP;
-  const availableWidth = Math.max(0, searchScrollContentWidth.value - SEARCH_ALBUM_ROW_HORIZONTAL_PADDING);
-
-  if (!availableWidth) {
-    return isTablet.value ? Math.min(3, columnCount.value) : Math.max(3, Math.min(5, columnCount.value - 1));
-  }
-
-  return Math.max(1, Math.min(maxColumns, Math.floor((availableWidth + gridGap) / (cardWidth + gridGap))));
-});
-
-const searchAlbumGridGap = computed(() => (props.isMobile ? 8 : isTablet.value ? 12 : SEARCH_ALBUM_GRID_GAP));
-
-const searchAlbumCardWidth = computed(() =>
-  props.isMobile ? undefined : isTablet.value ? SEARCH_ALBUM_CARD_TABLET_WIDTH : SEARCH_ALBUM_CARD_DESKTOP_WIDTH,
-);
-
-const searchAlbumGridTemplateColumns = computed(() =>
-  props.isMobile
-    ? `repeat(${searchAlbumColumnCount.value}, minmax(0, 1fr))`
-    : `repeat(${searchAlbumColumnCount.value}, ${searchAlbumCardWidth.value}px)`,
-);
-
-const searchAlbumMobileRowHeight = computed(() => {
-  const horizontalPadding = 4;
-  const availableWidth = Math.max(0, searchScrollContentWidth.value - horizontalPadding - searchAlbumGridGap.value);
-  const cardWidth = availableWidth ? availableWidth / searchAlbumColumnCount.value : 156;
-  return Math.ceil(cardWidth + 66);
-});
-
-const searchVirtualRows = computed<SearchVirtualRow[]>(() => {
-  const rows: SearchVirtualRow[] = [];
-
-  if (searchAlbums.value.length) {
-    rows.push({ id: "header-albums", kind: "header", section: "albums", count: searchAlbums.value.length });
-    chunkItems(searchAlbumNodesRef.value, searchAlbumColumnCount.value).forEach((items, index) => {
-      rows.push({ id: `albums-${searchAlbumColumnCount.value}-${index}`, kind: "albums", items });
-    });
-  }
-
-  if (searchMediaResults.value.length) {
-    rows.push({ id: "header-media", kind: "header", section: "media", count: searchMediaResults.value.length });
-    chunkItems(searchMediaResults.value, columnCount.value).forEach((items, index) => {
-      rows.push({ id: `media-${columnCount.value}-${index}`, kind: "media", items, rowIndex: index });
-    });
-  }
-
-  return rows;
-});
-
-const searchHeaderTitle = (section: SearchSection) => {
-  switch (section) {
-    case "albums":
-      return "Album suggestions";
-    case "media":
-      return "Media";
-  }
-};
-
-const searchHeaderIcon = (section: SearchSection) => {
-  if (section === "albums") return FolderOpen;
-  return Images;
-};
-
-const estimateSearchRowSize = (index: number) => {
-  const row = searchVirtualRows.value[index];
-  if (!row) return rowHeight.value || 220;
-  if (row.kind === "header") return 48;
-  if (row.kind === "albums") return props.isMobile ? searchAlbumMobileRowHeight.value : isTablet.value ? 226 : 280;
-  const mediaHeight = rowHeight.value || (props.isMobile ? 150 : isTablet.value ? 190 : 220);
-  return mediaHeight + 48;
-};
-
-const searchVirtualGrid = useVirtualGridRows({
-  rows: searchVirtualRows,
-  scrollElement: searchScrollParentRef,
-  estimateSize: estimateSearchRowSize,
-  overscan: 5,
-  measureDeps: [rowHeight, columnCount, searchAlbumColumnCount, searchAlbumCardWidth, searchAlbumMobileRowHeight],
-});
-
-const searchVirtualItems = searchVirtualGrid.virtualItems;
-const searchVirtualSpacerStyle = searchVirtualGrid.virtualSpacerStyle;
-const getSearchVirtualRowStyle = (start: number) => searchVirtualGrid.getVirtualRowStyle(start);
-const getSearchAlbumVirtualRowStyle = (start: number) =>
-  searchVirtualGrid.getVirtualRowStyle(start, {
-    gap: `${searchAlbumGridGap.value}px`,
-    gridTemplateColumns: searchAlbumGridTemplateColumns.value,
-  });
-const getSearchMediaVirtualRowStyle = (start: number) =>
-  searchVirtualGrid.getVirtualRowStyle(start, { gridTemplateColumns: `repeat(${columnCount.value}, 1fr)` });
-
 const skeletonItems = computed(() => Array.from({ length: 12 }, (_, i) => i));
 
 const canLoadMoreImages = computed(() =>
@@ -706,21 +492,6 @@ useInfiniteLoadSentinel({
   sentinel: loadMoreSentinel,
   enabled: canLoadMoreImages,
   loadMore: () => infiniteBrowseQuery.fetchNextPage(),
-});
-
-const canLoadMoreSearch = computed(
-  () =>
-    hasSearchQuery.value &&
-    unifiedSearchQuery.hasNextPage.value &&
-    !unifiedSearchQuery.isFetchingNextPage.value &&
-    !unifiedSearchQuery.isFetching.value,
-);
-const searchLoadMoreSentinel = useTemplateRef<HTMLElement>("searchLoadMoreSentinel");
-useInfiniteLoadSentinel({
-  sentinel: searchLoadMoreSentinel,
-  enabled: canLoadMoreSearch,
-  loadMore: () => unifiedSearchQuery.fetchNextPage(),
-  rootMargin: "500px",
 });
 
 // ── Album Horizontal Scroll (handled by AlbumScroller component) ──
@@ -816,7 +587,9 @@ useInfiniteLoadSentinel({
         </template>
       </Breadcrumb>
 
+      <Badge v-if="hasSearchQuery" variant="secondary" class="h-8 px-2 text-xs font-medium"> Relevance </Badge>
       <SortSelect
+        v-else
         v-model="gallerySortValue"
         aria-label="Sort gallery"
         trigger-label="Sort"
@@ -877,6 +650,7 @@ useInfiniteLoadSentinel({
       :column-count="columnCount"
       :density-options="densityOptions"
       :show-density-menu="showDensityMenu"
+      :search-active="hasSearchQuery"
       @back="goBack"
       @forward="goForward"
       @toggle-density-menu="toggleDensityMenu"
@@ -902,99 +676,38 @@ useInfiniteLoadSentinel({
       Keep typing to search, or press Enter.
     </div>
 
-    <div v-if="showGallerySkeleton || showSearchSkeleton" class="skeleton-container">
+    <div v-if="showGallerySkeleton" class="skeleton-container">
       <div class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }">
         <SkeletonLoader v-for="i in skeletonItems" :key="i" type="photo" />
       </div>
     </div>
 
-    <!-- Search results: backend indexed albums, photos, and prompt matches -->
-    <div v-else-if="hasSearchQuery" :ref="setSearchScrollContainerRef" class="search-results-container">
-      <div v-if="searchVirtualRows.length" class="search-virtual-spacer" :style="searchVirtualSpacerStyle">
-        <template v-for="virtualRow in searchVirtualItems" :key="String(virtualRow.key)">
-          <template v-for="row in [searchVirtualRows[virtualRow.index]]" :key="row?.id ?? String(virtualRow.key)">
-            <div
-              v-if="row?.kind === 'header'"
-              class="search-virtual-row search-virtual-row--header"
-              :style="getSearchVirtualRowStyle(virtualRow.start)"
-            >
-              <GallerySectionHeader
-                :title="searchHeaderTitle(row.section)"
-                :count="row.count"
-                :badge-icon="searchHeaderIcon(row.section)"
-              />
-            </div>
-
-            <div
-              v-else-if="row?.kind === 'albums'"
-              class="search-virtual-row search-album-grid"
-              :style="getSearchAlbumVirtualRowStyle(virtualRow.start)"
-            >
-              <component
-                :is="searchAlbumCardComponent"
-                v-for="album in row.items"
-                :key="album.path"
-                :node="album"
-                @click="handleOpenFolder(album.path)"
-              />
-            </div>
-
-            <div
-              v-else-if="row?.kind === 'media'"
-              class="search-virtual-row virtual-row"
-              :style="getSearchMediaVirtualRowStyle(virtualRow.start)"
-            >
-              <div v-for="item in row.items" :key="item.path" class="search-result-card">
-                <VideoCard
-                  v-if="normalizeAssetType(item.type) === 'video'"
-                  :src="item.path"
-                  :name="item.name"
-                  :duration-ms="item.duration_ms"
-                  @click="handleOpenVideo(searchResultToFileNode(item))"
-                />
-                <PhotoCard
-                  v-else
-                  :src="item.path"
-                  :name="item.name"
-                  @dimensions="handlePhotoDimensions"
-                  @click="handleOpenImage(item.path, item.name)"
-                  @keydown.enter="handleOpenImage(item.path, item.name)"
-                  @keydown.space.prevent="handleOpenImage(item.path, item.name)"
-                />
-                <OverflowTooltip :text="item.name" class="search-result-name file-name-display">
-                  <span class="file-name-base">{{ displayFilenameParts(item.name).base }}</span>
-                  <span class="file-name-ext">{{ displayFilenameParts(item.name).ext }}</span>
-                </OverflowTooltip>
-                <OverflowTooltip
-                  v-if="searchResultFolderPath(item)"
-                  :text="searchResultFolderPath(item)"
-                  class="search-result-path"
-                >
-                  <Folder class="search-result-path-icon" />
-                  <span>{{ searchResultFolderPath(item) }}</span>
-                </OverflowTooltip>
-              </div>
-            </div>
-          </template>
-        </template>
-      </div>
-
-      <div ref="searchLoadMoreSentinel" class="search-load-more-sentinel">
-        <span v-if="isSearchFetchingNextPage">Loading more...</span>
-      </div>
-
-      <div v-if="noSearchResults" class="search-empty-wrap">
-        <EmptyState
-          type="no-results"
-          title="No results"
-          description="Try a filename, album name, or prompt."
-          action-label="Clear search"
-          action-icon="xmark"
-          @action="galleryStore.clearSearch()"
-        />
-        <p v-if="showAllIndexedHint" class="search-scope-hint">Try All indexed to search outside this folder.</p>
-      </div>
-    </div>
+    <SearchResultsPanel
+      v-else-if="hasSearchQuery"
+      :albums="searchAlbums"
+      :media="searchMediaResults"
+      :fallback-folders="scanFolders"
+      :is-mobile="props.isMobile"
+      :is-tablet="deviceCategory === 'tablet'"
+      :column-count="columnCount"
+      :row-height="rowHeight"
+      :initial-pending="searchInitialPending"
+      :blocking-error="searchBlockingError"
+      :stale-error="searchStaleError"
+      :pagination-error="searchPaginationError"
+      :successful-empty="searchSuccessfulEmpty"
+      :error-message="searchErrorMessage"
+      :has-next-page="Boolean(unifiedSearchQuery.hasNextPage.value)"
+      :fetching-next-page="isSearchFetchingNextPage"
+      :show-all-indexed-hint="showAllIndexedHint"
+      @open-folder="handleOpenFolder"
+      @open-media="handleOpenMedia(searchResultToFileNode($event))"
+      @dimensions="handlePhotoDimensions"
+      @retry="unifiedSearchQuery.refetch()"
+      @retry-next="unifiedSearchQuery.fetchNextPage()"
+      @load-more="unifiedSearchQuery.fetchNextPage()"
+      @clear="galleryStore.clearSearch()"
+    />
 
     <!-- Has content: mixed media or folders -->
     <template v-else-if="media.length > 0 || folders.length > 0">
@@ -1043,17 +756,6 @@ useInfiniteLoadSentinel({
               <Loader class="gallery-icon-md lucide-spin" />
               <span>Loading more media...</span>
             </div>
-
-            <EmptyState
-              v-if="noSearchResults"
-              type="no-results"
-              title="No results"
-              description="Try a filename, album name, or prompt."
-              action-label="Clear search"
-              action-icon="xmark"
-              compact
-              @action="galleryStore.clearSearch()"
-            />
           </div>
         </div>
 
@@ -1099,17 +801,6 @@ useInfiniteLoadSentinel({
               <Loader class="gallery-icon-md lucide-spin" />
               <span>Loading more media...</span>
             </div>
-
-            <EmptyState
-              v-if="noSearchResults"
-              type="no-results"
-              title="No results"
-              description="Try a filename, album name, or prompt."
-              action-label="Clear search"
-              action-icon="xmark"
-              compact
-              @action="galleryStore.clearSearch()"
-            />
           </div>
         </div>
 

@@ -1,48 +1,36 @@
-import { ref, computed } from "vue";
+import { computed, toValue, type MaybeRefOrGetter } from "vue";
 import type { FieldFilter } from "@/types";
-import { serializeAdvancedSearchToQuery } from "@/utils/serializeAdvancedSearchToQuery";
+import {
+  parseSearchQuery,
+  replaceManagedFilters as replaceManagedQueryFilters,
+  serializeManagedFilters,
+} from "@/utils/searchQueryGrammar";
 
-const fieldedFilters = ref<FieldFilter[]>([]);
-
-const cachedQueryString = ref<string>("");
-let lastAppliedFilters = "";
-
-function updateCache() {
-  const serialized = JSON.stringify(fieldedFilters.value);
-  if (serialized !== lastAppliedFilters) {
-    lastAppliedFilters = serialized;
-    cachedQueryString.value = serializeAdvancedSearchToQuery(fieldedFilters.value);
-  }
-}
-
-export function useFieldedSearch() {
+export function useFieldedSearch(rawQuery: MaybeRefOrGetter<string> = "") {
+  const parsedQuery = computed(() => parseSearchQuery(toValue(rawQuery)));
+  const fieldedFilters = computed(() => parsedQuery.value.managedFilters);
+  const passThroughTokens = computed(() => parsedQuery.value.passThroughTokens);
+  const residualText = computed(() => parsedQuery.value.residualText);
   const isActive = computed(() => fieldedFilters.value.length > 0);
-
-  const queryString = computed(() => {
-    updateCache();
-    return cachedQueryString.value;
-  });
+  const queryString = computed(() => serializeManagedFilters(fieldedFilters.value));
 
   function applyFilters(filters: FieldFilter[]) {
-    fieldedFilters.value = [...filters];
-    updateCache();
+    return replaceManagedQueryFilters(toValue(rawQuery), filters);
   }
 
   function removeFilter(index: number) {
-    const next = [...fieldedFilters.value];
-    next.splice(index, 1);
-    fieldedFilters.value = next;
-    updateCache();
+    return applyFilters(fieldedFilters.value.filter((_filter, filterIndex) => filterIndex !== index));
   }
 
   function clearAll() {
-    fieldedFilters.value = [];
-    cachedQueryString.value = "";
-    lastAppliedFilters = "";
+    return applyFilters([]);
   }
 
   return {
     fieldedFilters,
+    parsedQuery,
+    passThroughTokens,
+    residualText,
     isActive,
     queryString,
     applyFilters,

@@ -275,9 +275,12 @@ describe("fetchLibraryInspectorMetadata", () => {
 describe("fetchFacets", () => {
   it("GET /api/facets", async () => {
     mockApi.get.mockResolvedValueOnce({ data: { facets: {} } });
-    const r = await fetchFacets("/p");
+    const r = await fetchFacets({ scope: "folder", libraryId: 7, path: "/p" });
     expect(r).toEqual({ facets: {} });
-    expect(mockApi.get).toHaveBeenCalledWith("/api/facets", { params: { path: "/p" } });
+    expect(mockApi.get).toHaveBeenCalledWith("/api/facets", {
+      params: { scope: "folder", library_id: 7, path: "/p" },
+      signal: undefined,
+    });
   });
 });
 

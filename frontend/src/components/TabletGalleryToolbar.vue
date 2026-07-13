@@ -25,6 +25,7 @@ interface Props {
   columnCount: number;
   densityOptions: readonly DensityOption[];
   showDensityMenu: boolean;
+  searchActive: boolean;
 }
 
 const props = defineProps<Props>();
@@ -72,7 +73,9 @@ const handleDensityOpenChange = (open: boolean) => {
 
     <div class="tgt-spacer" />
 
+    <span v-if="searchActive" class="tgt-relevance" aria-label="Search results sorted by relevance">Relevance</span>
     <SortSelect
+      v-else
       :model-value="sortValue"
       aria-label="Sort gallery"
       @update:model-value="emit('update:sortValue', $event)"
@@ -185,6 +188,19 @@ const handleDensityOpenChange = (open: boolean) => {
   font-family: var(--font-body);
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.tgt-relevance {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 11px;
+  background: var(--card);
+  padding: 8px 12px;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .tgt-trigger:hover {

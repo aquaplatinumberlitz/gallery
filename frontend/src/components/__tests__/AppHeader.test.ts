@@ -13,8 +13,9 @@ let fieldedSearchIsActive = false;
 const removeFilterMock = vi.fn((index: number) => {
   fieldedFiltersRef.value.splice(index, 1);
   queryStringRef.value = "";
+  return queryStringRef.value;
 });
-const clearAllMock = vi.fn();
+const clearAllMock = vi.fn(() => "");
 const goBackMock = vi.fn();
 const goForwardMock = vi.fn();
 const browseIsLoadingRef = ref(false);

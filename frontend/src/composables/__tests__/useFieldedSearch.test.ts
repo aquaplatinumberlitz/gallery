@@ -1,73 +1,52 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
+import { ref } from "vue";
 import { useFieldedSearch } from "../useFieldedSearch";
 import type { FieldFilter } from "@/types";
 
-// useFieldedSearch uses module-level state, so each test affects the same state
 describe("useFieldedSearch", () => {
-  beforeEach(() => {
-    const { clearAll } = useFieldedSearch();
-    clearAll();
-  });
-
-  it("starts with no active filters", () => {
-    const { isActive, fieldedFilters } = useFieldedSearch();
-    expect(isActive.value).toBe(false);
-    expect(fieldedFilters.value).toHaveLength(0);
-  });
-
-  it("applies filters and marks as active", () => {
-    const { applyFilters, isActive, fieldedFilters } = useFieldedSearch();
-    const filters: FieldFilter[] = [{ field: "prompt", operator: "contains", value: "cat" }];
-    applyFilters(filters);
-    expect(isActive.value).toBe(true);
-    expect(fieldedFilters.value).toEqual(filters);
-  });
-
-  it("removes a filter by index", () => {
-    const { applyFilters, removeFilter, fieldedFilters } = useFieldedSearch();
-    applyFilters([
-      { field: "prompt", operator: "contains", value: "cat" },
-      { field: "model", operator: "equals", value: "sd-xl" },
+  it("derives managed filters from the raw query", () => {
+    const rawQuery = ref("cat model:pony seed:>=12");
+    const search = useFieldedSearch(rawQuery);
+    expect(search.isActive.value).toBe(true);
+    expect(search.residualText.value).toBe("cat");
+    expect(search.fieldedFilters.value).toEqual([
+      { field: "model", value: "pony", operator: undefined },
+      { field: "seed", value: "12", operator: ">=" },
     ]);
-    expect(fieldedFilters.value).toHaveLength(2);
-    removeFilter(0);
-    expect(fieldedFilters.value).toHaveLength(1);
-    expect(fieldedFilters.value[0].field).toBe("model");
   });
 
-  it("clearAll resets filters and cache", () => {
-    const { applyFilters, clearAll, isActive, fieldedFilters, queryString } = useFieldedSearch();
-    applyFilters([{ field: "prompt", operator: "contains", value: "cat" }]);
-    expect(isActive.value).toBe(true);
-    clearAll();
-    expect(isActive.value).toBe(false);
-    expect(fieldedFilters.value).toHaveLength(0);
-    expect(queryString.value).toBe("");
+  it("replaces managed filters without dropping residual or pass-through text", () => {
+    const rawQuery = ref("cat tool:ComfyUI model:pony");
+    const search = useFieldedSearch(rawQuery);
+    const next = search.applyFilters([{ field: "sampler", value: "Euler a" }]);
+    expect(next).toBe('cat tool:ComfyUI sampler:"Euler a"');
   });
 
-  it("isActive is false after removing last filter", () => {
-    const { applyFilters, removeFilter, isActive } = useFieldedSearch();
-    applyFilters([{ field: "prompt", operator: "contains", value: "cat" }]);
-    expect(isActive.value).toBe(true);
-    removeFilter(0);
-    expect(isActive.value).toBe(false);
+  it("removes and clears filters explicitly", () => {
+    const rawQuery = ref("cat model:pony seed:12");
+    const search = useFieldedSearch(rawQuery);
+    rawQuery.value = search.removeFilter(0);
+    expect(search.fieldedFilters.value).toEqual([{ field: "seed", value: "12", operator: undefined }]);
+    rawQuery.value = search.clearAll();
+    expect(rawQuery.value).toBe("cat");
+    expect(search.isActive.value).toBe(false);
   });
 
-  it("generates query string from filters", () => {
-    const { applyFilters, queryString } = useFieldedSearch();
-
-    // The actual serialization is done by serializeAdvancedSearchToQuery
-    // We just verify it's called and a string is produced
-    applyFilters([{ field: "prompt", operator: "contains", value: "cat" }]);
-    expect(queryString.value).toBeTruthy();
-    expect(typeof queryString.value).toBe("string");
+  it("keeps instances isolated because each reads its own query", () => {
+    const firstQuery = ref("model:pony");
+    const secondQuery = ref("seed:42");
+    const first = useFieldedSearch(firstQuery);
+    const second = useFieldedSearch(secondQuery);
+    firstQuery.value = first.applyFilters([{ field: "sampler", value: "Euler" }]);
+    expect(first.fieldedFilters.value).toEqual([{ field: "sampler", value: "Euler", operator: undefined }]);
+    expect(second.fieldedFilters.value).toEqual([{ field: "seed", value: "42", operator: undefined }]);
   });
 
-  it("caches query string between calls", () => {
-    const { applyFilters, queryString } = useFieldedSearch();
-    applyFilters([{ field: "prompt", operator: "contains", value: "cat" }]);
-    const firstQuery = queryString.value;
-    const secondQuery = queryString.value;
-    expect(firstQuery).toBe(secondQuery);
+  it("accepts a plain string or getter", () => {
+    const filters: FieldFilter[] = [{ field: "model", value: "SDXL" }];
+    expect(useFieldedSearch("model:SDXL").fieldedFilters.value).toEqual([
+      { field: "model", value: "SDXL", operator: undefined },
+    ]);
+    expect(useFieldedSearch(() => "model:SDXL").applyFilters(filters)).toBe("model:SDXL");
   });
 });

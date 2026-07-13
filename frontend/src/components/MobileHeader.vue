@@ -194,6 +194,7 @@ const gallerySortValue = computed<SortValue>({
             data-focus-ring="none"
           />
           <div class="search-focus-actions">
+            <span v-if="hasQuery" class="search-focus-relevance">Relevance</span>
             <SearchScopeSelect
               :model-value="searchScope"
               :current-label="folderName"
@@ -587,6 +588,13 @@ const gallerySortValue = computed<SortValue>({
   align-self: stretch;
   flex-shrink: 0;
   gap: 2px;
+}
+
+.search-focus-relevance {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 /* Subtle vertical divider */

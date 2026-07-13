@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useFacetsQuery } from "@/composables/useFacetsQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
+import { useGalleryStore } from "@/stores/gallery";
 import { filterToDisplayString } from "@/utils/serializeAdvancedSearchToQuery";
 import type { FacetEntry, FieldFilter } from "@/types";
 import AdvancedSearchNumericField from "./AdvancedSearchNumericField.vue";
@@ -42,9 +43,15 @@ const emit = defineEmits<{
   apply: [filters: FieldFilter[]];
 }>();
 
+const galleryStore = useGalleryStore();
 const { activeImportRootPath } = useActiveLibrarySelection();
+const facetContext = computed(() => ({
+  scope: galleryStore.searchScope === "all" ? ("all" as const) : ("folder" as const),
+  libraryId: galleryStore.activeLibraryId,
+  path: galleryStore.currentBrowsePath || activeImportRootPath.value,
+}));
 const facetsQuery = useFacetsQuery(
-  computed(() => activeImportRootPath.value),
+  facetContext,
   computed(() => props.isOpen),
 );
 
@@ -145,6 +152,13 @@ const facetData = computed(() => facetsQuery.data.value);
 const facetModelOptions = computed(() => facetData.value?.model?.map((entry: FacetEntry) => entry.value) ?? []);
 const facetSamplerOptions = computed(() => facetData.value?.sampler?.map((entry: FacetEntry) => entry.value) ?? []);
 const facetSchedulerOptions = computed(() => facetData.value?.scheduler?.map((entry: FacetEntry) => entry.value) ?? []);
+const facetLoraOptions = computed(() => facetData.value?.lora?.map((entry: FacetEntry) => entry.value) ?? []);
+const additionalFacetGroups = computed(() => [
+  { label: "Tools", entries: facetData.value?.tool ?? [] },
+  { label: "Orientation", entries: facetData.value?.orientation ?? [] },
+  { label: "Seed", entries: facetData.value?.seed_availability ?? [] },
+  { label: "Metadata", entries: facetData.value?.metadata_availability ?? [] },
+]);
 const facetsLoading = computed(() => facetsQuery.isLoading.value);
 const facetsFailed = computed(() => facetsQuery.isError?.value ?? false);
 
@@ -265,6 +279,31 @@ watch(
               </li>
             </ul>
           </div>
+
+          <section
+            v-if="additionalFacetGroups.some((group) => group.entries.length)"
+            class="mb-4"
+            aria-label="Indexed facets"
+          >
+            <p class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Indexed facets</p>
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div
+                v-for="group in additionalFacetGroups"
+                :key="group.label"
+                class="min-w-0 rounded-md border bg-background px-2.5 py-2"
+              >
+                <p class="text-xs font-medium">{{ group.label }}</p>
+                <p class="mt-0.5 truncate text-xs text-muted-foreground">
+                  {{
+                    group.entries
+                      .slice(0, 2)
+                      .map((entry) => `${entry.value} (${entry.count})`)
+                      .join(", ") || "None indexed"
+                  }}
+                </p>
+              </div>
+            </div>
+          </section>
 
           <Accordion
             type="multiple"
@@ -455,9 +494,16 @@ watch(
                         ><Input
                           id="advanced-search-lora"
                           :model-value="field.state.value"
+                          list="lora-datalist"
                           placeholder="detail-slider"
                           @update:model-value="field.handleChange"
                         />
+                        <datalist id="lora-datalist">
+                          <option v-for="option in facetLoraOptions" :key="option" :value="option" />
+                        </datalist>
+                        <FieldDescription v-if="facetStatus(facetLoraOptions)" class="text-xs" aria-live="polite">
+                          {{ facetStatus(facetLoraOptions) }}
+                        </FieldDescription>
                       </Field>
                     </form.Field>
                     <form.Field name="vae" v-slot="{ field }">

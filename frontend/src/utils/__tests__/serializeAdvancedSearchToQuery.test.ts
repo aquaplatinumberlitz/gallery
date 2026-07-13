@@ -89,7 +89,7 @@ describe("filterToDisplayString", () => {
 
   it("quotes values that need quoting", () => {
     expect(filterToDisplayString({ field: "prompt", value: "hello world" })).toBe('prompt:"hello world"');
-    expect(filterToDisplayString({ field: "prompt", value: 'say "hi"' })).toBe('prompt:"say "hi""');
+    expect(filterToDisplayString({ field: "prompt", value: 'say "hi"' })).toBe('prompt:"say \\"hi\\""');
   });
 
   it("does not quote plain values", () => {

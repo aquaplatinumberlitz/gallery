@@ -24,8 +24,12 @@ export function useLibraryInspectorFilters({ scope, currentPath }: UseLibraryIns
     },
   });
 
-  const facetPath = computed(() => (scope.value === "all" ? null : currentPath.value || undefined));
-  const facetsQuery = useFacetsQuery(facetPath, true, true);
+  const facetContext = computed(() => ({
+    scope: scope.value === "all" ? ("all" as const) : ("folder" as const),
+    libraryId: galleryStore.activeLibraryId,
+    path: currentPath.value,
+  }));
+  const facetsQuery = useFacetsQuery(facetContext);
   const modelOptions = computed(() => {
     const options = new Set(facetsQuery.data.value?.model?.map((entry) => entry.value) ?? []);
     if (modelFilter.value !== "all") options.add(modelFilter.value);

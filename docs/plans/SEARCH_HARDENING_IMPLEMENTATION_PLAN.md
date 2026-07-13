@@ -302,43 +302,43 @@ responsibilities touched by this work.
 
 ### Required implementation
 
-- [ ] Keep the raw query as the single source of truth.
-- [ ] Parse into residual text, managed filters, and pass-through/unknown tokens.
-- [ ] Support the backend's single quotes, double quotes, escaping, operators,
+- [x] Keep the raw query as the single source of truth.
+- [x] Parse into residual text, managed filters, and pass-through/unknown tokens.
+- [x] Support the backend's single quotes, double quotes, escaping, operators,
       repeated fields, and Unicode behavior.
-- [ ] Applying Advanced Search replaces managed filters while preserving
+- [x] Applying Advanced Search replaces managed filters while preserving
       residual and pass-through text. `cat model:pony` must remain a `cat`
       search after adding another filter.
-- [ ] Remove module-level reactive state and computed getters that write state.
-- [ ] Use `shallowRef()` for new primitive local state and pure `computed()` for
+- [x] Remove module-level reactive state and computed getters that write state.
+- [x] Use `shallowRef()` for new primitive local state and pure `computed()` for
       derivations; watchers are only for side effects.
-- [ ] Pass the TanStack Query `AbortSignal` into the API request.
-- [ ] Deduplicate canonical media by `library_id + asset_id`; use exact,
+- [x] Pass the TanStack Query `AbortSignal` into the API request.
+- [x] Deduplicate canonical media by `library_id + asset_id`; use exact,
       case-preserved path only as a compatibility fallback.
-- [ ] Never lowercase Linux paths. `/A.png` and `/a.png` may be distinct rows.
-- [ ] Prefer canonical `media`; consume legacy arrays only when `media` is absent.
-- [ ] Render five search states distinctly:
+- [x] Never lowercase Linux paths. `/A.png` and `/a.png` may be distinct rows.
+- [x] Prefer canonical `media`; consume legacy arrays only when `media` is absent.
+- [x] Render five search states distinctly:
   1. initial pending;
   2. blocking error with retry;
   3. stale data plus background-error warning;
   4. next-page error with footer retry;
   5. successful empty result.
-- [ ] Render `match_type`, prompt snippet, model, sampler, seed, and library
+- [x] Render `match_type`, prompt snippet, model, sampler, seed, and library
       context. Never use `v-html` for snippets.
-- [ ] While search is active, replace/disable generic gallery sort with a
+- [x] While search is active, replace/disable generic gallery sort with a
       visible `Relevance` label. Restore the prior browse sort after clearing.
-- [ ] Facet requests use the exact same folder/library/all context and query key.
-- [ ] Expose the existing tool, orientation, availability, and LoRA facets in
+- [x] Facet requests use the exact same folder/library/all context and query key.
+- [x] Expose the existing tool, orientation, availability, and LoRA facets in
       addition to model, sampler, and scheduler.
 
 ### Acceptance gates
 
-- [ ] Multiple `useFieldedSearch()` instances do not share state.
-- [ ] Parser/serializer round-trips preserve meaning and residual text.
-- [ ] Search errors never render as `No results`.
-- [ ] Retrying a failed next page preserves earlier pages.
-- [ ] Prompt snippets are HTML-escaped by Vue interpolation.
-- [ ] Desktop, tablet, and mobile share semantics even when layouts differ.
+- [x] Multiple `useFieldedSearch()` instances do not share state.
+- [x] Parser/serializer round-trips preserve meaning and residual text.
+- [x] Search errors never render as `No results`.
+- [x] Retrying a failed next page preserves earlier pages.
+- [x] Prompt snippets are HTML-escaped by Vue interpolation.
+- [x] Desktop, tablet, and mobile share semantics even when layouts differ.
 
 ## H6 - Regression, benchmark, and documentation gates
 
@@ -400,3 +400,4 @@ When complete, move this file to `docs/archived/` and update
 | 2026-07-13 | H2 | Complete | DB-only search joins and browse-shared album aggregation; 82 focused backend tests passed with filesystem hot-path guards and library/import ownership coverage. |
 | 2026-07-13 | H3 | Complete | Unified tiered candidate CTE and request-bound opaque keyset cursors; 176 focused search tests plus 9 ranking/cursor goldens passed. |
 | 2026-07-13 | H4 | Complete | Typed Pydantic/OpenAPI contracts and shared canonical scope resolver; 7 contract goldens plus 183 focused backend tests and 74 frontend cursor/API tests passed. |
+| 2026-07-13 | H5 | Complete | Instance-local lossless query grammar, canonical case-sensitive result merging, scoped facets, five-state search feedback, metadata rendering, and Relevance UI; 164 focused unit tests and 18 managed search E2E tests passed. |

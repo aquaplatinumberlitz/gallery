@@ -76,7 +76,8 @@ export const queryKeys = {
 
   libraryInspectorRoot: () => ["library-inspector"] as const,
 
-  facets: (path: string) => ["facets", normalizeQueryPath(path)] as const,
+  facets: (scope: string, libraryId: number | null | undefined, path: string | null | undefined) =>
+    ["facets", scope, libraryId ?? null, normalizeQueryPath(path)] as const,
 
   libraryInspector: (
     query: string,

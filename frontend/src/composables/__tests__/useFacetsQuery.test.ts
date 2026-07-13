@@ -14,16 +14,18 @@ const mockFacets = {
   model: [{ value: "sd-v1.5", count: 30 }],
 };
 
-function setup(path: string | null | undefined, enabled = true, allowGlobal = false) {
+function setup(
+  context: { scope: "folder" | "library" | "all"; libraryId?: number | null; path?: string | null },
+  enabled = true,
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   let result!: ReturnType<typeof useFacetsQuery>;
   const wrapper = mount(
     defineComponent({
       setup() {
         result = useFacetsQuery(
-          () => path,
+          () => context,
           () => enabled,
-          allowGlobal,
         );
         return () => h("div");
       },
@@ -40,44 +42,49 @@ beforeEach(() => {
 
 describe("useFacetsQuery", () => {
   it("fetches facets when path is provided", async () => {
-    const { result } = setup("/photos");
+    const context = { scope: "folder" as const, libraryId: 1, path: "/photos" };
+    const { result } = setup(context);
     await vi.waitFor(() => expect(result.data.value).toEqual(mockFacets));
-    expect(fetchFacets).toHaveBeenCalledWith("/photos");
+    expect(fetchFacets).toHaveBeenCalledWith(context, expect.any(AbortSignal));
   });
 
   it("does not fetch when path is empty or null", () => {
-    setup("");
+    setup({ scope: "folder", libraryId: 1, path: "" });
     expect(fetchFacets).not.toHaveBeenCalled();
-    setup(null);
+    setup({ scope: "library", libraryId: null });
     expect(fetchFacets).not.toHaveBeenCalled();
   });
 
   it("fetches global facets when an explicit null scope is allowed", async () => {
-    const { result } = setup(null, true, true);
+    const context = { scope: "all" as const, libraryId: null, path: null };
+    const { result } = setup(context);
     await vi.waitFor(() => expect(result.data.value).toEqual(mockFacets));
-    expect(fetchFacets).toHaveBeenCalledWith(undefined);
+    expect(fetchFacets).toHaveBeenCalledWith({ scope: "all", libraryId: null, path: "" }, expect.any(AbortSignal));
   });
 
   it("does not fetch when enabled is false", () => {
-    setup("/photos", false);
+    setup({ scope: "folder", libraryId: 1, path: "/photos" }, false);
     expect(fetchFacets).not.toHaveBeenCalled();
   });
 
   it("has correct query key", async () => {
-    const { result } = setup("/photos");
+    const { result } = setup({ scope: "folder", libraryId: 1, path: "/photos" });
     await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
-    expect(fetchFacets).toHaveBeenCalledWith("/photos");
+    expect(fetchFacets).toHaveBeenCalledWith(
+      { scope: "folder", libraryId: 1, path: "/photos" },
+      expect.any(AbortSignal),
+    );
   });
 
   it("has isPending true while loading", () => {
     vi.mocked(fetchFacets).mockReturnValue(new Promise(() => {}));
-    const { result } = setup("/photos");
+    const { result } = setup({ scope: "folder", libraryId: 1, path: "/photos" });
     expect(result.isPending.value).toBe(true);
   });
 
   it("sets isError on fetch failure", async () => {
     vi.mocked(fetchFacets).mockRejectedValue(new Error("network error"));
-    const { result } = setup("/photos");
+    const { result } = setup({ scope: "folder", libraryId: 1, path: "/photos" });
     await vi.waitFor(() => expect(result.isError.value).toBe(true));
     expect(result.error.value).toBeTruthy();
   });

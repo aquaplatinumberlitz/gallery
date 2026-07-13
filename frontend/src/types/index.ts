@@ -160,7 +160,7 @@ export interface UnifiedSearchResponse extends UnifiedSearchResults {
   query: string;
   scope: CanonicalSearchScope;
   root: string;
-  media: UnifiedSearchResult[];
+  media?: UnifiedSearchResult[];
   next_cursor: string | null;
   has_more: boolean;
   returned: number;
@@ -193,6 +193,12 @@ export interface FacetsResponse {
   lora?: FacetEntry[];
   folders?: FacetEntry[];
   [key: string]: FacetEntry[] | undefined;
+}
+
+export interface FacetRequestContext {
+  scope: CanonicalSearchScope;
+  libraryId?: number | null;
+  path?: string | null;
 }
 
 export interface LibraryInspectorRow {

@@ -81,7 +81,11 @@ describe("useUnifiedSearchQuery", () => {
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
 
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
-    expect(unifiedSearch).toHaveBeenCalledWith("cat", { scope: "all", path: "", limit: 60, cursor: undefined });
+    expect(unifiedSearch).toHaveBeenCalledWith(
+      "cat",
+      { scope: "all", path: "", limit: 60, cursor: undefined },
+      expect.any(AbortSignal),
+    );
   });
 
   it("does not fetch when query is empty", () => {
@@ -118,7 +122,9 @@ describe("useUnifiedSearchQuery", () => {
     expect(unifiedSearch).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
-    await vi.waitFor(() => expect(unifiedSearch).toHaveBeenCalledWith("cat", expect.anything()));
+    await vi.waitFor(() =>
+      expect(unifiedSearch).toHaveBeenCalledWith("cat", expect.anything(), expect.any(AbortSignal)),
+    );
   });
 
   it("clears previous results for a new query while the next fetch is pending", async () => {
@@ -145,12 +151,11 @@ describe("useUnifiedSearchQuery", () => {
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
 
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
-    expect(unifiedSearch).toHaveBeenCalledWith("cat", {
-      scope: "current",
-      path: "/photos",
-      limit: 60,
-      cursor: undefined,
-    });
+    expect(unifiedSearch).toHaveBeenCalledWith(
+      "cat",
+      { scope: "current", path: "/photos", limit: 60, cursor: undefined },
+      expect.any(AbortSignal),
+    );
   });
 
   it("fetches the next page with the previous next_cursor", async () => {
@@ -166,12 +171,11 @@ describe("useUnifiedSearchQuery", () => {
     await result.fetchNextPage();
 
     await vi.waitFor(() => expect(result.results.value.media?.map((item) => item.name)).toEqual(["1.png", "2.png"]));
-    expect(unifiedSearch).toHaveBeenLastCalledWith("cat", {
-      scope: "all",
-      path: "",
-      limit: 60,
-      cursor: "cursor-1",
-    });
+    expect(unifiedSearch).toHaveBeenLastCalledWith(
+      "cat",
+      { scope: "all", path: "", limit: 60, cursor: "cursor-1" },
+      expect.any(AbortSignal),
+    );
   });
 
   it("has isPending true while loading", () => {
@@ -185,5 +189,57 @@ describe("useUnifiedSearchQuery", () => {
     const { result } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(result.isError.value).toBe(true));
+  });
+
+  it("deduplicates by library and asset identity before path", async () => {
+    const first = { ...makeSearchResult("A.png"), library_id: 4, asset_id: 9, path: "/A.png" };
+    const duplicate = { ...first, path: "/renamed.png" };
+    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults({ media: [first, duplicate] }));
+    const { result } = setup("cat", "all", "");
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
+    await vi.waitFor(() => expect(result.media.value).toEqual([first]));
+  });
+
+  it("keeps case-distinct compatibility paths", async () => {
+    const upper = { ...makeSearchResult("A.png"), path: "/A.png" };
+    const lower = { ...makeSearchResult("a.png"), path: "/a.png" };
+    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults({ media: [upper, lower] }));
+    const { result } = setup("cat", "all", "");
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
+    await vi.waitFor(() => expect(result.media.value).toEqual([upper, lower]));
+  });
+
+  it("uses legacy arrays only when canonical media is absent", async () => {
+    const photo = makeSearchResult("legacy.png");
+    const response = makeMockResults({ photos: [photo], prompt: [], videos: [] });
+    delete response.media;
+    vi.mocked(unifiedSearch).mockResolvedValue(response);
+    const { result } = setup("cat", "all", "");
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
+    await vi.waitFor(() => expect(result.media.value).toEqual([photo]));
+
+    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults({ media: [], photos: [photo] }));
+    const second = setup("dog", "all", "");
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
+    await vi.waitFor(() => expect(second.result.media.value).toEqual([]));
+  });
+
+  it("preserves earlier pages while retrying a failed next page", async () => {
+    const first = makeSearchResult("1.png");
+    const second = makeSearchResult("2.png");
+    vi.mocked(unifiedSearch)
+      .mockResolvedValueOnce(makeMockResults({ media: [first], next_cursor: "cursor-1", has_more: true }))
+      .mockRejectedValueOnce(new Error("page failed"))
+      .mockResolvedValueOnce(makeMockResults({ media: [second], next_cursor: null, has_more: false }));
+    const { result } = setup("cat", "all", "");
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
+    await vi.waitFor(() => expect(result.hasNextPage.value).toBe(true));
+
+    await result.fetchNextPage();
+    await vi.waitFor(() => expect(result.isFetchNextPageError.value).toBe(true));
+    expect(result.media.value).toEqual([first]);
+
+    await result.fetchNextPage();
+    await vi.waitFor(() => expect(result.media.value).toEqual([first, second]));
   });
 });

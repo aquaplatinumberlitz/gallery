@@ -2,6 +2,7 @@ import axios, { AxiosError } from "axios";
 import type {
   BrowseResponse,
   FacetsResponse,
+  FacetRequestContext,
   FolderChildrenResponse,
   GalleryStats,
   GeneratedImageKind,
@@ -283,6 +284,7 @@ export const fetchMetadata = async (path: string, signal?: AbortSignal): Promise
 export const unifiedSearch = async (
   query: string,
   opts?: { scope?: SearchScope; path?: string; limit?: number; cursor?: string },
+  signal?: AbortSignal,
 ): Promise<UnifiedSearchResponse> => {
   const { data } = await api.get<UnifiedSearchResponse>("/api/search", {
     params: {
@@ -292,6 +294,7 @@ export const unifiedSearch = async (
       limit: opts?.limit ?? 50,
       cursor: opts?.cursor,
     },
+    signal,
   });
   return data;
 };
@@ -343,9 +346,14 @@ export const getPreviewUrl = (path: string, maxLongEdge: number = 1440) => {
   return `${API_BASE}/api/preview?${params.toString()}`;
 };
 
-export const fetchFacets = async (path?: string): Promise<FacetsResponse> => {
+export const fetchFacets = async (context: FacetRequestContext, signal?: AbortSignal): Promise<FacetsResponse> => {
   const { data } = await api.get<FacetsResponse>("/api/facets", {
-    params: { path: path || undefined },
+    params: {
+      scope: context.scope,
+      library_id: context.scope === "all" ? undefined : (context.libraryId ?? undefined),
+      path: context.scope === "folder" ? (context.path ?? undefined) : undefined,
+    },
+    signal,
   });
   return data;
 };
