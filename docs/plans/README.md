@@ -9,6 +9,6 @@ plans.
 
 Active plans:
 
-*None currently.*
+- [Backend Audit Findings Remediation Plan](BACKEND_AUDIT_FINDINGS_REMEDIATION_PLAN.md) - proposed phased remediation for backend security, lifecycle, catalog, derivative, HTTP, and migration findings.
 
 Completed or superseded plans live in [Archived Documentation](../archived/README.md).
