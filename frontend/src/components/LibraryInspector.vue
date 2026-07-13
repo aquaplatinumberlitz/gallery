@@ -3,23 +3,18 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import {
   createColumnHelper,
   getCoreRowModel,
-  getSortedRowModel,
   useVueTable,
   type SortingState,
   type VisibilityState,
 } from "@tanstack/vue-table";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { ArrowUpDown, Columns3, Copy, ExternalLink, MoreHorizontal, Search, X } from "lucide-vue-next";
+import { ArrowUpDown, Copy, ExternalLink, MoreHorizontal } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
-import Input from "@/components/ui/Input.vue";
-import SortSelect from "@/components/SortSelect.vue";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -31,12 +26,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import CopyActionButton from "@/components/ui/CopyActionButton.vue";
 import CopyStateIcon from "@/components/ui/CopyStateIcon.vue";
+import LibraryInspectorToolbar from "@/components/library-inspector/LibraryInspectorToolbar.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import { useCollapsibleHeader } from "@/composables/useCollapsibleHeader";
 import { useCatalogStatusQuery } from "@/composables/useCatalogStatusQuery";
 import { useToast } from "@/composables/useToast";
 import { useLibraryInspectorMetadataQuery } from "@/composables/useLibraryInspectorMetadataQuery";
 import { useInfiniteLibraryInspectorQuery } from "@/composables/useInfiniteLibraryInspectorQuery";
+import { useLibraryInspectorFilters } from "@/composables/useLibraryInspectorFilters";
 import { useGalleryStore } from "@/stores/gallery";
 import { useLightboxStore } from "@/stores/lightbox";
 import { fetchLibraryInspectorMetadata, getThumbnailUrl } from "@/services/api";
@@ -92,18 +89,6 @@ const tableStateToSortValue = (id: string, desc: boolean): SortValue | null => {
 };
 const sorting = ref<SortingState>(sortValueToTableState(inspectorSort.value));
 const columnVisibility = ref<VisibilityState>({});
-const modelFilter = computed({
-  get: () => galleryStore.metadataInspector.modelFilter,
-  set: (value: string) => {
-    galleryStore.metadataInspector.modelFilter = value;
-  },
-});
-const promptFilter = computed<"all" | "has_prompt" | "no_prompt">({
-  get: () => galleryStore.metadataInspector.promptFilter,
-  set: (value) => {
-    galleryStore.metadataInspector.promptFilter = value;
-  },
-});
 const selectedPath = computed({
   get: () => galleryStore.metadataInspector.selectedPath,
   set: (value: string) => {
@@ -119,7 +104,19 @@ let latestCopyFallbackRoot: HTMLElement | null = null;
 
 const { isHeaderCollapsed: isInspectorHeaderCollapsed } = useCollapsibleHeader(tableShellRef);
 
-const inspectorQuery = useInfiniteLibraryInspectorQuery(query, scope, currentPath, limit, inspectorSort);
+const { modelFilter, promptFilter, modelOptions, activeFilterCount } = useLibraryInspectorFilters({
+  scope,
+  currentPath,
+});
+const inspectorQuery = useInfiniteLibraryInspectorQuery({
+  query,
+  scope,
+  path: currentPath,
+  limit,
+  sort: inspectorSort,
+  model: computed(() => (modelFilter.value === "all" ? "" : modelFilter.value)),
+  prompt: promptFilter,
+});
 const metadataQuery = useLibraryInspectorMetadataQuery(detailPath, detailEnabled);
 const rebuildStartedAt = computed(() => (scope.value === "current" ? getScopeRebuildStartedAt(currentPath.value) : 0));
 const indexStatusEnabled = computed(
@@ -225,6 +222,8 @@ function refetchInspectorAfterRebuild(reason: string) {
       currentPath.value,
       limit.value,
       inspectorSort.value,
+      modelFilter.value === "all" ? "" : modelFilter.value,
+      promptFilter.value,
     ),
     rebuild_started_at: rebuildStartedAt.value,
     inspector_generated_at: inspectorQuery.data.value.generated_at,
@@ -296,12 +295,12 @@ const columnHelper = createColumnHelper<LibraryInspectorRow>();
 const columns = [
   columnHelper.accessor("name", { id: "name", header: "File", enableSorting: true }),
   columnHelper.accessor("prompt_preview", { id: "prompt", header: "Prompt preview", enableSorting: false }),
-  columnHelper.accessor((row) => row.model || row.tool, { id: "model", header: "Model", enableSorting: true }),
-  columnHelper.accessor("seed", { id: "seed", header: "Seed", enableSorting: true }),
+  columnHelper.accessor((row) => row.model || row.tool, { id: "model", header: "Model", enableSorting: false }),
+  columnHelper.accessor("seed", { id: "seed", header: "Seed", enableSorting: false }),
   columnHelper.accessor((row) => `${row.width || ""}x${row.height || ""}`, {
     id: "dimensions",
     header: "Size",
-    enableSorting: true,
+    enableSorting: false,
   }),
   columnHelper.accessor("mtime", { id: "mtime", header: "Modified", enableSorting: true }),
   columnHelper.display({ id: "actions", header: "", enableSorting: false }),
@@ -319,30 +318,7 @@ const HIDEABLE_COLUMNS: { id: HideableColumnId; label: string; width: number }[]
 const PINNED_COLUMN_MIN_WIDTH = 416;
 const MIN_METADATA_TABLE_WIDTH = 720;
 
-const modelOptions = computed(() => {
-  const options = new Set<string>();
-  for (const row of inspectorQuery.rows.value) {
-    const label = modelLabel(row);
-    if (label && label !== "Unknown") options.add(label);
-  }
-  return Array.from(options).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-});
-
-watch(modelOptions, (options) => {
-  if (modelFilter.value !== "all" && !options.includes(modelFilter.value)) {
-    modelFilter.value = "all";
-  }
-});
-
-const filteredRows = computed(() =>
-  inspectorQuery.rows.value.filter((row) => {
-    if (modelFilter.value !== "all" && modelLabel(row) !== modelFilter.value) return false;
-    if (promptFilter.value === "has_prompt" && !row.has_prompt) return false;
-    if (promptFilter.value === "no_prompt" && row.has_prompt) return false;
-    return true;
-  }),
-);
-const activeFilterCount = computed(() => Number(modelFilter.value !== "all") + Number(promptFilter.value !== "all"));
+const tableRows = computed(() => inspectorQuery.rows.value);
 watch(inspectorSort, (value) => {
   const next = sortValueToTableState(value);
   if (sorting.value[0]?.id !== next[0]?.id || sorting.value[0]?.desc !== next[0]?.desc) {
@@ -360,7 +336,7 @@ watch(sorting, () => {
 
 const table = useVueTable({
   get data() {
-    return filteredRows.value;
+    return tableRows.value;
   },
   columns,
   state: {
@@ -379,12 +355,18 @@ const table = useVueTable({
     columnVisibility.value = typeof updater === "function" ? updater(columnVisibility.value) : updater;
   },
   enableSortingRemoval: false,
+  manualSorting: true,
   getCoreRowModel: getCoreRowModel(),
-  getSortedRowModel: getSortedRowModel(),
 });
 const hiddenColumnCount = computed(
   () => HIDEABLE_COLUMNS.filter((column) => table.getColumn(column.id)?.getIsVisible() === false).length,
 );
+const hiddenColumnIds = computed(() =>
+  HIDEABLE_COLUMNS.filter((column) => table.getColumn(column.id)?.getIsVisible() === false).map((column) => column.id),
+);
+function toggleColumnVisibility(id: string, visible: boolean) {
+  table.getColumn(id)?.toggleVisibility(visible);
+}
 const visibleColumnSpan = computed(() => 2 + HIDEABLE_COLUMNS.length - hiddenColumnCount.value);
 const metadataTableMinWidth = computed(() => {
   const visibleColumnsWidth = HIDEABLE_COLUMNS.reduce(
@@ -742,100 +724,17 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
       </div>
     </motion.div>
 
-    <div class="table-toolbar">
-      <div class="inspector-search relative">
-        <Search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/80" />
-        <Input
-          id="metadata-table-search"
-          name="metadata-table-search"
-          v-model="query"
-          type="search"
-          class="inspector-search-input h-10 pl-9 pr-9 shadow-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          placeholder="Search metadata, prompt, model, seed..."
-          aria-label="Search metadata table"
-        />
-        <button
-          v-if="query"
-          type="button"
-          class="search-clear-button"
-          aria-label="Clear metadata search"
-          @click="query = ''"
-        >
-          <X class="size-4" aria-hidden="true" />
-        </button>
-      </div>
-      <Badge v-if="activeFilterCount" variant="secondary" class="filter-count-badge">
-        {{ activeFilterCount }} {{ activeFilterCount === 1 ? "filter" : "filters" }}
-      </Badge>
-      <Select v-model="modelFilter">
-        <SelectTrigger
-          class="metadata-toolbar-trigger toolbar-select h-10 border-input bg-background text-sm font-normal text-foreground shadow-sm"
-        >
-          <SelectValue placeholder="Model" />
-        </SelectTrigger>
-        <SelectContent align="end">
-          <SelectGroup>
-            <SelectItem value="all"> All models </SelectItem>
-            <SelectItem v-for="model in modelOptions" :key="model" :value="model">
-              {{ model }}
-            </SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-      <Select v-model="promptFilter">
-        <SelectTrigger
-          class="metadata-toolbar-trigger toolbar-select h-10 border-input bg-background text-sm font-normal text-foreground shadow-sm"
-        >
-          <SelectValue placeholder="Has prompt" />
-        </SelectTrigger>
-        <SelectContent align="end">
-          <SelectGroup>
-            <SelectItem value="all"> All prompts </SelectItem>
-            <SelectItem value="has_prompt"> Has prompt </SelectItem>
-            <SelectItem value="no_prompt"> No prompt </SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-      <SortSelect
-        v-model="inspectorSort"
-        aria-label="Sort metadata table"
-        trigger-class="h-10 w-[150px] border-input bg-background text-sm font-normal text-foreground shadow-sm"
-      />
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button
-            variant="outline"
-            type="button"
-            class="metadata-toolbar-trigger toolbar-view-button"
-            aria-label="Toggle metadata table columns"
-          >
-            <span class="inline-flex min-w-0 items-center gap-2">
-              <Columns3 class="size-4 opacity-60" aria-hidden="true" />
-              <span class="truncate">View</span>
-            </span>
-            <span v-if="hiddenColumnCount" class="toolbar-count-pill" aria-hidden="true">
-              {{ hiddenColumnCount }}
-            </span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel class="text-xs text-muted-foreground">Columns</DropdownMenuLabel>
-          <DropdownMenuGroup>
-            <DropdownMenuCheckboxItem
-              v-for="column in HIDEABLE_COLUMNS"
-              :key="column.id"
-              :model-value="table.getColumn(column.id)?.getIsVisible() !== false"
-              @update:model-value="
-                (value: boolean | 'indeterminate') => table.getColumn(column.id)?.toggleVisibility(!!value)
-              "
-              @select="(event: Event) => event.preventDefault()"
-            >
-              {{ column.label }}
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <LibraryInspectorToolbar
+      v-model:query="query"
+      v-model:model-filter="modelFilter"
+      v-model:prompt-filter="promptFilter"
+      v-model:sort="inspectorSort"
+      :active-filter-count="activeFilterCount"
+      :model-options="modelOptions"
+      :columns="HIDEABLE_COLUMNS"
+      :hidden-column-ids="hiddenColumnIds"
+      @toggle-column="toggleColumnVisibility"
+    />
 
     <div
       v-if="inspectorQuery.isError.value"
@@ -1364,116 +1263,9 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
   gap: 12px;
 }
 
-.inspector-search {
-  min-width: 240px;
-  flex: 1 1 420px;
-  margin-block: 3px;
-  margin-left: 3px;
-}
-
-.table-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.toolbar-select {
-  height: 40px;
-  width: 150px;
-  flex: 0 0 auto;
-}
-
-.metadata-toolbar-trigger {
-  height: 40px;
-  border-color: var(--input);
-  background: var(--background);
-  color: var(--foreground);
-  font-size: 14px;
-  font-weight: 400;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-}
-
-.metadata-toolbar-trigger:hover,
-.metadata-toolbar-trigger[data-state="open"] {
-  background: var(--accent);
-  color: var(--accent-foreground);
-}
-
-.search-clear-button {
-  position: absolute;
-  inset-block: 0;
-  right: 0;
-  display: inline-flex;
-  width: 40px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 0 6px 6px 0;
-  background: transparent;
-  color: color-mix(in srgb, var(--muted-foreground) 80%, transparent);
-}
-
-.inspector-search-input::-webkit-search-decoration,
-.inspector-search-input::-webkit-search-cancel-button,
-.inspector-search-input::-webkit-search-results-button,
-.inspector-search-input::-webkit-search-results-decoration {
-  -webkit-appearance: none;
-  appearance: none;
-  display: none;
-}
-
-.search-clear-button:hover {
-  color: var(--foreground);
-}
-
-.search-clear-button:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring-shadow);
-}
-
-.filter-count-badge {
-  height: 20px;
-  flex: 0 0 auto;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--background);
-  color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
-  padding-inline: 4px;
-  font-size: 10px;
-  font-weight: 500;
-}
-
-.toolbar-view-button {
-  width: auto;
-  justify-content: space-between;
-  padding-inline: 12px;
-}
-
-.toolbar-count-pill {
-  display: inline-flex;
-  min-width: 18px;
-  height: 20px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--background);
-  color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 1;
-  padding-inline: 4px;
-}
-
 .gallery-icon-sm {
   height: 16px;
   width: 16px;
-}
-
-.sort-dropdown-content {
-  min-width: 150px;
 }
 
 .table-shell {
@@ -1852,19 +1644,13 @@ button.metadata-header-control:focus-visible {
 }
 
 @media (max-width: 900px) {
-  .inspector-header,
-  .table-toolbar {
+  .inspector-header {
     align-items: stretch;
     flex-direction: column;
   }
 
   .inspector-heading {
     align-items: flex-start;
-  }
-
-  .inspector-search,
-  .toolbar-select {
-    width: 100%;
   }
 }
 </style>

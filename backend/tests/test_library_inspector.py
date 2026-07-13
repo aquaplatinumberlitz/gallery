@@ -99,7 +99,6 @@ def test_library_inspector_scoped_current_returns_only_path_descendants(
 
     collected: list[Path] = []
     index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
-
     scoped = isolated_app.get(
         "/api/library/inspector",
         params={"q": "", "scope": "current", "path": str(isolated_gallery_root / "album_a"), "limit": 200},
@@ -164,6 +163,48 @@ def test_library_inspector_empty_query_returns_latest_rows(
         "metadata_detail_available",
     ):
         assert key in data["rows"][0]
+
+
+def test_library_inspector_applies_model_and_prompt_filters_before_cursor_pagination(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+):
+    from backend.metadata_store import _DB_LOCK, _connect, index_directory_tree
+
+    from .conftest import create_test_png_with_metadata
+
+    album = isolated_gallery_root / "filtered_album"
+    fixtures = [
+        ("pony-prompt.png", "PonyXL", "portrait"),
+        ("pony-empty.png", "PonyXL", ""),
+        ("sdxl-prompt.png", "SDXL", "landscape"),
+    ]
+    for name, model, prompt in fixtures:
+        create_test_png_with_metadata(album / name, model=model, prompt=prompt, seed=name)
+
+    collected: list[Path] = []
+    index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            "UPDATE image_metadata SET prompt = '' WHERE path = ?", (str((album / "pony-empty.png").resolve()),)
+        )
+        conn.commit()
+
+    has_prompt = isolated_app.get(
+        "/api/library/inspector",
+        params={"scope": "all", "limit": 1, "sort": "name_asc", "model": "PonyXL", "prompt": "has_prompt"},
+    )
+    assert has_prompt.status_code == 200
+    assert [row["name"] for row in has_prompt.json()["rows"]] == ["pony-prompt.png"]
+    assert has_prompt.json()["has_more"] is False
+
+    no_prompt = isolated_app.get(
+        "/api/library/inspector",
+        params={"scope": "all", "limit": 1, "sort": "name_asc", "model": "PonyXL", "prompt": "no_prompt"},
+    )
+    assert no_prompt.status_code == 200
+    assert [row["name"] for row in no_prompt.json()["rows"]] == ["pony-empty.png"]
+    assert no_prompt.json()["has_more"] is False
 
 
 def test_library_inspector_indexes_lora_from_json_when_lora_text_empty(

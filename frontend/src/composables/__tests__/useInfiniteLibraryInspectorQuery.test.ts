@@ -4,7 +4,13 @@ import { defineComponent, h, ref } from "vue";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { fetchLibraryInspector } from "@/services/api";
 import { useInfiniteLibraryInspectorQuery } from "../useInfiniteLibraryInspectorQuery";
-import type { SearchScope, SortValue, LibraryInspectorResponse, LibraryInspectorRow } from "@/types";
+import type {
+  SearchScope,
+  SortValue,
+  LibraryInspectorResponse,
+  LibraryInspectorRow,
+  PromptPresenceFilter,
+} from "@/types";
 
 vi.mock("@/services/api", () => ({
   fetchLibraryInspector: vi.fn(),
@@ -49,24 +55,42 @@ const makeMockPage = (overrides?: Partial<LibraryInspectorResponse>): LibraryIns
   ...overrides,
 });
 
-function setup(query: string, scope: SearchScope, path: string, limit: number, sort: SortValue) {
+function setup(
+  query: string,
+  scope: SearchScope,
+  path: string,
+  limit: number,
+  sort: SortValue,
+  model = "",
+  prompt: PromptPresenceFilter = "all",
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const queryRef = ref(query);
   const scopeRef = ref(scope);
   const pathRef = ref(path);
   const limitRef = ref(limit);
   const sortRef = ref(sort);
+  const modelRef = ref(model);
+  const promptRef = ref(prompt);
   let result!: ReturnType<typeof useInfiniteLibraryInspectorQuery>;
   const wrapper = mount(
     defineComponent({
       setup() {
-        result = useInfiniteLibraryInspectorQuery(queryRef, scopeRef, pathRef, limitRef, sortRef);
+        result = useInfiniteLibraryInspectorQuery({
+          query: queryRef,
+          scope: scopeRef,
+          path: pathRef,
+          limit: limitRef,
+          sort: sortRef,
+          model: modelRef,
+          prompt: promptRef,
+        });
         return () => h("div");
       },
     }),
     { global: { plugins: [[VueQueryPlugin, { queryClient }]] } },
   );
-  return { result, queryClient, wrapper, queryRef, scopeRef, pathRef, limitRef, sortRef };
+  return { result, queryClient, wrapper, queryRef, scopeRef, pathRef, limitRef, sortRef, modelRef, promptRef };
 }
 
 beforeEach(() => {
@@ -90,7 +114,27 @@ describe("useInfiniteLibraryInspectorQuery", () => {
       limit: 200,
       sort: "date_desc",
       cursor: undefined,
+      model: "",
+      prompt: "all",
     });
+  });
+
+  it("sends server-side model and prompt filters and refetches when they change", async () => {
+    const { result, modelRef, promptRef } = setup("", "all", "", 200, "date_desc", "SDXL", "has_prompt");
+    await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
+    expect(fetchLibraryInspector).toHaveBeenLastCalledWith(
+      expect.objectContaining({ model: "SDXL", prompt: "has_prompt" }),
+    );
+
+    vi.mocked(fetchLibraryInspector).mockClear();
+    modelRef.value = "PonyXL";
+    promptRef.value = "no_prompt";
+
+    await vi.waitFor(() =>
+      expect(fetchLibraryInspector).toHaveBeenCalledWith(
+        expect.objectContaining({ model: "PonyXL", prompt: "no_prompt" }),
+      ),
+    );
   });
 
   it("fetches inspector data when scope is all (even without path)", async () => {

@@ -487,15 +487,16 @@ Header search or AdvancedSearchDrawer
 ```text
 /metadata route
 -> LibraryInspector.vue
--> useInfiniteLibraryInspectorQuery(query, scope, currentPath, limit, sort)
+-> useLibraryInspectorFilters + useInfiniteLibraryInspectorQuery
 -> GET /api/library/inspector
--> shadcn-vue Select controls filter by model/prompt state and choose sort
--> TanStack Table sorts returned rows client-side
+-> model/prompt filters and name/date sort are applied by SQLite before cursor pagination
+-> LibraryInspectorToolbar.vue owns typed filter/sort/column controls
+-> TanStack Table uses the server order and owns column visibility/header state
 -> TanStack Virtual renders the table body rows
 -> popovers/copy actions fetch GET /api/library/inspector/metadata
 ```
 
-The inspector is read-only. It is backed by indexed SQLite metadata and opens images in the same lightbox store used by the gallery. The table uses cursor-based infinite pagination plus body virtualization, so the DOM only contains the visible row window plus small overscan/spacer rows rather than every loaded row.
+The inspector is read-only. It is backed by indexed SQLite metadata and opens images in the same lightbox store used by the gallery. Model and prompt-presence predicates are applied before the SQL limit/cursor, so an empty visible page means the filtered result is exhausted rather than merely absent from already-loaded client pages. The table uses cursor-based infinite pagination plus body virtualization, so the DOM only contains the visible row window plus small overscan/spacer rows rather than every loaded row.
 
 ### Open Image
 

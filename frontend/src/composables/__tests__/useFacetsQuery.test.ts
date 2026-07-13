@@ -14,7 +14,7 @@ const mockFacets = {
   model: [{ value: "sd-v1.5", count: 30 }],
 };
 
-function setup(path: string | null | undefined, enabled = true) {
+function setup(path: string | null | undefined, enabled = true, allowGlobal = false) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   let result!: ReturnType<typeof useFacetsQuery>;
   const wrapper = mount(
@@ -23,6 +23,7 @@ function setup(path: string | null | undefined, enabled = true) {
         result = useFacetsQuery(
           () => path,
           () => enabled,
+          allowGlobal,
         );
         return () => h("div");
       },
@@ -49,6 +50,12 @@ describe("useFacetsQuery", () => {
     expect(fetchFacets).not.toHaveBeenCalled();
     setup(null);
     expect(fetchFacets).not.toHaveBeenCalled();
+  });
+
+  it("fetches global facets when an explicit null scope is allowed", async () => {
+    const { result } = setup(null, true, true);
+    await vi.waitFor(() => expect(result.data.value).toEqual(mockFacets));
+    expect(fetchFacets).toHaveBeenCalledWith(undefined);
   });
 
   it("does not fetch when enabled is false", () => {

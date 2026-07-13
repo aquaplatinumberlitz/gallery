@@ -163,7 +163,15 @@ function prefetchMetadataData() {
   const requestQuery = state.query.trim();
 
   void queryClient.prefetchQuery({
-    queryKey: queryKeys.libraryInspector(requestQuery, requestScope, requestPath, requestLimit, requestSort),
+    queryKey: queryKeys.libraryInspector(
+      requestQuery,
+      requestScope,
+      requestPath,
+      requestLimit,
+      requestSort,
+      galleryStore.metadataInspector.modelFilter === "all" ? "" : galleryStore.metadataInspector.modelFilter,
+      galleryStore.metadataInspector.promptFilter,
+    ),
     queryFn: () =>
       fetchLibraryInspector({
         q: requestQuery,
@@ -171,6 +179,9 @@ function prefetchMetadataData() {
         path: requestPath,
         limit: requestLimit,
         sort: requestSort,
+        model:
+          galleryStore.metadataInspector.modelFilter === "all" ? undefined : galleryStore.metadataInspector.modelFilter,
+        prompt: galleryStore.metadataInspector.promptFilter,
       }),
     staleTime: 15_000,
   });

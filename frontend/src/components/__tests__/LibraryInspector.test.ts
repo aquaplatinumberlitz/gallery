@@ -110,6 +110,12 @@ vi.mock("@/composables/useInfiniteLibraryInspectorQuery", () => ({
   }),
 }));
 
+vi.mock("@/composables/useFacetsQuery", () => ({
+  useFacetsQuery: () => ({
+    data: { value: { model: [{ value: "SDXL", count: 2 }] } },
+  }),
+}));
+
 vi.mock("@/composables/useLibraryInspectorMetadataQuery", () => ({
   useLibraryInspectorMetadataQuery: () => ({
     data: { value: null },
@@ -291,6 +297,17 @@ describe("LibraryInspector", () => {
     expect(wrapper.text()).toContain("All prompts");
   });
 
+  it("only exposes server-supported File and Modified column sorting", () => {
+    const wrapper = mountSubject();
+    const sortButtons = wrapper.findAll("button[aria-label]").map((button) => button.attributes("aria-label"));
+
+    expect(sortButtons.some((label) => label?.startsWith("File,"))).toBe(true);
+    expect(sortButtons.some((label) => label?.startsWith("Modified,"))).toBe(true);
+    expect(sortButtons.some((label) => label?.startsWith("Model,"))).toBe(false);
+    expect(sortButtons.some((label) => label?.startsWith("Seed,"))).toBe(false);
+    expect(sortButtons.some((label) => label?.startsWith("Size,"))).toBe(false);
+  });
+
   it("maps copy status to distinct success labels", () => {
     clipboardMocks.copyStatus = {
       path: true,
@@ -331,12 +348,12 @@ describe("LibraryInspector", () => {
 
   it("maps the full path action directly to the path clipboard handler", async () => {
     const wrapper = mountSubject();
-    const newestRow = mockRowsData[1];
+    const firstVisibleRow = mockRowsData[0];
 
     await wrapper.get('button[aria-label="Copy full path"]').trigger("click");
 
     expect(clipboardMocks.copyText).toHaveBeenCalledWith(
-      newestRow.path,
+      firstVisibleRow.path,
       "path",
       expect.objectContaining({ fallbackRoot: expect.any(HTMLElement) }),
     );
@@ -358,13 +375,13 @@ describe("LibraryInspector", () => {
   it("copies row path from the actions menu with the dropdown content as fallback root", async () => {
     const wrapper = mountSubject();
     const copyPathItem = getDropdownItem(wrapper, "Copy path");
-    const newestRow = mockRowsData[1];
+    const firstVisibleRow = mockRowsData[0];
 
     await copyPathItem.trigger("pointerdown");
     await copyPathItem.trigger("click");
 
     expect(clipboardMocks.copyText).toHaveBeenCalledWith(
-      newestRow.path,
+      firstVisibleRow.path,
       "path",
       expect.objectContaining({
         fallbackRoot: expect.any(HTMLElement),
@@ -377,14 +394,14 @@ describe("LibraryInspector", () => {
   it("copies row seed from the actions menu with the dropdown content as fallback root", async () => {
     const wrapper = mountSubject();
     const copySeedItem = getDropdownItem(wrapper, "Copy seed");
-    const newestRow = mockRowsData[1];
+    const firstVisibleRow = mockRowsData[0];
 
     await copySeedItem.trigger("pointerdown");
     await copySeedItem.trigger("click");
 
     expect(clipboardMocks.copyText).toHaveBeenCalledWith(
-      newestRow.seed,
-      `seed:${newestRow.path}`,
+      firstVisibleRow.seed,
+      `seed:${firstVisibleRow.path}`,
       expect.objectContaining({
         fallbackRoot: expect.any(HTMLElement),
       }),

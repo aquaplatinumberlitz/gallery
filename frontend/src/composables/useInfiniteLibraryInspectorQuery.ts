@@ -3,7 +3,7 @@ import { computed, type Ref } from "vue";
 import { refDebounced } from "@vueuse/core";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { fetchLibraryInspector } from "@/services/api";
-import type { LibraryInspectorResponse, SearchScope, SortValue } from "@/types";
+import type { LibraryInspectorResponse, PromptPresenceFilter, SearchScope, SortValue } from "@/types";
 
 const EMPTY_RESPONSE: LibraryInspectorResponse = {
   root: "",
@@ -20,13 +20,25 @@ const EMPTY_RESPONSE: LibraryInspectorResponse = {
   rows: [],
 };
 
-export function useInfiniteLibraryInspectorQuery(
-  query: Ref<string>,
-  scope: Ref<SearchScope>,
-  path: Ref<string>,
-  limit: Ref<number>,
-  sort: Ref<SortValue>,
-) {
+interface UseInfiniteLibraryInspectorQueryOptions {
+  query: Ref<string>;
+  scope: Ref<SearchScope>;
+  path: Ref<string>;
+  limit: Ref<number>;
+  sort: Ref<SortValue>;
+  model: Ref<string>;
+  prompt: Ref<PromptPresenceFilter>;
+}
+
+export function useInfiniteLibraryInspectorQuery({
+  query,
+  scope,
+  path,
+  limit,
+  sort,
+  model,
+  prompt,
+}: UseInfiniteLibraryInspectorQueryOptions) {
   const trimmedQuery = computed(() => query.value.trim());
   const debouncedQuery = refDebounced(trimmedQuery, 250);
 
@@ -42,12 +54,19 @@ export function useInfiniteLibraryInspectorQuery(
     string | undefined
   >({
     queryKey: computed(() =>
-      queryKeys.libraryInspector(debouncedQuery.value, scope.value, requestPath.value, requestLimit.value, sort.value),
+      queryKeys.libraryInspector(
+        debouncedQuery.value,
+        scope.value,
+        requestPath.value,
+        requestLimit.value,
+        sort.value,
+        model.value,
+        prompt.value,
+      ),
     ),
     queryFn: ({ queryKey, pageParam }) => {
-      const [, requestQuery, requestScope, pathForRequest, requestLimit, requestSort] = queryKey as ReturnType<
-        typeof queryKeys.libraryInspector
-      >;
+      const [, requestQuery, requestScope, pathForRequest, requestLimit, requestSort, requestModel, requestPrompt] =
+        queryKey as ReturnType<typeof queryKeys.libraryInspector>;
       return fetchLibraryInspector({
         q: requestQuery,
         scope: requestScope as SearchScope,
@@ -55,6 +74,8 @@ export function useInfiniteLibraryInspectorQuery(
         limit: Math.max(1, requestLimit),
         sort: requestSort,
         cursor: pageParam,
+        model: requestModel,
+        prompt: requestPrompt,
       });
     },
     initialPageParam: undefined,

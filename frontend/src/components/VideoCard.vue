@@ -175,12 +175,7 @@ const formatDuration = (durationMs?: number | null) => {
   }
 
   :global(html[data-theme="dark"]) .video-shimmer {
-    background: linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.08),
-      rgba(255, 255, 255, 0.06),
-      rgba(255, 255, 255, 0.08)
-    );
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.08));
   }
 
   :global(html[data-theme="dark"]) .video-shimmer-wave {

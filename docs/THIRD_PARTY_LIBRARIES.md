@@ -244,7 +244,7 @@ Default client behavior: 1 minute stale time, 10 minute garbage collection, one 
 
 `@tanstack/vue-virtual` provides row-based virtualization in `GalleryGrid.vue` for desktop/tablet grids. Mobile uses native scroll behavior rather than the same virtualized grid contract.
 
-`LibraryInspector.vue` also uses `useVirtualizer` for the `/metadata` table body. The inspector still requests a bounded result set from `/api/library/inspector` and uses TanStack Table for row models/sorting, but the DOM contains only the currently visible rows plus overscan and spacer rows instead of all returned rows.
+`LibraryInspector.vue` also uses `useVirtualizer` for the `/metadata` table body. The inspector requests cursor-paginated, server-filtered rows from `/api/library/inspector` and uses TanStack Table for row models, column visibility, and supported sort-header state. The DOM contains only the currently visible rows plus overscan and spacer rows instead of all loaded rows.
 
 ### TanStack Form
 
@@ -254,9 +254,9 @@ Do not document this as unused; it is now production runtime code.
 
 ### TanStack Table
 
-`@tanstack/vue-table` is active in `LibraryInspector.vue`. It builds columns and client-side returned-row sorting over rows returned by `/api/library/inspector`.
+`@tanstack/vue-table` is active in `LibraryInspector.vue`. It builds columns and header/visibility state over rows returned in authoritative backend order by `/api/library/inspector`.
 
-The backend remains responsible for query filtering, limit, DB-backed metadata fields, and detail lookup. The frontend table sorts the bounded returned row set.
+The backend remains responsible for query/model/prompt filtering, cursor pagination, name/date sorting, DB-backed metadata fields, and detail lookup. Columns without a backend sort contract are intentionally non-sortable.
 
 ### TanStack DB
 

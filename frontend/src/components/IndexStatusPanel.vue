@@ -201,11 +201,7 @@ function formatCount(value: number) {
         </Tooltip>
       </span>
     </PopoverTrigger>
-    <PopoverContent
-      class="index-status-popover w-72 p-4"
-      align="end"
-      :side-offset="8"
-    >
+    <PopoverContent class="index-status-popover w-72 p-4" align="end" :side-offset="8">
       <div v-if="isLoading" class="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader class="size-4 animate-spin" />
         Loading file catalog status...

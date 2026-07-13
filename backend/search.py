@@ -220,6 +220,8 @@ async def api_library_inspector(
     sort: Literal["name_asc", "name_desc", "date_asc", "date_desc"] = Query(
         "date_desc", description="Inspector row sort"
     ),
+    model: str | None = Query(None, description="Exact displayed model/tool filter"),
+    prompt: Literal["all", "has_prompt", "no_prompt"] = Query("all", description="Filter rows by prompt availability"),
 ):
     """Return paginated library inspector rows with stale path filtering."""
     root_path: Path | None = None
@@ -250,7 +252,17 @@ async def api_library_inspector(
         return safe, stale, stale_paths
 
     try:
-        data = await run_in_threadpool(list_library_inspector_rows, q, scope, root_path, limit, sort, cursor)
+        data = await run_in_threadpool(
+            list_library_inspector_rows,
+            q,
+            scope,
+            root_path,
+            limit,
+            sort,
+            cursor,
+            model,
+            prompt,
+        )
     except ValueError as exc:
         raise APIError(400, ErrorType.BAD_REQUEST, "Invalid pagination cursor") from exc
     except Exception as exc:  # noqa: BLE001
@@ -271,6 +283,8 @@ async def api_library_inspector(
                 overscan_limit,
                 sort,
                 cursor,
+                model,
+                prompt,
             )
         except ValueError as exc:
             raise APIError(400, ErrorType.BAD_REQUEST, "Invalid pagination cursor") from exc

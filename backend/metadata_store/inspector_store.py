@@ -131,6 +131,8 @@ def list_library_inspector_rows(
     limit: int = 200,
     sort: str = "date_desc",
     cursor: str | None = None,
+    model_filter: str | None = None,
+    prompt_filter: str = "all",
 ) -> dict[str, Any]:
     """Return bounded DB/index-backed rows for the read-only Library Inspector."""
     from ..fielded_search_parser import build_fielded_conditions, parse_fielded_query
@@ -176,6 +178,14 @@ def list_library_inspector_rows(
         where_parts = ["fi.type IN ('image', 'photo')", _CURRENT_METADATA_SQL]
         if field_conditions:
             where_parts.extend(field_conditions)
+        normalized_model_filter = (model_filter or "").strip()
+        if normalized_model_filter:
+            where_parts.append("COALESCE(NULLIF(m.model, ''), NULLIF(m.tool, ''), '') = :model_filter")
+            field_params["model_filter"] = normalized_model_filter
+        if prompt_filter == "has_prompt":
+            where_parts.append("m.prompt IS NOT NULL AND m.prompt != ''")
+        elif prompt_filter == "no_prompt":
+            where_parts.append("(m.prompt IS NULL OR m.prompt = '')")
         if keyset_condition:
             where_parts.append(keyset_condition)
         where_sql = " AND ".join(where_parts)

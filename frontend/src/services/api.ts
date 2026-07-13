@@ -25,6 +25,7 @@ import type {
   ScanAllLibrariesResponse,
   SearchScope,
   SortValue,
+  PromptPresenceFilter,
   UnifiedSearchResponse,
 } from "../types";
 
@@ -302,6 +303,8 @@ export const fetchLibraryInspector = async (opts?: {
   limit?: number;
   sort?: SortValue;
   cursor?: string;
+  model?: string;
+  prompt?: PromptPresenceFilter;
 }): Promise<LibraryInspectorResponse> => {
   const requestScope = opts?.scope ?? "current";
   const { data } = await api.get<LibraryInspectorResponse>("/api/library/inspector", {
@@ -312,6 +315,8 @@ export const fetchLibraryInspector = async (opts?: {
       limit: opts?.limit ?? 200,
       sort: opts?.sort ?? "date_desc",
       cursor: opts?.cursor ?? undefined,
+      model: opts?.model || undefined,
+      prompt: opts?.prompt && opts.prompt !== "all" ? opts.prompt : undefined,
     },
   });
   return data;
@@ -338,9 +343,9 @@ export const getPreviewUrl = (path: string, maxLongEdge: number = 1440) => {
   return `${API_BASE}/api/preview?${params.toString()}`;
 };
 
-export const fetchFacets = async (path: string): Promise<FacetsResponse> => {
+export const fetchFacets = async (path?: string): Promise<FacetsResponse> => {
   const { data } = await api.get<FacetsResponse>("/api/facets", {
-    params: { path },
+    params: { path: path || undefined },
   });
   return data;
 };

@@ -250,6 +250,13 @@ describe("fetchLibraryInspector", () => {
       params: { q: "", scope: "all", limit: 200, sort: "date_desc", cursor: "abc" },
     });
   });
+  it("passes server-side inspector filters", async () => {
+    mockApi.get.mockResolvedValueOnce({ data: { rows: [] } });
+    await fetchLibraryInspector({ scope: "all", model: "SDXL", prompt: "has_prompt" });
+    expect(mockApi.get).toHaveBeenCalledWith("/api/library/inspector", {
+      params: expect.objectContaining({ scope: "all", model: "SDXL", prompt: "has_prompt" }),
+    });
+  });
 });
 
 describe("fetchLibraryInspectorMetadata", () => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, ref, watch, type ComponentPublicInstance } from "vue";
-import { useIntersectionObserver, useResizeObserver } from "@vueuse/core";
+import { computed, inject, onBeforeUnmount, ref, useTemplateRef, watch, type ComponentPublicInstance } from "vue";
+import { useResizeObserver } from "@vueuse/core";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import type { FileNode, SortValue, UnifiedSearchResult } from "../types";
@@ -26,6 +26,7 @@ import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useDelayedBoolean } from "../composables/useDelayedBoolean";
 import { useInfiniteBrowseQuery } from "../composables/useInfiniteBrowseQuery";
+import { useInfiniteLoadSentinel } from "../composables/useInfiniteLoadSentinel";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { chunkGridRows, chunkItems, useVirtualGridRows } from "../composables/useVirtualGridRows";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
@@ -606,10 +607,7 @@ const searchAlbumColumnCount = computed(() => {
     return isTablet.value ? Math.min(3, columnCount.value) : Math.max(3, Math.min(5, columnCount.value - 1));
   }
 
-  return Math.max(
-    1,
-    Math.min(maxColumns, Math.floor((availableWidth + gridGap) / (cardWidth + gridGap))),
-  );
+  return Math.max(1, Math.min(maxColumns, Math.floor((availableWidth + gridGap) / (cardWidth + gridGap))));
 });
 
 const searchAlbumGridGap = computed(() => (props.isMobile ? 8 : isTablet.value ? 12 : SEARCH_ALBUM_GRID_GAP));
@@ -695,10 +693,6 @@ const getSearchMediaVirtualRowStyle = (start: number) =>
 
 const skeletonItems = computed(() => Array.from({ length: 12 }, (_, i) => i));
 
-// Infinite load sentinel
-const loadMoreSentinel = ref<HTMLElement | null>(null);
-const searchLoadMoreSentinel = ref<HTMLElement | null>(null);
-
 const canLoadMoreImages = computed(() =>
   shouldLoadMoreImages({
     hasMoreImages: hasMoreImages.value,
@@ -707,21 +701,12 @@ const canLoadMoreImages = computed(() =>
     hasSearchQuery: hasSearchQuery.value,
   }),
 );
-
-useIntersectionObserver(
-  loadMoreSentinel,
-  ([entry]) => {
-    if (!entry?.isIntersecting) return;
-    if (!canLoadMoreImages.value) return;
-
-    infiniteBrowseQuery.fetchNextPage();
-  },
-  {
-    root: null,
-    rootMargin: "400px",
-    threshold: 0,
-  },
-);
+const loadMoreSentinel = useTemplateRef<HTMLElement>("loadMoreSentinel");
+useInfiniteLoadSentinel({
+  sentinel: loadMoreSentinel,
+  enabled: canLoadMoreImages,
+  loadMore: () => infiniteBrowseQuery.fetchNextPage(),
+});
 
 const canLoadMoreSearch = computed(
   () =>
@@ -730,21 +715,13 @@ const canLoadMoreSearch = computed(
     !unifiedSearchQuery.isFetchingNextPage.value &&
     !unifiedSearchQuery.isFetching.value,
 );
-
-useIntersectionObserver(
-  searchLoadMoreSentinel,
-  ([entry]) => {
-    if (!entry?.isIntersecting) return;
-    if (!canLoadMoreSearch.value) return;
-
-    unifiedSearchQuery.fetchNextPage();
-  },
-  {
-    root: null,
-    rootMargin: "500px",
-    threshold: 0,
-  },
-);
+const searchLoadMoreSentinel = useTemplateRef<HTMLElement>("searchLoadMoreSentinel");
+useInfiniteLoadSentinel({
+  sentinel: searchLoadMoreSentinel,
+  enabled: canLoadMoreSearch,
+  loadMore: () => unifiedSearchQuery.fetchNextPage(),
+  rootMargin: "500px",
+});
 
 // ── Album Horizontal Scroll (handled by AlbumScroller component) ──
 </script>

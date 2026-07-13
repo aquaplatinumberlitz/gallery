@@ -55,10 +55,7 @@ const onCoverError = () => {
       <div class="scrim" aria-hidden="true" />
 
       <!-- Top-right count chip with backdrop blur -->
-      <div
-        v-if="node.image_count !== undefined && node.image_count !== null"
-        class="count-chip"
-      >
+      <div v-if="node.image_count !== undefined && node.image_count !== null" class="count-chip">
         <FolderOpen class="count-chip-icon" />
         <span class="count-chip-text">{{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span>
       </div>
@@ -114,7 +111,9 @@ const onCoverError = () => {
       object-fit: cover;
       // Slow Ken Burns zoom on hover/tap — the editorial signature
       transform: scale(1) translateZ(0);
-      transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 240ms ease;
+      transition:
+        transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        opacity 240ms ease;
       opacity: 1;
       will-change: transform;
     }
@@ -126,7 +125,11 @@ const onCoverError = () => {
       place-items: center;
       // Warm cream gradient (light) — replaced in dark mode below
       background:
-        radial-gradient(120% 120% at 30% 20%, color-mix(in srgb, var(--acm-muted) 10%, var(--acm-paper)) 0%, var(--acm-paper) 60%),
+        radial-gradient(
+          120% 120% at 30% 20%,
+          color-mix(in srgb, var(--acm-muted) 10%, var(--acm-paper)) 0%,
+          var(--acm-paper) 60%
+        ),
         var(--acm-paper);
       color: color-mix(in srgb, var(--acm-muted) 55%, transparent);
     }
@@ -275,7 +278,11 @@ const onCoverError = () => {
 
       .placeholder {
         background:
-          radial-gradient(120% 120% at 30% 20%, color-mix(in srgb, var(--acm-muted) 14%, var(--acm-paper)) 0%, var(--acm-paper) 60%),
+          radial-gradient(
+            120% 120% at 30% 20%,
+            color-mix(in srgb, var(--acm-muted) 14%, var(--acm-paper)) 0%,
+            var(--acm-paper) 60%
+          ),
           var(--acm-paper);
         color: color-mix(in srgb, var(--acm-muted) 65%, transparent);
       }
@@ -353,7 +360,9 @@ html[data-theme="dark"] .cover-skeleton {
 
 .album-card-mobile:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring-shadow), 0 6px 16px rgba(0, 0, 0, 0.07);
+  box-shadow:
+    var(--focus-ring-shadow),
+    0 6px 16px rgba(0, 0, 0, 0.07);
   border-radius: 14px;
 }
 

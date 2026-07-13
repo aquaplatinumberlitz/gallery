@@ -3,11 +3,7 @@ import { computed, ref, shallowRef, defineAsyncComponent, provide, watch } from 
 import { useEventListener, useStorage } from "@vueuse/core";
 import { useGalleryStore } from "./stores/gallery";
 import GalleryToaster from "./components/GalleryToaster.vue";
-import SettingsModal from "./components/SettingsModal.vue";
 import IntroScreen from "./components/IntroScreen.vue";
-import DesktopLayout from "./layouts/DesktopLayout.vue";
-import TabletLayout from "./layouts/TabletLayout.vue";
-import MobileLayout from "./layouts/MobileLayout.vue";
 import { useScrollVisibility } from "./composables/useScrollVisibility";
 import { useDevice } from "./composables/useDevice";
 import { useGalleryTheme } from "./composables/useGalleryTheme";
@@ -19,12 +15,16 @@ import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
 import { useRouteChrome } from "@/composables/useRouteChrome";
 import { useSidebarTreeQuery } from "./composables/useSidebarTreeQuery";
 import { MotionConfig } from "motion-v";
-import AdvancedSearchDrawer from "./components/search/AdvancedSearchDrawer.vue";
 import { useFieldedSearch } from "./composables/useFieldedSearch";
 import { parseFieldedQuery, serializeAdvancedSearchToQuery } from "./utils/serializeAdvancedSearchToQuery";
 import type { FieldFilter } from "./types";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
+const DesktopLayout = defineAsyncComponent(() => import("./layouts/DesktopLayout.vue"));
+const TabletLayout = defineAsyncComponent(() => import("./layouts/TabletLayout.vue"));
+const MobileLayout = defineAsyncComponent(() => import("./layouts/MobileLayout.vue"));
+const SettingsModal = defineAsyncComponent(() => import("./components/SettingsModal.vue"));
+const AdvancedSearchDrawer = defineAsyncComponent(() => import("./components/search/AdvancedSearchDrawer.vue"));
 const showDevtools = import.meta.env.DEV || import.meta.env.VITE_DEVTOOLS === "true";
 const VueQueryDevtools = showDevtools
   ? defineAsyncComponent(() => import("@tanstack/vue-query-devtools").then((m) => m.VueQueryDevtools))
@@ -236,13 +236,19 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 
       <Lightbox />
       <AdvancedSearchDrawer
+        v-if="isAdvancedSearchOpen"
         :is-open="isAdvancedSearchOpen"
         :initial-filters="advancedSearchInitialFilters"
         @close="isAdvancedSearchOpen = false"
         @apply="handleAdvancedSearchApply"
       />
       <GalleryToaster v-if="!isMobile" />
-      <SettingsModal :is-open="isSettingsOpen" @close="isSettingsOpen = false" @preview="handlePreviewIntro" />
+      <SettingsModal
+        v-if="isSettingsOpen"
+        :is-open="isSettingsOpen"
+        @close="isSettingsOpen = false"
+        @preview="handlePreviewIntro"
+      />
       <component
         :is="VueQueryDevtools"
         v-if="showDevtools && VueQueryDevtools"

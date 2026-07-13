@@ -118,15 +118,27 @@ const baseRows: InspectorRow[] = [
   ),
 ];
 
-function rowsForQuery(query: string) {
+function rowsForRequest(query: string, model: string, prompt: string, sort: string) {
   const normalized = query.trim().toLowerCase();
-  if (!normalized) return baseRows;
-  return baseRows.filter((row) =>
-    [row.name, row.relative_path, row.model, row.seed, row.prompt_preview]
+  const rows = baseRows.filter((row) => {
+    if (model && (row.model || row.tool) !== model) return false;
+    if (prompt === "has_prompt" && !row.has_prompt) return false;
+    if (prompt === "no_prompt" && row.has_prompt) return false;
+    if (!normalized) return true;
+    return [row.name, row.relative_path, row.model, row.seed, row.prompt_preview]
       .join(" ")
       .toLowerCase()
-      .includes(normalized.replace(/^prompt:/, "")),
-  );
+      .includes(normalized.replace(/^prompt:/, ""));
+  });
+
+  return rows.toSorted((left, right) => {
+    if (sort === "name_asc" || sort === "name_desc") {
+      const direction = sort === "name_asc" ? 1 : -1;
+      return direction * left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: "base" });
+    }
+    const direction = sort === "date_asc" ? 1 : -1;
+    return direction * (left.mtime - right.mtime) || left.name.localeCompare(right.name);
+  });
 }
 
 function detailForPath(path: string) {
@@ -217,7 +229,13 @@ async function installStubbedInspector(page: Page, options: StubbedInspectorOpti
     if (url.pathname === "/api/library/inspector") {
       const requestNumber = requests.filter((request) => request.startsWith("/api/library/inspector?")).length - 1;
       const query = url.searchParams.get("q") ?? "";
-      const rows = rowsForQuery(query);
+      const sort = url.searchParams.get("sort") ?? "date_desc";
+      const rows = rowsForRequest(
+        query,
+        url.searchParams.get("model") ?? "",
+        url.searchParams.get("prompt") ?? "all",
+        sort,
+      );
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -228,7 +246,7 @@ async function installStubbedInspector(page: Page, options: StubbedInspectorOpti
           total_indexed: baseRows.length + requestNumber,
           returned: rows.length,
           truncated: false,
-          sort: "mtime_desc",
+          sort,
           rows,
         }),
       });
