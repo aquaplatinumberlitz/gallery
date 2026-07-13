@@ -39,6 +39,11 @@ if [[ "${GALLERY_PERF_USE_FIXTURE:-0}" == "1" ]]; then
     if [[ -n "${GALLERY_PERF_FIXTURE_IMAGES:-}" ]]; then
         FIXTURE_ARGS+=(--images "$GALLERY_PERF_FIXTURE_IMAGES")
     fi
+    SEARCH_ROWS="${GALLERY_PERF_SEARCH_ROWS:-5000}"
+    if [[ "${GALLERY_PERF_SEARCH_PROFILE:-ci}" == "scheduled" ]]; then
+        SEARCH_ROWS="${GALLERY_PERF_SEARCH_ROWS:-25000}"
+    fi
+    FIXTURE_ARGS+=(--search-rows "$SEARCH_ROWS")
     "$PERF_PYTHON" "$SCRIPT_DIR/create_perf_fixture.py" \
         "${FIXTURE_ARGS[@]}" \
         ${GALLERY_PERF_FIXTURE_CLEAN:+--clean}
@@ -47,6 +52,7 @@ if [[ "${GALLERY_PERF_USE_FIXTURE:-0}" == "1" ]]; then
     export PATH_SAFETY_ROOT PATH_SAFETY_ROOT_PATH GALLERY_METADATA_DB GALLERY_THUMBNAIL_CACHE_DIR
     export GALLERY_PERF_ALBUM_NAME GALLERY_PERF_ALBUM_PATH GALLERY_PERF_SCAN_PATH
     export GALLERY_PERF_INSPECTOR_SCOPE
+    export GALLERY_PERF_SEARCH_ROWS="$SEARCH_ROWS"
 fi
 
 BACKEND_PID=""
@@ -76,6 +82,7 @@ if [[ "${GALLERY_PERF_START_BACKEND:-0}" == "1" ]]; then
             PATH_SAFETY_ROOT="${PATH_SAFETY_ROOT:-/}" \
             GALLERY_METADATA_DB="${GALLERY_METADATA_DB:-}" \
             GALLERY_THUMBNAIL_CACHE_DIR="${GALLERY_THUMBNAIL_CACHE_DIR:-}" \
+            GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED=false \
             ENABLE_WARM_INDEXED_LISTING="${ENABLE_WARM_INDEXED_LISTING:-true}" \
             GALLERY_METADATA_INDEXER_ENABLED="${GALLERY_METADATA_INDEXER_ENABLED:-true}" \
             ENABLE_METRICS="${ENABLE_METRICS:-false}" \
@@ -94,6 +101,10 @@ if [[ "${GALLERY_PERF_START_BACKEND:-0}" == "1" ]]; then
 fi
 
 if [[ "${GALLERY_PERF_SKIP_BACKEND:-0}" != "1" ]]; then
+    echo ""
+    echo ">>> Running managed search class benchmarks..."
+    "$PERF_PYTHON" "$SCRIPT_DIR/bench_search.py" | tee "$RESULTS_DIR/search-benchmark-report.json"
+
     echo ""
     echo ">>> Running backend Library Inspector p95 perf test..."
     "$PERF_PYTHON" "$SCRIPT_DIR/perf_library_inspector.py" | tee "$RESULTS_DIR/library-inspector-report.json"

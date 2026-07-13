@@ -142,6 +142,9 @@ Search behavior:
   metadata-store search helpers. Metadata predicates apply only to
   filterable image/prompt media; filename-only videos are excluded from
   fielded media results until video metadata predicates are supported.
+- `test-data/search-query-grammar.json` is consumed by pytest and Vitest so
+  quoting, escaping, aliases, repeated fields, Unicode, residual text, and
+  frontend pass-through behavior cannot drift silently.
 - `/api/library/inspector` returns bounded DB-backed metadata rows; detail popovers call `/api/library/inspector/metadata`.
 - `/api/facets` derives counts only from current active registered image assets; legacy `file_index`/metadata rows without an owning asset never contribute.
 
@@ -261,9 +264,17 @@ Integration files:
 
 Default client behavior: 1 minute stale time, 10 minute garbage collection, one retry, no refetch on window focus.
 
+Unified search forwards TanStack Query cancellation to Axios, merges canonical
+pages by `(library_id, asset_id)`, preserves case-sensitive fallback paths, and
+keeps earlier pages visible when a later page fails. Facet keys include the
+canonical scope, library ID, and normalized folder path.
+
 ### TanStack Virtual
 
-`@tanstack/vue-virtual` provides row-based virtualization in `GalleryGrid.vue` for desktop/tablet grids. Mobile uses native scroll behavior rather than the same virtualized grid contract.
+`@tanstack/vue-virtual` provides row-based virtualization in `GalleryGrid.vue`
+for browse grids and `SearchResultsPanel.vue` for the shared search stream.
+Search uses the same virtual row semantics across desktop, tablet, and mobile;
+mobile browse continues to use native scrolling.
 
 `LibraryInspector.vue` also uses `useVirtualizer` for the `/metadata` table body. The inspector requests cursor-paginated, server-filtered rows from `/api/library/inspector` and uses TanStack Table for row models, column visibility, and supported sort-header state. The DOM contains only the currently visible rows plus overscan and spacer rows instead of all loaded rows.
 

@@ -29,6 +29,7 @@ from fastapi.testclient import TestClient
 import backend.facets as facets_module
 import backend.search as search_module
 from backend.metadata_store import index_file, register_library, upsert_metadata_result
+from backend.paths import InvalidPathError
 
 from .conftest import create_test_png
 
@@ -164,6 +165,31 @@ def test_scope_validation_status_policy(isolated_app: TestClient, isolated_galle
     assert invalid_scope.status_code == 422
 
 
+def test_folder_scope_default_and_validation_branches(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+) -> None:
+    missing_path = isolated_app.get("/api/search", params={"q": "", "scope": "current"})
+    assert missing_path.status_code == 422
+
+    library = register_library(isolated_gallery_root, name="Default Library")
+    default_scope = isolated_app.get("/api/search", params={"q": "", "scope": "current"})
+    assert default_scope.status_code == 200
+    assert default_scope.json()["root"] == str(isolated_gallery_root.resolve())
+
+    relative = isolated_app.get(
+        "/api/search",
+        params={"q": "", "scope": "folder", "library_id": library["id"], "path": "relative/folder"},
+    )
+    assert relative.status_code == 422
+
+    unknown_library = isolated_app.get(
+        "/api/search",
+        params={"q": "", "scope": "library", "library_id": library["id"] + 1000},
+    )
+    assert unknown_library.status_code == 404
+
+
 def test_legacy_grouped_arrays_are_canonical_media_projections(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
@@ -203,6 +229,95 @@ def test_search_and_facet_index_failures_map_to_503(
     )
     facets = isolated_app.get("/api/facets", params={"scope": "all"})
     assert facets.status_code == 503
+
+
+def test_search_error_mapping_fielded_dispatch_and_decimal_cursor(
+    isolated_app: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fielded_search(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return {
+            "query": args[0],
+            "scope": "all",
+            "root": "/",
+            "albums": [],
+            "photos": [],
+            "videos": [],
+            "prompt": [],
+            "media": [],
+            "next_cursor": None,
+            "has_more": False,
+            "returned": 0,
+            "limit": args[3],
+        }
+
+    monkeypatch.setattr(search_module, "search_index_fielded", fielded_search)
+    fielded = isolated_app.get(
+        "/api/search",
+        params={"q": 'model:"Flux Dev"', "scope": "all", "cursor": "12"},
+    )
+    assert fielded.status_code == 200
+    assert fielded.headers["deprecation"] == "true"
+    assert captured["args"] == ('model:"Flux Dev"', "all", None, 50, "12")
+
+    monkeypatch.setattr(
+        search_module, "search_index", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("bad cursor"))
+    )
+    invalid_cursor = isolated_app.get("/api/search", params={"q": "needle", "scope": "all"})
+    assert invalid_cursor.status_code == 400
+
+    monkeypatch.setattr(
+        search_module, "search_index", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("private"))
+    )
+    internal = isolated_app.get("/api/search", params={"q": "needle", "scope": "all"})
+    assert internal.status_code == 500
+    assert "private" not in internal.text
+
+    monkeypatch.setattr(
+        search_module, "search_metadata", lambda *args, **kwargs: (_ for _ in ()).throw(sqlite3.OperationalError())
+    )
+    metadata_unavailable = isolated_app.get("/api/search-metadata", params={"q": "needle"})
+    assert metadata_unavailable.status_code == 503
+
+
+def test_search_path_filter_and_cleanup_helpers(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    safe_path = tmp_path / "safe.png"
+    safe_path.write_bytes(b"safe")
+    missing_path = tmp_path / "missing.png"
+
+    def resolve(value: str) -> Path:
+        if value == "invalid":
+            raise InvalidPathError("invalid")
+        return Path(value).resolve()
+
+    monkeypatch.setattr(search_module, "resolve_path", resolve)
+    monkeypatch.setattr(search_module, "is_path_safe", lambda value: value != missing_path.resolve())
+    safe, stale = search_module._filter_safe_paths(
+        [{"path": str(safe_path)}, {"path": str(missing_path)}, {"path": "invalid"}]
+    )
+    assert safe == [{"path": str(safe_path)}]
+    assert stale == {str(missing_path), "invalid"}
+
+    library_root = tmp_path / "library"
+    stale_inside = library_root / "gone.png"
+    stale_outside = tmp_path / "elsewhere" / "gone.png"
+    cleanup_calls: list[str] = []
+    monkeypatch.setattr(
+        "backend.metadata_store.list_libraries",
+        lambda: [{"root_path": str(library_root), "import_paths": [{"path": str(library_root)}]}],
+    )
+    monkeypatch.setattr(
+        search_module,
+        "cleanup_stale_index",
+        lambda _library_id, root, **_kwargs: cleanup_calls.append(root) or 2,
+    )
+    removed = search_module._cleanup_registered_library_roots({str(stale_inside), str(stale_outside)})
+    assert removed == 2
+    assert cleanup_calls == [str(library_root.resolve())]
 
 
 def test_blocking_search_and_facet_operations_are_sync() -> None:

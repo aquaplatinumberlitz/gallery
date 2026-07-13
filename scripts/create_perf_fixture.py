@@ -7,6 +7,7 @@ Create a repeatable local gallery tree and metadata DB for perf smoke tests.
 Guarantees:
 * generated images are valid PNG files suitable for scan, thumbnail, preview, and lightbox tests
 * file_index and image_metadata rows are seeded for Library Inspector perf tests
+* synthetic catalog/search rows scale to thousands without creating image files
 * shell env output can be sourced by perf runners or copied into a backend launch
 
 Run when:
@@ -20,6 +21,7 @@ import argparse
 import json
 import os
 import shutil
+import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -68,7 +70,136 @@ def _folder_counts(folder: Path) -> dict[str, int]:
     return {"child_count": child_count, "folder_count": folder_count, "image_count": image_count}
 
 
-def _seed_metadata(root: Path, album: Path) -> int:
+def _seed_synthetic_search_rows(metadata_db: Path, album: Path, library_id: int, row_count: int) -> int:
+    """Seed active search rows without creating thousands of image files."""
+    if row_count <= 0:
+        return 0
+
+    synthetic_root = album / "_synthetic_search"
+    folder_count = min(120, max(1, row_count // 25))
+    now = time.time()
+    prefix = f"{synthetic_root}{os.sep}%"
+    connection = sqlite3.connect(metadata_db)
+    try:
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("DELETE FROM assets WHERE library_id = ? AND path LIKE ?", (library_id, prefix))
+        connection.execute("DELETE FROM file_index_fts WHERE path LIKE ?", (prefix,))
+        connection.execute("DELETE FROM file_index WHERE library_id = ? AND path LIKE ?", (library_id, prefix))
+        connection.execute("DELETE FROM image_metadata WHERE path LIKE ?", (prefix,))
+
+        folder_rows: list[tuple[object, ...]] = []
+        folder_fts_rows: list[tuple[str, str, str, str]] = []
+        for folder_index in range(folder_count):
+            folder = synthetic_root / f"search_album_{folder_index:03d}"
+            path = str(folder)
+            name = folder.name
+            parent = str(synthetic_root)
+            folder_rows.append((path, name, parent, "folder", now, int(now * 1_000_000_000), None, now, library_id))
+            folder_fts_rows.append((name, path, "folder", parent))
+        connection.executemany(
+            """INSERT INTO file_index (
+                   path, name, parent_path, type, mtime, mtime_ns, size, indexed_at, library_id
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            folder_rows,
+        )
+        connection.executemany(
+            "INSERT INTO file_index_fts (name, path, type, parent_path) VALUES (?, ?, ?, ?)",
+            folder_fts_rows,
+        )
+
+        asset_rows: list[tuple[object, ...]] = []
+        file_rows: list[tuple[object, ...]] = []
+        file_fts_rows: list[tuple[str, str, str, str]] = []
+        metadata_rows: list[tuple[object, ...]] = []
+        for index in range(row_count):
+            folder = synthetic_root / f"search_album_{index % folder_count:03d}"
+            name = f"search_asset_{index:05d}.png"
+            path = str(folder / name)
+            parent = str(folder)
+            mtime_ns = 1_760_000_000_000_000_000 + index
+            mtime = mtime_ns / 1_000_000_000
+            size = 2048 + index % 512
+            width = 768 + (index % 4) * 128
+            height = 1024 if index % 2 else 768
+            model = f"perf-model-{index % 8}"
+            sampler = ("Euler a", "DPM++ 2M", "UniPC")[index % 3]
+            cjk = " 星空 猫 風景" if index % 10 == 0 else ""
+            prompt = f"blue forest prompt heavy constellation {index}{cjk}"
+            raw_metadata = json.dumps(
+                {
+                    "fixture": "synthetic-search",
+                    "index": index,
+                    "model": model,
+                    "prompt": prompt,
+                    "sampler": sampler,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            asset_rows.append((library_id, path, parent, name, "image", mtime_ns, size, width, height, now, "ready", 0))
+            file_rows.append((path, name, parent, "image", mtime, mtime_ns, size, width, height, now, library_id))
+            file_fts_rows.append((name, path, "image", parent))
+            metadata_rows.append(
+                (
+                    path,
+                    name,
+                    mtime,
+                    mtime_ns,
+                    size,
+                    width,
+                    height,
+                    "PNG",
+                    "RGB",
+                    0,
+                    prompt,
+                    "low quality, watermark",
+                    model,
+                    sampler,
+                    str(200_000 + index),
+                    20 + index % 30,
+                    6.0 + (index % 5) / 2,
+                    raw_metadata,
+                    raw_metadata,
+                    now,
+                    now,
+                    "gallery-perf-fixture",
+                    f"perf_lora_{index % 12}",
+                    f"{width}:{height}",
+                )
+            )
+
+        connection.executemany(
+            """INSERT INTO assets (
+                   library_id, path, parent_path, name, type, mtime_ns, size, width, height,
+                   indexed_at, metadata_state, offline
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            asset_rows,
+        )
+        connection.executemany(
+            """INSERT INTO file_index (
+                   path, name, parent_path, type, mtime, mtime_ns, size, width, height, indexed_at, library_id
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            file_rows,
+        )
+        connection.executemany(
+            "INSERT INTO file_index_fts (name, path, type, parent_path) VALUES (?, ?, ?, ?)",
+            file_fts_rows,
+        )
+        connection.executemany(
+            """INSERT INTO image_metadata (
+                   path, name, mtime, mtime_ns, size, width, height, format, mode, has_alpha,
+                   prompt, negative_prompt, model, sampler, seed, steps, cfg_scale,
+                   raw_metadata_text, metadata_json, updated_at, indexed_at, tool, lora_text, aspect_ratio
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            metadata_rows,
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    return row_count
+
+
+def _seed_metadata(root: Path, album: Path, metadata_db: Path, search_rows: int) -> tuple[int, int]:
     from backend.metadata_extract import ExtractedMetadata
     from backend.metadata_store import (
         index_directory_tree,
@@ -79,7 +210,7 @@ def _seed_metadata(root: Path, album: Path) -> int:
     )
 
     initialize_database()
-    register_library(root)
+    library = register_library(root)
     index_directory_tree(root, include_metadata=False)
     update_folder_index_state(root, complete=True, **_folder_counts(root))
     update_folder_index_state(album, complete=True, **_folder_counts(album))
@@ -126,7 +257,8 @@ def _seed_metadata(root: Path, album: Path) -> int:
             )
         ):
             indexed += 1
-    return indexed
+    synthetic = _seed_synthetic_search_rows(metadata_db, album, int(library["id"]), search_rows)
+    return indexed, synthetic
 
 
 def _write_env_file(path: Path, values: dict[str, str]) -> None:
@@ -140,6 +272,12 @@ def main() -> int:
     parser.add_argument("--root", default=str(DEFAULT_ROOT), help="fixture root directory")
     parser.add_argument("--album-name", default=DEFAULT_ALBUM, help="album folder name to create")
     parser.add_argument("--images", type=int, default=240, help="number of valid PNG images to generate")
+    parser.add_argument(
+        "--search-rows",
+        type=int,
+        default=0,
+        help="synthetic active search rows to seed without creating image files (CI uses 5000)",
+    )
     parser.add_argument("--metadata-db", default="", help="metadata DB path; defaults under the fixture root")
     parser.add_argument("--thumbnail-cache", default="", help="thumbnail cache path; defaults under the fixture root")
     parser.add_argument("--env-file", default="", help="write shell exports to this file")
@@ -170,7 +308,7 @@ def main() -> int:
         for index in range(args.images):
             _write_png(album / f"perf_{index:04d}.png", index)
 
-    indexed = _seed_metadata(root, album)
+    indexed, synthetic_search_rows = _seed_metadata(root, album, metadata_db, max(0, args.search_rows))
 
     env_values = {
         "PATH_SAFETY_ROOT": str(root),
@@ -181,6 +319,7 @@ def main() -> int:
         "GALLERY_PERF_ALBUM_PATH": str(album),
         "GALLERY_PERF_SCAN_PATH": str(album),
         "GALLERY_PERF_INSPECTOR_SCOPE": "all",
+        "GALLERY_PERF_SEARCH_ROWS": str(synthetic_search_rows),
     }
     if args.env_file:
         _write_env_file(Path(args.env_file), env_values)
@@ -194,6 +333,7 @@ def main() -> int:
                 "metadata_db": str(metadata_db),
                 "thumbnail_cache": str(thumbnail_cache),
                 "indexed_metadata_rows": indexed,
+                "synthetic_search_rows": synthetic_search_rows,
                 "env": env_values,
             },
             indent=2,

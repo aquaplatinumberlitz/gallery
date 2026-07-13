@@ -347,21 +347,21 @@ contracts.
 
 ### Required implementation
 
-- [ ] Add one shared JSON grammar fixture under a neutral test-data directory;
+- [x] Add one shared JSON grammar fixture under a neutral test-data directory;
       consume it from pytest and Vitest.
-- [ ] Extend `scripts/create_perf_fixture.py` with synthetic search rows so the
+- [x] Extend `scripts/create_perf_fixture.py` with synthetic search rows so the
       managed fixture can seed 5,000 searchable assets without generating
       thousands of expensive image files.
-- [ ] Run `scripts/bench_search.py` from the managed `./test.sh perf` flow after
+- [x] Run `scripts/bench_search.py` from the managed `./test.sh perf` flow after
       its fixture backend is healthy.
-- [ ] Keep 5,000 rows as the CI profile and support an opt-in 25,000-row local
+- [x] Keep 5,000 rows as the CI profile and support an opt-in 25,000-row local
       or scheduled profile.
-- [ ] Extend the benchmark report with broad filename, prompt-heavy,
+- [x] Extend the benchmark report with broad filename, prompt-heavy,
       album-heavy, fielded, CJK, and repeated keyset-page query classes.
-- [ ] Keep the existing lexical search p95 budget at **300 ms**.
-- [ ] Add query-plan assertions instead of wall-clock assertions to unit tests.
-- [ ] Update the performance budget registry and report summarizer.
-- [ ] Update maintained architecture, third-party, testing, and test-catalog docs.
+- [x] Keep the existing lexical search p95 budget at **300 ms**.
+- [x] Add query-plan assertions instead of wall-clock assertions to unit tests.
+- [x] Update the performance budget registry and report summarizer.
+- [x] Update maintained architecture, third-party, testing, and test-catalog docs.
 
 ### Final gates
 
@@ -401,3 +401,4 @@ When complete, move this file to `docs/archived/` and update
 | 2026-07-13 | H3 | Complete | Unified tiered candidate CTE and request-bound opaque keyset cursors; 176 focused search tests plus 9 ranking/cursor goldens passed. |
 | 2026-07-13 | H4 | Complete | Typed Pydantic/OpenAPI contracts and shared canonical scope resolver; 7 contract goldens plus 183 focused backend tests and 74 frontend cursor/API tests passed. |
 | 2026-07-13 | H5 | Complete | Instance-local lossless query grammar, canonical case-sensitive result merging, scoped facets, five-state search feedback, metadata rendering, and Relevance UI; 164 focused unit tests and 18 managed search E2E tests passed. |
+| 2026-07-13 | H6 | Complete | Shared pytest/Vitest grammar fixture, 5,000-row managed synthetic search benchmark with six query classes and 300 ms p95 budgets, query-plan assertions, and maintained testing/runtime docs; `backend-api`, `lint`, `perf`, `docs`, `fast`, and 18 managed search E2E tests passed, with backend coverage at 90.10%. |

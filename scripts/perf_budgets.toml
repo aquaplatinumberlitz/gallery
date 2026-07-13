@@ -46,7 +46,9 @@ description = "Playwright: metadata panel navigation, render, search, state rest
 
 [search]
 p95_ms = 300
-description = "/api/search P95 latency"
+ci_rows = 5000
+scheduled_rows = 25000
+description = "/api/search lexical P95 latency and managed fixture profiles"
 
 [inspector_metadata]
 p95_ms = 200

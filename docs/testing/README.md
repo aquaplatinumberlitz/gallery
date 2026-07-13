@@ -33,8 +33,8 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
 - Metadata performance diagnostics: `frontend/tests/e2e/metadata-performance.spec.ts` measures `/metadata` navigation, sort, search, rendered row counts, thumbnail requests, and state restoration against a running gallery app. Requires `GALLERY_PERF_METADATA=1`.
 - Lightbox tests: `frontend/tests/e2e/lightbox-loading-policy.spec.ts`, `frontend/tests/e2e/lightbox-visual-layer.spec.ts`, `frontend/tests/e2e/mobile-lightbox-sheet.spec.ts`, and derivative backend tests.
 - Responsive tests: `frontend/tests/e2e/responsive-breakpoints.spec.ts`, `frontend/tests/e2e/sidebar-trigger.spec.ts`, mobile lightbox tests, and Tailwind migration/preflight tests.
-- Performance contract tests: backend pytest hot-path tests such as `backend/tests/test_browse_api.py` and `backend/tests/test_warm_folder_listing.py` prevent known slow-path regressions without relying on wall-clock timing.
-- Performance diagnostics: `frontend/tests/e2e/metadata-performance.spec.ts`, `frontend/tests/e2e/perf/album-open.perf.spec.ts`, `frontend/tests/e2e/perf/lightbox.perf.spec.ts`, `scripts/perf_library_inspector.py`, and `scripts/perf_warm_listing.py` emit compact timing reports.
+- Performance contract tests: backend pytest hot-path tests such as `backend/tests/test_browse_api.py`, `backend/tests/test_search_ranked_pagination.py`, and `backend/tests/test_warm_folder_listing.py` prevent known slow-path regressions with query-plan/SQL-shape assertions rather than wall-clock unit assertions.
+- Performance diagnostics: `frontend/tests/e2e/metadata-performance.spec.ts`, `frontend/tests/e2e/perf/album-open.perf.spec.ts`, `frontend/tests/e2e/perf/lightbox.perf.spec.ts`, `scripts/bench_search.py`, `scripts/perf_library_inspector.py`, and `scripts/perf_warm_listing.py` emit compact timing reports.
 - Album-open performance reports the first thumbnail iteration as cold-cache diagnostics and gates `thumbnail_p95_ms` on later warm-cache iterations.
 - Gated performance smoke tests: `./test.sh perf-smoke` runs backend Library Inspector p95, warm listing, album-open, and lightbox budgets against a running app/backend.
 - Debug/diagnostic scripts: `frontend/src/debug/`, `scripts/debug_*`, perf fixture helpers, and perf scripts under `scripts/` and `frontend/tests/e2e/perf/`.
@@ -128,6 +128,11 @@ Use the deterministic fixture when comparing perf over time or before release:
 
 `backend/.venv_linux/bin/python scripts/create_perf_fixture.py --clean --env-file /tmp/gallery_perf_fixture.env`
 
+Add `--search-rows 5000` for the CI-equivalent search profile or
+`--search-rows 25000` for the opt-in scheduled/local profile. These rows are
+seeded directly into the active SQLite catalog and metadata indexes, so the
+fixture does not create thousands of image files.
+
 The generated env file contains `PATH_SAFETY_ROOT`, `GALLERY_METADATA_DB`, `GALLERY_THUMBNAIL_CACHE_DIR`, `GALLERY_PERF_ALBUM_NAME`, `GALLERY_PERF_ALBUM_PATH`, and catalog/inspector defaults. Source it before starting the backend, or let the perf smoke runner do both:
 
 `GALLERY_PERF_USE_FIXTURE=1 GALLERY_PERF_START_BACKEND=1 ./test.sh perf-smoke`
@@ -137,6 +142,8 @@ Useful runner controls:
 - `GALLERY_PERF_BACKEND_PORT=<port>` runs the managed backend on a non-default port.
 - `GALLERY_PERF_REUSE_BACKEND=1` allows reusing an already-running backend at `GALLERY_API_BASE_URL`; leave it unset when using a fresh fixture so accidental DB/root mismatches fail clearly.
 - `GALLERY_PERF_FIXTURE_IMAGES=<count>` changes deterministic fixture size.
+- `GALLERY_PERF_SEARCH_PROFILE=scheduled` selects the 25,000-row search profile; the default `ci` profile uses 5,000.
+- `GALLERY_PERF_SEARCH_ROWS=<count>` overrides the selected synthetic search-row profile.
 - `GALLERY_PERF_WARM_LISTING_IMAGES=<count>` changes the local warm-listing benchmark size.
 - `GALLERY_PERF_PYTHON=<python>` overrides the interpreter; by default the runner uses `backend/.venv_linux/bin/python` when available.
 - `GALLERY_PERF_SKIP_FRONTEND=1` runs only backend inspector and warm-listing gates.
@@ -145,6 +152,7 @@ The perf smoke runner writes individual JSON reports plus aggregate summaries to
 
 - `library-inspector-report.json`
 - `warm-listing-report.json`
+- `search-benchmark-report.json`
 - `album-open-report.json`
 - `lightbox-open-report.json`
 - `lightbox-transition-report.json`
@@ -180,6 +188,7 @@ Run from the repo root unless a command changes directory explicitly.
 | Metadata performance strict gate          | `GALLERY_PERF_METADATA_STRICT=1 ./test.sh e2e tests/e2e/metadata-performance.spec.ts`                                                                          |
 | Managed functional E2E suite              | `./test.sh e2e`                                                                                                                                               |
 | Managed performance suite                 | `./test.sh perf`                                                                                                                                              |
+| Managed 25k search profile                | `GALLERY_PERF_SEARCH_PROFILE=scheduled ./test.sh perf`                                                                                                        |
  | Lint and format checks                    | `./test.sh lint`              |
  | Backend and frontend unit suite           | `./test.sh unit`              |
  | Docs staleness, test headers, matrix audit | `./test.sh docs`              |
@@ -195,7 +204,13 @@ Run from the repo root unless a command changes directory explicitly.
 | Test/debug header checker                 | `python3 scripts/check_test_docs.py`                                                                                                                          |
 | List files checked by header checker      | `python3 scripts/check_test_docs.py --list`                                                                                                                   |
 
-`./test.sh e2e` and `./test.sh perf` create a deterministic temporary gallery, start FastAPI and Vite on free local ports, set all required paths, and clean up afterward. Internal shell helpers live under `scripts/internal/`; developers should use `test.sh` as the stable entrypoint. Use `GALLERY_TEST_KEEP_TMP=1` to retain artifacts or `GALLERY_TEST_TMPDIR=<path>` to choose the workspace.
+`./test.sh e2e` and `./test.sh perf` create a deterministic temporary gallery,
+start FastAPI and Vite on free local ports, set all required paths, and clean up
+afterward. The perf path also seeds 5,000 synthetic search assets and runs
+`scripts/bench_search.py` after backend health succeeds. Internal shell helpers
+live under `scripts/internal/`; developers should use `test.sh` as the stable
+entrypoint. Use `GALLERY_TEST_KEEP_TMP=1` to retain artifacts or
+`GALLERY_TEST_TMPDIR=<path>` to choose the workspace.
 
 Additional controls:
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from .errors import APIError, ErrorType
+from .files import is_index_excluded_path
 from .metadata_store import list_libraries
 from .metadata_store.path_utils import canonicalize_catalog_path, catalog_path_contains
 
@@ -88,8 +89,12 @@ def resolve_search_scope(
         raise APIError(404, ErrorType.NOT_FOUND, "Folder is outside registered libraries")
 
     roots = _import_paths(selected_library)
-    if not any(catalog_path_contains(root, folder_path) for root in roots):
+    owning_roots = [root for root in roots if catalog_path_contains(root, folder_path)]
+    if not owning_roots:
         raise APIError(404, ErrorType.NOT_FOUND, "Folder is outside the selected library")
+    import_root = max(owning_roots, key=lambda root: len(Path(root).parts))
+    if is_index_excluded_path(folder_path, import_root, selected_library.get("exclusion_patterns", [])):
+        raise APIError(404, ErrorType.NOT_FOUND, "Folder is excluded from the selected library")
 
     return SearchScopeContext(
         kind="folder",

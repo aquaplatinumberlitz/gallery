@@ -59,13 +59,26 @@ cleanup() {
 trap cleanup EXIT
 
 echo "==> Create deterministic $SUITE fixture"
+FIXTURE_ARGS=(
+    --root "$FIXTURE_ROOT"
+    --album-name a1111
+    --images "${GALLERY_TEST_FIXTURE_IMAGES:-30}"
+    --metadata-db "$METADATA_DB"
+    --thumbnail-cache "$THUMBNAIL_CACHE"
+    --clean
+)
+if [[ "$SUITE" == "perf" ]]; then
+    SEARCH_PROFILE="${GALLERY_PERF_SEARCH_PROFILE:-ci}"
+    if [[ "$SEARCH_PROFILE" == "scheduled" ]]; then
+        SEARCH_ROWS="${GALLERY_PERF_SEARCH_ROWS:-25000}"
+    else
+        SEARCH_ROWS="${GALLERY_PERF_SEARCH_ROWS:-5000}"
+    fi
+    FIXTURE_ARGS+=(--search-rows "$SEARCH_ROWS")
+    export GALLERY_PERF_SEARCH_ROWS="$SEARCH_ROWS"
+fi
 "$PYTHON" "$SCRIPTS_DIR/create_perf_fixture.py" \
-    --root "$FIXTURE_ROOT" \
-    --album-name a1111 \
-    --images "${GALLERY_TEST_FIXTURE_IMAGES:-30}" \
-    --metadata-db "$METADATA_DB" \
-    --thumbnail-cache "$THUMBNAIL_CACHE" \
-    --clean >/dev/null
+    "${FIXTURE_ARGS[@]}" >/dev/null
 
 if [[ "$SUITE" == "perf" ]]; then
     echo "==> Validate performance budget registry"
@@ -78,6 +91,7 @@ echo "==> Start backend fixture on $BACKEND_URL"
     PATH_SAFETY_ROOT="$FIXTURE_ROOT" \
     GALLERY_METADATA_DB="$METADATA_DB" \
     GALLERY_THUMBNAIL_CACHE_DIR="$THUMBNAIL_CACHE" \
+    GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED=false \
     FRONTEND_PORT="$FRONTEND_PORT" \
     ENABLE_METRICS=false \
     GALLERY_INTEGRITY_CHECK_ENABLED="${GALLERY_INTEGRITY_CHECK_ENABLED:-false}" \
@@ -98,6 +112,14 @@ done
 if ! curl --fail --silent "$BACKEND_URL/api/health" >/dev/null; then
     cat "$BACKEND_LOG" >&2
     exit 1
+fi
+
+if [[ "$SUITE" == "perf" ]]; then
+    PERF_RESULTS_DIR="$REPO_ROOT/frontend/test-results/perf"
+    mkdir -p "$PERF_RESULTS_DIR"
+    echo "==> Run managed search benchmark (${GALLERY_PERF_SEARCH_ROWS} rows)"
+    GALLERY_API_BASE_URL="$BACKEND_URL" \
+        "$PYTHON" "$SCRIPTS_DIR/bench_search.py" | tee "$PERF_RESULTS_DIR/search-benchmark-report.json"
 fi
 
 cd "$REPO_ROOT/frontend"

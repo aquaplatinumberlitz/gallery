@@ -117,6 +117,25 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
                 _check("rendered rows", report.get("renderedRows"), budgets.get("renderedRowsMax"), "rows"),
             ]
         )
+    elif "search_classes" in data:
+        budgets = data.get("budgets", {})
+        for report in data.get("search_classes", []):
+            checks.append(
+                _check(
+                    f"search {report.get('class', 'unknown')} p95",
+                    report.get("p95_ms"),
+                    budgets.get("search_p95_ms"),
+                )
+            )
+        inspector = data.get("inspector_metadata") or {}
+        if "p95_ms" in inspector:
+            checks.append(
+                _check(
+                    "inspector metadata p95",
+                    inspector.get("p95_ms"),
+                    budgets.get("inspector_metadata_p95_ms"),
+                )
+            )
     elif "search" in data:
         report = data.get("search", {})
         budgets = report.get("budgets", {})

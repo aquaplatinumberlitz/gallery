@@ -1,0 +1,142 @@
+{
+  "contract_version": 1,
+  "cases": [
+    {
+      "name": "unicode residual text",
+      "query": "夜の猫 portrait",
+      "residual_text": "夜の猫 portrait",
+      "backend_fields": [],
+      "frontend_managed_filters": [],
+      "frontend_pass_through_tokens": []
+    },
+    {
+      "name": "double quoted escaped value",
+      "query": "cat prompt:\"say \\\"hello\\\" softly\"",
+      "residual_text": "cat",
+      "backend_fields": [
+        {
+          "field": "prompt",
+          "value": "say \"hello\" softly",
+          "operator": "=",
+          "quote_char": "\"",
+          "key": null
+        }
+      ],
+      "frontend_managed_filters": [
+        {
+          "field": "prompt",
+          "value": "say \"hello\" softly"
+        }
+      ],
+      "frontend_pass_through_tokens": []
+    },
+    {
+      "name": "single quoted escaped value",
+      "query": "negative:'artist\\'s watermark'",
+      "residual_text": "",
+      "backend_fields": [
+        {
+          "field": "negative",
+          "value": "artist's watermark",
+          "operator": "=",
+          "quote_char": "'",
+          "key": null
+        }
+      ],
+      "frontend_managed_filters": [
+        {
+          "field": "negative",
+          "value": "artist's watermark"
+        }
+      ],
+      "frontend_pass_through_tokens": []
+    },
+    {
+      "name": "operators and repeated fields",
+      "query": "seed:>=12 model:pony model:'SD XL'",
+      "residual_text": "",
+      "backend_fields": [
+        {
+          "field": "seed",
+          "value": "12",
+          "operator": ">=",
+          "quote_char": "",
+          "key": null
+        },
+        {
+          "field": "model",
+          "value": "pony",
+          "operator": "=",
+          "quote_char": "",
+          "key": null
+        },
+        {
+          "field": "model",
+          "value": "SD XL",
+          "operator": "=",
+          "quote_char": "'",
+          "key": null
+        }
+      ],
+      "frontend_managed_filters": [
+        {
+          "field": "seed",
+          "operator": ">=",
+          "value": "12"
+        },
+        {
+          "field": "model",
+          "value": "pony"
+        },
+        {
+          "field": "model",
+          "value": "SD XL"
+        }
+      ],
+      "frontend_pass_through_tokens": []
+    },
+    {
+      "name": "aliases and pass through fields",
+      "query": "cat cfg:7.5 path:'/Archive/A' tool:ComfyUI custom:keep",
+      "residual_text": "cat custom:keep",
+      "frontend_residual_text": "cat",
+      "backend_fields": [
+        {
+          "field": "cfg_scale",
+          "value": "7.5",
+          "operator": "=",
+          "quote_char": "",
+          "key": null
+        },
+        {
+          "field": "path",
+          "value": "/Archive/A",
+          "operator": "=",
+          "quote_char": "'",
+          "key": null
+        },
+        {
+          "field": "tool",
+          "value": "ComfyUI",
+          "operator": "=",
+          "quote_char": "",
+          "key": null
+        }
+      ],
+      "frontend_managed_filters": [
+        {
+          "field": "cfg",
+          "value": "7.5"
+        },
+        {
+          "field": "folder",
+          "value": "/Archive/A"
+        }
+      ],
+      "frontend_pass_through_tokens": [
+        "tool:ComfyUI",
+        "custom:keep"
+      ]
+    }
+  ]
+}

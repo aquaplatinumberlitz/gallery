@@ -28,6 +28,7 @@ from fastapi.testclient import TestClient
 
 from backend.metadata_store import _connect, index_file, register_library, search_index, upsert_metadata_result
 from backend.metadata_store.ranked_search import (
+    _candidate_selects,
     build_candidate_page_query,
     decode_search_cursor,
     request_fingerprint,
@@ -241,3 +242,37 @@ def test_active_keyset_query_contains_no_offset() -> None:
     )
     assert "OFFSET" not in sql.upper()
     assert "cursor_asset_id" in sql
+
+
+def test_ranked_candidate_plan_uses_fts_and_catalog_ownership_indexes(
+    isolated_gallery_root: Path,
+) -> None:
+    register_library(isolated_gallery_root, name="Plan")
+    _seed_search_image(isolated_gallery_root, "plan_needle.png", prompt="plan needle prompt")
+    sql = build_candidate_page_query(
+        _candidate_selects(
+            "needle",
+            "",
+            include_fts=True,
+            field_where="",
+            include_videos=True,
+        ),
+        has_cursor=False,
+        legacy_offset=False,
+    )
+    params = {
+        "filename_like": "%needle%",
+        "filename_match": '"needle"',
+        "filename_prefix": "needle%",
+        "negative_match": 'negative_prompt : ("needle")',
+        "page_limit": 51,
+        "positive_match": 'prompt : ("needle")',
+        "query": "needle",
+        "text_like": "%needle%",
+    }
+    with _connect() as conn:
+        plan = [str(row["detail"]) for row in conn.execute(f"EXPLAIN QUERY PLAN {sql}", params)]
+
+    assert any("VIRTUAL TABLE INDEX" in detail for detail in plan)
+    assert any("assets" in detail and "INDEX" in detail for detail in plan)
+    assert any("library_import_paths" in detail and "INDEX" in detail for detail in plan)

@@ -123,7 +123,7 @@ export function installApiNetworkTracker(page: Page, clickTimeRef: { value: numb
     sample.endMs = nowMs() - clickTimeRef.value;
     sample.durationMs = sample.endMs - sample.startMs;
     sample.status = response.status();
-    const serverTiming = (await response.headerValue("server-timing")) ?? "";
+    const serverTiming = (await response.headerValue("server-timing").catch(() => null)) ?? "";
     const timingValues = Object.fromEntries(
       serverTiming.split(",").map((entry) => {
         const [name, ...parameters] = entry.trim().split(";");

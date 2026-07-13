@@ -8,7 +8,8 @@ drawer: `/api/search` (album/photo/prompt sections) and
 `/api/library/inspector/metadata` (per-image metadata detail).
 
 Guarantees:
-* repeated requests produce min/p50/p95/max JSON output for each endpoint
+* broad filename, prompt-heavy, album-heavy, fielded, CJK, and keyset-page
+  requests produce min/p50/p95/max JSON output
 * p95 budgets fail the process when exceeded
 * budgets are read from `scripts/perf_budgets.toml` sections `[search]` and
   `[inspector_metadata]` — env vars override only
@@ -54,22 +55,38 @@ def _find_inspector_metadata_path(base_url: str) -> str | None:
     return rows[0].get("path")
 
 
-def bench_search(base_url: str, query: str, iterations: int) -> dict:
-    """Benchmark the search endpoint and summarize request durations."""
+SEARCH_QUERY_CLASSES = (
+    ("broad_filename", "search_asset", 1),
+    ("prompt_heavy", "blue forest prompt heavy", 1),
+    ("album_heavy", "search_album", 1),
+    ("fielded", 'model:perf-model-3 sampler:"Euler a"', 1),
+    ("cjk", "星空 猫 風景", 1),
+    ("repeated_keyset_pages", "search_asset", 3),
+)
+
+
+def bench_search_case(base_url: str, name: str, query: str, iterations: int, pages: int = 1) -> dict:
+    """Benchmark one representative search class, including keyset pages."""
     durations: list[float] = []
     last_payload: dict = {}
     for _ in range(max(1, iterations)):
-        duration, last_payload = _get_json(
-            base_url,
-            "/api/search",
-            {"q": query, "scope": "all", "limit": "50"},
-        )
-        durations.append(duration)
+        cursor = ""
+        for _page in range(max(1, pages)):
+            params = {"q": query, "scope": "all", "limit": "50"}
+            if cursor:
+                params["cursor"] = cursor
+            duration, last_payload = _get_json(base_url, "/api/search", params)
+            durations.append(duration)
+            cursor = str(last_payload.get("next_cursor") or "")
+            if not cursor:
+                break
     stats = summarize_samples(durations)
     return {
+        "class": name,
         "endpoint": "/api/search",
         "query": query,
-        "iterations": int(stats["count"]),
+        "requests": int(stats["count"]),
+        "pages_per_iteration": pages,
         "min_ms": stats["min_ms"],
         "p50_ms": stats["p50_ms"],
         "p95_ms": stats["p95_ms"],
@@ -78,6 +95,11 @@ def bench_search(base_url: str, query: str, iterations: int) -> dict:
         "photos": len(last_payload.get("photos", [])) if isinstance(last_payload, dict) else 0,
         "prompt": len(last_payload.get("prompt", [])) if isinstance(last_payload, dict) else 0,
     }
+
+
+def bench_search(base_url: str, query: str, iterations: int) -> dict:
+    """Backward-compatible single-query benchmark helper."""
+    return bench_search_case(base_url, "custom", query, iterations)
 
 
 def bench_inspector_metadata(base_url: str, image_path: str | None, iterations: int) -> dict | None:
@@ -113,7 +135,7 @@ def main() -> int:
     """Run search benchmarks and enforce their configured budgets."""
     base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:4701")
     iterations = int(os.getenv("GALLERY_PERF_BENCH_SEARCH_ITERATIONS", "10"))
-    query = os.getenv("GALLERY_PERF_BENCH_SEARCH_QUERY", "a")
+    query = os.getenv("GALLERY_PERF_BENCH_SEARCH_QUERY", "search_asset")
     search_budget = float(os.getenv("GALLERY_PERF_SEARCH_P95_BUDGET_MS", str(budget_for("search", "p95_ms"))))
     inspector_md_budget = float(
         os.getenv(
@@ -122,17 +144,33 @@ def main() -> int:
         )
     )
 
-    search_result = bench_search(base_url, query, iterations)
+    search_classes = [
+        bench_search_case(base_url, name, query_text, iterations, pages)
+        for name, query_text, pages in SEARCH_QUERY_CLASSES
+    ]
+    if query != SEARCH_QUERY_CLASSES[0][1]:
+        search_classes.append(bench_search(base_url, query, iterations))
+    slowest_search = max(search_classes, key=lambda result: float(result["p95_ms"]))
+    search_result = {
+        "endpoint": "/api/search",
+        "p95_ms": slowest_search["p95_ms"],
+        "slowest_class": slowest_search["class"],
+        "class_count": len(search_classes),
+    }
     inspector_md_path = _find_inspector_metadata_path(base_url)
     inspector_md_result = bench_inspector_metadata(base_url, inspector_md_path, iterations)
 
     report = {
         "url": base_url,
         "query": query,
+        "fixture_search_rows": int(os.getenv("GALLERY_PERF_SEARCH_ROWS", "0")),
         "search": search_result,
+        "search_classes": search_classes,
         "inspector_metadata": inspector_md_result,
         "budgets": {
             "search_p95_ms": search_budget,
+            "search_ci_rows": int(budget_for("search", "ci_rows")),
+            "search_scheduled_rows": int(budget_for("search", "scheduled_rows")),
             "inspector_metadata_p95_ms": inspector_md_budget,
         },
         "budget_sources": {
@@ -143,12 +181,13 @@ def main() -> int:
     print(emit_report(report))
 
     failed = False
-    if search_result["p95_ms"] > search_budget:
-        print(
-            f"/api/search p95 exceeded budget: {search_result['p95_ms']}ms > {search_budget}ms",
-            file=sys.stderr,
-        )
-        failed = True
+    for result in search_classes:
+        if result["p95_ms"] > search_budget:
+            print(
+                f"/api/search {result['class']} p95 exceeded budget: {result['p95_ms']}ms > {search_budget}ms",
+                file=sys.stderr,
+            )
+            failed = True
     if inspector_md_result and "p95_ms" in inspector_md_result and inspector_md_result["p95_ms"] > inspector_md_budget:
         print(
             f"/api/library/inspector/metadata p95 exceeded budget: "

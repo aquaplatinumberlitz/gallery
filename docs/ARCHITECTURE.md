@@ -270,6 +270,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_store/metadata_queue.py`   | Durable metadata index job queue primitives, completion invariants, and stale guards |
 | `metadata_store/metadata_persist.py` | Metadata persistence helpers                              |
 | `metadata_store/search_store.py`     | FTS5 search queries                                       |
+| `metadata_store/ranked_search.py`    | Tiered search candidates and opaque keyset cursors        |
 | `metadata_store/inspector_store.py`  | Library Inspector data access                             |
 | `metadata_store/_asset_store.py`     | Shared asset upsert helper                                |
 | `metadata_store/_resources.py`       | Image resource parsing helpers                            |
@@ -393,7 +394,7 @@ Key paths:
 | `frontend/src/router/index.ts`                            | Routes: `/` gallery, `/metadata` Library Inspector, `/admin/libraries`, `/admin/libraries/:id`, `/admin/maintenance`, fallback redirect |
 | `frontend/src/App.vue`                                    | Root shell, layout dispatch, lightbox/settings/toast mounting, Query Devtools in dev                                           |
 | `frontend/src/layouts/`                                   | Desktop, tablet, and mobile layout shells                                                                                      |
-| `frontend/src/components/GalleryGrid.vue`                 | Main gallery renderer, album/photo sections, infinite loading, search result rendering                                         |
+| `frontend/src/components/GalleryGrid.vue`                 | Main gallery renderer, browse album/photo sections, and search-query orchestration                                             |
 | `frontend/src/components/Lightbox.vue`                    | Device-dispatch lightbox orchestrator                                                                                          |
 | `frontend/src/components/LibraryInspector.vue`            | Desktop metadata inspection table at `/metadata`; TanStack Table for returned-row sorting plus TanStack Virtual for table rows |
 | `frontend/src/components/admin/LibraryListPage.vue`       | Admin registered-library list, update-all entrypoint, status summaries, and navigation to library detail pages                  |
@@ -402,6 +403,9 @@ Key paths:
 | `frontend/src/components/SortSelect.vue`                  | shadcn-vue Select sort control used by gallery desktop/tablet toolbars and the Library Inspector                               |
 | `frontend/src/components/SortDropdown.vue`                | Dropdown-menu sort control still used by the mobile header                                                                     |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Facet-backed fielded search form                                                                                               |
+| `frontend/src/components/search/SearchResultsPanel.vue`   | Virtualized album/media search sections, page loading, and typed open/retry actions                                            |
+| `frontend/src/components/search/SearchFeedback.vue`       | Pending, blocking-error, stale-warning, pagination-error, and successful-empty search states                                   |
+| `frontend/src/components/search/SearchResultMetadata.vue` | Escaped match/snippet/generation/library context for one search result                                                         |
 | `frontend/src/components/ui/`                             | shadcn-vue/Reka-inspired local UI primitives                                                                                   |
 | `frontend/src/composables/`                               | Query wrappers, device detection, PhotoSwipe lifecycle, metadata helpers, theme, haptics                                       |
 | `frontend/src/query/`                                     | TanStack Query client, normalized query keys, browse prefetch helpers                                                          |
@@ -444,9 +448,9 @@ Core keys:
 ["browse-infinite", libraryId]
 ["browse-infinite", libraryId, normalizedPath, limit, includeOffline]
 ["folder-children", normalizedPath]
-["search", query, scope, normalizedPath]
+["search", query, scope, normalizedPath, limit]
 ["metadata", normalizedPath]
-["facets", normalizedPath]
+["facets", canonicalScope, libraryId, normalizedPath]
 ["status"]
 ["status", "libraries", "batch"]
 ["status", "library", libraryId]
@@ -532,7 +536,7 @@ Header search or AdvancedSearchDrawer
 -> Pinia stores search text/scope
 -> useUnifiedSearchQuery()
 -> GET /api/search?cursor=...
--> GalleryGrid renders first-page Album suggestions and an appended Media stream
+-> SearchResultsPanel renders first-page Album suggestions and an appended Media stream
 ```
 
 - Canonical scopes are `folder` (one authorized folder recursively), `library`
@@ -545,6 +549,10 @@ Header search or AdvancedSearchDrawer
   `returned`, and `limit`. Legacy `albums`, `photos`, `videos`, and `prompt`
   fields remain for compatibility; the active gallery search UI renders
   `media`.
+- TanStack Query passes its `AbortSignal` through Axios. Canonical media pages
+  deduplicate by `(library_id, asset_id)` and use the exact case-preserved path
+  only for compatibility rows that lack IDs; legacy arrays are consumed only
+  when canonical `media` is absent.
 - One candidate CTE combines exact/prefix/FTS/substring filename matches,
   positive-prompt phrases/FTS, negative prompts, and structured-filter-only
   rows. It deduplicates by stable asset ID and orders by relevance tier, a
@@ -566,11 +574,12 @@ Header search or AdvancedSearchDrawer
 - Watcher, scan, offline-asset, and integrity workflows reconcile stale catalog
   state. Search reflects the current catalog snapshot and never schedules
   cleanup from a response.
-- Fielded queries are parsed server-side, for example `prompt:"blue hair"`, `seed:12345`, `model:pony`, `steps:>25`, `width:>=1024`.
+- Fielded queries are parsed server-side, for example `prompt:"blue hair"`, `seed:12345`, `model:pony`, `steps:>25`, `width:>=1024`. A shared JSON grammar contract covers single/double quotes, escaping, operators, repeated fields, aliases, pass-through tokens, and Unicode in pytest and Vitest.
 - Fielded search keeps metadata filters scoped to filterable image/prompt
   media; filename-only videos are not returned for fielded queries unless a
   future video metadata index supports the same predicates.
-- The shared Advanced Search drawer is owned by `App.vue`, uses TanStack Form and `/api/facets`, and builds the same fielded query syntax from desktop, tablet, and mobile headers. It renders as a right sheet on tablet/desktop and a full-width sheet on compact mobile viewports.
+- The raw search string is the only frontend query source. The shared Advanced Search drawer is owned by `App.vue`, uses TanStack Form and scope-matched `/api/facets`, and replaces only drawer-managed filters while preserving residual text and pass-through tokens. It renders as a right sheet on tablet/desktop and a full-width sheet on compact mobile viewports.
+- Active search replaces browse sorting with a visible `Relevance` label. Search feedback distinguishes initial pending, blocking error, stale-data warning, next-page error, and successful empty states on desktop, tablet, and mobile.
 - `GET /api/search-metadata` remains available for older callers, returns the
   catalog-filtered global total, and follows the same DB-only response policy;
   the main gallery UI uses `/api/search`.

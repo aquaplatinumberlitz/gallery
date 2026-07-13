@@ -168,6 +168,10 @@ def _read_field_value(state: ParserState) -> tuple[str, str]:
         while not state.finished():
             ch = state.peek()
             state.advance()
+            if ch == "\\" and not state.finished() and state.peek() in {quote, "\\"}:
+                value_parts.append(state.peek())
+                state.advance()
+                continue
             if ch == quote:
                 break
             value_parts.append(ch)

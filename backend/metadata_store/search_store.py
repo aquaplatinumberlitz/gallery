@@ -240,7 +240,7 @@ def _partition_media_page(
     videos: list[dict[str, Any]] = []
     prompt: list[dict[str, Any]] = []
     for result in media:
-        if result.get("match_type") == "prompt":
+        if result.get("match_type") in {"prompt", "prompt_phrase", "negative_prompt", "metadata", "filters"}:
             prompt.append(result)
         elif result.get("type") == "video":
             videos.append(result)

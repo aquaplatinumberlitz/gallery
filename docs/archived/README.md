@@ -37,6 +37,10 @@ Notable groups include:
   bounded, cursor-paginated `media` stream; the frontend uses infinite query
   paging for search; fielded search keeps metadata filters scoped to
   filterable media.
+- Completed Search Hardening plan — active-catalog indexed ownership, DB-only
+  album suggestions and response authorization, unified relevance with opaque
+  keyset pagination, typed scope-parity contracts, lossless Vue query state,
+  explicit result UX, and managed 5,000-row lexical performance budgets.
 - Gallery Browse Lifecycle Manager — deferred frontend browse-lifecycle
   refactor criteria retained as historical tech-debt context.
 - Derivative Lifecycle Full Convergence Plan — 7-phase end-to-end
