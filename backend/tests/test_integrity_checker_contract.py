@@ -556,6 +556,7 @@ class TestRunAllChecks:
             "derivative_queued_without_job_skipped",
             "derivative_policy_deferred",
             "derivative_policy_deferred_requeued",
+            "derivative_unsupported_terminalized",
         }
         assert set(results.keys()) == expected_keys
         for val in results.values():

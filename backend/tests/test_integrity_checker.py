@@ -355,7 +355,8 @@ class TestDerivativeReadyNoFile:
         assert count == 1
         with _DB_LOCK, _connect() as conn:
             row = conn.execute(
-                "SELECT status, last_error FROM asset_derivatives WHERE asset_id = ? AND kind = 'thumbnail'",
+                "SELECT status, last_error FROM asset_derivatives "
+                "WHERE asset_id = ? AND kind = 'thumbnail' AND variant = 'thumb_512'",
                 (asset_id,),
             ).fetchone()
             assert row["status"] == "queued"

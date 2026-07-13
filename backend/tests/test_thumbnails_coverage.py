@@ -1,8 +1,8 @@
 """
 Purpose:
 Exercise uncovered thumbnails.py branches for metric helpers, derivative format
-normalization, render-time mode conversion, cache hit/miss paths, error mapping,
-and _serve_derivative exception handling so backend line coverage stays above
+normalization, render-time mode conversion, cache hit/miss paths, and durable
+request scheduling so backend line coverage stays above
 the release threshold.
 
 Guarantees:
@@ -18,20 +18,17 @@ Guarantees:
 * generate_derivative returns cached bytes on a cache hit and maps
   DecompressionBombError / UnidentifiedImageError to APIError(400).
 * _resolve_image_request_path rejects unsafe, missing, and non-image paths.
-* _serve_derivative passes APIError through, maps FileNotFoundError to 404,
-  OSError to 400, and other exceptions to 500, and falls back to a Response
-  when no derivative file path is available on disk.
+* public derivative requests require catalog ownership and durable scheduling.
 
 Run when:
 * changing thumbnails.py metric helpers, format normalization, derivative
-  rendering, cache hit/miss logic, or _serve_derivative error mapping
+  rendering, cache hit/miss logic, or durable request scheduling
 * adding new derivative formats or changing EXIF/mode conversion branches
 * touching path-safety / file-existence checks for derivative endpoints
 """
 
 from __future__ import annotations
 
-import asyncio
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -316,184 +313,6 @@ def test_resolve_image_request_path_returns_path_for_valid_image(
 # ---------------------------------------------------------------------------
 
 
-def _build_request_for_etag(image_path: Path):
-    """Build a Starlette-like Request stub with an empty headers dict."""
-    request = MagicMock()
-    request.headers = {}
-    return request
-
-
-def test_serve_derivative_passes_api_error_through(
-    isolated_thumbnail_cache: Path, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
-    image = isolated_gallery_root / "api_err.png"
-    Image.new("RGB", (10, 10), (40, 120, 200)).save(image, format="PNG")
-
-    def raise_api_error(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise APIError(418, "teapot", "I'm a teapot")
-
-    monkeypatch.setattr(thumbnails, "generate_derivative", raise_api_error)
-
-    request = _build_request_for_etag(image)
-    with pytest.raises(APIError) as exc_info:
-        asyncio.run(
-            thumbnails._serve_derivative(
-                request=request,
-                path=str(image),
-                kind="thumbnail",
-                max_long_edge=100,
-                quality=80,
-                format="webp",
-                failure_message="fail",
-            )
-        )
-    assert exc_info.value.status_code == 418
-
-
-def test_serve_derivative_maps_filenotfound_to_404(
-    isolated_thumbnail_cache: Path, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
-    image = isolated_gallery_root / "gone.png"
-    Image.new("RGB", (10, 10), (40, 120, 200)).save(image, format="PNG")
-
-    def raise_filenotfound(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise FileNotFoundError("vanished")
-
-    monkeypatch.setattr(thumbnails, "generate_derivative", raise_filenotfound)
-
-    request = _build_request_for_etag(image)
-    with pytest.raises(APIError) as exc_info:
-        asyncio.run(
-            thumbnails._serve_derivative(
-                request=request,
-                path=str(image),
-                kind="thumbnail",
-                max_long_edge=100,
-                quality=80,
-                format="webp",
-                failure_message="fail",
-            )
-        )
-    assert exc_info.value.status_code == 404
-
-
-def test_serve_derivative_maps_oserror_to_400(
-    isolated_thumbnail_cache: Path, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
-    image = isolated_gallery_root / "oserr.png"
-    Image.new("RGB", (10, 10), (40, 120, 200)).save(image, format="PNG")
-
-    def raise_oserror(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise OSError("disk on fire")
-
-    monkeypatch.setattr(thumbnails, "generate_derivative", raise_oserror)
-
-    request = _build_request_for_etag(image)
-    with pytest.raises(APIError) as exc_info:
-        asyncio.run(
-            thumbnails._serve_derivative(
-                request=request,
-                path=str(image),
-                kind="thumbnail",
-                max_long_edge=100,
-                quality=80,
-                format="webp",
-                failure_message="fail",
-            )
-        )
-    assert exc_info.value.status_code == 400
-
-
-def test_serve_derivative_maps_generic_exception_to_500(
-    isolated_thumbnail_cache: Path, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
-    image = isolated_gallery_root / "boom.png"
-    Image.new("RGB", (10, 10), (40, 120, 200)).save(image, format="PNG")
-
-    def raise_generic(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise RuntimeError("unexpected")
-
-    monkeypatch.setattr(thumbnails, "generate_derivative", raise_generic)
-
-    request = _build_request_for_etag(image)
-    with pytest.raises(APIError) as exc_info:
-        asyncio.run(
-            thumbnails._serve_derivative(
-                request=request,
-                path=str(image),
-                kind="thumbnail",
-                max_long_edge=100,
-                quality=80,
-                format="webp",
-                failure_message="fail",
-            )
-        )
-    assert exc_info.value.status_code == 500
-
-
-def test_serve_derivative_falls_back_to_response_when_no_file(
-    isolated_thumbnail_cache: Path, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
-    """When generate_derivative succeeds but no cache file exists on disk, the
-    Response-with-bytes fallback path is taken."""
-    image = isolated_gallery_root / "fallback.png"
-    Image.new("RGB", (10, 10), (40, 120, 200)).save(image, format="PNG")
-
-    # Ensure the cache file path doesn't exist by clearing the file dir
-    monkeypatch.setattr(
-        thumbnails,
-        "_derivative_cache_file_path",
-        lambda cache_key, format: Path("/nonexistent_dir_no_perms/fallback.bin"),
-    )
-
-    fake_bytes = b"\x00\x01\x02\x03"
-    monkeypatch.setattr(
-        thumbnails,
-        "generate_derivative",
-        lambda *args, **kwargs: fake_bytes,
-    )
-
-    request = _build_request_for_etag(image)
-    response = asyncio.run(
-        thumbnails._serve_derivative(
-            request=request,
-            path=str(image),
-            kind="thumbnail",
-            max_long_edge=100,
-            quality=80,
-            format="webp",
-            failure_message="fail",
-        )
-    )
-    assert response.body == fake_bytes
-    assert response.media_type == "image/webp"
-    assert response.headers["Content-Length"] == str(len(fake_bytes))
-
-
-def test_serve_derivative_returns_304_on_etag_match(isolated_thumbnail_cache: Path, isolated_gallery_root: Path):
-    image = isolated_gallery_root / "etag_match.png"
-    Image.new("RGB", (10, 10), (40, 120, 200)).save(image, format="PNG")
-
-    stat = image.stat()
-    etag = f'"thumbnail-{thumbnails.DERIVATIVE_CACHE_VERSION}-{stat.st_mtime_ns}-{stat.st_size}-100-webp-80"'
-
-    request = MagicMock()
-    request.headers = {"if-none-match": etag}
-
-    response = asyncio.run(
-        thumbnails._serve_derivative(
-            request=request,
-            path=str(image),
-            kind="thumbnail",
-            max_long_edge=100,
-            quality=80,
-            format="webp",
-            failure_message="fail",
-        )
-    )
-    assert response.status_code == 304
-
-
 # ---------------------------------------------------------------------------
 # _resolve_max_long_edge helper
 # ---------------------------------------------------------------------------
@@ -512,15 +331,15 @@ def test_resolve_max_long_edge_uses_max_long_edge_when_max_size_none():
 # ---------------------------------------------------------------------------
 
 
-def test_api_thumbnail_rejects_non_image(tmp_path: Path):
-    """Calling /api/thumbnail on a non-image file returns 400."""
+def test_api_thumbnail_rejects_non_catalog_file(tmp_path: Path):
+    """Calling /api/thumbnail on a non-catalog file returns 404."""
     from backend.app import app
 
     text = tmp_path / "notes.txt"
     text.write_text("not an image")
     client = TestClient(app, raise_server_exceptions=False)
     resp = client.get("/api/thumbnail", params={"path": str(text)})
-    assert resp.status_code == 400
+    assert resp.status_code == 404
 
 
 def test_api_thumbnail_404_for_missing_file(tmp_path: Path):

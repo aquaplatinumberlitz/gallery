@@ -21,7 +21,13 @@ from pathlib import Path
 
 import pytest
 
-from backend.metadata_store import get_library_stats, index_directory_tree, register_library
+from backend.metadata_store import (
+    get_library_for_path,
+    get_library_stats,
+    index_directory_tree,
+    index_file,
+    register_library,
+)
 
 _FFMPEG = shutil.which("ffmpeg")
 
@@ -48,6 +54,13 @@ def _create_test_video(path: Path) -> None:
     )
 
 
+def _catalog_video(path: Path) -> None:
+    if get_library_for_path(path) is None:
+        register_library(path.parent)
+    stat = path.stat()
+    assert index_file(path, path.name, path.parent, "video", stat.st_mtime, stat.st_size, None, None, "video/mp4")
+
+
 @pytest.fixture
 def video_file(isolated_gallery_root: Path) -> Path:
     if not _FFMPEG:
@@ -61,6 +74,7 @@ def video_file(isolated_gallery_root: Path) -> Path:
 def simple_video_file(isolated_gallery_root: Path) -> Path:
     path = isolated_gallery_root / "sample.mp4"
     path.write_bytes(b"0123456789abcdefghijklmnopqrstuvwxyz")
+    _catalog_video(path)
     return path
 
 
@@ -149,8 +163,8 @@ def test_video_rejects_non_video_file(isolated_app, isolated_gallery_root: Path)
 
     response = isolated_app.get("/api/video", params={"path": str(text_file)})
 
-    assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "invalid_file"
+    assert response.status_code == 404
+    assert response.json()["detail"]["error"] == "not_found"
 
 
 def test_video_poster_generation(
@@ -171,6 +185,7 @@ def test_video_poster_generation(
         return await original_run_in_threadpool(func, *args)
 
     monkeypatch.setattr(video_module, "run_in_threadpool", tracked_run_in_threadpool)
+    _catalog_video(video_file)
 
     response = isolated_app.get("/api/video/poster", params={"path": str(video_file)})
 
@@ -194,6 +209,7 @@ def test_video_poster_reports_missing_ffmpeg(
     video_file: Path,
 ):
     monkeypatch.setenv("PATH", "")
+    _catalog_video(video_file)
 
     response = isolated_app.get("/api/video/poster", params={"path": str(video_file)})
 

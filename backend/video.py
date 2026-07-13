@@ -6,13 +6,21 @@ import re
 import shutil
 import subprocess
 import threading
+import time
+from contextlib import suppress
 from pathlib import Path
 
 from fastapi import APIRouter, Query, Request
 from fastapi.concurrency import run_in_threadpool
+from starlette.background import BackgroundTask
 from starlette.responses import FileResponse, Response, StreamingResponse
 
-from .config import THUMBNAIL_CACHE_DIR
+from .config import (
+    THUMBNAIL_CACHE_DIR,
+    VIDEO_POSTER_MAX_CONCURRENCY,
+    VIDEO_POSTER_QUEUE_TIMEOUT_SECONDS,
+    VIDEO_POSTER_QUOTA_BYTES,
+)
 from .errors import APIError, ErrorType
 from .files import is_video_path
 from .scan import require_media_path_allowed
@@ -34,6 +42,10 @@ _VIDEO_MIME_TYPES = {
 # same video do not both spawn ffmpeg against the same output path.
 _POSTER_LOCKS_GUARD = threading.Lock()
 _POSTER_LOCKS: dict[str, threading.Lock] = {}
+_POSTER_SLOTS = threading.BoundedSemaphore(VIDEO_POSTER_MAX_CONCURRENCY)
+_POSTER_STATE_LOCK = threading.RLock()
+_POSTER_GENERATING_PATHS: set[str] = set()
+_POSTER_SERVED_PATHS: set[str] = set()
 
 _RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
 _RANGE_CHUNK_SIZE = 1024 * 1024
@@ -70,6 +82,34 @@ def _poster_lock_for(cache_key: str) -> threading.Lock:
             lock = threading.Lock()
             _POSTER_LOCKS[cache_key] = lock
         return lock
+
+
+def _release_poster_serving(path: str) -> None:
+    with _POSTER_STATE_LOCK:
+        _POSTER_SERVED_PATHS.discard(path)
+
+
+def _enforce_poster_quota(*, protect: str | None = None) -> bool:
+    """Evict least-recently-used poster files while protecting active paths."""
+    POSTER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    with _POSTER_STATE_LOCK:
+        protected = _POSTER_GENERATING_PATHS | _POSTER_SERVED_PATHS
+        if protect is not None:
+            protected = {*protected, protect}
+        files = [path for path in POSTER_CACHE_DIR.glob("*.webp") if path.is_file()]
+        total = sum(path.stat().st_size for path in files)
+        for path in sorted(files, key=lambda item: (item.stat().st_atime_ns, str(item))):
+            if total <= VIDEO_POSTER_QUOTA_BYTES:
+                break
+            if str(path) in protected:
+                continue
+            size = path.stat().st_size
+            try:
+                path.unlink()
+            except OSError:
+                continue
+            total -= size
+        return total <= VIDEO_POSTER_QUOTA_BYTES
 
 
 @router.get("/api/video")
@@ -145,43 +185,65 @@ def _get_or_generate_poster(file_path: Path) -> Path:
     POSTER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
     if not cached_path.exists():
+        if not _POSTER_SLOTS.acquire(timeout=VIDEO_POSTER_QUEUE_TIMEOUT_SECONDS):
+            raise APIError(503, "video_poster_saturated", "Video poster generation is busy")
         lock = _poster_lock_for(cache_key)
-        with lock:
-            # Re-check inside the lock so only one request runs ffmpeg per key.
-            if not cached_path.exists():
-                temp_path = cached_path.with_name(f"{cached_path.stem}.tmp.{os.getpid()}.{threading.get_ident()}.webp")
-                temp_path.unlink(missing_ok=True)
-                try:
-                    result = subprocess.run(
-                        [
-                            ffmpeg_path,
-                            "-y",
-                            "-ss",
-                            "1",
-                            "-i",
-                            str(file_path),
-                            "-vframes",
-                            "1",
-                            "-q:v",
-                            "3",
-                            str(temp_path),
-                        ],
-                        capture_output=True,
-                        timeout=30,
-                        check=False,
+        try:
+            with lock:
+                # Re-check inside the lock so only one request runs ffmpeg per key.
+                if not cached_path.exists():
+                    temp_path = cached_path.with_name(
+                        f"{cached_path.stem}.tmp.{os.getpid()}.{threading.get_ident()}.webp"
                     )
-                except (OSError, subprocess.SubprocessError) as exc:
                     temp_path.unlink(missing_ok=True)
-                    raise APIError(
-                        422,
-                        ErrorType.VIDEO_POSTER_FAILED,
-                        "ffmpeg could not produce a poster",
-                    ) from exc
-                if result.returncode != 0 or not temp_path.exists():
-                    temp_path.unlink(missing_ok=True)
-                    raise APIError(422, ErrorType.VIDEO_POSTER_FAILED, "ffmpeg could not produce a poster")
-                # Atomic rename so concurrent readers never see a half-written poster.
-                temp_path.replace(cached_path)
+                    with _POSTER_STATE_LOCK:
+                        _POSTER_GENERATING_PATHS.add(str(cached_path))
+                    try:
+                        result = subprocess.run(
+                            [
+                                ffmpeg_path,
+                                "-y",
+                                "-ss",
+                                "1",
+                                "-i",
+                                str(file_path),
+                                "-vframes",
+                                "1",
+                                "-q:v",
+                                "3",
+                                str(temp_path),
+                            ],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            timeout=30,
+                            check=False,
+                        )
+                        if result.returncode != 0 or not temp_path.exists():
+                            raise APIError(422, ErrorType.VIDEO_POSTER_FAILED, "ffmpeg could not produce a poster")
+                        temp_path.replace(cached_path)
+                    except APIError:
+                        temp_path.unlink(missing_ok=True)
+                        raise
+                    except (OSError, subprocess.SubprocessError) as exc:
+                        temp_path.unlink(missing_ok=True)
+                        raise APIError(
+                            422,
+                            ErrorType.VIDEO_POSTER_FAILED,
+                            "ffmpeg could not produce a poster",
+                        ) from exc
+                    finally:
+                        temp_path.unlink(missing_ok=True)
+                        with _POSTER_STATE_LOCK:
+                            _POSTER_GENERATING_PATHS.discard(str(cached_path))
+        finally:
+            _POSTER_SLOTS.release()
+
+    with suppress(OSError):
+        cached_stat = cached_path.stat()
+        os.utime(cached_path, ns=(time.time_ns(), cached_stat.st_mtime_ns))
+    if not _enforce_poster_quota(protect=str(cached_path)):
+        cached_path.unlink(missing_ok=True)
+        raise APIError(507, ErrorType.CAPACITY_EXCEEDED, "Video poster cache capacity exceeded")
 
     return cached_path
 
@@ -196,8 +258,11 @@ async def api_video_poster(request: Request, path: str = Query(...)):
     headers = {"Cache-Control": _REVALIDATE_CACHE_CONTROL, "ETag": etag}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
+    with _POSTER_STATE_LOCK:
+        _POSTER_SERVED_PATHS.add(str(cached_path))
     return FileResponse(
         cached_path,
         media_type="image/webp",
         headers=headers,
+        background=BackgroundTask(_release_poster_serving, str(cached_path)),
     )

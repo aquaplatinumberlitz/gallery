@@ -6,6 +6,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -198,6 +199,7 @@ class IntegrityChecker:
             total["asset_done_but_no_metadata"] = self._check_asset_done_no_metadata(conn)
             total["job_done_asset_not_done"] = self._check_job_done_asset_not_done(conn)
             total["job_active_no_asset"] = self._check_job_active_no_asset(conn)
+            unsupported_paths = self._terminalize_unsupported_derivatives(conn)
             ready_rows = conn.execute(
                 """SELECT d.id, d.cache_path, d.source_mtime_ns, d.source_size,
                           a.id AS asset_id, a.path, a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
@@ -224,6 +226,11 @@ class IntegrityChecker:
             expected_ids = self._find_expected_row_missing(conn)
             queued_ids = self._find_queued_without_job(conn)
             deferred_ids = self._find_policy_deferred(conn)
+
+        for cache_path in unsupported_paths:
+            with suppress(OSError):
+                Path(cache_path).unlink(missing_ok=True)
+        total["derivative_unsupported_terminalized"] = len(unsupported_paths)
 
         cache_exists = {
             str(row["cache_path"]): Path(row["cache_path"]).is_file()
@@ -297,6 +304,39 @@ class IntegrityChecker:
             (deferred_summary.created_jobs + deferred_summary.requeued_without_job) if deferred_summary else 0
         )
         return total
+
+    @staticmethod
+    def _terminalize_unsupported_derivatives(conn: sqlite3.Connection) -> list[str]:
+        """Skip legacy public variants and return cache paths for post-commit deletion."""
+        configured = [
+            (kind, str(variant["name"])) for kind, variants in DERIVATIVE_VARIANTS.items() for variant in variants
+        ]
+        if not configured:
+            return []
+        predicate = " OR ".join("(kind = ? AND variant = ?)" for _ in configured)
+        params = [value for pair in configured for value in pair]
+        rows = conn.execute(
+            f"SELECT id, cache_path FROM asset_derivatives WHERE NOT ({predicate})",
+            params,
+        ).fetchall()
+        if not rows:
+            return []
+        derivative_ids = [int(row["id"]) for row in rows]
+        placeholders = ",".join("?" for _ in derivative_ids)
+        message = "integrity: unsupported derivative variant"
+        conn.execute(
+            f"UPDATE asset_derivatives SET status = 'skipped', cache_path = NULL, byte_size = NULL, "
+            f"last_error = ?, updated_at = julianday('now') WHERE id IN ({placeholders})",
+            (message, *derivative_ids),
+        )
+        conn.execute(
+            f"UPDATE derivative_jobs SET state = 'skipped', result_code = 'unsupported_variant', error = ?, "
+            f"claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL, "
+            f"completed_at = julianday('now'), updated_at = julianday('now') "
+            f"WHERE derivative_id IN ({placeholders}) AND state IN ('queued', 'running')",
+            (message, *derivative_ids),
+        )
+        return [str(row["cache_path"]) for row in rows if row["cache_path"]]
 
     @staticmethod
     def _find_expected_row_missing(conn: sqlite3.Connection) -> list[int]:
@@ -575,6 +615,7 @@ class IntegrityChecker:
                     completed_at = CASE WHEN ? IN ('skipped', 'failed') THEN julianday('now') ELSE NULL END,
                     updated_at = julianday('now')
                 WHERE id = ? AND state = 'running' AND claim_token IS ?
+                  AND (lease_expires_at IS NULL OR lease_expires_at <= julianday('now'))
                 """,
                 (state, result_code, message, state, state, row["job_id"], row["claim_token"]),
             )

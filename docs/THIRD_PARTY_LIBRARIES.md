@@ -14,7 +14,7 @@ This document records how major third-party libraries are used in the current co
 | Uvicorn                                                         | ASGI dev/prod server                                                              | `start.py`, `backend/main.py`                                                                         | `start.py` runs `python3 -m uvicorn backend.main:app` from repo root                                    |
 | Pydantic                                                        | Backend DTO validation                                                            | `backend/models.py`                                                                                   | Used for `FileNode` and shared response/request schemas                                                 |
 | Pillow                                                          | Image opening, dimensions, metadata, derivative and video-poster rendering        | `backend/metadata_extract.py`, `backend/thumbnails.py`, `backend/video.py`, `backend/files.py`        | Honors project file size/pixel limits                                                                   |
-| diskcache                                                       | Persistent derivative cache                                                       | `backend/thumbnails.py`, `backend/config.py`                                                          | Stores rendered WebP thumbnail/preview files under `backend/.cache/thumbnails/` by default              |
+| diskcache                                                       | Small persistent derivative key-to-path index                                     | `backend/thumbnails.py`, `backend/config.py`                                                          | Capped at 64 MiB; rendered WebP bytes live only in the quota-counted file cache                          |
 | cachetools                                                      | In-memory metadata response cache                                                 | `backend/metadata_parse.py`                                                                           | Metadata cache only; thumbnail bytes are disk-backed                                                    |
 | SQLite FTS5                                                     | Folder/photo/metadata index and search                                            | `backend/metadata_store/`, `backend/search.py`, `backend/facets.py`                                   | Uses Python stdlib `sqlite3`; no external search service                                                |
 | wcmatch                                                         | Per-library globstar exclusion matching                                           | `backend/files.py`, `backend/libraries.py`                                                            | Patterns are relative to each registered import path                                                    |
@@ -80,7 +80,10 @@ Metadata extraction lives in `metadata_extract.py`; derivative rendering lives i
 
 ### diskcache
 
-`diskcache` backs persistent WebP derivatives. Cache path defaults to `backend/.cache/thumbnails/` and can be changed with `GALLERY_THUMBNAIL_CACHE_DIR`.
+`diskcache` stores only small derivative key-to-path metadata. The authoritative
+WebP files live in the quota-counted `files/` directory under
+`GALLERY_THUMBNAIL_CACHE_DIR`; legacy byte-valued cache entries are cleared by
+the cache-version migration.
 
 Derivative cache keys include:
 

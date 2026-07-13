@@ -22,7 +22,10 @@ from backend import thumbnails
 from backend.app import app
 from backend.metadata_extract import get_oriented_dimensions
 from backend.metadata_store import (
+    create_library,
     get_cached_dimensions_for_files,
+    get_library_for_path,
+    index_file,
 )
 
 from .conftest import create_exif_rotated_jpeg
@@ -40,9 +43,17 @@ def _response_image_size(response) -> tuple[int, int]:
         return image.size
 
 
+def _catalog_image(path) -> None:
+    if get_library_for_path(path) is None:
+        create_library([path.parent], name=path.parent.name)
+    stat = path.stat()
+    assert index_file(path, path.name, path.parent, "image", stat.st_mtime, stat.st_size, None, None)
+
+
 def test_thumbnail_default_max_long_edge_is_512(tmp_path):
     image_path = tmp_path / "wide.png"
     _write_image(image_path, (900, 600))
+    _catalog_image(image_path)
 
     response = client.get("/api/thumbnail", params={"path": str(image_path)})
 
@@ -54,6 +65,7 @@ def test_thumbnail_default_max_long_edge_is_512(tmp_path):
 def test_preview_default_max_long_edge_is_1440(tmp_path):
     image_path = tmp_path / "wide.png"
     _write_image(image_path, (1800, 1200))
+    _catalog_image(image_path)
 
     response = client.get("/api/preview", params={"path": str(image_path)})
 
@@ -67,6 +79,8 @@ def test_thumbnail_and_preview_preserve_aspect_ratio_without_crop(tmp_path):
     square_path = tmp_path / "square.png"
     _write_image(portrait_path, (1200, 1800))
     _write_image(square_path, (1800, 1800))
+    _catalog_image(portrait_path)
+    _catalog_image(square_path)
 
     portrait_response = client.get("/api/thumbnail", params={"path": str(portrait_path)})
     square_response = client.get("/api/preview", params={"path": str(square_path)})
@@ -80,6 +94,7 @@ def test_thumbnail_and_preview_preserve_aspect_ratio_without_crop(tmp_path):
 def test_preview_does_not_upscale_small_images(tmp_path):
     image_path = tmp_path / "small.png"
     _write_image(image_path, (1000, 700))
+    _catalog_image(image_path)
 
     response = client.get("/api/preview", params={"path": str(image_path)})
 
@@ -107,12 +122,12 @@ def test_derivative_cache_keys_are_separated_by_kind(tmp_path):
     )
 
     assert thumbnail_key != preview_key
-    assert thumbnail_key.startswith("thumbnail:v2:")
-    assert preview_key.startswith("preview:v2:")
+    assert thumbnail_key.startswith("thumbnail:v3:")
+    assert preview_key.startswith("preview:v3:")
 
 
-def test_derivative_cache_version_is_v2():
-    assert thumbnails.DERIVATIVE_CACHE_VERSION == "v2"
+def test_derivative_cache_version_is_v3():
+    assert thumbnails.DERIVATIVE_CACHE_VERSION == "v3"
 
 
 def test_oriented_dimensions_for_exif_rotated_jpeg(tmp_path):
@@ -146,6 +161,7 @@ def test_thumbnail_stores_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatc
 
     image_path = tmp_path / "iphone.jpg"
     create_exif_rotated_jpeg(image_path, size=(1440, 1080), orientation=6)
+    _catalog_image(image_path)
 
     response = client.get("/api/thumbnail", params={"path": str(image_path)})
     assert response.status_code == 200
@@ -170,6 +186,7 @@ def test_metadata_returns_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatc
 
     image_path = tmp_path / "iphone_meta.jpg"
     create_exif_rotated_jpeg(image_path, size=(1440, 1080), orientation=6)
+    _catalog_image(image_path)
 
     response = client.get("/api/metadata", params={"path": str(image_path)})
     assert response.status_code == 200
@@ -181,6 +198,7 @@ def test_metadata_returns_oriented_dimensions_for_exif_jpeg(tmp_path, monkeypatc
 def test_api_image_still_serves_original_file(tmp_path):
     image_path = tmp_path / "original.png"
     _write_image(image_path, (640, 480))
+    _catalog_image(image_path)
     original_bytes = image_path.read_bytes()
 
     response = client.get("/api/image", params={"path": str(image_path)})
@@ -193,6 +211,7 @@ def test_preview_failure_returns_controlled_error(tmp_path, monkeypatch):
     error_client = TestClient(app, raise_server_exceptions=False)
     image_path = tmp_path / "broken-preview.png"
     _write_image(image_path, (900, 600))
+    _catalog_image(image_path)
 
     def fail_generate_derivative(*args, **kwargs):  # noqa: ANN002, ANN003
         raise RuntimeError("preview renderer unavailable")
@@ -202,7 +221,4 @@ def test_preview_failure_returns_controlled_error(tmp_path, monkeypatch):
     response = error_client.get("/api/preview", params={"path": str(image_path)})
 
     assert response.status_code == 500
-    assert response.json()["detail"] == {
-        "error": "server_error",
-        "message": "Unable to generate preview",
-    }
+    assert response.json()["detail"]["error"] == "server_error"

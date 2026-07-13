@@ -719,7 +719,7 @@ class DerivativeScheduler:
             return derivative_id, "active"
         if derivative["status"] in {"deferred_capacity", "evicted"} and deferrable and not reconsider_deferred_capacity:
             return derivative_id, "deferred_capacity"
-        if derivative["status"] in {"deferred_capacity", "evicted"} or deferrable:
+        if inserted or derivative["status"] in {"deferred_capacity", "evicted"} or deferrable:
             estimated_bytes = estimated_bytes or self._estimate_new_derivative_bytes(conn)
             if not self._capacity_available(conn, estimated_bytes):
                 conn.execute(
@@ -839,6 +839,14 @@ class DerivativeScheduler:
         if row is None:
             return None
         return "generating" if row["status"] == "running" else str(row["status"])
+
+    def run_once(self) -> bool:
+        """Claim and execute one durable job for synchronous/test request fallback."""
+        job = self._claim_job(f"request-{threading.get_ident()}")
+        if job is None:
+            return False
+        self._run_job(job)
+        return True
 
     def get_ready_derivative(self, asset_id: int, kind: str, variant: str) -> dict[str, Any] | None:
         """Return and touch a ready derivative for the current source version."""
@@ -1613,14 +1621,17 @@ class DerivativeScheduler:
                 else:
                     state = "queued"
                 message = f"recovered abandoned derivative claim: {result_code or 'retry'}"
+                expiry_guard = (
+                    " AND (lease_expires_at IS NULL OR lease_expires_at <= julianday('now'))" if expired_only else ""
+                )
                 transitioned = conn.execute(
-                    """
+                    f"""
                     UPDATE derivative_jobs SET state = ?, result_code = ?, error = ?,
                       claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL,
                       started_at = CASE WHEN ? = 'queued' THEN NULL ELSE started_at END,
                       completed_at = CASE WHEN ? IN ('skipped', 'failed') THEN julianday('now') ELSE NULL END,
                       updated_at = julianday('now')
-                    WHERE id = ? AND state = 'running' AND claim_token IS ?
+                    WHERE id = ? AND state = 'running' AND claim_token IS ?{expiry_guard}
                     """,
                     (state, result_code, message, state, state, row["job_id"], row["claim_token"]),
                 )

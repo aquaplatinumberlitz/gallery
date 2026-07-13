@@ -21,9 +21,10 @@ from .files import check_image_limits, is_image
 from .metadata_store import upsert_image_dimensions
 from .scan import require_media_path_allowed
 
-_thumbnail_disk_cache = Cache(str(THUMBNAIL_CACHE_DIR), size_limit=2 * 1024 * 1024 * 1024)
+_thumbnail_disk_cache = Cache(str(THUMBNAIL_CACHE_DIR), size_limit=64 * 1024 * 1024)
 _thumbnail_file_dir = THUMBNAIL_CACHE_DIR / "files"
-DERIVATIVE_CACHE_VERSION = "v2"
+DERIVATIVE_CACHE_VERSION = "v3"
+_CACHE_VERSION_KEY = "__gallery_derivative_cache_version__"
 DERIVATIVE_MEDIA_TYPES = {
     "webp": "image/webp",
     "jpeg": "image/jpeg",
@@ -71,6 +72,16 @@ router = APIRouter()
 
 
 DerivativeKind = Literal["thumbnail", "preview"]
+
+
+def _initialize_path_metadata_cache() -> None:
+    """Clear legacy byte-valued entries once and retain only path metadata."""
+    if _thumbnail_disk_cache.get(_CACHE_VERSION_KEY) != DERIVATIVE_CACHE_VERSION:
+        _thumbnail_disk_cache.clear()
+        _thumbnail_disk_cache.set(_CACHE_VERSION_KEY, DERIVATIVE_CACHE_VERSION)
+
+
+_initialize_path_metadata_cache()
 
 
 def _normalize_derivative_format(format: str) -> str:
@@ -138,9 +149,10 @@ def _persist_derivative_file(cache_key: str, derivative_bytes: bytes, format: st
 
 
 def clear_thumbnail_disk_cache() -> int:
-    """Clear cached derivative bytes stored by diskcache."""
-    count = len(_thumbnail_disk_cache)
+    """Clear diskcache path metadata while preserving the version marker."""
+    count = max(0, len(_thumbnail_disk_cache) - int(_CACHE_VERSION_KEY in _thumbnail_disk_cache))
     _thumbnail_disk_cache.clear()
+    _thumbnail_disk_cache.set(_CACHE_VERSION_KEY, DERIVATIVE_CACHE_VERSION)
     return int(count)
 
 
@@ -220,13 +232,9 @@ def generate_derivative(
         format=normalized_format,
     )
 
-    cached = _thumbnail_disk_cache.get(cache_key)
-    if cached is not None:
-        persist_started = time.perf_counter()
-        _persist_derivative_file(cache_key, cached, normalized_format)
-        if request_timing is not None:
-            request_timing["render_encode_persist_ms"] = (time.perf_counter() - persist_started) * 1000
-        return cached
+    cached_path = _thumbnail_disk_cache.get(cache_key)
+    if isinstance(cached_path, str) and Path(cached_path).is_file():
+        return Path(cached_path).read_bytes()
 
     try:
         render_started = time.perf_counter()
@@ -237,8 +245,8 @@ def generate_derivative(
             format=normalized_format,
             no_upscale=no_upscale,
         )
-        _thumbnail_disk_cache.set(cache_key, derivative_bytes)
-        _persist_derivative_file(cache_key, derivative_bytes, normalized_format)
+        derivative_path = _persist_derivative_file(cache_key, derivative_bytes, normalized_format)
+        _thumbnail_disk_cache.set(cache_key, str(derivative_path))
         if request_timing is not None:
             request_timing["render_encode_persist_ms"] = (time.perf_counter() - render_started) * 1000
         _inc(_derivative_ready_total, kind)
@@ -262,6 +270,13 @@ def _resolve_max_long_edge(max_long_edge: int, max_size: int | None) -> int:
     return max_size if max_size is not None else max_long_edge
 
 
+def _validate_public_size(kind: DerivativeKind, value: int) -> int:
+    allowed = {128, 512} if kind == "thumbnail" else {1440}
+    if value not in allowed:
+        raise APIError(422, ErrorType.BAD_REQUEST, f"Unsupported {kind} size")
+    return value
+
+
 async def _serve_derivative(
     *,
     request: Request,
@@ -275,8 +290,7 @@ async def _serve_derivative(
 ):
     from .derivative_scheduler import derivative_variant, scheduler
 
-    explicit_asset_id = asset_id is not None
-    if explicit_asset_id:
+    if asset_id is not None:
         asset_path = scheduler.get_asset_path(asset_id)
         if asset_path is None:
             raise APIError(404, ErrorType.NOT_FOUND, "Asset not found")
@@ -286,6 +300,8 @@ async def _serve_derivative(
         asset_id = scheduler.find_asset_id(file_path)
     else:
         raise APIError(400, ErrorType.BAD_REQUEST, "Either path or asset_id is required")
+    if asset_id is None:
+        raise APIError(404, ErrorType.NOT_FOUND, "Asset not found")
     normalized_format = _normalize_derivative_format(format)
     variant = derivative_variant(kind, max_long_edge, quality, normalized_format)
 
@@ -301,7 +317,7 @@ async def _serve_derivative(
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
 
-    if asset_id is not None and (explicit_asset_id or scheduler.is_running()):
+    if asset_id is not None:
         ready = await run_in_threadpool(scheduler.acquire_ready_derivative, asset_id, kind, variant)
         if ready is None:
             try:
@@ -323,6 +339,8 @@ async def _serve_derivative(
                 current_derivative_id = derivative_id
                 rescheduled = False
                 while time.monotonic() < deadline:
+                    if not scheduler.is_running():
+                        scheduler.run_once()
                     outcome = scheduler.get_derivative_outcome(current_derivative_id)
                     if outcome is None:
                         return None
@@ -332,6 +350,8 @@ async def _serve_derivative(
                     if state == "failed":
                         return ("failed", outcome)
                     if state == "deferred_capacity":
+                        return ("deferred", outcome)
+                    if state == "evicted":
                         return ("deferred", outcome)
                     if state == "skipped":
                         result_code = outcome.get("result_code")
@@ -388,67 +408,6 @@ async def _serve_derivative(
             background=BackgroundTask(scheduler.release_serving, cache_path),
         )
 
-    try:
-        queued_at = time.perf_counter()
-        request_timing: dict[str, float] = {}
-
-        def generate_for_request() -> bytes:
-            request_timing["queue_wait_ms"] = (time.perf_counter() - queued_at) * 1000
-            return generate_derivative(
-                file_path,
-                kind=kind,
-                max_long_edge=max_long_edge,
-                quality=quality,
-                format=normalized_format,
-                no_upscale=True,
-                request_timing=request_timing,
-            )
-
-        derivative_bytes = await run_in_threadpool(
-            generate_for_request,
-        )
-    except APIError:
-        raise
-    except FileNotFoundError as exc:
-        _inc(_derivative_errors_total)
-        raise APIError(404, ErrorType.NOT_FOUND, "Image file not found") from exc
-    except OSError as exc:
-        _inc(_derivative_errors_total)
-        raise APIError(400, ErrorType.INVALID_FILE, failure_message) from exc
-    except Exception as exc:  # noqa: BLE001
-        _inc(_derivative_errors_total)
-        raise APIError(500, ErrorType.SERVER_ERROR, failure_message) from exc
-
-    headers["Server-Timing"] = (
-        f"queue;dur={request_timing.get('queue_wait_ms', 0):.3f}, "
-        f"derivative;dur={request_timing.get('render_encode_persist_ms', 0):.3f}"
-    )
-
-    cache_key = _derivative_cache_key_str(
-        file_path,
-        kind=kind,
-        max_long_edge=max_long_edge,
-        quality=quality,
-        format=normalized_format,
-    )
-    derivative_path = _derivative_cache_file_path(cache_key, normalized_format)
-
-    if derivative_path.exists():
-        return FileResponse(
-            derivative_path,
-            media_type=DERIVATIVE_MEDIA_TYPES[normalized_format],
-            headers=headers,
-        )
-
-    return Response(
-        content=derivative_bytes,
-        media_type=DERIVATIVE_MEDIA_TYPES[normalized_format],
-        headers={
-            **headers,
-            "Content-Length": str(len(derivative_bytes)),
-        },
-    )
-
 
 @router.get("/api/thumbnail")
 async def api_thumbnail(
@@ -468,7 +427,7 @@ async def api_thumbnail(
         path=path,
         asset_id=asset_id,
         kind="thumbnail",
-        max_long_edge=_resolve_max_long_edge(max_long_edge, max_size),
+        max_long_edge=_validate_public_size("thumbnail", _resolve_max_long_edge(max_long_edge, max_size)),
         quality=78,
         format="webp",
         failure_message="Unable to process image",
@@ -492,7 +451,7 @@ async def api_preview(
         path=path,
         asset_id=asset_id,
         kind="preview",
-        max_long_edge=_resolve_max_long_edge(max_long_edge, max_size),
+        max_long_edge=_validate_public_size("preview", _resolve_max_long_edge(max_long_edge, max_size)),
         quality=86,
         format="webp",
         failure_message="Unable to generate preview",

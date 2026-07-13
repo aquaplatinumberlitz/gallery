@@ -39,7 +39,10 @@ DERIVATIVE_QUOTA_BYTES = max(
     int(os.getenv("GALLERY_DERIVATIVE_QUOTA_BYTES", str(10 * 1024**3))),
 )
 DERIVATIVE_VARIANTS = {
-    "thumbnail": [{"name": "thumb_512", "max_long_edge": 512, "quality": 78}],
+    "thumbnail": [
+        {"name": "thumb_128", "max_long_edge": 128, "quality": 78},
+        {"name": "thumb_512", "max_long_edge": 512, "quality": 78},
+    ],
     "preview": [{"name": "preview_1440", "max_long_edge": 1440, "quality": 86}],
 }
 DERIVATIVE_RECONCILE_ENABLED = _env_flag("GALLERY_DERIVATIVE_RECONCILE_ENABLED", default=True)
@@ -59,6 +62,15 @@ DERIVATIVE_LEASE_HEARTBEAT_SECONDS = min(
 DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS = max(
     1,
     int(os.getenv("GALLERY_DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", "30")),
+)
+VIDEO_POSTER_MAX_CONCURRENCY = max(1, int(os.getenv("GALLERY_VIDEO_POSTER_MAX_CONCURRENCY", "2")))
+VIDEO_POSTER_QUEUE_TIMEOUT_SECONDS = max(
+    0.0,
+    float(os.getenv("GALLERY_VIDEO_POSTER_QUEUE_TIMEOUT_SECONDS", "5")),
+)
+VIDEO_POSTER_QUOTA_BYTES = max(
+    0,
+    int(os.getenv("GALLERY_VIDEO_POSTER_QUOTA_BYTES", str(1024**3))),
 )
 CATALOG_SHUTDOWN_TIMEOUT_SECONDS = max(
     1,

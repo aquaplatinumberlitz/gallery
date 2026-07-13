@@ -68,12 +68,17 @@ class TestThumbnail:
         with PILImage.open(BytesIO(resp.content)) as img:
             assert max(img.size) <= 512
 
-    def test_thumbnail_custom_max_long_edge(self, isolated_app: TestClient, temp_gallery: Path):
+    def test_thumbnail_rejects_unsupported_max_long_edge(self, isolated_app: TestClient, temp_gallery: Path):
         path = temp_gallery / "album_a" / "001.png"
         resp = isolated_app.get("/api/thumbnail", params={"path": str(path), "max_long_edge": 256})
+        assert resp.status_code == 422
+
+    def test_thumbnail_allows_128_variant(self, isolated_app: TestClient, temp_gallery: Path):
+        path = temp_gallery / "album_a" / "001.png"
+        resp = isolated_app.get("/api/thumbnail", params={"path": str(path), "max_long_edge": 128})
         assert resp.status_code == 200
         with PILImage.open(BytesIO(resp.content)) as img:
-            assert max(img.size) <= 256
+            assert max(img.size) <= 128
 
     def test_thumbnail_no_upscale_small_images(self, isolated_app: TestClient, isolated_gallery_root: Path):
         path = isolated_gallery_root / "small.png"

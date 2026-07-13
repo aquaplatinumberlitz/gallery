@@ -44,7 +44,7 @@ def test_schedule_coalesces_jobs_and_reports_library_status(
     isolated_gallery_root: Path,
 ):
     image, asset_id = _catalog_image(isolated_gallery_root)
-    scheduler = DerivativeScheduler(worker_count=99, quota_bytes=1024)
+    scheduler = DerivativeScheduler(worker_count=99, quota_bytes=1024 * 1024)
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
 
     assert scheduler.worker_count == 8
@@ -80,12 +80,12 @@ def test_schedule_coalesces_jobs_and_reports_library_status(
     assert status["library_id"] == library_id
     assert status["policy"] == "warm"
     assert status["converged"] is False
-    assert status["actionable_missing_derivatives"] == 1
+    assert status["actionable_missing_derivatives"] == 2
     assert status["expected_derivatives"] == sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
     assert status["by_kind"]["thumbnail"]["queued_derivatives"] == 1
     assert status["by_kind"]["preview"]["missing_derivatives"] == 1
     assert status["queued_jobs"] == 1
-    assert status["quota_bytes"] == 1024
+    assert status["quota_bytes"] == 1024 * 1024
     with pytest.raises(KeyError):
         scheduler.library_status(999_999)
     with pytest.raises(KeyError):
@@ -275,14 +275,14 @@ def test_reconcile_current_variants_is_idempotent(
     first = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase_1")
     second = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase_1")
 
-    assert first.created_derivative_rows == 2
-    assert first.created_jobs == 2
+    assert first.created_derivative_rows == 3
+    assert first.created_jobs == 3
     assert second.created_derivative_rows == 0
     assert second.created_jobs == 0
-    assert second.already_active == 2
+    assert second.already_active == 3
     with sqlite3.connect(isolated_metadata_db) as conn:
-        assert conn.execute("SELECT count(*) FROM asset_derivatives").fetchone()[0] == 2
-        assert conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0] == 2
+        assert conn.execute("SELECT count(*) FROM asset_derivatives").fetchone()[0] == 3
+        assert conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0] == 3
 
 
 def test_reconcile_repairs_ready_file_and_job_row_gaps(
@@ -305,7 +305,7 @@ def test_reconcile_repairs_ready_file_and_job_row_gaps(
     summary = scheduler.reconcile_desired_derivatives(asset_ids=[asset_id], kinds=["thumbnail"], reason="phase_1")
 
     assert summary.requeued_without_job == 1
-    assert summary.created_jobs == 1
+    assert summary.created_jobs == 2
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert (
             conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0]
@@ -333,7 +333,7 @@ def test_reconcile_keeps_current_terminal_failure_without_explicit_retry(
     summary = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase_1")
 
     assert summary.terminal_failed == 1
-    assert summary.created_jobs == 1  # The preview remains absent and is scheduled.
+    assert summary.created_jobs == 2  # The other thumbnail and preview remain absent and are scheduled.
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert (
             conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0]
@@ -382,7 +382,7 @@ def test_library_status_makes_preview_only_warm_gap_actionable_and_on_demand_inf
     on_demand = scheduler.library_status(library_id)
 
     assert warm["by_kind"]["preview"]["missing_derivatives"] == 1
-    assert warm["actionable_missing_derivatives"] == 1
+    assert warm["actionable_missing_derivatives"] == 2
     assert warm["converged"] is False
     assert on_demand["policy"] == "on_demand"
     assert on_demand["desired_derivatives"] == 0

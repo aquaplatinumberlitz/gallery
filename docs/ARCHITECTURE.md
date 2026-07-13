@@ -157,6 +157,19 @@ asset whose `mtime_ns` and size match the derivative source identity. The
 integrity checker requeues missing cache files only for current sources;
 inactive, missing, and superseded sources are skipped instead.
 
+HTTP thumbnail/preview requests accept only `128`/`512` and `1440`
+respectively, always resolve an active catalog asset, and always pass through
+the durable scheduler. Capacity is reserved before runnable work exists;
+interactive refusal returns `507`, while automatic work remains
+`deferred_capacity`. The WebP file cache is authoritative and quota-counted;
+the 64 MiB diskcache stores only key-to-path metadata. Integrity checks skip
+and remove legacy unsupported variants after committing their terminal state.
+
+Video posters use a separate 1 GiB default LRU quota plus a global bounded
+ffmpeg semaphore. Active generation and response paths are eviction-protected,
+queue saturation returns `503`, subprocess output is discarded, and temporary
+files are removed on every exit path.
+
 Desired-state reconciliation has explicit trigger ownership:
 
 - The catalog worker reconciles the committed library or path scope after a
