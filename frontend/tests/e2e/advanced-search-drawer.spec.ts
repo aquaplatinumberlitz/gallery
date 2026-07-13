@@ -291,21 +291,22 @@ test.describe("AdvancedSearchDrawer", () => {
     await expectNoHorizontalOverflow(page.getByTestId("advanced-search-scroll-body"));
     await page.keyboard.press("Tab");
     await drawerField(drawer, "advanced-search-seed").focus();
+    await expect
+      .poll(
+        () => drawerField(drawer, "advanced-search-seed").evaluate((element) => getComputedStyle(element).boxShadow),
+        { timeout: 1_000 },
+      )
+      .toMatch(/0px 0px 0px 3px/);
     const seedFocusStyle = await drawerField(drawer, "advanced-search-seed").evaluate((element) => {
       const style = getComputedStyle(element);
       return {
-        outlineStyle: style.outlineStyle,
-        outlineWidth: style.outlineWidth,
-        outlineOffset: style.outlineOffset,
+        boxShadow: style.boxShadow,
         ringShadow: style.getPropertyValue("--tw-ring-shadow").trim(),
       };
     });
-    expect(seedFocusStyle).toEqual({
-      outlineStyle: "solid",
-      outlineWidth: "2px",
-      outlineOffset: "-2px",
-      ringShadow: "0 0 #0000",
-    });
+    expect(seedFocusStyle.boxShadow).toMatch(/0px 0px 0px 3px/);
+    expect(seedFocusStyle.boxShadow).not.toContain("inset");
+    expect(seedFocusStyle.ringShadow).toContain("3px");
 
     await expect(drawerField(drawer, "advanced-search-seed")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-steps")).toBeVisible();

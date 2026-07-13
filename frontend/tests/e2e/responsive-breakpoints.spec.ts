@@ -5,7 +5,7 @@
  * Guarantees:
  * * the expected layout shell appears at each supported viewport width
  * * breakpoint transitions do not leave stale mobile/tablet/desktop controls visible
- * * keyboard focus indicators render inside controls instead of being clipped by layout overflow
+ * * keyboard focus indicators preserve the shared 3px halo without being clipped by layout overflow
  * * mobile search controls stay inside the viewport with a compact scope trigger
  *
  * Run when:
@@ -142,7 +142,7 @@ async function collapseDesktopHeader(page: Page) {
   await expect(page.locator(".compact-header:not([inert])")).toBeVisible({ timeout: 5_000 });
 }
 
-async function expectInsetFocusRing(page: Page, control: Locator) {
+async function expectHaloFocusRing(page: Page, control: Locator) {
   for (let index = 0; index < 80; index += 1) {
     const isFocused = await control.evaluate((element) => element === document.activeElement);
     if (isFocused) break;
@@ -151,27 +151,30 @@ async function expectInsetFocusRing(page: Page, control: Locator) {
 
   await expect(control).toBeFocused();
 
+  await expect
+    .poll(() => control.evaluate((element) => getComputedStyle(element).boxShadow), { timeout: 1_000 })
+    .toMatch(/0px 0px 0px 3px/);
+
   const focusStyle = await control.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
-      outlineStyle: style.outlineStyle,
-      outlineWidth: style.outlineWidth,
-      outlineOffset: style.outlineOffset,
+      boxShadow: style.boxShadow,
       ringShadow: style.getPropertyValue("--tw-ring-shadow").trim(),
     };
   });
 
-  expect(focusStyle).toEqual({
-    outlineStyle: "solid",
-    outlineWidth: "2px",
-    outlineOffset: "-2px",
-    ringShadow: "0 0 #0000",
-  });
+  expect(focusStyle.boxShadow).toMatch(/0px 0px 0px 3px/);
+  expect(focusStyle.boxShadow).not.toContain("inset");
+  expect(focusStyle.ringShadow).toContain("3px");
 }
 
 async function expectCompositeFocusRing(input: Locator, wrapper: Locator) {
   await input.focus();
   await expect(input).toBeFocused();
+
+  await expect
+    .poll(() => wrapper.evaluate((element) => getComputedStyle(element).boxShadow), { timeout: 1_000 })
+    .toMatch(/0px 0px 0px 3px/);
 
   const styles = await Promise.all([
     input.evaluate((element) => {
@@ -182,7 +185,8 @@ async function expectCompositeFocusRing(input: Locator, wrapper: Locator) {
   ]);
 
   expect(styles[0]).toEqual({ outlineStyle: "none", focusOptOut: "none" });
-  expect(styles[1]).toContain("inset");
+  expect(styles[1]).toMatch(/0px 0px 0px 3px/);
+  expect(styles[1]).not.toContain("inset");
 }
 
 test.describe("Mobile layout (375px)", () => {
@@ -205,9 +209,23 @@ test.describe("Mobile layout (375px)", () => {
     // Mobile header should have search open button
     const searchBtn = page.getByLabel("Open search");
     await expect(searchBtn).toBeVisible({ timeout: 5000 });
-    await expectInsetFocusRing(page, searchBtn);
+    await expectHaloFocusRing(page, searchBtn);
     await searchBtn.press("Enter");
     await expectCompositeFocusRing(page.locator(".search-focus-input"), page.locator(".search-focus-input-wrap"));
+  });
+
+  test("focus halo keeps the established light and dark opacity", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    const focusToken = () =>
+      page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-shadow").trim());
+
+    await expect.poll(focusToken).toContain("50%");
+
+    await page.getByLabel("Switch to dark mode").click();
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe("dark");
+    await expect.poll(focusToken).toContain("70%");
   });
 
   test("mobile search controls do not overflow the viewport", async ({ page }) => {
@@ -223,7 +241,8 @@ test.describe("Mobile layout (375px)", () => {
       const scopeChevron = scope?.querySelector<SVGElement>(".lucide-chevron-down");
       const advanced = header.querySelector<HTMLElement>('[aria-label="Advanced Search"]');
       const input = header.querySelector<HTMLElement>(".search-focus-input");
-      if (!scope || !scopeIcon || !scopeChevron || !advanced || !input) {
+      const inputWrap = header.querySelector<HTMLElement>(".search-focus-input-wrap");
+      if (!scope || !scopeIcon || !scopeChevron || !advanced || !input || !inputWrap) {
         throw new Error("Missing mobile search controls");
       }
 
@@ -242,6 +261,7 @@ test.describe("Mobile layout (375px)", () => {
         scopeIconLeft: scopeIconRect.left,
         scopeIconRight: scopeIconRect.right,
         scopeChevronDisplay: getComputedStyle(scopeChevron).display,
+        inputWrapOverflow: getComputedStyle(inputWrap).overflow,
         advancedRight: advancedRect.right,
         inputWidth: inputRect.width,
       };
@@ -253,6 +273,7 @@ test.describe("Mobile layout (375px)", () => {
     expect(metrics.scopeIconLeft).toBeGreaterThanOrEqual(metrics.scopeRight - metrics.scopeWidth);
     expect(metrics.scopeIconRight).toBeLessThanOrEqual(metrics.scopeRight);
     expect(metrics.scopeChevronDisplay).toBe("none");
+    expect(metrics.inputWrapOverflow).toBe("visible");
     expect(metrics.advancedRight).toBeLessThanOrEqual(metrics.headerRight);
     expect(metrics.inputWidth).toBeGreaterThanOrEqual(80);
   });
@@ -287,7 +308,7 @@ test.describe("Tablet layout (768px)", () => {
     // Tablet header should have a search toggle
     const openSearch = page.getByLabel("Open search");
     await expect(openSearch).toBeVisible({ timeout: 5000 });
-    await expectInsetFocusRing(page, openSearch);
+    await expectHaloFocusRing(page, openSearch);
     await openSearch.press("Enter");
     await expectCompositeFocusRing(page.locator(".th-search-input"), page.locator(".th-search-input-wrap"));
   });
@@ -304,10 +325,10 @@ test.describe("Mobile search touch interactions", () => {
     await page.getByLabel(/^Search scope:/).tap();
 
     await expect(page.getByRole("listbox")).toBeVisible();
-    await page.getByRole("option", { name: /All indexed/ }).tap();
+    await page.getByRole("option", { name: /All libraries/ }).tap();
 
     await expect(page.getByLabel("Search gallery")).toBeVisible();
-    await expect(page.getByLabel("Search scope: All indexed")).toBeVisible();
+    await expect(page.getByLabel("Search scope: All libraries")).toBeVisible();
   });
 });
 
@@ -348,9 +369,9 @@ test.describe("Desktop layout (1200px+)", () => {
       page.locator(".expanded-header:not([inert]) .search-box"),
     );
 
-    await expectInsetFocusRing(page, page.getByRole("button", { name: "Change Intro Page" }));
-    await expectInsetFocusRing(page, page.getByRole("button", { name: "Sort gallery" }));
-    await expectInsetFocusRing(page, page.getByRole("button", { name: "View density" }));
+    await expectHaloFocusRing(page, page.getByRole("button", { name: "Change Intro Page" }));
+    await expectHaloFocusRing(page, page.getByRole("button", { name: "Sort gallery" }));
+    await expectHaloFocusRing(page, page.getByRole("button", { name: "View density" }));
   });
 
   test("desktop layout shows folder tree or sidebar", async ({ page }) => {
@@ -400,9 +421,9 @@ test.describe("Desktop compact header (1200px edge)", () => {
     expect(metrics.hasAdvancedSearch).toBe(true);
 
     const compactHeader = page.locator(".compact-header:not([inert])");
-    await expectInsetFocusRing(page, compactHeader.locator(".advanced-search-btn"));
-    await expectInsetFocusRing(page, compactHeader.locator(".sort-trigger"));
-    await expectInsetFocusRing(page, compactHeader.locator(".gallery-density-trigger"));
+    await expectHaloFocusRing(page, compactHeader.locator(".advanced-search-btn"));
+    await expectHaloFocusRing(page, compactHeader.locator(".sort-trigger"));
+    await expectHaloFocusRing(page, compactHeader.locator(".gallery-density-trigger"));
   });
 });
 

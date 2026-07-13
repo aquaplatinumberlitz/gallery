@@ -202,12 +202,7 @@ const gallerySortValue = computed<SortValue>({
               class="mobile-search-scope"
               @update:model-value="emit('scope-change', $event)"
             />
-            <button
-              v-if="hasQuery"
-              class="search-focus-clear"
-              @click="clearSearch"
-              aria-label="Clear search"
-            >
+            <button v-if="hasQuery" class="search-focus-clear" @click="clearSearch" aria-label="Clear search">
               <X />
             </button>
             <span class="search-focus-divider" aria-hidden="true"></span>
@@ -440,7 +435,7 @@ const gallerySortValue = computed<SortValue>({
   flex: 1;
   min-width: 0;
   height: 48px;
-  overflow: hidden;
+  overflow: visible;
   padding: 0 0 0 10px;
   border: 1px solid var(--input);
   border-radius: 14px;
@@ -452,7 +447,7 @@ const gallerySortValue = computed<SortValue>({
 }
 
 /* When input is focused, subtle ring */
-.search-focus-input-wrap:focus-within {
+.search-focus-input-wrap:has(.search-focus-input:focus-visible) {
   border-color: var(--ring);
   box-shadow: var(--focus-within-ring-shadow);
 }

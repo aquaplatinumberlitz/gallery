@@ -83,7 +83,7 @@ const hasQuery = computed(() => props.modelValue.length > 0);
     box-shadow 0.2s ease;
 }
 
-.search-box:focus-within {
+.search-box:has(.search-input:focus-visible) {
   border-color: var(--ring);
   box-shadow: var(--focus-within-ring-shadow);
 }
@@ -195,7 +195,7 @@ const hasQuery = computed(() => props.modelValue.length > 0);
     box-shadow: 0 4px 12px color-mix(in srgb, var(--ring) 25%, transparent);
   }
 
-  .search-box:focus-within {
+  .search-box:has(.search-input:focus-visible) {
     border-color: var(--primary);
     box-shadow: var(--focus-within-ring-shadow);
   }

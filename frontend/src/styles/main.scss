@@ -199,7 +199,7 @@ html[data-theme="dark"] .search-box {
   box-shadow: 0 0 6px color-mix(in srgb, var(--ring) 40%, transparent);
 }
 
-html[data-theme="dark"] .search-box:focus-within {
+html[data-theme="dark"] .search-box:has(.search-input:focus-visible) {
   border-color: var(--ring);
   box-shadow: var(--focus-within-ring-shadow);
 }
@@ -301,8 +301,8 @@ pre {
    Following WCAG 2.1 AA & Google Material Design Guidelines
    ========================================================================== */
 
-/* Focus visible - shadcn components use focus-visible:outline-none + focus-visible:ring-* */
-/* Low-specificity fallback keeps native/custom controls aligned with the app ring. */
+/* Focus visible - one shared 3px halo for native, custom, and shadcn controls. */
+/* Tailwind ring utilities consume the same token instead of drawing a second ring. */
 :where(
     a[href],
     button,
@@ -313,14 +313,14 @@ pre {
     [contenteditable="true"],
     [tabindex]:not([tabindex="-1"])
   ):not([data-focus-ring="none"]):focus-visible {
-  --tw-ring-inset: inset !important;
-  --tw-ring-color: var(--gallery-focus-ring) !important;
+  --tw-ring-inset: initial !important;
   --tw-ring-offset-width: 0px !important;
   --tw-ring-offset-shadow: 0 0 #0000 !important;
-  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: var(--focus-ring-shadow) !important;
   --tw-inset-ring-shadow: 0 0 #0000 !important;
-  outline: var(--focus-ring-width) solid var(--gallery-focus-ring) !important;
-  outline-offset: var(--focus-ring-offset) !important;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring-shadow);
 }
 
 /* Skip link styles (if placed in body) */

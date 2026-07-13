@@ -398,7 +398,7 @@ function openAdvancedSearch() {
     border-color 0.2s ease;
 }
 
-.th-search-input-wrap:focus-within {
+.th-search-input-wrap:has(.th-search-input:focus-visible) {
   border-color: var(--ring);
   box-shadow: var(--focus-within-ring-shadow);
 }

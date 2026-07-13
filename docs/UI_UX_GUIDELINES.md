@@ -185,11 +185,12 @@ Icon rules:
 
 ## Keyboard Focus
 
-- Standalone interactive controls use the global `:focus-visible` indicator from `main.scss`: a 2px outline with a -2px offset, rendered entirely inside the control boundary.
-- Do not add component-local Tailwind `ring` shadows as the visible focus indicator; the global rule neutralizes them so overflow, animation, and scroll containers cannot clip an external ring.
-- Composite controls use `focus-within` on their outer wrapper with `--focus-within-ring-shadow`. Mark the inner native input with `data-focus-ring="none"` to avoid a double indicator.
-- Keep the focus colors and geometry in `tokens.css`. Component styles must not introduce a different focus width, offset, or color.
-- Regression tests must verify computed outline geometry on keyboard-focused controls at mobile, tablet, and desktop breakpoints.
+- Standalone interactive controls use the global `:focus-visible` halo from `main.scss`, sourced from `--focus-ring-shadow` in `tokens.css`.
+- Preserve the established visual: a 3px external shadow using 50% of `--ring` in light mode and 70% in dark mode. Do not replace it with an inset outline or a thinner ring to work around clipping.
+- Tailwind `ring-*` utilities and component-local focus rules must consume the same `--focus-ring-shadow` token so only one halo is rendered.
+- Composite controls render the same halo on their outer wrapper only while the inner native input is `:focus-visible`. Mark that input with `data-focus-ring="none"`; focusable actions inside the composite keep their own single halo instead of also activating the wrapper halo.
+- Fix clipping at the responsible layout boundary by allowing visible overflow or adding sufficient focus-safe spacing; never degrade the focus visual globally.
+- Regression tests must verify the computed 3px shadow at mobile, tablet, and desktop breakpoints.
 
 ## Advanced Search
 
