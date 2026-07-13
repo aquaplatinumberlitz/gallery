@@ -337,10 +337,10 @@ Response item:
 }
 ```
 
-- [ ] Search V2 accepts exact prompt groups by `kind + value_id`.
-- [ ] Prompt-group querying never places full prompt text in a URL cursor.
-- [ ] Missing prompts are `not_applicable`, not failures.
-- [ ] Backfill reads existing DB metadata and does not reopen media files.
+- [x] Search V2 accepts exact prompt groups by `kind + value_id`.
+- [x] Prompt-group querying never places full prompt text in a URL cursor.
+- [x] Missing prompts are `not_applicable`, not failures.
+- [x] Backfill reads existing DB metadata and does not reopen media files.
 
 ### Observed model identity
 
@@ -358,18 +358,18 @@ model_identity_aliases
 PRIMARY KEY(normalized_name, normalized_hash)
 ```
 
-- [ ] `model:` continues to match model names directly.
-- [ ] Exact observed names may expand to all associated hashes.
-- [ ] Ambiguous name-to-hash mappings remain explicit OR candidates; never pick
+- [x] `model:` continues to match model names directly.
+- [x] Exact observed names may expand to all associated hashes.
+- [x] Ambiguous name-to-hash mappings remain explicit OR candidates; never pick
       one hash silently.
-- [ ] `model_hash:` and `model_or_hash:` remain available.
+- [x] `model_hash:` and `model_or_hash:` remain available.
 
 ### Acceptance gates
 
-- [ ] Equivalent whitespace/case prompt values group together while display text remains useful.
-- [ ] Positive and negative prompts with identical text remain different groups.
-- [ ] Prompt usage first page and exact group filter meet the 300 ms lexical budget at 25,000 assets.
-- [ ] Model alias expansion is deterministic and covered for ambiguous names.
+- [x] Equivalent whitespace/case prompt values group together while display text remains useful.
+- [x] Positive and negative prompts with identical text remain different groups.
+- [x] Prompt usage first page and exact group filter meet the 300 ms lexical budget at 25,000 assets.
+- [x] Model alias expansion is deterministic and covered for ambiguous names.
 
 ## D3 - Optional typed ComfyUI node/property index
 
@@ -646,3 +646,4 @@ is complete, move this file to `docs/archived/` and update the plans index.
 | --- | --- | --- | --- |
 | 2026-07-13 | D0 | Complete | Versioned `POST /api/search/query` with discriminated ID scopes and legacy GET parity; canonical query keys, Vue Router push/replace hydration, bounded browser-local saved/recent searches, 224 focused backend/frontend tests, 105 backend API tests, and 18 managed search E2E tests passed. |
 | 2026-07-13 | D1 | Complete | Additive schema v5 with rollback backup/no inline backfill; supervised single-writer registry, 200-row asset keysets, per-asset atomic fingerprints, fenced resume/cancel, typed capability/status/rebuild APIs, distinct disabled/not-ready errors, and stale-index usability; 117 broad backend regressions, 16 focused contracts, and 105 backend API tests passed. |
+| 2026-07-13 | D2 | Complete | Additive schema v6 and durable DB-only `prompt_values` backfill; fixed NFKC/casefold/kind-separated prompt identities, active-catalog usage paging and exact Search V2 groups, cursor privacy, and deterministic many-to-many observed model aliases; 113 focused and 227 broad backend contracts passed, including 25,000-asset sub-300 ms usage/exact-filter gates. |

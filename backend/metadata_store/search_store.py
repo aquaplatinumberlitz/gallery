@@ -899,6 +899,7 @@ def search_index_fielded(
     cursor: str | int | None = None,
     *,
     library_id: int | None = None,
+    prompt_groups: list[tuple[str, bytes]] | None = None,
 ) -> dict[str, Any]:
     """Search indexed albums and photos with structured field filters."""
     from ..fielded_search_parser import (
@@ -912,7 +913,7 @@ def search_index_fielded(
     root = Path(root_path) if normalized_scope == "folder" and root_path else None
     display_root = root if root is not None else Path(os.sep)
 
-    if not trimmed:
+    if not trimmed and not prompt_groups:
         return _empty_search_response(query, normalized_scope, display_root, limit)
 
     if normalized_scope == "folder" and root is None:
@@ -955,6 +956,7 @@ def search_index_fielded(
             cursor,
             parsed=parsed,
             library_id=library_id,
+            prompt_groups=prompt_groups,
         )
 
     format_root = root if root is not None else Path(os.sep)

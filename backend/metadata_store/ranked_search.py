@@ -68,6 +68,7 @@ def request_fingerprint(
     *,
     fielded: bool,
     library_id: int | None = None,
+    prompt_groups: list[tuple[str, bytes]] | None = None,
 ) -> str:
     """Return the stable request identity bound into pagination cursors."""
     payload = {
@@ -76,6 +77,7 @@ def request_fingerprint(
         "query": query.strip(),
         "root": canonicalize_catalog_path(root_path) if root_path is not None else None,
         "scope": scope,
+        "prompt_groups": [{"kind": kind, "value_hash": value_hash.hex()} for kind, value_hash in (prompt_groups or [])],
     }
     canonical = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -429,6 +431,7 @@ def search_ranked_media_page(
     *,
     parsed: ParsedQuery | None = None,
     library_id: int | None = None,
+    prompt_groups: list[tuple[str, bytes]] | None = None,
 ) -> tuple[list[sqlite3.Row], bool, str]:
     """Return one ranked media page plus its request fingerprint."""
     scope_sql, scope_params = ("", {})
@@ -443,7 +446,14 @@ def search_ranked_media_page(
         scope_sql = " AND fi.library_id = :scope_library_id"
         scope_params = {"scope_library_id": library_id}
     is_fielded = parsed is not None
-    fingerprint = request_fingerprint(query, scope, root_path, fielded=is_fielded, library_id=library_id)
+    fingerprint = request_fingerprint(
+        query,
+        scope,
+        root_path,
+        fielded=is_fielded,
+        library_id=library_id,
+        prompt_groups=prompt_groups,
+    )
     cursor_position, legacy_offset = _cursor_state(cursor, fingerprint)
     residual = parsed.residual_text.strip() if parsed is not None else query.strip()
 
@@ -451,6 +461,15 @@ def search_ranked_media_page(
     field_params: dict[str, Any] = {}
     if parsed is not None:
         conditions, raw_params = build_fielded_conditions(ParsedQuery(residual_text="", fields=parsed.fields))
+        for index, (kind, value_hash) in enumerate(prompt_groups or []):
+            conditions.append(
+                "EXISTS (SELECT 1 FROM asset_prompt_values AS prompt_group "
+                "WHERE prompt_group.asset_id = catalog_asset.id "
+                f"AND prompt_group.kind = :prompt_kind_{index} "
+                f"AND prompt_group.value_hash = :prompt_hash_{index})"
+            )
+            raw_params[f"prompt_kind_{index}"] = kind
+            raw_params[f"prompt_hash_{index}"] = value_hash
         field_where = " AND ".join(conditions) if conditions else "1=1"
         field_where, field_params = _prefix_sql_params(field_where, raw_params, "field_")
 

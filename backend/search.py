@@ -26,6 +26,8 @@ from .metadata_store import (
 from .models import (
     APIErrorResponse,
     MetadataSearchResponse,
+    PromptUsageQueryRequestV1,
+    PromptUsageResponseV1,
     SearchAllScopeV1,
     SearchFolderScopeV1,
     SearchLibraryScopeV1,
@@ -33,6 +35,7 @@ from .models import (
     SearchResponse,
 )
 from .paths import InvalidPathError, is_path_safe, resolve_path
+from .prompt_discovery import decode_prompt_value_id, query_prompt_usage
 from .scan import require_registered_path_allowed
 from .search_indexer import require_search_index_mode
 from .search_scope import SearchScopeContext, SearchScopeInput, resolve_search_scope, resolve_search_v2_scope
@@ -211,9 +214,9 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
         require_search_index_mode("workflow", library_id=context.library_id)
     if request.mode == "raw":
         require_search_index_mode("raw", library_id=context.library_id)
-    if request.mode != "lexical" or request.filters.prompt_groups or request.filters.workflow_groups:
+    if request.mode != "lexical" or request.filters.workflow_groups:
         raise APIError(409, ErrorType.FEATURE_DISABLED, f"Search mode '{request.mode}' is not enabled")
-    if not request.text.strip():
+    if not request.text.strip() and not request.filters.prompt_groups:
         return SearchResponse.model_validate(
             {
                 "query": request.text,
@@ -233,7 +236,10 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
 
     try:
         parsed = parse_fielded_query(request.text)
-        if parsed.fields:
+        decoded_prompt_groups = [
+            (group.kind, decode_prompt_value_id(group.value_id)) for group in request.filters.prompt_groups
+        ]
+        if parsed.fields or decoded_prompt_groups:
             data = search_index_fielded(
                 request.text,
                 context.kind,
@@ -241,6 +247,7 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
                 request.limit,
                 request.cursor,
                 library_id=context.library_id,
+                prompt_groups=decoded_prompt_groups,
             )
         else:
             data = search_index(
@@ -267,6 +274,28 @@ def api_search_query(request: SearchQueryRequestV1) -> SearchResponse:
     """Execute the canonical versioned Search V2 contract."""
     context = resolve_search_v2_scope(request.scope)
     return _execute_search_query(request, context)
+
+
+@router.post("/api/search/prompt-usage/query", responses=_SEARCH_ERROR_RESPONSES)
+def api_prompt_usage_query(request: PromptUsageQueryRequestV1) -> PromptUsageResponseV1:
+    """List normalized prompt values within one authorized canonical scope."""
+    context = resolve_search_v2_scope(request.scope)
+    require_search_index_mode("prompt_groups", library_id=context.library_id)
+    try:
+        data = query_prompt_usage(
+            polarity=request.polarity,
+            scope=context.kind,
+            root_path=context.folder_path,
+            library_id=context.library_id,
+            prefix=request.prefix,
+            text_query=request.text,
+            sort=request.sort,
+            cursor=request.cursor,
+            limit=request.limit,
+        )
+    except ValueError as exc:
+        raise APIError(400, ErrorType.BAD_REQUEST, "Invalid prompt usage cursor") from exc
+    return PromptUsageResponseV1.model_validate(data)
 
 
 @router.get("/api/library/inspector")

@@ -156,7 +156,54 @@ class SearchPromptGroupV1(BaseModel):
     """Stable prompt-group identity used by the D2 index."""
 
     kind: Literal["positive", "negative"]
-    value_id: str = Field(min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    value_id: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class PromptUsageQueryRequestV1(BaseModel):
+    """Canonical normalized prompt-usage request."""
+
+    polarity: Literal["positive", "negative"]
+    scope: SearchScopeV1
+    prefix: str | None = Field(default=None, max_length=512)
+    text: str | None = Field(default=None, max_length=512)
+    sort: Literal["usage", "recent"] = "usage"
+    cursor: str | None = Field(default=None, max_length=2048)
+    limit: int = Field(default=60, ge=1, le=100)
+
+    @model_validator(mode="after")
+    def validate_text_mode(self) -> "PromptUsageQueryRequestV1":
+        """Allow at most one normalized prompt-text predicate."""
+        if self.prefix is not None and self.text is not None:
+            raise ValueError("prefix and text are mutually exclusive")
+        return self
+
+
+class PromptUsageSampleAssetV1(BaseModel):
+    """Authorized active-catalog sample for a prompt group."""
+
+    asset_id: int
+    library_id: int
+    path: str
+
+
+class PromptUsageItemV1(BaseModel):
+    """One normalized positive or negative prompt usage group."""
+
+    value_id: str
+    kind: Literal["positive", "negative"]
+    text: str
+    asset_count: int
+    last_asset_mtime_ns: int
+    sample_asset: PromptUsageSampleAssetV1
+
+
+class PromptUsageResponseV1(BaseModel):
+    """One opaque keyset page of prompt usage groups."""
+
+    items: list[PromptUsageItemV1]
+    next_cursor: str | None = None
+    has_more: bool
+    returned: int
 
 
 class SearchWorkflowPredicateV1(BaseModel):

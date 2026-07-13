@@ -368,11 +368,13 @@ class TestBuildFieldedSearchSql:
         assert "m.model_hash LIKE" in sql
         assert "OR" in sql
 
-    def test_model_sql_does_not_include_model_hash(self):
+    def test_model_sql_keeps_direct_name_match_and_expands_observed_aliases(self):
         parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="model", value="foo")])
         sql, params = build_fielded_search_sql(parsed, limit=10)
         assert "m.model LIKE" in sql or "m.model =" in sql
-        assert "m.model_hash" not in sql
+        assert "model_identity_aliases" in sql
+        assert "m.model_hash" in sql
+        assert "foo" in str(params)
 
     def test_model_hash_sql_searches_only_hash(self):
         parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="model_hash", value="abc123")])

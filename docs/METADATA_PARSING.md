@@ -118,6 +118,14 @@ FTS5 unicode and trigram tables index `name`, `prompt`, `negative_prompt`, `mode
 Parsed LoRA/resource data is also normalized into `image_resources` with `path`, `kind`,
 `name`, `hash`, `resource_hash`, `weight`, `strength`, `raw_json`, and `updated_at`.
 
+The durable `prompt_values` search index derives `asset_prompt_values` from
+these stored metadata rows. Prompt identity uses Unicode NFKC, trimmed and
+collapsed whitespace, casefolded search text, and SHA-256 of
+`kind + NUL + search_text`. Missing prompts are recorded as
+`not_applicable`; the backfill never reopens media. Observed model names and
+hashes from core metadata and checkpoint/model resources are retained as
+explicit many-to-many aliases.
+
 ## Normalized API shape
 
 The parser returns a dictionary containing at least:

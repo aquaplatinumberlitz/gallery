@@ -14,7 +14,7 @@ const request: SearchQueryRequestV1 = {
     relative_path: "CaseSensitive/Portraits",
   },
   filters: {
-    prompt_groups: [{ kind: "positive", value_id: "abcdefghijklmnop" }],
+    prompt_groups: [{ kind: "positive", value_id: "abcdefghijklmnopqrstuvwxyz0123456789_-ABCDE" }],
     workflow_groups: [
       {
         node_type: "KSampler",

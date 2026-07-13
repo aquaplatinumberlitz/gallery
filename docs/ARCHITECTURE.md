@@ -294,6 +294,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/metadata`                       | Extract and normalize AI generation metadata for one image            | `metadata_parse.py` |
 | `GET /api/search`                         | Cursor-paginated unified search media stream plus first-page album suggestions, including fielded metadata queries | `search.py`         |
 | `POST /api/search/query`                  | Canonical Search V2 body with versioned ID-based scope, structured filters, and opaque cursor paging    | `search.py`         |
+| `POST /api/search/prompt-usage/query`     | Normalized prompt-group usage within an authorized canonical scope                                      | `search.py`         |
 | `GET /api/search/capabilities`            | Enabled modes, scopes, fixed limits/registries, and required derived indexes                            | `search_indexes.py` |
 | `GET /api/search/indexes`                 | Per-library derived-index state with separate usability and active job progress                         | `search_indexes.py` |
 | `POST /api/search/indexes/{name}/rebuild` | Queue one durable missing/full rebuild; duplicate active work returns 409                               | `search_indexes.py` |
@@ -351,8 +352,12 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
-- Catalog schema version 5 additively creates `search_index_states`,
-  `search_index_jobs`, and `asset_search_extractions`; it never backfills inline.
+- Catalog schema version 6 additively creates normalized
+  `asset_prompt_values`, per-asset observed model identities, and
+  `model_identity_aliases`; its `.v5.bak` migration creates storage only and
+  leaves backfill to the durable `prompt_values` search-index job. Version 5
+  creates `search_index_states`, `search_index_jobs`, and
+  `asset_search_extractions`; it never backfills inline.
   The migration creates `.v4.bak`, runs under one `BEGIN IMMEDIATE`, checks
   foreign keys, and publishes `user_version=5` last. Version 4 still owns the
   unambiguous `file_index.library_id` backfill and `.v3.bak`; earlier versions
@@ -363,6 +368,10 @@ Backend modules are mostly flat, with selected domain packages.
   derived-search-index writer, the derivative scheduler, and the integrity
   checker run as background services. The catalog watcher and scheduled
   reconciliation are enabled by default for registered libraries.
+- The enabled `prompt_values` derived index reads only persisted
+  `image_metadata`/checkpoint-resource rows. It NFKC-normalizes and casefolds
+  prompt identities, keeps positive and negative values distinct, and updates
+  observed model-name/hash aliases without reopening source media.
 - FastAPI lifespan startup registers each stop callback immediately after its service starts. Startup failures and normal shutdown unwind callbacks in reverse order, attempt every cleanup, and log incomplete stops without masking the initiating failure.
 - Unexpected exceptions are logged server-side with tracebacks. Public `500` responses use a generic message; durable background-job error fields retain bounded operational detail.
 - The catalog service owns a supervisor thread. Each running job has a durable

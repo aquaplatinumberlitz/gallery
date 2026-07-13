@@ -123,7 +123,7 @@ export const parseSearchRequestV1 = (value: unknown): SearchQueryRequestV1 | nul
         !group ||
         !["positive", "negative"].includes(group.kind) ||
         typeof group.value_id !== "string" ||
-        !/^[A-Za-z0-9_-]{16,64}$/.test(group.value_id),
+        !/^[A-Za-z0-9_-]{43}$/.test(group.value_id),
     )
   ) {
     return null;

@@ -26,6 +26,7 @@ from .metadata_store.search_index_store import (
     renew_search_index_job_lease,
     search_index_job_control_state,
 )
+from .prompt_discovery import extract_prompt_discovery, persist_prompt_discovery
 
 LOGGER = logging.getLogger(__name__)
 SearchExtractionStatus = Literal["ready", "not_applicable", "skipped", "failed"]
@@ -62,8 +63,10 @@ _DEFINITIONS: dict[str, SearchIndexDefinition] = {
         name="prompt_values",
         schema_version=1,
         extractor_version=1,
-        enabled=False,
+        enabled=True,
         required_mode="prompt_groups",
+        extractor=extract_prompt_discovery,
+        persist=persist_prompt_discovery,
     ),
     "workflow_properties": SearchIndexDefinition(
         name="workflow_properties",

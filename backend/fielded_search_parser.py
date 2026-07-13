@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -438,12 +439,37 @@ def _handle_standard_field(builder: _ConditionBuilder, ft: FieldToken) -> None:
     builder.conditions.append("(" + " OR ".join(equals) + ")")
 
 
+def _handle_model(builder: _ConditionBuilder, ft: FieldToken) -> None:
+    """Match names directly and expand exact observed names to every known hash."""
+    values = (
+        [term.strip() for term in ft.value.split(",") if term.strip()]
+        if ft.quote_char and "," in ft.value
+        else (_or_values(ft) or [ft.value])
+    )
+    joiner = " AND " if ft.quote_char and "," in ft.value else " OR "
+    candidates: list[str] = []
+    for value in values:
+        direct = f"m.model LIKE {builder.next_param(f'%{_escape_like_literal(value)}%')} ESCAPE '\\'"
+        if "*" in value:
+            candidates.append(direct)
+            continue
+        normalized_name = " ".join(unicodedata.normalize("NFKC", value).strip().split()).casefold()
+        alias = (
+            "lower(coalesce(m.model_hash, '')) IN ("
+            "SELECT normalized_hash FROM model_identity_aliases "
+            f"WHERE normalized_name = {builder.next_param(normalized_name)})"
+        )
+        candidates.append(f"({direct} OR {alias})")
+    builder.conditions.append("(" + joiner.join(candidates) + ")")
+
+
 FieldHandler = Callable[[_ConditionBuilder, FieldToken], None]
 _FIELD_HANDLERS: dict[str, FieldHandler] = {
     "raw": _handle_raw,
     "param": _handle_json_field,
     "advanced": _handle_json_field,
     "model_or_hash": _handle_model_or_hash,
+    "model": _handle_model,
     "size": _handle_size,
     "path": _handle_path,
     "resource_hash": _handle_resource_hash,
