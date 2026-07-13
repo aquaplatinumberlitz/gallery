@@ -214,6 +214,20 @@ GALLERY_CATALOG_WRITE_BATCH_SIZE = max(
 )
 
 # ---------------------------------------------------------------------------
+# Durable derived search indexes
+# ---------------------------------------------------------------------------
+GALLERY_SEARCH_INDEXER_ENABLED = _env_flag("GALLERY_SEARCH_INDEXER_ENABLED", default=True)
+GALLERY_SEARCH_INDEX_BATCH_SIZE = min(200, max(1, int(os.getenv("GALLERY_SEARCH_INDEX_BATCH_SIZE", "200"))))
+GALLERY_SEARCH_INDEX_JOB_LEASE_SECONDS = max(
+    30,
+    int(os.getenv("GALLERY_SEARCH_INDEX_JOB_LEASE_SECONDS", "300")),
+)
+GALLERY_SEARCH_INDEX_POLL_SECONDS = max(
+    0.1,
+    float(os.getenv("GALLERY_SEARCH_INDEX_POLL_SECONDS", "1.0")),
+)
+
+# ---------------------------------------------------------------------------
 # Scheduled catalog reconciliation
 # ---------------------------------------------------------------------------
 ENABLE_SCHEDULED_REFRESH = _env_flag(

@@ -113,6 +113,7 @@ def test_startup_failure_unwinds_all_started_services(monkeypatch: pytest.Monkey
     events: list[str] = []
     monkeypatch.setattr(app_module, "GALLERY_CATALOG_SERVICE_ENABLED", True)
     monkeypatch.setattr(app_module, "GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED", False)
+    monkeypatch.setattr(app_module, "GALLERY_SEARCH_INDEXER_ENABLED", False)
     monkeypatch.setattr(app_module.metadata_indexer, "METADATA_INDEXER_ENABLED", False)
     monkeypatch.setattr(app_module, "INTEGRITY_CHECK_ENABLED", False)
     monkeypatch.setattr(app_module, "validate_trusted_proxy_configuration", lambda: None)

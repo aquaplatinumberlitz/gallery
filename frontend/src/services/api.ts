@@ -95,6 +95,7 @@ export type ErrorType =
   | "server_error"
   | "confirmation_required"
   | "feature_disabled"
+  | "search_index_not_ready"
   | "network"
   | LibraryErrorType;
 

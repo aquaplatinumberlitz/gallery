@@ -240,6 +240,8 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_parse.py`        | `/api/metadata`, in-memory metadata cache, response shaping                                                                                |
 | `fielded_search_parser.py` | Parser for `prompt:`, `seed:`, `model:`, numeric operators, quoted values, and related fielded search syntax                               |
 | `search.py`                | `/api/search/query`, legacy `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata`              |
+| `search_indexes.py`        | Search capabilities plus derived-index state, rebuild-job, and cancellation APIs                                                          |
+| `search_indexer.py`        | Fixed index registry and supervised single-writer durable derived-index worker                                                             |
 | `facets.py`                | `/api/facets` aggregation over indexed metadata                                                                                            |
 | `indexer.py`               | DB-claim metadata lifecycle worker, durable scheduling, startup recovery, diagnostics, and scan worker rebuild helpers                      |
 | `integrity_checker.py`     | Periodic cross-table consistency checker for metadata jobs, assets, image metadata, derivatives, and derivative jobs                       |
@@ -271,6 +273,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_store/metadata_persist.py` | Metadata persistence helpers                              |
 | `metadata_store/search_store.py`     | FTS5 search queries                                       |
 | `metadata_store/ranked_search.py`    | Tiered search candidates and opaque keyset cursors        |
+| `metadata_store/search_index_store.py` | Derived-index states, fenced jobs, keyset asset batches, and extraction fingerprints |
 | `metadata_store/inspector_store.py`  | Library Inspector data access                             |
 | `metadata_store/_asset_store.py`     | Shared asset upsert helper                                |
 | `metadata_store/_resources.py`       | Image resource parsing helpers                            |
@@ -291,6 +294,11 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/metadata`                       | Extract and normalize AI generation metadata for one image            | `metadata_parse.py` |
 | `GET /api/search`                         | Cursor-paginated unified search media stream plus first-page album suggestions, including fielded metadata queries | `search.py`         |
 | `POST /api/search/query`                  | Canonical Search V2 body with versioned ID-based scope, structured filters, and opaque cursor paging    | `search.py`         |
+| `GET /api/search/capabilities`            | Enabled modes, scopes, fixed limits/registries, and required derived indexes                            | `search_indexes.py` |
+| `GET /api/search/indexes`                 | Per-library derived-index state with separate usability and active job progress                         | `search_indexes.py` |
+| `POST /api/search/indexes/{name}/rebuild` | Queue one durable missing/full rebuild; duplicate active work returns 409                               | `search_indexes.py` |
+| `GET /api/search/index-jobs/{id}`         | Inspect one durable derived-index job                                                                    | `search_indexes.py` |
+| `POST /api/search/index-jobs/{id}/cancel` | Idempotently request or finish cancellation                                                              | `search_indexes.py` |
 | `GET /api/search-metadata`                | Legacy metadata-only search endpoint                                  | `search.py`         |
 | `GET /api/library/inspector`              | Bounded read-only rows for the desktop metadata inspector             | `search.py`         |
 | `GET /api/library/inspector/metadata`     | DB-first full metadata detail for one inspector row                   | `search.py`         |
@@ -343,10 +351,18 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
-- Catalog schema version 4 backfills `file_index.library_id` only when a path has exactly one catalog owner. Ambiguous and ownerless rows remain unowned and cannot enter active search/facets. The migration creates a SQLite-consistent `.v3.bak`, runs under one `BEGIN IMMEDIATE`, checks foreign keys, and publishes `user_version=4` only at commit. Version 3 added durable scheduled-attempt recency and catalog job claim owner/token/lease fields; the earlier migrations retain their `.v2.bak` and `.v1.bak` rollback behavior.
+- Catalog schema version 5 additively creates `search_index_states`,
+  `search_index_jobs`, and `asset_search_extractions`; it never backfills inline.
+  The migration creates `.v4.bak`, runs under one `BEGIN IMMEDIATE`, checks
+  foreign keys, and publishes `user_version=5` last. Version 4 still owns the
+  unambiguous `file_index.library_id` backfill and `.v3.bak`; earlier versions
+  retain their `.v2.bak` and `.v1.bak` rollback behavior.
 - Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`.
 - `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_cursor`, legacy alias `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, `request_path`, `index_source`, `library_id`, and `path`. Image media rows also include `derivative_ready` for thumbnail/preview readiness; the frontend treats this as a loading/preload hint, not visible user-facing status. Catalog update and status are managed through library endpoints; imported-data clear, rebuild, and catalog reset are managed through maintenance endpoints.
-- Catalog scan workers, the DB-claim metadata lifecycle worker, the derivative scheduler, and the integrity checker run as background services. The catalog watcher and scheduled reconciliation are enabled by default for registered libraries.
+- Catalog scan workers, the DB-claim metadata lifecycle worker, the single
+  derived-search-index writer, the derivative scheduler, and the integrity
+  checker run as background services. The catalog watcher and scheduled
+  reconciliation are enabled by default for registered libraries.
 - FastAPI lifespan startup registers each stop callback immediately after its service starts. Startup failures and normal shutdown unwind callbacks in reverse order, attempt every cleanup, and log incomplete stops without masking the initiating failure.
 - Unexpected exceptions are logged server-side with tracebacks. Public `500` responses use a generic message; durable background-job error fields retain bounded operational detail.
 - The catalog service owns a supervisor thread. Each running job has a durable
@@ -552,6 +568,17 @@ Header search or AdvancedSearchDrawer
   never accepts an absolute client path. Persisted/URL forms omit cursor and
   limit; query keys omit only cursor. Legacy `GET /api/search` authorizes its
   absolute-path inputs and adapts them into the same lexical executor.
+- Derived discovery indexes use durable per-library states and jobs. Claims
+  carry worker ID, opaque token, and lease; completion is fenced. Workers read
+  active assets by `asset_id` keyset in batches of at most 200, extract outside
+  write transactions, and atomically persist one asset's derived rows plus its
+  fingerprint/status. Startup converts stale running jobs to `interrupted` so
+  the next claim resumes its cursor. Optional index failure never disables
+  lexical search.
+- Capabilities distinguish disabled features (`409 FEATURE_DISABLED`) from an
+  enabled but unusable required index (`503 SEARCH_INDEX_NOT_READY` with
+  `Retry-After`). Index status exposes `state` separately from `usable`; an old
+  usable index remains available with a warning during rebuild or degradation.
 - Search returns bounded `media` pages with opaque string `next_cursor`, `has_more`,
   `returned`, and `limit`. Legacy `albums`, `photos`, `videos`, and `prompt`
   fields remain for compatibility; the active gallery search UI renders

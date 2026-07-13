@@ -328,6 +328,30 @@ from .rebuild_store import (
 from .rebuild_store import (
     reconcile_library_assets as reconcile_library_assets,
 )
+from .search_index_store import (
+    SearchIndexClaimLost as SearchIndexClaimLost,
+)
+from .search_index_store import (
+    SearchIndexJobConflict as SearchIndexJobConflict,
+)
+from .search_index_store import (
+    create_search_index_job as create_search_index_job,
+)
+from .search_index_store import (
+    ensure_search_index_state as ensure_search_index_state,
+)
+from .search_index_store import (
+    get_search_index_job as get_search_index_job,
+)
+from .search_index_store import (
+    list_search_index_states as list_search_index_states,
+)
+from .search_index_store import (
+    recover_search_index_jobs as recover_search_index_jobs,
+)
+from .search_index_store import (
+    request_search_index_job_cancel as request_search_index_job_cancel,
+)
 from .search_store import (
     _is_inside_root as _is_inside_root,
 )

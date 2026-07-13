@@ -222,17 +222,17 @@ PRIMARY KEY(asset_id, index_name)
 
 ### Worker behavior
 
-- [ ] One search-index writer runs by default to limit SQLite contention.
-- [ ] Claim/lease/fencing behavior follows the existing durable worker patterns.
-- [ ] Select work by `asset_id` keyset, not offset.
-- [ ] Process at most 200 assets per batch and keep write transactions short.
-- [ ] Parse/extract outside the write transaction; persist one asset's derived
+- [x] One search-index writer runs by default to limit SQLite contention.
+- [x] Claim/lease/fencing behavior follows the existing durable worker patterns.
+- [x] Select work by `asset_id` keyset, not offset.
+- [x] Process at most 200 assets per batch and keep write transactions short.
+- [x] Parse/extract outside the write transaction; persist one asset's derived
       rows and extraction status atomically.
-- [ ] On startup, stale running jobs become interrupted and resume from
+- [x] On startup, stale running jobs become interrupted and resume from
       fingerprint/cursor state.
-- [ ] `missing` is the default rebuild mode. `full` is manual.
-- [ ] Duplicate active rebuilds for the same library/index return `409`.
-- [ ] Migration creates tables/indexes only; it never performs the backfill inline.
+- [x] `missing` is the default rebuild mode. `full` is manual.
+- [x] Duplicate active rebuilds for the same library/index return `409`.
+- [x] Migration creates tables/indexes only; it never performs the backfill inline.
 
 ### Public APIs
 
@@ -255,21 +255,21 @@ Rebuild request:
 
 ### Capability/index semantics
 
-- [ ] Capabilities advertise enabled modes, supported scopes, field limits,
+- [x] Capabilities advertise enabled modes, supported scopes, field limits,
       workflow registry, raw-search limits, and index requirements.
-- [ ] Index status exposes `state` and a separate `usable` boolean.
-- [ ] A stale/building old index may remain usable and show a warning.
-- [ ] A required unusable index returns `503 SEARCH_INDEX_NOT_READY` with
+- [x] Index status exposes `state` and a separate `usable` boolean.
+- [x] A stale/building old index may remain usable and show a warning.
+- [x] A required unusable index returns `503 SEARCH_INDEX_NOT_READY` with
       `Retry-After` where meaningful.
-- [ ] A disabled feature returns `409 FEATURE_DISABLED`.
-- [ ] Error summaries are sanitized and never include prompts/workflows/tracebacks.
+- [x] A disabled feature returns `409 FEATURE_DISABLED`.
+- [x] Error summaries are sanitized and never include prompts/workflows/tracebacks.
 
 ### Acceptance gates
 
-- [ ] Jobs resume after process interruption without duplicating derived rows.
-- [ ] Claim fencing prevents an expired worker from completing a newer claim.
-- [ ] Cancel is idempotent and does not leave state marked ready incorrectly.
-- [ ] Lexical search remains usable while optional indexes rebuild or fail.
+- [x] Jobs resume after process interruption without duplicating derived rows.
+- [x] Claim fencing prevents an expired worker from completing a newer claim.
+- [x] Cancel is idempotent and does not leave state marked ready incorrectly.
+- [x] Lexical search remains usable while optional indexes rebuild or fail.
 
 ## D2 - Prompt usage and observed model identity
 
@@ -645,3 +645,4 @@ is complete, move this file to `docs/archived/` and update the plans index.
 | Date | Phase | Result | Evidence |
 | --- | --- | --- | --- |
 | 2026-07-13 | D0 | Complete | Versioned `POST /api/search/query` with discriminated ID scopes and legacy GET parity; canonical query keys, Vue Router push/replace hydration, bounded browser-local saved/recent searches, 224 focused backend/frontend tests, 105 backend API tests, and 18 managed search E2E tests passed. |
+| 2026-07-13 | D1 | Complete | Additive schema v5 with rollback backup/no inline backfill; supervised single-writer registry, 200-row asset keysets, per-asset atomic fingerprints, fenced resume/cancel, typed capability/status/rebuild APIs, distinct disabled/not-ready errors, and stale-index usability; 117 broad backend regressions, 16 focused contracts, and 105 backend API tests passed. |

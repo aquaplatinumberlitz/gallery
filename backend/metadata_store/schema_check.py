@@ -14,6 +14,9 @@ _TABLES: tuple[str, ...] = (
     "library_import_paths",
     "catalog_rebuild_entries",
     "integrity_check_runs",
+    "search_index_states",
+    "search_index_jobs",
+    "asset_search_extractions",
 )
 
 _TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
@@ -64,6 +67,31 @@ _TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
         "state",
         "updated_at",
     ),
+    "search_index_states": (
+        "index_name",
+        "library_id",
+        "state",
+        "schema_version",
+        "extractor_version",
+        "active_job_id",
+    ),
+    "search_index_jobs": (
+        "id",
+        "index_name",
+        "library_id",
+        "mode",
+        "state",
+        "cursor_asset_id",
+        "claim_token",
+        "lease_expires_at",
+    ),
+    "asset_search_extractions": (
+        "asset_id",
+        "index_name",
+        "source_fingerprint",
+        "extractor_version",
+        "status",
+    ),
 }
 
 _INDEXES: tuple[str, ...] = (
@@ -71,6 +99,9 @@ _INDEXES: tuple[str, ...] = (
     "idx_metadata_index_jobs_library_state",
     "idx_image_metadata_mtime_size",
     "idx_integrity_check_runs_finished",
+    "idx_search_index_jobs_pick",
+    "idx_search_index_jobs_one_active",
+    "idx_asset_search_extractions_index_status",
 )
 
 

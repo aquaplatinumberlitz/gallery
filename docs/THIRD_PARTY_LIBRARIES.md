@@ -117,6 +117,11 @@ Important tables:
 - `image_metadata_fts_trigram`: trigram FTS5 for substring/CJK-oriented metadata search.
 - `metadata_index_jobs`: queued/running/done/failed/stale background metadata indexing jobs.
 - `library_jobs`: durable catalog work with worker owner, claim token, and renewable lease fencing.
+- `search_index_jobs`: durable missing/full derived-index rebuilds with one
+  active job per library/index, fenced claims, cancellation, and interruption
+  recovery.
+- `search_index_states` and `asset_search_extractions`: explicit per-library
+  readiness/usability plus per-asset source fingerprints and extractor status.
 
 Search behavior:
 

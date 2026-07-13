@@ -161,6 +161,10 @@ desired derivative coverage.
 | `GALLERY_CATALOG_LEASE_HEARTBEAT_SECONDS`              | float, minimum 5        | `300`                                                 | Catalog claim heartbeat interval, clamped to at most one third of the catalog job lease.                 |
 | `GALLERY_CATALOG_WRITE_BATCH_SIZE`                     | integer, minimum 1      | `500`                                                 | Catalog write batch size for discovery/staging.                                                          |
 | `GALLERY_CATALOG_SHUTDOWN_TIMEOUT_SECONDS`             | float, minimum 0        | `30`                                                  | Absolute catalog-service stop deadline shared across worker and supervisor joins.                        |
+| `GALLERY_SEARCH_INDEXER_ENABLED`                       | boolean flag            | true                                                  | Starts the single-writer durable derived-search-index worker during backend startup.                     |
+| `GALLERY_SEARCH_INDEX_BATCH_SIZE`                      | integer, clamped 1–200  | `200`                                                 | Maximum asset-ID keyset batch read by one derived-index worker iteration.                                |
+| `GALLERY_SEARCH_INDEX_JOB_LEASE_SECONDS`               | integer, minimum 30     | `300`                                                 | Fenced lease duration for one claimed derived search-index job.                                         |
+| `GALLERY_SEARCH_INDEX_POLL_SECONDS`                    | float, minimum 0.1      | `1.0`                                                 | Idle poll interval for the derived search-index writer; enqueue/cancel also wake it immediately.         |
 
 Invalid numeric strings raise during configuration import; the code does not provide a
 fallback for malformed numbers.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 
 from . import _db as _db
@@ -22,7 +23,96 @@ def _gallery_metadata_db() -> Path:
     return _gallery_metadata_db_path()
 
 
-CATALOG_SCHEMA_VERSION = 4
+CATALOG_SCHEMA_VERSION = 5
+
+
+def _ensure_search_index_schema(
+    conn: sqlite3.Connection,
+    *,
+    execute_statement: Callable[[str], object] | None = None,
+) -> None:
+    """Create the additive durable search-index lifecycle tables and indexes."""
+    statements = [
+        """
+        CREATE TABLE IF NOT EXISTS search_index_jobs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          index_name TEXT NOT NULL,
+          library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+          mode TEXT NOT NULL CHECK (mode IN ('missing', 'full')),
+          state TEXT NOT NULL CHECK (
+            state IN ('queued', 'running', 'cancel_requested', 'cancelled',
+                      'succeeded', 'failed', 'interrupted')
+          ),
+          cursor_asset_id INTEGER,
+          processed_count INTEGER NOT NULL DEFAULT 0,
+          target_count INTEGER NOT NULL DEFAULT 0,
+          failed_count INTEGER NOT NULL DEFAULT 0,
+          requested_at REAL NOT NULL,
+          started_at REAL,
+          finished_at REAL,
+          claimed_by TEXT,
+          claim_token TEXT,
+          lease_expires_at REAL,
+          error_code TEXT,
+          error_summary TEXT
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS search_index_states (
+          index_name TEXT NOT NULL,
+          library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+          state TEXT NOT NULL CHECK (state IN ('pending', 'building', 'ready', 'degraded', 'failed', 'disabled')),
+          schema_version INTEGER NOT NULL,
+          extractor_version INTEGER NOT NULL,
+          indexed_count INTEGER NOT NULL DEFAULT 0,
+          target_count INTEGER NOT NULL DEFAULT 0,
+          failed_count INTEGER NOT NULL DEFAULT 0,
+          active_job_id INTEGER REFERENCES search_index_jobs(id) ON DELETE SET NULL,
+          started_at REAL,
+          completed_at REAL,
+          updated_at REAL NOT NULL,
+          error_code TEXT,
+          error_summary TEXT,
+          PRIMARY KEY(index_name, library_id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS asset_search_extractions (
+          asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+          index_name TEXT NOT NULL,
+          source_fingerprint TEXT NOT NULL,
+          extractor_version INTEGER NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('ready', 'not_applicable', 'skipped', 'failed')),
+          error_code TEXT,
+          indexed_at REAL NOT NULL,
+          PRIMARY KEY(asset_id, index_name)
+        )
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_search_index_jobs_pick
+          ON search_index_jobs(state, requested_at, id)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_search_index_jobs_library
+          ON search_index_jobs(library_id, index_name, requested_at DESC)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_search_index_jobs_lease
+          ON search_index_jobs(state, lease_expires_at)
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_search_index_jobs_one_active
+          ON search_index_jobs(index_name, library_id)
+          WHERE state IN ('queued', 'running', 'cancel_requested', 'interrupted')
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_asset_search_extractions_index_status
+          ON asset_search_extractions(index_name, status, asset_id)
+        """,
+    ]
+    execute = execute_statement or conn.execute
+    for statement in statements:
+        execute(statement)
 
 
 def _ensure_catalog_schema(conn: sqlite3.Connection) -> None:
@@ -398,6 +488,41 @@ def _migrate_v3_to_v4(conn: sqlite3.Connection) -> None:
         raise
 
 
+def _execute_v5_migration_statement(conn: sqlite3.Connection, statement: str) -> None:
+    """Execute one v4-to-v5 migration statement (test injection seam)."""
+    conn.execute(statement)
+
+
+def _backup_v4_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v5 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v4.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v4_to_v5(conn: sqlite3.Connection) -> None:
+    """Add durable search-index lifecycle tables without running a backfill."""
+    conn.commit()
+    _backup_v4_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _ensure_search_index_schema(
+            conn,
+            execute_statement=lambda statement: _execute_v5_migration_statement(conn, statement),
+        )
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v5 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 5")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     current_version = conn.execute("PRAGMA user_version").fetchone()[0]
     has_application_tables = _database_has_application_tables(conn)
@@ -419,16 +544,21 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         current_version = 4
 
     if current_version == 4:
+        _migrate_v4_to_v5(conn)
+        current_version = 5
+
+    if current_version == 5:
         _cleanup_ignored_index_conn(conn)
         _ensure_post_v1_additive_columns(conn)
         _ensure_v3_schema(conn)
+        _ensure_search_index_schema(conn)
         return
 
     if current_version == 0 and has_application_tables:
         raise RuntimeError("Catalog database has application tables but no schema version; delete it and start fresh")
 
     if current_version != 0:
-        raise RuntimeError(f"Catalog database must be fresh (v0), v1, v2, v3, or v4; found v{current_version}")
+        raise RuntimeError(f"Catalog database must be fresh (v0), v1, v2, v3, v4, or v5; found v{current_version}")
 
     conn.executescript(
         """
@@ -767,6 +897,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     )
     _ensure_post_v1_additive_columns(conn)
     _ensure_v3_schema(conn)
+    _ensure_search_index_schema(conn)
 
     conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")
     _cleanup_ignored_index_conn(conn)

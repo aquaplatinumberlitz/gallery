@@ -13,12 +13,13 @@ class APIError(HTTPException):
         detail: str,
         *,
         extra: dict | None = None,
+        headers: dict[str, str] | None = None,
     ):
         """Create an HTTP error response with a stable frontend error type."""
         payload: dict = {"error": error_type, "message": detail}
         if extra:
             payload.update(extra)
-        super().__init__(status_code=status_code, detail=payload)
+        super().__init__(status_code=status_code, detail=payload, headers=headers)
 
 
 class ErrorType:
@@ -34,3 +35,4 @@ class ErrorType:
     SERVER_ERROR = "server_error"  # Internal server error
     CAPACITY_EXCEEDED = "capacity_exceeded"  # Derivative quota/deferred capacity reached
     FEATURE_DISABLED = "feature_disabled"
+    SEARCH_INDEX_NOT_READY = "search_index_not_ready"

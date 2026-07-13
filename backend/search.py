@@ -34,6 +34,7 @@ from .models import (
 )
 from .paths import InvalidPathError, is_path_safe, resolve_path
 from .scan import require_registered_path_allowed
+from .search_indexer import require_search_index_mode
 from .search_scope import SearchScopeContext, SearchScopeInput, resolve_search_scope, resolve_search_v2_scope
 
 router = APIRouter()
@@ -204,6 +205,12 @@ def api_search(
 
 def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeContext) -> SearchResponse:
     """Execute one already-authorized canonical search request."""
+    if request.filters.prompt_groups:
+        require_search_index_mode("prompt_groups", library_id=context.library_id)
+    if request.mode == "workflow" or request.filters.workflow_groups:
+        require_search_index_mode("workflow", library_id=context.library_id)
+    if request.mode == "raw":
+        require_search_index_mode("raw", library_id=context.library_id)
     if request.mode != "lexical" or request.filters.prompt_groups or request.filters.workflow_groups:
         raise APIError(409, ErrorType.FEATURE_DISABLED, f"Search mode '{request.mode}' is not enabled")
     if not request.text.strip():

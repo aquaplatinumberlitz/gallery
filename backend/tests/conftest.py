@@ -224,6 +224,7 @@ def disable_background_services(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("backend.config.ENABLE_SCHEDULED_REFRESH", False)
     monkeypatch.setattr("backend.config.ENABLE_FILE_WATCHER", False)
     monkeypatch.setattr("backend.app.GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED", False)
+    monkeypatch.setattr("backend.app.GALLERY_SEARCH_INDEXER_ENABLED", False)
 
     # Suppress startup phase3 tasks
     def _noop(*args, **kwargs):  # noqa: ANN002, ANN003
