@@ -47,6 +47,7 @@ _POSTER_SLOTS = threading.BoundedSemaphore(VIDEO_POSTER_MAX_CONCURRENCY)
 _POSTER_STATE_LOCK = threading.RLock()
 _POSTER_GENERATING_PATHS: set[str] = set()
 _POSTER_SERVED_PATHS: set[str] = set()
+_POSTER_SERVING_COUNTS: dict[str, int] = {}
 
 _RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
 _RANGE_CHUNK_SIZE = 1024 * 1024
@@ -85,9 +86,34 @@ def _poster_lock_for(cache_key: str) -> threading.Lock:
         return lock
 
 
+def _acquire_poster_serving(path: str) -> None:
+    with _POSTER_STATE_LOCK:
+        _POSTER_SERVING_COUNTS[path] = _POSTER_SERVING_COUNTS.get(path, 0) + 1
+        _POSTER_SERVED_PATHS.add(path)
+
+
 def _release_poster_serving(path: str) -> None:
     with _POSTER_STATE_LOCK:
-        _POSTER_SERVED_PATHS.discard(path)
+        remaining = _POSTER_SERVING_COUNTS.get(path, 0) - 1
+        if remaining > 0:
+            _POSTER_SERVING_COUNTS[path] = remaining
+        else:
+            _POSTER_SERVING_COUNTS.pop(path, None)
+            _POSTER_SERVED_PATHS.discard(path)
+
+
+class _PosterServingLease:
+    """Idempotent eviction-protection lease for one poster response."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._released = False
+
+    def release(self) -> None:
+        if self._released:
+            return
+        self._released = True
+        _release_poster_serving(str(self.path))
 
 
 def _enforce_poster_quota(*, protect: str | None = None) -> bool:
@@ -114,7 +140,7 @@ def _enforce_poster_quota(*, protect: str | None = None) -> bool:
 
 
 @router.get("/api/video")
-async def api_video(request: Request, path: str = Query(...)):
+def api_video(request: Request, path: str = Query(...)):
     """Stream an original video file with support for a single HTTP byte range."""
     file_path = _validate_video(path)
     stat = file_path.stat()
@@ -187,24 +213,27 @@ async def api_video(request: Request, path: str = Query(...)):
     )
 
 
-def _get_or_generate_poster(file_path: Path) -> Path:
+def _get_or_generate_poster(
+    file_path: Path,
+    acquire_serving: bool = False,
+) -> Path | _PosterServingLease:
     """Generate a poster synchronously; callers must run this off the event loop."""
-    ffmpeg_path = shutil.which("ffmpeg")
-    if ffmpeg_path is None:
-        raise APIError(503, ErrorType.VIDEO_TOOL_UNAVAILABLE, "ffmpeg is not available on this system")
-
     stat = file_path.stat()
     cache_key = f"{file_path}_{stat.st_mtime_ns}_{stat.st_size}"
     cached_path = POSTER_CACHE_DIR / f"{hashlib.sha256(cache_key.encode()).hexdigest()}.webp"
     POSTER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    if not cached_path.exists():
-        if not _POSTER_SLOTS.acquire(timeout=VIDEO_POSTER_QUEUE_TIMEOUT_SECONDS):
-            raise APIError(503, "video_poster_saturated", "Video poster generation is busy")
-        lock = _poster_lock_for(cache_key)
-        try:
-            with lock:
-                # Re-check inside the lock so only one request runs ffmpeg per key.
+    lock = _poster_lock_for(cache_key)
+    with lock:
+        if not cached_path.exists():
+            ffmpeg_path = shutil.which("ffmpeg")
+            if ffmpeg_path is None:
+                raise APIError(503, ErrorType.VIDEO_TOOL_UNAVAILABLE, "ffmpeg is not available on this system")
+            if not _POSTER_SLOTS.acquire(timeout=VIDEO_POSTER_QUEUE_TIMEOUT_SECONDS):
+                raise APIError(503, "video_poster_saturated", "Video poster generation is busy")
+            try:
+                # Duplicate requests wait on the per-key lock before consuming
+                # a global ffmpeg slot, then re-check the published cache file.
                 if not cached_path.exists():
                     temp_path = cached_path.with_name(
                         f"{cached_path.stem}.tmp.{os.getpid()}.{threading.get_ident()}.webp"
@@ -249,34 +278,50 @@ def _get_or_generate_poster(file_path: Path) -> Path:
                         temp_path.unlink(missing_ok=True)
                         with _POSTER_STATE_LOCK:
                             _POSTER_GENERATING_PATHS.discard(str(cached_path))
-        finally:
-            _POSTER_SLOTS.release()
+            finally:
+                _POSTER_SLOTS.release()
 
-    with suppress(OSError):
-        cached_stat = cached_path.stat()
-        os.utime(cached_path, ns=(time.time_ns(), cached_stat.st_mtime_ns))
-    if not _enforce_poster_quota(protect=str(cached_path)):
-        cached_path.unlink(missing_ok=True)
-        raise APIError(507, ErrorType.CAPACITY_EXCEEDED, "Video poster cache capacity exceeded")
+        lease = _PosterServingLease(cached_path) if acquire_serving else None
+        if lease is not None:
+            _acquire_poster_serving(str(cached_path))
+        try:
+            with suppress(OSError):
+                cached_stat = cached_path.stat()
+                os.utime(cached_path, ns=(time.time_ns(), cached_stat.st_mtime_ns))
+            if not _enforce_poster_quota(protect=str(cached_path)):
+                if lease is not None:
+                    lease.release()
+                cached_path.unlink(missing_ok=True)
+                raise APIError(507, ErrorType.CAPACITY_EXCEEDED, "Video poster cache capacity exceeded")
+        except Exception:
+            if lease is not None:
+                lease.release()
+            raise
 
-    return cached_path
+        return lease if lease is not None else cached_path
 
 
 @router.get("/api/video/poster")
 async def api_video_poster(request: Request, path: str = Query(...)):
     """Return a cached WebP poster or generate one without blocking the event loop."""
-    file_path = _validate_video(path)
-    cached_path = await run_in_threadpool(_get_or_generate_poster, file_path)
-    cached_stat = cached_path.stat()
-    etag = f'"{cached_stat.st_mtime_ns}-{cached_stat.st_size}"'
-    headers = {"Cache-Control": _REVALIDATE_CACHE_CONTROL, "ETag": etag}
-    if request.headers.get("if-none-match") == etag:
-        return Response(status_code=304, headers=headers)
-    with _POSTER_STATE_LOCK:
-        _POSTER_SERVED_PATHS.add(str(cached_path))
-    return FileResponse(
-        cached_path,
-        media_type="image/webp",
-        headers=headers,
-        background=BackgroundTask(_release_poster_serving, str(cached_path)),
-    )
+    file_path = await run_in_threadpool(_validate_video, path)
+    lease = await run_in_threadpool(_get_or_generate_poster, file_path, True)
+    if not isinstance(lease, _PosterServingLease):
+        raise RuntimeError("Poster serving lease was not acquired")
+    try:
+        cached_stat = await run_in_threadpool(lease.path.stat)
+        etag = f'"{cached_stat.st_mtime_ns}-{cached_stat.st_size}"'
+        headers = {"Cache-Control": _REVALIDATE_CACHE_CONTROL, "ETag": etag}
+        if request.headers.get("if-none-match") == etag:
+            lease.release()
+            return Response(status_code=304, headers=headers)
+        return FileResponse(
+            lease.path,
+            media_type="image/webp",
+            headers=headers,
+            stat_result=cached_stat,
+            background=BackgroundTask(lease.release),
+        )
+    except Exception:
+        lease.release()
+        raise

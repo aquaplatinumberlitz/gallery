@@ -97,7 +97,7 @@ class FileHealthResponse(BaseModel):
 
 
 @router.get("/file-health")
-async def get_file_health():
+def get_file_health():
     """Return the latest file-health check run, or null if never run."""
     with _DB_LOCK, _connect() as conn:
         run = get_latest_run(conn)

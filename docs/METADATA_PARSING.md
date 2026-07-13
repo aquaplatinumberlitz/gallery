@@ -3,7 +3,7 @@
 Status: Maintained
 
 Last verified against `backend/metadata_extract.py`, `backend/metadata_parse.py`, and
-`backend/metadata_store/`: 2026-06-25.
+`backend/metadata_store/`: 2026-07-13.
 
 ## Supported generators
 
@@ -37,10 +37,15 @@ dimensions, gathers image text/EXIF fields, and dispatches sources in this order
 
 The first successful parser wins. Sidecars therefore do not override supported embedded
 metadata. Only `.txt` sidecars produced by `path.with_suffix(".txt")` are considered.
-Before a sidecar is read, its size is checked against
-`GALLERY_METADATA_SIDECAR_MAX_BYTES` (1 MiB by default). Oversized sidecars are
-never truncated; API reads return `413` and lifecycle jobs persist a bounded
-failure.
+The sidecar is accepted only for an active registered image asset, beside the
+authorized image, inside its matched import root and `PATH_SAFETY_ROOT`, and
+outside exclusion patterns. Symlinks are rejected without following them for
+content. The same descriptor is inspected and bounded-read using no-follow
+flags where supported plus a cross-platform identity fallback. At most
+`GALLERY_METADATA_SIDECAR_MAX_BYTES + 1` bytes are read (1 MiB plus one by
+default). Oversized or concurrently grown sidecars are never truncated; API
+reads return `413` and lifecycle jobs persist a bounded failure. Persisted
+sidecar identity comes from that validated descriptor.
 
 ## API and cache flow
 
@@ -81,11 +86,12 @@ resets interrupted `running` jobs, fails exhausted attempts, and repairs
 historical rows where a done job/current metadata row exists but the asset state
 was not materialized.
 
-The shared catalog database is schema version 2. Upgrading a version 1 database
-creates a consistent `.v1.bak` before atomically rebuilding legacy REAL-affinity
-nanosecond identity columns as INTEGER. Metadata and catalog rows remain in the
-same single-process SQLite database; the migration does not introduce a second
-store or modify source media.
+The shared catalog database is schema version 3. Version 1 first upgrades via a
+consistent `.v1.bak` and atomic REAL-to-INTEGER nanosecond migration. Version 2
+then creates `.v2.bak` and atomically adds catalog claim fencing and durable
+scheduled-attempt fields. Metadata and catalog rows remain in the same
+single-process SQLite database; migrations do not introduce a second store or
+modify source media.
 
 ## Stored database fields
 

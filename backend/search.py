@@ -45,6 +45,39 @@ def _require_visible_registered_path(path: Path) -> None:
     require_registered_path_allowed(path)
 
 
+def _validated_search_root(path: str | None) -> Path:
+    root = _registered_or_requested_root(path)
+    if not is_path_safe(root):
+        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
+    if not root.exists() or not root.is_dir():
+        raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
+    _require_visible_registered_path(root)
+    return root
+
+
+def _filter_safe_paths(rows: list[dict]) -> tuple[list[dict], set[str]]:
+    safe: list[dict] = []
+    stale_paths: set[str] = set()
+    for row in rows:
+        try:
+            resolved = resolve_path(row["path"])
+        except (OSError, RuntimeError, InvalidPathError):
+            stale_paths.add(str(row["path"]))
+            continue
+        if os.path.exists(resolved) and is_path_safe(resolved):
+            safe.append(row)
+        else:
+            stale_paths.add(str(row["path"]))
+    return safe, stale_paths
+
+
+def _resolve_safe_inspector_path(path: str) -> Path:
+    resolved = resolve_path(path)
+    if not is_path_safe(resolved):
+        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
+    return resolved
+
+
 def _cleanup_registered_library_roots(stale_paths: set[str]) -> int:
     from .metadata_store import list_libraries
 
@@ -102,7 +135,9 @@ async def api_search_metadata(
         LOGGER.exception("Metadata search failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
-    safe_results = [result for result in data["results"] if is_path_safe(resolve_path(result["path"]))]
+    safe_results, stale_paths = await run_in_threadpool(_filter_safe_paths, data["results"])
+    if stale_paths:
+        _schedule_stale_cleanup(stale_paths)
     return {
         "query": data["query"],
         "total": len(safe_results),
@@ -122,9 +157,7 @@ async def api_search(
 ):
     """Search albums, photos, and prompts in either current folder or all indexed files."""
     if not q.strip():
-        root = _registered_or_requested_root(path) if scope == "current" else None
-        if root is not None:
-            await run_in_threadpool(_require_visible_registered_path, root)
+        root = await run_in_threadpool(_validated_search_root, path) if scope == "current" else None
         return {
             "query": q,
             "scope": scope,
@@ -142,12 +175,7 @@ async def api_search(
 
     root_path: Path | None = None
     if scope == "current":
-        root_path = _registered_or_requested_root(path)
-        if not is_path_safe(root_path):
-            raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
-        if not root_path.exists() or not root_path.is_dir():
-            raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
-        await run_in_threadpool(_require_visible_registered_path, root_path)
+        root_path = await run_in_threadpool(_validated_search_root, path)
 
     try:
         parsed = parse_fielded_query(q)
@@ -159,33 +187,19 @@ async def api_search(
         LOGGER.exception("Search failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
-    stale_detected = False
     stale_paths: set[str] = set()
+    albums, stale = await run_in_threadpool(_filter_safe_paths, data["albums"])
+    stale_paths.update(stale)
+    photos, stale = await run_in_threadpool(_filter_safe_paths, data["photos"])
+    stale_paths.update(stale)
+    videos, stale = await run_in_threadpool(_filter_safe_paths, data.get("videos", []))
+    stale_paths.update(stale)
+    prompt, stale = await run_in_threadpool(_filter_safe_paths, data["prompt"])
+    stale_paths.update(stale)
+    media, stale = await run_in_threadpool(_filter_safe_paths, data.get("media", []))
+    stale_paths.update(stale)
 
-    def safe_section(section: list[dict]) -> list[dict]:
-        nonlocal stale_detected
-        safe_results: list[dict] = []
-        for result in section:
-            try:
-                resolved = resolve_path(result["path"])
-            except (OSError, RuntimeError, InvalidPathError):
-                stale_detected = True
-                stale_paths.add(str(result["path"]))
-                continue
-            if os.path.exists(resolved) and is_path_safe(resolved):
-                safe_results.append(result)
-            else:
-                stale_detected = True
-                stale_paths.add(str(result["path"]))
-        return safe_results
-
-    albums = safe_section(data["albums"])
-    photos = safe_section(data["photos"])
-    videos = safe_section(data.get("videos", []))
-    prompt = safe_section(data["prompt"])
-    media = safe_section(data.get("media", []))
-
-    if stale_detected:
+    if stale_paths:
         _schedule_stale_cleanup(stale_paths)
 
     return {
@@ -222,30 +236,7 @@ async def api_library_inspector(
     """Return paginated library inspector rows with stale path filtering."""
     root_path: Path | None = None
     if scope == "current":
-        root_path = _registered_or_requested_root(path)
-        if not is_path_safe(root_path):
-            raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
-        if not root_path.exists() or not root_path.is_dir():
-            raise APIError(404, ErrorType.NOT_FOUND, "Folder not found")
-        await run_in_threadpool(_require_visible_registered_path, root_path)
-
-    def _filter_safe_rows(rows: list[dict]) -> tuple[list[dict], bool, set[str]]:
-        stale = False
-        safe: list[dict] = []
-        stale_paths: set[str] = set()
-        for row in rows:
-            try:
-                resolved = resolve_path(row["path"])
-            except (OSError, RuntimeError, InvalidPathError):
-                stale = True
-                stale_paths.add(str(row["path"]))
-                continue
-            if os.path.exists(resolved) and is_path_safe(resolved):
-                safe.append(row)
-            else:
-                stale = True
-                stale_paths.add(str(row["path"]))
-        return safe, stale, stale_paths
+        root_path = await run_in_threadpool(_validated_search_root, path)
 
     try:
         data = await run_in_threadpool(
@@ -266,7 +257,8 @@ async def api_library_inspector(
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
     query_truncated = bool(data.get("truncated"))
-    safe_rows, stale_detected, stale_paths = _filter_safe_rows(data["rows"])
+    safe_rows, stale_paths = await run_in_threadpool(_filter_safe_paths, data["rows"])
+    stale_detected = bool(stale_paths)
     # Overscan once if stale rows were detected and the current page is not full,
     # or if the query was truncated and may contain stale entries just past the page.
     if stale_detected and (len(safe_rows) < limit or query_truncated):
@@ -288,7 +280,8 @@ async def api_library_inspector(
         except Exception as exc:  # noqa: BLE001
             LOGGER.exception("Library inspector pagination failed")
             raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
-        overscan_safe_rows, overscan_stale_detected, overscan_stale_paths = _filter_safe_rows(overscan_data["rows"])
+        overscan_safe_rows, overscan_stale_paths = await run_in_threadpool(_filter_safe_paths, overscan_data["rows"])
+        overscan_stale_detected = bool(overscan_stale_paths)
         data = overscan_data
         query_truncated = bool(overscan_data.get("truncated")) or len(overscan_safe_rows) > limit
         safe_rows = overscan_safe_rows[:limit]
@@ -317,9 +310,7 @@ async def api_library_inspector_metadata(
     path: str = Query(..., description="Encoded image path from an indexed library row"),
 ):
     """Return indexed metadata details for a selected library inspector image."""
-    resolved = resolve_path(path)
-    if not is_path_safe(resolved):
-        raise APIError(403, ErrorType.PERMISSION_DENIED, "Access denied: path outside allowed root")
+    resolved = await run_in_threadpool(_resolve_safe_inspector_path, path)
 
     try:
         data = await run_in_threadpool(get_library_inspector_metadata, resolved)

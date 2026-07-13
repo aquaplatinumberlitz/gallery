@@ -13,7 +13,7 @@ from .config import (
     SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK,
     SCHEDULED_REFRESH_ROOTS,
 )
-from .metadata_store import list_libraries, order_library_ids_for_scheduled_refresh
+from .metadata_store import list_libraries, mark_scheduled_refresh_attempt, order_library_ids_for_scheduled_refresh
 from .scan_worker import queue_scan
 
 LOGGER = logging.getLogger(__name__)
@@ -70,6 +70,7 @@ def _run_refresh_tick() -> None:
             if _refresh_stop.is_set():
                 break
             try:
+                mark_scheduled_refresh_attempt(int(library["id"]))
                 queue_scan(int(library["id"]), trigger="scheduled")
                 tick_count += 1
             except Exception as exc:  # noqa: BLE001

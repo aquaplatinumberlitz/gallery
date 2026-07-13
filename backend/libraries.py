@@ -366,20 +366,14 @@ def _validate_same_library_overlaps(
     path_items: list[ValidationItem],
     canonical_paths: list[str | None],
 ) -> None:
-    ordered = sorted(
-        ((canonical, index) for index, canonical in enumerate(canonical_paths) if canonical is not None),
-        key=lambda value: value[0],
-    )
-    for (left, left_index), (right, right_index) in zip(ordered, ordered[1:], strict=False):
-        if left == right:
-            continue
-        try:
-            Path(right).relative_to(left)
-        except ValueError:
-            continue
-        for index in (left_index, right_index):
-            path_items[index]["is_valid"] = False
-            path_items[index]["message"] = "This import path overlaps another path in the same library"
+    valid_paths = [(index, canonical) for index, canonical in enumerate(canonical_paths) if canonical is not None]
+    for position, (left_index, left) in enumerate(valid_paths):
+        for right_index, right in valid_paths[position + 1 :]:
+            if left == right or not _path_overlaps(left, right):
+                continue
+            for index in (left_index, right_index):
+                path_items[index]["is_valid"] = False
+                path_items[index]["message"] = "This import path overlaps another path in the same library"
 
 
 def _validate_registered_path_overlaps(
@@ -458,18 +452,7 @@ def _validate_settings(
 
 
 def _path_overlaps(left: str, right: str) -> bool:
-    left_path = Path(left)
-    right_path = Path(right)
-    try:
-        left_path.relative_to(right_path)
-        return True
-    except ValueError:
-        pass
-    try:
-        right_path.relative_to(left_path)
-        return True
-    except ValueError:
-        return False
+    return catalog_path_contains(left, right) or catalog_path_contains(right, left)
 
 
 def _normalized_validated_values(result: dict[str, Any], field: str) -> list[str]:

@@ -98,7 +98,7 @@ def test_video_indexing_and_library_stats(
         assert row["duration_ms"] == pytest.approx(2000, abs=100)
         assert row["codec"] == "mpeg4"
         assert (row["width"], row["height"]) == (32, 24)
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
 
     stats = get_library_stats(library_id)
     assert stats["photos"] == 1
@@ -193,7 +193,7 @@ def test_video_poster_generation(
     assert response.headers["content-type"] == "image/webp"
     assert response.content.startswith(b"RIFF")
     assert len(list(poster_dir.glob("*.webp"))) == 1
-    assert offloaded == ["_get_or_generate_poster"]
+    assert offloaded == ["_validate_video", "_get_or_generate_poster", "stat"]
 
     cached = isolated_app.get(
         "/api/video/poster",

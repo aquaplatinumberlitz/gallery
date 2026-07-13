@@ -11,6 +11,8 @@ from typing import Any
 
 from .catalog_maintenance_gate import release_maintenance_gate, try_acquire_maintenance_gate
 from .config import (
+    CATALOG_JOB_LEASE_SECONDS,
+    CATALOG_LEASE_HEARTBEAT_SECONDS,
     CATALOG_SHUTDOWN_TIMEOUT_SECONDS,
     DERIVATIVE_RECONCILE_ENABLED,
     GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS,
@@ -34,6 +36,7 @@ from .metadata_store import (
     list_libraries,
     reconcile_library_assets,
     recover_stale_jobs,
+    renew_catalog_job_lease,
     update_job_state,
     update_library_state,
 )
@@ -51,6 +54,11 @@ _last_supervisor_recovered_jobs = 0
 _supervisor_failures = 0
 _SUPERVISOR_INTERVAL_SECONDS = 1.0
 
+
+class CatalogJobClaimLost(RuntimeError):
+    """Raised when a worker no longer owns the durable catalog claim."""
+
+
 TRIGGER_PRIORITIES = {
     "initial": 100,
     "manual": 100,
@@ -66,9 +74,23 @@ def _emit_job(job: dict[str, Any], event_type: str = "job.updated") -> None:
         publish(event_payload("library.progress", job))
 
 
-def _transition_job(job_id: int, state: str, **changes: Any) -> dict[str, Any]:
-    job = update_job_state(job_id, state, **changes)
+def _transition_job(
+    job_id: int,
+    state: str,
+    *,
+    claim_token: str | None = None,
+    **changes: Any,
+) -> dict[str, Any]:
+    job = update_job_state(
+        job_id,
+        state,
+        claim_token=claim_token,
+        lease_seconds=CATALOG_JOB_LEASE_SECONDS,
+        **changes,
+    )
     if job is None:
+        if claim_token is not None:
+            raise CatalogJobClaimLost(f"Catalog job {job_id} claim was lost")
         raise RuntimeError(f"Catalog job {job_id} disappeared")
     event_type = "job.updated"
     if state == "succeeded":
@@ -111,10 +133,15 @@ def _emit_recovered_jobs(jobs: list[dict[str, Any]]) -> None:
         _emit_job(job, event_type=_event_type_for_state(str(job["state"])))
 
 
-def _prune_worker_threads_locked() -> list[threading.Thread]:
+def _prune_worker_threads_locked() -> tuple[list[threading.Thread], set[str]]:
     alive = [thread for thread in _worker_threads if thread.is_alive()]
+    dead_worker_ids = {
+        str(thread._gallery_worker_id)  # type: ignore[attr-defined]
+        for thread in _worker_threads
+        if not thread.is_alive() and getattr(thread, "_gallery_worker_id", None)
+    }
     _worker_threads[:] = alive
-    return alive
+    return alive, dead_worker_ids
 
 
 def _spawn_missing_workers_locked() -> None:
@@ -133,6 +160,7 @@ def _spawn_missing_workers_locked() -> None:
             name=f"gallery-catalog-worker-{start_index + offset + 1}",
             daemon=True,
         )
+        thread._gallery_worker_id = f"catalog-{id(thread):x}-{time.time_ns():x}"  # type: ignore[attr-defined]
         _worker_threads.append(thread)
         thread.start()
 
@@ -302,6 +330,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
     """Run one claimed scan job through the catalog-owned pipeline."""
     job_id = int(job["id"])
     library_id = int(job["library_id"])
+    claim_token = str(job["claim_token"]) if job.get("claim_token") else None
     try:
         library_id, scan_paths = _scan_paths_for_job(job)
         online_paths = [p for p in scan_paths if Path(p).is_dir()]
@@ -309,8 +338,14 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
         for offline_path in offline_paths:
             reconcile_library_assets(library_id, set(), scope_path=offline_path)
         if not online_paths:
+            _transition_job(
+                job_id,
+                "failed",
+                claim_token=claim_token,
+                message="Update failed",
+                error="All update paths are offline",
+            )
             update_library_state(library_id, "offline", last_error="All import paths are offline")
-            _transition_job(job_id, "failed", message="Update failed", error="All update paths are offline")
             return False
         if offline_paths:
             update_library_state(library_id, "degraded", last_error=f"{len(offline_paths)} import path(s) offline")
@@ -327,6 +362,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
         _transition_job(
             job_id,
             "running",
+            claim_token=claim_token,
             progress_current=0,
             progress_total=len(online_paths),
             message="Updating library",
@@ -341,6 +377,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
             _transition_job(
                 job_id,
                 "running",
+                claim_token=claim_token,
                 progress_current=index,
                 progress_total=len(online_paths),
                 message=f"Updated {index} of {len(online_paths)} update scopes",
@@ -348,28 +385,39 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
             )
         scan_completed = job.get("scope_path") is None
         if offline_paths:
-            update_library_state(library_id, "degraded", scan_completed=scan_completed)
             success_message = "Update completed with offline paths"
         elif scan_completed:
-            update_library_state(library_id, "ready", scan_completed=True)
             success_message = "Update completed"
         else:
-            update_library_state(library_id, "indexing", scan_completed=False)
             success_message = "Update completed"
         _transition_job(
             job_id,
             "succeeded",
+            claim_token=claim_token,
             progress_current=len(online_paths),
             progress_total=len(online_paths),
             message=success_message,
             counters=counters,
         )
+        if offline_paths:
+            update_library_state(library_id, "degraded", scan_completed=scan_completed)
+        elif scan_completed:
+            update_library_state(library_id, "ready", scan_completed=True)
+        else:
+            update_library_state(library_id, "indexing", scan_completed=False)
         _reconcile_derivatives_after_catalog_commit(job, library_id)
         return True
+    except CatalogJobClaimLost:
+        LOGGER.warning("Catalog scan job %s stopped after losing its claim", job_id)
+        return False
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Catalog scan job %s failed: %s", job_id, exc)
+        try:
+            _transition_job(job_id, "failed", claim_token=claim_token, message="Update failed", error=str(exc))
+        except CatalogJobClaimLost:
+            LOGGER.warning("Catalog scan job %s failure ignored after claim loss", job_id)
+            return False
         update_library_state(library_id, "error", last_error=str(exc), scan_completed=job.get("scope_path") is None)
-        _transition_job(job_id, "failed", message="Update failed", error=str(exc))
         return False
 
 
@@ -384,13 +432,20 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
     """
     job_id = int(job["id"])
     library_id = int(job["library_id"])
+    claim_token = str(job["claim_token"]) if job.get("claim_token") else None
     try:
         library_id, scan_paths = _scan_paths_for_job(job)
         online_paths = [p for p in scan_paths if Path(p).is_dir()]
         offline_paths = [p for p in scan_paths if not Path(p).is_dir()]
         if not online_paths:
+            _transition_job(
+                job_id,
+                "failed",
+                claim_token=claim_token,
+                message="Rebuild failed",
+                error="All rebuild paths are offline",
+            )
             update_library_state(library_id, "offline", last_error="All import paths are offline")
-            _transition_job(job_id, "failed", message="Rebuild failed", error="All rebuild paths are offline")
             return False
         if offline_paths:
             update_library_state(library_id, "degraded", last_error=f"{len(offline_paths)} import path(s) offline")
@@ -410,6 +465,7 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
         _transition_job(
             job_id,
             "running",
+            claim_token=claim_token,
             progress_current=0,
             progress_total=len(online_paths),
             message="Rebuild enumerating",
@@ -422,6 +478,7 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
         _transition_job(
             job_id,
             "running",
+            claim_token=claim_token,
             progress_current=len(online_paths),
             progress_total=len(online_paths),
             message="Rebuild activating",
@@ -450,48 +507,116 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
         counters["failed"] = failed_total
         scan_completed = job.get("scope_path") is None
         if offline_paths:
-            update_library_state(library_id, "degraded", scan_completed=scan_completed)
             success_message = "Rebuild completed with offline paths"
         elif scan_completed:
-            update_library_state(library_id, "ready", scan_completed=True)
             success_message = "Rebuild completed"
         else:
-            update_library_state(library_id, "indexing", scan_completed=False)
             success_message = "Rebuild completed"
         _transition_job(
             job_id,
             "succeeded",
+            claim_token=claim_token,
             progress_current=len(online_paths),
             progress_total=len(online_paths),
             message=success_message,
             counters=counters,
         )
+        if offline_paths:
+            update_library_state(library_id, "degraded", scan_completed=scan_completed)
+        elif scan_completed:
+            update_library_state(library_id, "ready", scan_completed=True)
+        else:
+            update_library_state(library_id, "indexing", scan_completed=False)
         _reconcile_derivatives_after_catalog_commit(job, library_id)
         return True
+    except CatalogJobClaimLost:
+        LOGGER.warning("Catalog rebuild job %s stopped after losing its claim", job_id)
+        return False
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Catalog rebuild job %s failed: %s", job_id, exc)
         try:
             delete_rebuild_staging(job_id)
         except Exception:  # noqa: BLE001
             LOGGER.exception("Failed to clean staging rows for rebuild job %s", job_id)
+        try:
+            _transition_job(
+                job_id,
+                "failed",
+                claim_token=claim_token,
+                message="Rebuild failed; previous catalog remains active",
+                error=str(exc),
+            )
+        except CatalogJobClaimLost:
+            LOGGER.warning("Catalog rebuild job %s failure ignored after claim loss", job_id)
+            return False
         update_library_state(library_id, "error", last_error=str(exc), scan_completed=job.get("scope_path") is None)
-        _transition_job(job_id, "failed", message="Rebuild failed; previous catalog remains active", error=str(exc))
         return False
 
 
 def run_once() -> bool:
     """Claim and execute one queued catalog job. Returns True when work ran."""
-    job = claim_next_catalog_job(max_queue_wait_seconds=GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS)
+    worker_id = str(getattr(threading.current_thread(), "_gallery_worker_id", threading.current_thread().name))
+    job = claim_next_catalog_job(
+        max_queue_wait_seconds=GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS,
+        worker_id=worker_id,
+        lease_seconds=CATALOG_JOB_LEASE_SECONDS,
+    )
     if job is None:
         return False
     _emit_job(job)
-    if job["type"] == "scan":
-        execute_scan_job(job)
-    elif job["type"] == "rebuild":
-        execute_rebuild_job(job)
-    else:
-        _transition_job(int(job["id"]), "failed", message="Unsupported catalog operation", error="Unsupported")
+    heartbeat = _CatalogLeaseHeartbeat(int(job["id"]), str(job["claim_token"]))
+    heartbeat.start()
+    try:
+        if job["type"] == "scan":
+            execute_scan_job(job)
+        elif job["type"] == "rebuild":
+            execute_rebuild_job(job)
+        else:
+            _transition_job(
+                int(job["id"]),
+                "failed",
+                claim_token=str(job["claim_token"]),
+                message="Unsupported catalog operation",
+                error="Unsupported",
+            )
+    finally:
+        heartbeat.stop()
     return True
+
+
+class _CatalogLeaseHeartbeat:
+    """Renew one catalog claim until the worker reaches a terminal write."""
+
+    def __init__(self, job_id: int, claim_token: str) -> None:
+        self._job_id = job_id
+        self._claim_token = claim_token
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self._thread = threading.Thread(
+            target=self._run,
+            name=f"gallery-catalog-heartbeat-{self._job_id}",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None and self._thread is not threading.current_thread():
+            self._thread.join(timeout=max(1.0, CATALOG_LEASE_HEARTBEAT_SECONDS + 1.0))
+
+    def _run(self) -> None:
+        while not self._stop.wait(CATALOG_LEASE_HEARTBEAT_SECONDS):
+            try:
+                if not renew_catalog_job_lease(
+                    self._job_id,
+                    self._claim_token,
+                    lease_seconds=CATALOG_JOB_LEASE_SECONDS,
+                ):
+                    return
+            except Exception:  # noqa: BLE001
+                LOGGER.exception("Catalog lease heartbeat failed for job %s", self._job_id)
 
 
 def _worker_loop() -> None:
@@ -522,7 +647,7 @@ def _supervisor_loop() -> None:
 def start() -> None:
     """Start bounded in-process catalog workers."""
     with _service_lock:
-        alive = _prune_worker_threads_locked()
+        alive, _dead_worker_ids = _prune_worker_threads_locked()
         if _stop_event.is_set() and alive:
             LOGGER.warning("Catalog worker restart deferred until incomplete shutdown finishes")
             return
@@ -531,7 +656,7 @@ def start() -> None:
             _spawn_supervisor_locked()
             return
         # Recover orphaned running jobs before spawning workers
-        recovered_jobs = recover_stale_jobs()
+        recovered_jobs = recover_stale_jobs(live_worker_ids=set())
         for job in recovered_jobs:
             LOGGER.warning("Recovered orphaned catalog job %s after server restart", job["id"])
         _emit_recovered_jobs(recovered_jobs)
@@ -549,7 +674,7 @@ def ensure_running(*, service_enabled: bool = GALLERY_CATALOG_SERVICE_ENABLED) -
     job, so mark it failed before starting a replacement worker.
     """
     with _service_lock:
-        alive = _prune_worker_threads_locked()
+        alive, _dead_worker_ids = _prune_worker_threads_locked()
         recovered_count = 0
         if _stop_event.is_set() and alive:
             return {
@@ -558,19 +683,24 @@ def ensure_running(*, service_enabled: bool = GALLERY_CATALOG_SERVICE_ENABLED) -
                 "recovered_jobs": 0,
                 "shutdown_incomplete": 1,
             }
-        if service_enabled and not alive:
-            recovered_jobs = recover_stale_jobs(reason="Catalog worker stopped before completing the job")
+        if service_enabled:
+            live_worker_ids = {
+                str(thread._gallery_worker_id)  # type: ignore[attr-defined]
+                for thread in alive
+                if getattr(thread, "_gallery_worker_id", None)
+            }
+            recovered_jobs = recover_stale_jobs(
+                reason="Catalog worker stopped before completing the job",
+                live_worker_ids=live_worker_ids,
+            )
             recovered_count = len(recovered_jobs)
             for job in recovered_jobs:
                 LOGGER.warning("Recovered orphaned catalog job %s after worker stopped", job["id"])
             _emit_recovered_jobs(recovered_jobs)
+        if service_enabled and len(alive) < GALLERY_CATALOG_WORKERS:
             _spawn_missing_workers_locked()
             notify_workers()
-            alive = _prune_worker_threads_locked()
-        elif service_enabled and len(alive) < GALLERY_CATALOG_WORKERS:
-            _spawn_missing_workers_locked()
-            notify_workers()
-            alive = _prune_worker_threads_locked()
+            alive, _dead_worker_ids = _prune_worker_threads_locked()
         return {
             "worker_count": GALLERY_CATALOG_WORKERS,
             "alive_workers": len(alive),
@@ -595,7 +725,7 @@ def stop() -> None:
             break
         thread.join(timeout=remaining)
     with _service_lock:
-        alive = _prune_worker_threads_locked()
+        alive, _dead_worker_ids = _prune_worker_threads_locked()
         supervisor_alive = bool(_supervisor_thread and _supervisor_thread.is_alive())
         _shutdown_incomplete = bool(alive or supervisor_alive)
         if _shutdown_incomplete:

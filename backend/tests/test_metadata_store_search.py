@@ -26,7 +26,9 @@ from pathlib import Path
 
 from backend.metadata_store import (
     _connect,
+    index_file,
     initialize_database,
+    register_library,
     search_metadata,
     upsert_metadata_result,
 )
@@ -34,8 +36,11 @@ from backend.metadata_store import (
 
 def _seed_image_with_prompt(tmp_path: Path, filename: str, prompt: str) -> Path:
     """Create a fake image file and upsert metadata with the given prompt."""
+    register_library(tmp_path)
     image = tmp_path / filename
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    stat = image.stat()
+    assert index_file(image, image.name, image.parent, "image", stat.st_mtime, stat.st_size, None, None)
     assert upsert_metadata_result(image, {"prompt": prompt}) is True
     return image
 

@@ -11,7 +11,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from .errors import APIError, ErrorType
 from .metadata_store import _DB_LOCK, _connect, initialize_database
-from .metadata_store.identity import current_file_metadata_sql
+from .metadata_store.identity import active_catalog_file_sql, current_file_metadata_sql
 from .metadata_store.path_utils import named_path_scope_sql
 from .scan import require_registered_path_allowed
 
@@ -43,6 +43,7 @@ else:
 
 FACET_DEFAULT_LIMIT = 50
 _CURRENT_METADATA_SQL = current_file_metadata_sql(fi_alias="fi", im_alias="m")
+_ACTIVE_FILE_SQL = active_catalog_file_sql(fi_alias="fi")
 
 
 def _build_facet_query(field: str, value_expr: str, max_values: int, scope_where: str, scope_params: dict) -> str:
@@ -66,6 +67,15 @@ def _build_scope(folder_path: str | None) -> tuple[str, dict]:
         return "", {}
 
 
+def _validate_facet_scope(path: str) -> str | None:
+    target, _library = require_registered_path_allowed(path)
+    if target.exists() and not target.is_dir():
+        raise APIError(400, ErrorType.NOT_DIRECTORY, "Path is not a folder")
+    if not target.exists():
+        return None
+    return str(target)
+
+
 def _get_folder_list(scope_where: str, scope_params: dict, max_folders: int) -> list[dict]:
     initialize_database()
     with _DB_LOCK, _connect() as conn:
@@ -73,7 +83,7 @@ def _get_folder_list(scope_where: str, scope_params: dict, max_folders: int) -> 
             f"""
             SELECT fi.parent_path AS value, count(*) AS count
             FROM file_index fi
-            WHERE fi.type IN ('image', 'photo') {scope_where}
+            WHERE fi.type IN ('image', 'photo') AND {_ACTIVE_FILE_SQL} {scope_where}
             GROUP BY fi.parent_path
             ORDER BY count DESC, fi.parent_path ASC
             LIMIT :limit
@@ -131,7 +141,7 @@ def _get_seed_availability(scope_where: str, scope_params: dict) -> list[dict]:
             f"""
             SELECT count(*) AS total
             FROM file_index fi
-            WHERE fi.type IN ('image', 'photo') {scope_where}
+            WHERE fi.type IN ('image', 'photo') AND {_ACTIVE_FILE_SQL} {scope_where}
             """,
             scope_params,
         ).fetchone()["total"]
@@ -157,7 +167,7 @@ def _get_metadata_availability(scope_where: str, scope_params: dict) -> list[dic
             f"""
             SELECT count(*) AS total
             FROM file_index fi
-            WHERE fi.type IN ('image', 'photo') {scope_where}
+            WHERE fi.type IN ('image', 'photo') AND {_ACTIVE_FILE_SQL} {scope_where}
             """,
             scope_params,
         ).fetchone()["total"]
@@ -232,12 +242,9 @@ async def api_facets(
     """Return metadata facet counts for the requested folder scope."""
     folder_path = None
     if path:
-        target, _library = await run_in_threadpool(require_registered_path_allowed, path)
-        if target.exists() and not target.is_dir():
-            raise APIError(400, ErrorType.NOT_DIRECTORY, "Path is not a folder")
-        if not target.exists():
+        folder_path = await run_in_threadpool(_validate_facet_scope, path)
+        if folder_path is None:
             return {}
-        folder_path = str(target)
 
     try:
         facets = await run_in_threadpool(build_facets, folder_path, max_values)

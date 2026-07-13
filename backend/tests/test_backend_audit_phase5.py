@@ -131,6 +131,7 @@ def test_startup_failure_unwinds_all_started_services(monkeypatch: pytest.Monkey
         raise RuntimeError("startup failed")
 
     monkeypatch.setattr(app_module, "_start_refresh", fail_refresh)
+    monkeypatch.setattr(app_module, "_stop_refresh", lambda: events.append("refresh:stop"))
 
     async def exercise() -> None:
         with pytest.raises(RuntimeError, match="startup failed"):
@@ -138,7 +139,58 @@ def test_startup_failure_unwinds_all_started_services(monkeypatch: pytest.Monkey
                 pass
 
     asyncio.run(exercise())
-    assert events == ["catalog:start", "derivative:start", "derivative:stop", "catalog:stop"]
+    assert events == [
+        "catalog:start",
+        "derivative:start",
+        "refresh:stop",
+        "derivative:stop",
+        "catalog:stop",
+    ]
+
+
+def test_lifecycle_registry_cleans_partial_start_and_every_reverse_cleanup(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import threading
+
+    events: list[str] = []
+    stop_thread = threading.Event()
+    thread = threading.Thread(target=stop_thread.wait, daemon=True)
+    registry = app_module._LifecycleRegistry()
+
+    def partial_start() -> None:
+        events.append("partial:start")
+        thread.start()
+        raise RuntimeError("original startup failure")
+
+    def partial_stop() -> bool:
+        events.append("partial:stop")
+        stop_thread.set()
+        thread.join(timeout=1)
+        return not thread.is_alive()
+
+    registry.start("first", lambda: events.append("first:start"), lambda: events.append("first:stop"))
+    registry.start("raises", lambda: events.append("raises:start"), lambda: (_ for _ in ()).throw(RuntimeError("stop")))
+    registry.start("false", lambda: events.append("false:start"), lambda: events.append("false:stop") or False)
+    with pytest.raises(RuntimeError, match="original startup failure"):
+        try:
+            registry.start("partial", partial_start, partial_stop)
+        finally:
+            with caplog.at_level(logging.WARNING, logger="backend.app"):
+                registry.close()
+
+    assert events == [
+        "first:start",
+        "raises:start",
+        "false:start",
+        "partial:start",
+        "partial:stop",
+        "false:stop",
+        "first:stop",
+    ]
+    assert not thread.is_alive()
+    assert "Backend service shutdown incomplete: false" in caplog.text
+    assert "Backend service shutdown failed: raises" in caplog.text
 
 
 def _database_dump(path: Path) -> str:
@@ -204,4 +256,29 @@ def test_unexpected_error_is_logged_not_disclosed(caplog: pytest.LogCaptureFixtu
     assert response.status_code == 500
     assert secret not in response.body.decode()
     assert b"Internal server error" in response.body
+    assert secret in caplog.text
+
+
+def test_metadata_route_unexpected_error_is_generic(
+    isolated_app,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from backend import metadata_parse
+
+    image = isolated_gallery_root / "route-error.png"
+    create_test_png(image)
+    _catalog_file(image, "image")
+    secret = f"sqlite failed at {image}"
+    with metadata_parse._metadata_cache_lock:
+        metadata_parse._metadata_cache.clear()
+        metadata_parse._metadata_inflight.clear()
+    monkeypatch.setattr(metadata_parse, "extract_metadata", lambda _path: (_ for _ in ()).throw(RuntimeError(secret)))
+
+    with caplog.at_level(logging.ERROR, logger="backend.metadata_parse"):
+        response = isolated_app.get("/api/metadata", params={"path": str(image)})
+    assert response.status_code == 500
+    assert response.json() == {"detail": {"error": "server_error", "message": "Internal server error"}}
+    assert secret not in response.text
     assert secret in caplog.text

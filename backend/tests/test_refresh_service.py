@@ -45,6 +45,7 @@ from backend.refresh import (
 @pytest.fixture(autouse=True)
 def reset_refresh_state(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(refresh, "_refresh_thread", None)
+    monkeypatch.setattr(refresh, "mark_scheduled_refresh_attempt", lambda _library_id: None)
     refresh._refresh_stop.clear()
     yield
     refresh._refresh_stop.clear()

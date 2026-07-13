@@ -22,7 +22,7 @@ def _gallery_metadata_db() -> Path:
     return _gallery_metadata_db_path()
 
 
-CATALOG_SCHEMA_VERSION = 2
+CATALOG_SCHEMA_VERSION = 3
 
 
 def _ensure_catalog_schema(conn: sqlite3.Connection) -> None:
@@ -191,6 +191,18 @@ def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
     )
 
 
+def _ensure_v3_schema(conn: sqlite3.Connection) -> None:
+    """Ensure catalog claim fencing and scheduled-attempt persistence."""
+    _ensure_column(conn, "libraries", "last_scheduled_attempt_at", "REAL")
+    _ensure_column(conn, "library_jobs", "claimed_by", "TEXT")
+    _ensure_column(conn, "library_jobs", "claim_token", "TEXT")
+    _ensure_column(conn, "library_jobs", "lease_expires_at", "REAL")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_library_jobs_state_lease ON library_jobs(state, lease_expires_at)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_libraries_scheduled_attempt ON libraries(last_scheduled_attempt_at, id)"
+    )
+
+
 def _column_type(conn: sqlite3.Connection, table: str, column: str) -> str | None:
     row = next((item for item in conn.execute(f"PRAGMA table_info({table})") if item["name"] == column), None)
     return str(row["type"]).upper() if row is not None else None
@@ -288,6 +300,56 @@ def _migrate_v1_to_v2(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys=ON")
 
 
+def _execute_v3_migration_statement(conn: sqlite3.Connection, statement: str) -> None:
+    """Execute one v2-to-v3 migration statement (test injection seam)."""
+    conn.execute(statement)
+
+
+def _backup_v2_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v3 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v2.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v2_to_v3(conn: sqlite3.Connection) -> None:
+    """Add durable catalog claims and scheduled-attempt recency atomically."""
+    conn.commit()
+    _backup_v2_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        statements: list[str] = []
+        if "last_scheduled_attempt_at" not in _db._table_columns(conn, "libraries"):
+            statements.append("ALTER TABLE libraries ADD COLUMN last_scheduled_attempt_at REAL")
+        library_job_columns = _db._table_columns(conn, "library_jobs")
+        if "claimed_by" not in library_job_columns:
+            statements.append("ALTER TABLE library_jobs ADD COLUMN claimed_by TEXT")
+        if "claim_token" not in library_job_columns:
+            statements.append("ALTER TABLE library_jobs ADD COLUMN claim_token TEXT")
+        if "lease_expires_at" not in library_job_columns:
+            statements.append("ALTER TABLE library_jobs ADD COLUMN lease_expires_at REAL")
+        statements.extend(
+            [
+                "CREATE INDEX IF NOT EXISTS idx_library_jobs_state_lease ON library_jobs(state, lease_expires_at)",
+                "CREATE INDEX IF NOT EXISTS idx_libraries_scheduled_attempt "
+                "ON libraries(last_scheduled_attempt_at, id)",
+            ]
+        )
+        for statement in statements:
+            _execute_v3_migration_statement(conn, statement)
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v3 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 3")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     current_version = conn.execute("PRAGMA user_version").fetchone()[0]
     has_application_tables = _database_has_application_tables(conn)
@@ -298,19 +360,23 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
 
     if current_version == 1:
         _migrate_v1_to_v2(conn)
-        _cleanup_ignored_index_conn(conn)
-        return
+        current_version = 2
 
     if current_version == 2:
+        _migrate_v2_to_v3(conn)
+        current_version = 3
+
+    if current_version == 3:
         _cleanup_ignored_index_conn(conn)
         _ensure_post_v1_additive_columns(conn)
+        _ensure_v3_schema(conn)
         return
 
     if current_version == 0 and has_application_tables:
         raise RuntimeError("Catalog database has application tables but no schema version; delete it and start fresh")
 
     if current_version != 0:
-        raise RuntimeError(f"Catalog database must be fresh (v0), v1, or v2; found v{current_version}")
+        raise RuntimeError(f"Catalog database must be fresh (v0), v1, v2, or v3; found v{current_version}")
 
     conn.executescript(
         """
@@ -480,8 +546,9 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               created_at REAL NOT NULL DEFAULT (julianday('now')),
               updated_at REAL NOT NULL DEFAULT (julianday('now')),
               last_scan_at REAL,
-              last_error TEXT
-              ,config_revision INTEGER NOT NULL DEFAULT 1
+              last_error TEXT,
+              last_scheduled_attempt_at REAL,
+              config_revision INTEGER NOT NULL DEFAULT 1
             );
 
             CREATE TABLE IF NOT EXISTS library_import_paths (
@@ -531,7 +598,10 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               created_at REAL NOT NULL,
               updated_at REAL NOT NULL,
               started_at REAL,
-              finished_at REAL
+              finished_at REAL,
+              claimed_by TEXT,
+              claim_token TEXT,
+              lease_expires_at REAL
             );
             CREATE INDEX IF NOT EXISTS idx_library_jobs_library_created
               ON library_jobs(library_id, created_at DESC);
@@ -543,6 +613,10 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
               ON library_jobs(state, priority DESC, created_at);
             CREATE INDEX IF NOT EXISTS idx_library_jobs_parent
               ON library_jobs(parent_job_id);
+            CREATE INDEX IF NOT EXISTS idx_library_jobs_state_lease
+              ON library_jobs(state, lease_expires_at);
+            CREATE INDEX IF NOT EXISTS idx_libraries_scheduled_attempt
+              ON libraries(last_scheduled_attempt_at, id);
 
             CREATE TABLE IF NOT EXISTS assets (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -640,6 +714,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
             """
     )
     _ensure_post_v1_additive_columns(conn)
+    _ensure_v3_schema(conn)
 
     conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")
     _cleanup_ignored_index_conn(conn)

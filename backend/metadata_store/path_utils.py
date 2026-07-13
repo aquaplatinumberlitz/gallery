@@ -16,8 +16,7 @@ def canonicalize_catalog_path(path: str | Path) -> str:
         text = text.replace("/", os.sep)
     normalized = os.path.normpath(text)
     if os.name == "nt":
-        drive, tail = os.path.splitdrive(normalized)
-        normalized = drive.lower() + tail
+        normalized = os.path.normcase(normalized)
     return normalized.rstrip(os.sep) if normalized != os.sep else normalized
 
 

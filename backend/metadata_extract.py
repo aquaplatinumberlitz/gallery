@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat as stat_module
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,14 +76,124 @@ class MetadataSidecarTooLargeError(ValueError):
         super().__init__(f"Metadata sidecar exceeds {max_bytes} bytes")
 
 
+@dataclass(frozen=True)
+class MetadataSidecarSnapshot:
+    """Validated sidecar content and identity from one open descriptor."""
+
+    path: str
+    mtime_ns: int
+    size: int
+    text: str | None
+
+
+def _sidecar_scope(path: Path) -> tuple[Path, Path, tuple[str, ...]] | None:
+    """Return the authorized image, import root, and exclusions for a sidecar."""
+    from .files import is_index_excluded_path
+    from .metadata_store.library_store import get_asset_state_for_path, get_library_for_path
+    from .paths import is_path_safe
+
+    try:
+        image = path.resolve(strict=True)
+    except OSError:
+        return None
+    if not is_path_safe(image):
+        return None
+    asset = get_asset_state_for_path(image)
+    library = get_library_for_path(image)
+    if (
+        asset is None
+        or library is None
+        or asset["type"] != "image"
+        or asset["offline"]
+        or asset["deleted_at"] is not None
+        or int(asset["library_id"]) != int(library["id"])
+    ):
+        return None
+    import_root = Path(library["matched_import_path"]).resolve()
+    exclusions = tuple(str(pattern) for pattern in library["exclusion_patterns"])
+    sidecar = image.with_suffix(".txt")
+    try:
+        sidecar.parent.relative_to(import_root)
+    except ValueError:
+        return None
+    if not is_path_safe(sidecar.parent) or is_index_excluded_path(sidecar, import_root, exclusions):
+        return None
+    return sidecar, import_root, exclusions
+
+
+def _read_sidecar_fd(fd: int, max_bytes: int) -> bytes:
+    """Read no more than max_bytes plus one from a regular-file descriptor."""
+    chunks: list[bytes] = []
+    remaining = max_bytes + 1
+    while remaining > 0:
+        chunk = os.read(fd, remaining)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
+def _metadata_sidecar_snapshot(path: Path, *, read_content: bool) -> MetadataSidecarSnapshot | None:
+    """Open, validate, and optionally bounded-read the authorized sidecar."""
+    scope = _sidecar_scope(path)
+    if scope is None:
+        return None
+    sidecar, _import_root, _exclusions = scope
+    try:
+        before = sidecar.lstat()
+    except OSError:
+        return None
+    if stat_module.S_ISLNK(before.st_mode) or not stat_module.S_ISREG(before.st_mode):
+        return None
+
+    flags = os.O_RDONLY
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(sidecar, flags)
+    except OSError:
+        return None
+    try:
+        opened = os.fstat(fd)
+        if not stat_module.S_ISREG(opened.st_mode):
+            return None
+        if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+            return None
+        if read_content and opened.st_size > METADATA_SIDECAR_MAX_BYTES:
+            raise MetadataSidecarTooLargeError(sidecar, opened.st_size, METADATA_SIDECAR_MAX_BYTES)
+        raw = _read_sidecar_fd(fd, METADATA_SIDECAR_MAX_BYTES) if read_content else None
+        after_fd = os.fstat(fd)
+        try:
+            after_path = sidecar.lstat()
+        except OSError:
+            return None
+        if stat_module.S_ISLNK(after_path.st_mode) or not stat_module.S_ISREG(after_path.st_mode):
+            return None
+        if (after_path.st_dev, after_path.st_ino) != (after_fd.st_dev, after_fd.st_ino):
+            return None
+        if read_content and after_fd.st_size > METADATA_SIDECAR_MAX_BYTES:
+            raise MetadataSidecarTooLargeError(sidecar, after_fd.st_size, METADATA_SIDECAR_MAX_BYTES)
+        if raw is not None and len(raw) > METADATA_SIDECAR_MAX_BYTES:
+            raise MetadataSidecarTooLargeError(sidecar, len(raw), METADATA_SIDECAR_MAX_BYTES)
+        return MetadataSidecarSnapshot(
+            path=str(sidecar),
+            mtime_ns=after_fd.st_mtime_ns,
+            size=after_fd.st_size,
+            text=None if raw is None else raw.decode("utf-8", errors="ignore"),
+        )
+    finally:
+        os.close(fd)
+
+
 def metadata_sidecar_identity(path: Path) -> tuple[str | None, int | None, int | None]:
     """Return the exact identity of an optional same-stem text sidecar."""
-    sidecar = path.with_suffix(".txt")
-    try:
-        stat = sidecar.stat()
-    except OSError:
+    snapshot = _metadata_sidecar_snapshot(path, read_content=False)
+    if snapshot is None:
         return None, None, None
-    return str(sidecar.resolve()), stat.st_mtime_ns, stat.st_size
+    return snapshot.path, snapshot.mtime_ns, snapshot.size
 
 
 def extract_loras(text: str) -> list[str]:
@@ -659,7 +771,11 @@ def _metadata_param(metadata: dict[str, Any], *names: str) -> Any:
     return None
 
 
-def _api_metadata_from_sources(path: Path, info: dict[str, str]) -> tuple[dict[str, Any], str]:
+def _api_metadata_from_sources(
+    path: Path,
+    info: dict[str, str],
+    sidecar: MetadataSidecarSnapshot | None = None,
+) -> tuple[dict[str, Any], str]:
     parameters = info.get("parameters", "")
     prompt_json = info.get("prompt", "")
     workflow_json = info.get("workflow", "")
@@ -707,27 +823,17 @@ def _api_metadata_from_sources(path: Path, info: dict[str, str]) -> tuple[dict[s
             raw_source_text = parameters
 
     # 4. Exact .txt sidecars stay opt-in and deterministic.
-    if not result:
-        txt_path = path.with_suffix(".txt")
-        if txt_path.exists():
-            try:
-                sidecar_size = txt_path.stat().st_size
-                if sidecar_size > METADATA_SIDECAR_MAX_BYTES:
-                    raise MetadataSidecarTooLargeError(txt_path, sidecar_size, METADATA_SIDECAR_MAX_BYTES)
-                text = txt_path.read_text(encoding="utf-8", errors="ignore")
-            except MetadataSidecarTooLargeError:
-                raise
-            except OSError:
-                text = ""
-            parsed = parse_ai_text_parameters(text)
-            if parsed and parsed.get("params"):
-                result = {
-                    "tool": "A1111",
-                    "prompt": parsed.get("prompt", ""),
-                    "negative_prompt": parsed.get("negative_prompt", ""),
-                    "params": parsed.get("params", {}),
-                }
-                raw_source_text = text
+    if not result and sidecar is not None:
+        text = sidecar.text or ""
+        parsed = parse_ai_text_parameters(text)
+        if parsed and parsed.get("params"):
+            result = {
+                "tool": "A1111",
+                "prompt": parsed.get("prompt", ""),
+                "negative_prompt": parsed.get("negative_prompt", ""),
+                "params": parsed.get("params", {}),
+            }
+            raw_source_text = text
 
     if not result:
         raw_metadata_text = "\n".join(
@@ -802,7 +908,8 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
         info = {}
 
-    result, raw_source_text = _api_metadata_from_sources(path, info)
+    sidecar = _metadata_sidecar_snapshot(path, read_content=True)
+    result, raw_source_text = _api_metadata_from_sources(path, info, sidecar)
     result = sanitize_metadata_for_json(result)
     if result is _JSON_OMIT or not isinstance(result, dict):
         result = {"tool": "Unknown", "prompt": "", "negative_prompt": "", "params": {}}
@@ -833,7 +940,9 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
     aesthetic_score = parse_float(safe_text(_metadata_param(result, "aesthetic_score", "Aesthetic score")))
     date = safe_text(result.get("date"))
     aspect_ratio = safe_text(_metadata_param(result, "AspectRatio", "aspect_ratio"))
-    source_path, source_mtime_ns, source_size = metadata_sidecar_identity(path)
+    source_path = sidecar.path if sidecar is not None else None
+    source_mtime_ns = sidecar.mtime_ns if sidecar is not None else None
+    source_size = sidecar.size if sidecar is not None else None
 
     return ExtractedMetadata(
         path=str(path.resolve()),

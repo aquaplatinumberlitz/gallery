@@ -61,7 +61,10 @@ metadata_worker._worker_loop
    `path + mtime_ns + size`; completion additionally requires the stored
    same-stem `.txt` identity (`path + mtime_ns + size`) to match. Sidecar create,
    replacement, modification, or deletion requeues extraction without requiring
-   the image to change. `library_id` is a secondary diagnostic field.
+   the image to change. Sidecars are opened with no-follow protection where
+   supported, validated against the active image asset/import root/safety root,
+   and read from one descriptor with a limit-plus-one bounded read. `library_id`
+   is a secondary diagnostic field.
 
 ### Legacy fallback
 
@@ -166,9 +169,11 @@ the 64 MiB diskcache stores only key-to-path metadata. Integrity checks skip
 and remove legacy unsupported variants after committing their terminal state.
 
 Video posters use a separate 1 GiB default LRU quota plus a global bounded
-ffmpeg semaphore. Active generation and response paths are eviction-protected,
-queue saturation returns `503`, subprocess output is discarded, and temporary
-files are removed on every exit path.
+ffmpeg semaphore. A reference-counted serving lease is acquired before quota
+protection is released and remains held through response stat/revalidation and
+stream completion. Duplicate requests wait on the per-video lock before using
+an ffmpeg slot. Queue saturation returns `503`, subprocess output is discarded,
+and temporary files and leases are cleaned on every exit path.
 
 Desired-state reconciliation has explicit trigger ownership:
 
@@ -330,14 +335,23 @@ Backend modules are mostly flat, with selected domain packages.
 - Derivative claims use fenced tokens and 15-minute leases. Missing/inactive/current-source races terminate only their job; the supervisor replaces dead workers and recovers abandoned claims.
 - The metadata DB defaults to `backend/.cache/gallery_metadata.db` and can be overridden with `GALLERY_METADATA_DB`.
 - SQLite uses WAL mode and stores both file index rows and normalized metadata rows. FTS5 tables cover folder/photo names and metadata text.
-- Catalog schema version 2 changes nanosecond identity columns from legacy REAL affinity to INTEGER. The explicit v1-to-v2 migration creates a SQLite-consistent `.v1.bak`, performs destructive table rebuild work under one `BEGIN IMMEDIATE`, checks foreign keys, and publishes `user_version=2` only at commit.
+- Catalog schema version 3 adds durable scheduled-attempt recency and catalog job claim owner/token/lease fields. The explicit v2-to-v3 migration creates a SQLite-consistent `.v2.bak`, applies additive changes under one `BEGIN IMMEDIATE`, checks foreign keys, and publishes `user_version=3` only at commit. The earlier v1-to-v2 migration still creates `.v1.bak` and atomically converts legacy REAL-affinity nanosecond identity columns to INTEGER before v3 is applied.
 - Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`.
 - `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_cursor`, legacy alias `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, `request_path`, `index_source`, `library_id`, and `path`. Image media rows also include `derivative_ready` for thumbnail/preview readiness; the frontend treats this as a loading/preload hint, not visible user-facing status. Catalog update and status are managed through library endpoints; imported-data clear, rebuild, and catalog reset are managed through maintenance endpoints.
 - Catalog scan workers, the DB-claim metadata lifecycle worker, the derivative scheduler, and the integrity checker run as background services. The catalog watcher and scheduled reconciliation are enabled by default for registered libraries.
 - FastAPI lifespan startup registers each stop callback immediately after its service starts. Startup failures and normal shutdown unwind callbacks in reverse order, attempt every cleanup, and log incomplete stops without masking the initiating failure.
 - Unexpected exceptions are logged server-side with tracebacks. Public `500` responses use a generic message; durable background-job error fields retain bounded operational detail.
-- The catalog service owns a supervisor thread. It restores the configured worker count and recovers orphaned runtime work independently of status traffic; library and maintenance GET endpoints only observe worker and queue state.
-- Scheduled reconciliation orders eligible libraries by oldest durable scheduled-job timestamp, with never-scheduled libraries first, so bounded ticks remain fair. Watcher drains are deterministic and bounded; overflow stays pending for the next tick.
+- The catalog service owns a supervisor thread. Each running job has a durable
+  worker owner, unique claim token, and renewable lease; progress/completion is
+  fenced by the token. Startup and runtime recovery use the same policy and
+  recover only dead owners or expired leases while restoring the configured
+  worker count independently of status traffic. Library and maintenance GET
+  endpoints only observe worker and queue state.
+- Scheduled reconciliation records durable attempt time before queueing, even
+  when work coalesces or maintenance is busy. Eligible libraries are ordered by
+  oldest attempt, with never-attempted libraries first, so bounded ticks remain
+  fair. Watcher drains are deterministic and bounded; overflow stays pending
+  for the next tick.
 
 ## Frontend
 

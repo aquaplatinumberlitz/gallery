@@ -27,6 +27,8 @@ Notes:
 
 from __future__ import annotations
 
+import os
+
 MTIME_NS_TOLERANCE = 0
 """Nanosecond identities are exact whenever both sides provide them."""
 
@@ -138,16 +140,48 @@ def file_index_matches_image_metadata_sql(*, fi_alias: str = "fi", im_alias: str
     )
 
 
+def asset_owns_file_index_sql(*, asset_alias: str = "a", fi_alias: str = "fi") -> str:
+    """Return the active registered-asset ownership predicate for a file row."""
+    return (
+        f"({asset_alias}.path = {fi_alias}.path "
+        f"AND {asset_alias}.offline = 0 AND {asset_alias}.deleted_at IS NULL "
+        f"AND {asset_alias}.mtime_ns IS NOT NULL AND ("
+        f"({fi_alias}.mtime_ns IS NOT NULL AND {asset_alias}.mtime_ns = {fi_alias}.mtime_ns) "
+        f"OR ({fi_alias}.mtime_ns IS NULL "
+        f"AND ABS({asset_alias}.mtime_ns / {_NANOS_PER_SEC} - {fi_alias}.mtime) < {MTIME_SEC_TOLERANCE})) "
+        f"AND ({asset_alias}.size = {fi_alias}.size "
+        f"OR ({asset_alias}.size IS NULL AND {fi_alias}.size IS NULL)) "
+        f"AND (({asset_alias}.type = 'image' AND {fi_alias}.type IN ('image', 'photo')) "
+        f"OR ({asset_alias}.type = 'video' AND {fi_alias}.type = 'video')) "
+        f"AND EXISTS (SELECT 1 FROM libraries AS owner_library "
+        f"WHERE owner_library.id = {asset_alias}.library_id))"
+    )
+
+
+def active_catalog_file_sql(*, fi_alias: str = "fi") -> str:
+    """Return an EXISTS predicate requiring a current active catalog asset."""
+    ownership = asset_owns_file_index_sql(asset_alias="catalog_asset", fi_alias=fi_alias)
+    return f"EXISTS (SELECT 1 FROM assets AS catalog_asset WHERE {ownership})"
+
+
+def catalog_folder_has_active_asset_sql(*, fi_alias: str = "fi") -> str:
+    """Require a registered folder row that contains at least one active asset."""
+    separator = os.sep.replace("'", "''")
+    return (
+        f"({fi_alias}.library_id IS NOT NULL "
+        f"AND EXISTS (SELECT 1 FROM libraries AS folder_library "
+        f"WHERE folder_library.id = {fi_alias}.library_id) "
+        f"AND EXISTS (SELECT 1 FROM assets AS folder_asset "
+        f"JOIN libraries AS folder_asset_library ON folder_asset_library.id = folder_asset.library_id "
+        f"WHERE folder_asset.library_id = {fi_alias}.library_id "
+        f"AND folder_asset.offline = 0 AND folder_asset.deleted_at IS NULL "
+        f"AND ({fi_alias}.path = '{separator}' OR folder_asset.parent_path = {fi_alias}.path "
+        f"OR substr(folder_asset.path, 1, length({fi_alias}.path) + 1) = "
+        f"{fi_alias}.path || '{separator}')))"
+    )
+
+
 def current_file_metadata_sql(*, fi_alias: str = "fi", im_alias: str = "im") -> str:
     """Return a predicate excluding stale metadata and inactive catalog assets."""
     identity = file_index_matches_image_metadata_sql(fi_alias=fi_alias, im_alias=im_alias)
-    return (
-        f"({identity} AND ("
-        f"NOT EXISTS (SELECT 1 FROM assets AS current_asset_any WHERE current_asset_any.path = {fi_alias}.path)"
-        f" OR EXISTS (SELECT 1 FROM assets AS current_asset "
-        f"WHERE current_asset.path = {fi_alias}.path "
-        f"AND current_asset.offline = 0 AND current_asset.deleted_at IS NULL "
-        f"AND current_asset.mtime_ns = {fi_alias}.mtime_ns "
-        f"AND (current_asset.size = {fi_alias}.size "
-        f"OR (current_asset.size IS NULL AND {fi_alias}.size IS NULL)))))"
-    )
+    return f"({identity} AND {active_catalog_file_sql(fi_alias=fi_alias)})"

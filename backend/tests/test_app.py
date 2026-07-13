@@ -39,8 +39,11 @@ client = TestClient(app)
 
 _TEST_SEMANTIC_DIR = Path(tempfile.mkdtemp(prefix="test_fielded_semantic_"))
 _TEST_SCOPE_DIR = Path(tempfile.mkdtemp(prefix="test_fielded_scope_"))
+_TEST_CJK_DIR = Path(tempfile.mkdtemp(prefix="test_fielded_cjk_"))
 _TEST_INSERTED_PATHS: list[str] = []
 _TEST_SCOPE_LIBRARY_ID: int | None = None
+_TEST_SEMANTIC_LIBRARY_ID: int | None = None
+_TEST_CJK_LIBRARY_ID: int | None = None
 
 
 def _create_png(path: Path) -> None:
@@ -51,11 +54,12 @@ def _create_png(path: Path) -> None:
 
 def _setup_test_data() -> None:
     """Insert fixture metadata rows into the shared DB for semantic tests."""
-    global _TEST_SCOPE_LIBRARY_ID
+    global _TEST_SCOPE_LIBRARY_ID, _TEST_SEMANTIC_LIBRARY_ID
     initialize_database()
 
     now = time.time()
     semantic_root = _TEST_SEMANTIC_DIR.resolve()
+    _TEST_SEMANTIC_LIBRARY_ID = int(register_library(semantic_root)["id"])
     metadata_json_a = json.dumps({"some_key": "value", "workflow_field": "data"}, ensure_ascii=False, sort_keys=True)
     metadata_json_b = json.dumps({}, ensure_ascii=False, sort_keys=True)
     raw_text_a = "masterpiece, 1girl, rain, blue eyes watermark, blurry ponyDiffusionV6XL Euler a"
@@ -259,10 +263,16 @@ def _setup_test_data() -> None:
 
 def _teardown_test_data() -> None:
     """Remove test data from DB and filesystem."""
-    global _TEST_SCOPE_LIBRARY_ID
+    global _TEST_CJK_LIBRARY_ID, _TEST_SCOPE_LIBRARY_ID, _TEST_SEMANTIC_LIBRARY_ID
     if _TEST_SCOPE_LIBRARY_ID is not None:
         unregister_library(_TEST_SCOPE_LIBRARY_ID)
         _TEST_SCOPE_LIBRARY_ID = None
+    if _TEST_SEMANTIC_LIBRARY_ID is not None:
+        unregister_library(_TEST_SEMANTIC_LIBRARY_ID)
+        _TEST_SEMANTIC_LIBRARY_ID = None
+    if _TEST_CJK_LIBRARY_ID is not None:
+        unregister_library(_TEST_CJK_LIBRARY_ID)
+        _TEST_CJK_LIBRARY_ID = None
     with _connect() as conn:
         for p in _TEST_INSERTED_PATHS:
             conn.execute("DELETE FROM file_index_fts WHERE path = ?", (p,))
@@ -273,7 +283,14 @@ def _teardown_test_data() -> None:
             Path(p).unlink(missing_ok=True)
     _TEST_INSERTED_PATHS.clear()
     # Clean up dirs
-    for d in [_TEST_SEMANTIC_DIR, _TEST_SCOPE_DIR / "current", _TEST_SCOPE_DIR / "other", _TEST_SCOPE_DIR]:
+    for d in [
+        _TEST_SEMANTIC_DIR / "rain_folder",
+        _TEST_SEMANTIC_DIR,
+        _TEST_CJK_DIR,
+        _TEST_SCOPE_DIR / "current",
+        _TEST_SCOPE_DIR / "other",
+        _TEST_SCOPE_DIR,
+    ]:
         with suppress(OSError):
             Path(d).rmdir()
 
@@ -747,42 +764,48 @@ def test_fielded_model_missing_returns_none():
 
 def _insert_cjk_fixture():
     """Insert a CJK-specific metadata row if not already present."""
-    cjk_dir = Path(tempfile.mkdtemp(prefix="test_fielded_cjk_"))
+    global _TEST_CJK_LIBRARY_ID
+    cjk_dir = _TEST_CJK_DIR
     cjk_path = cjk_dir / "猫_雨.png"
     cjk_resolved = str(cjk_path.resolve())
     if cjk_resolved in _TEST_INSERTED_PATHS:
         return cjk_resolved
 
     initialize_database()
+    if _TEST_CJK_LIBRARY_ID is None:
+        _TEST_CJK_LIBRARY_ID = int(register_library(cjk_dir)["id"])
     _create_png(cjk_path)
+    stat = cjk_path.stat()
     now = time.time()
 
+    index_file(
+        path=cjk_resolved,
+        name="猫_雨.png",
+        parent_path=str(cjk_dir.resolve()),
+        type="photo",
+        mtime=stat.st_mtime,
+        size=stat.st_size,
+        width=64,
+        height=64,
+    )
+
     with _connect() as conn:
-        index_file(
-            path=cjk_resolved,
-            name="猫_雨.png",
-            parent_path=str(cjk_dir.resolve()),
-            type="photo",
-            mtime=now,
-            size=1024,
-            width=64,
-            height=64,
-        )
         conn.execute(
             """
             INSERT INTO image_metadata (
-              path, name, mtime, size, width, height, format, mode, has_alpha,
+              path, name, mtime, mtime_ns, size, width, height, format, mode, has_alpha,
               prompt, negative_prompt, model, sampler, seed, raw_metadata_text,
               metadata_json, updated_at, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
               prompt=excluded.prompt, negative_prompt=excluded.negative_prompt
             """,
             (
                 cjk_resolved,
                 "猫_雨.png",
-                now,
-                1024,
+                stat.st_mtime,
+                stat.st_mtime_ns,
+                stat.st_size,
                 64,
                 64,
                 "PNG",
@@ -1001,7 +1024,8 @@ def test_fielded_albums_are_folder_suggestions_not_field_filtered():
     - Albums section may still return a folder whose name matches "rain"
       even though not all images inside satisfy seed:123.
     """
-    album_dir = Path(tempfile.mkdtemp(prefix="test_fielded_album_"))
+    album_dir = _TEST_SEMANTIC_DIR / "rain_folder"
+    album_dir.mkdir(exist_ok=True)
     album_dir_path = str(album_dir.resolve())
     album_name = "rain_folder"
 
@@ -1017,6 +1041,20 @@ def test_fielded_albums_are_folder_suggestions_not_field_filtered():
         height=0,
     )
     _TEST_INSERTED_PATHS.append(album_dir_path)
+    album_image = album_dir / "suggestion.png"
+    _create_png(album_image)
+    album_stat = album_image.stat()
+    index_file(
+        path=album_image,
+        name=album_image.name,
+        parent_path=album_dir,
+        type="photo",
+        mtime=album_stat.st_mtime,
+        size=album_stat.st_size,
+        width=64,
+        height=64,
+    )
+    _TEST_INSERTED_PATHS.append(str(album_image.resolve()))
 
     resp = _search("rain seed:123")
     assert resp.status_code == 200

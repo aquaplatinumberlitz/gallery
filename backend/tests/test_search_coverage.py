@@ -191,9 +191,9 @@ def test_search_albums_only_return_on_first_page(isolated_app: TestClient, isola
     album.mkdir()
     index_file(str(album), album.name, str(isolated_gallery_root), "folder", time.time(), 0, None, None)
     for index in range(3):
-        image = isolated_gallery_root / f"page_album_asset_{index}.png"
+        image = album / f"page_album_asset_{index}.png"
         image.write_bytes(b"data")
-        index_file(str(image), image.name, str(isolated_gallery_root), "photo", time.time() + index, 4, 1, 1)
+        index_file(str(image), image.name, str(album), "photo", time.time() + index, 4, 1, 1)
 
     first = isolated_app.get("/api/search", params={"q": "page_album", "scope": "all", "limit": 1})
     assert first.status_code == 200
@@ -278,25 +278,16 @@ def test_inspector_failure_returns_500(isolated_app: TestClient, monkeypatch: py
 def _seed_stale_row(gallery_root: Path, name: str = "stale_row.png") -> str:
     """Insert a stale (non-existent on disk) row into both file_index and
     image_metadata so /api/library/inspector returns it and marks it stale."""
-    from backend.metadata_store import _connect, initialize_database
+    from backend.metadata_store import index_file, register_library, upsert_metadata_result
 
-    initialize_database()
-    stale_path = str((gallery_root / name).resolve())
-    with _connect() as conn:
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO file_index(path, name, parent_path, type, mtime, size, width, height, indexed_at)
-            VALUES (?, ?, ?, 'photo', 9999999999, 1, 1, 1, 9999999999)
-            """,
-            (stale_path, name, str(gallery_root.resolve())),
-        )
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO image_metadata(path, name, mtime, size, prompt, metadata_json, updated_at, indexed_at)
-            VALUES (?, ?, 9999999999, 1, 'stale prompt', '{}', 9999999999, 9999999999)
-            """,
-            (stale_path, name),
-        )
+    register_library(gallery_root)
+    path = gallery_root / name
+    path.write_bytes(b"x")
+    stat = path.stat()
+    assert index_file(path, name, gallery_root, "image", stat.st_mtime, stat.st_size, 1, 1)
+    assert upsert_metadata_result(path, {"prompt": "stale prompt"})
+    stale_path = str(path.resolve())
+    path.unlink()
     return stale_path
 
 
@@ -313,7 +304,10 @@ def test_inspector_overscan_invalid_cursor_returns_400(
         call_count["n"] += 1
         if call_count["n"] >= 2:
             raise ValueError("invalid cursor during overscan")
-        return original(*args, **kwargs)
+        data = original(*args, **kwargs)
+        data["rows"] = [{"path": str(isolated_gallery_root / "missing.png")}]
+        data["truncated"] = True
+        return data
 
     monkeypatch.setattr(search_module, "list_library_inspector_rows", fail_on_second)
 

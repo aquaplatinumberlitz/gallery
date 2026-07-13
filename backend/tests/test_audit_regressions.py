@@ -27,6 +27,7 @@ from backend.metadata_store import (
     _connect,
     get_library_inspector_metadata,
     index_directory_tree,
+    index_file,
     reconcile_library_assets,
     register_library,
     search_metadata,
@@ -94,6 +95,9 @@ def test_sidecar_edit_invalidates_memory_and_database_metadata_cache(
     image = tmp_path / "sidecar.png"
     sidecar = tmp_path / "sidecar.txt"
     create_test_png(image)
+    register_library(tmp_path)
+    stat = image.stat()
+    assert index_file(image, image.name, image.parent, "image", stat.st_mtime, stat.st_size, 64, 64, "image/png")
     sidecar.write_text("first prompt\nSteps: 10, Sampler: Euler, Seed: 1", encoding="utf-8")
     assert parse_metadata(image)["prompt"] == "first prompt"
 

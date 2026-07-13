@@ -15,6 +15,7 @@ response models, or the concurrent-run 409 envelope.
 
 from __future__ import annotations
 
+import inspect
 import time
 from pathlib import Path
 
@@ -65,6 +66,11 @@ def _make_dummy_run(trigger: str = "manual", now: float | None = None) -> dict:
 
 
 class TestGetFileHealth:
+    def test_route_is_sync_so_sqlite_runs_in_fastapi_threadpool(self) -> None:
+        from backend.maintenance import get_file_health
+
+        assert inspect.iscoroutinefunction(get_file_health) is False
+
     def test_never_run_returns_null(self, isolated_app: TestClient) -> None:
         resp = isolated_app.get("/api/maintenance/file-health")
         assert resp.status_code == 200

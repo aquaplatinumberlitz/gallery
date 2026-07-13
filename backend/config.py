@@ -76,6 +76,22 @@ CATALOG_SHUTDOWN_TIMEOUT_SECONDS = max(
     1,
     int(os.getenv("GALLERY_CATALOG_SHUTDOWN_TIMEOUT_SECONDS", "30")),
 )
+CATALOG_JOB_LEASE_SECONDS = max(
+    30,
+    int(os.getenv("GALLERY_CATALOG_JOB_LEASE_SECONDS", "900")),
+)
+CATALOG_LEASE_HEARTBEAT_SECONDS = min(
+    CATALOG_JOB_LEASE_SECONDS / 3.0,
+    max(
+        5.0,
+        float(
+            os.getenv(
+                "GALLERY_CATALOG_LEASE_HEARTBEAT_SECONDS",
+                str(CATALOG_JOB_LEASE_SECONDS / 3.0),
+            )
+        ),
+    ),
+)
 SCAN_PERF_LOGS_ENABLED = os.getenv("SCAN_PERF_LOGS", "1" if os.getenv("PRODUCTION") != "1" else "0").lower() not in {
     "0",
     "false",

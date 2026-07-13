@@ -28,6 +28,7 @@ import json
 from pathlib import Path
 
 from backend.metadata_extract import (
+    MetadataSidecarSnapshot,
     _api_metadata_from_sources,
     _parse_easydiffusion_metadata,
     _parse_novelai_metadata,
@@ -550,7 +551,17 @@ class TestApiMetadataFromSources:
         txt_path = tmp_path / "image.txt"
         txt_path.write_text("sidecar prompt\nSteps: 10, Sampler: DPM, Seed: 42, Model: sidecar_model")
         info = {}
-        result, raw = _api_metadata_from_sources(png_path, info)
+        stat = txt_path.stat()
+        result, raw = _api_metadata_from_sources(
+            png_path,
+            info,
+            MetadataSidecarSnapshot(
+                path=str(txt_path),
+                mtime_ns=stat.st_mtime_ns,
+                size=stat.st_size,
+                text=txt_path.read_text(),
+            ),
+        )
         assert result["tool"] == "A1111"
         assert result["prompt"] == "sidecar prompt"
         assert "sidecar_model" in raw

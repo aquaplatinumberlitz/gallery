@@ -157,6 +157,8 @@ desired derivative coverage.
 | `SCHEDULED_REFRESH_ALLOW_ALL_INDEXED`                  | boolean flag            | false                                                 | Parsed for compatibility; current reconciliation queues registered libraries directly.                    |
 | `GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED`              | boolean flag            | true                                                  | Enables low-priority startup scan for every registered library.                                          |
 | `GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS`           | integer, minimum 0      | `600`                                                 | Max queue wait before a queued catalog job is priority-promoted.                                         |
+| `GALLERY_CATALOG_JOB_LEASE_SECONDS`                    | integer, minimum 30     | `900`                                                 | Durable catalog-worker claim lease. Dead-owner or expired claims are recovered by startup/supervisor policy. |
+| `GALLERY_CATALOG_LEASE_HEARTBEAT_SECONDS`              | float, minimum 5        | `300`                                                 | Catalog claim heartbeat interval, clamped to at most one third of the catalog job lease.                 |
 | `GALLERY_CATALOG_WRITE_BATCH_SIZE`                     | integer, minimum 1      | `500`                                                 | Catalog write batch size for discovery/staging.                                                          |
 | `GALLERY_CATALOG_SHUTDOWN_TIMEOUT_SECONDS`             | float, minimum 0        | `30`                                                  | Absolute catalog-service stop deadline shared across worker and supervisor joins.                        |
 

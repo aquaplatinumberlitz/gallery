@@ -104,7 +104,7 @@ def test_parse_uncached_apierror_reraised(
     assert exc_info.value.detail["error"] == ErrorType.INVALID_FILE
 
 
-def test_parse_uncached_generic_exception_wrapped_as_400(
+def test_parse_uncached_generic_exception_is_sanitized_500(
     tmp_path: Path,
     isolated_metadata_db: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -121,9 +121,9 @@ def test_parse_uncached_generic_exception_wrapped_as_400(
 
     with pytest.raises(APIError) as exc_info:
         _parse_metadata_uncached(img)
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail["error"] == ErrorType.INVALID_FILE
-    assert "parse boom" in str(exc_info.value)
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == {"error": ErrorType.SERVER_ERROR, "message": "Internal server error"}
+    assert "parse boom" not in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------

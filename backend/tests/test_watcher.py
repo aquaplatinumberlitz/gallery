@@ -22,7 +22,7 @@ import pytest
 
 from backend import watcher
 from backend.config import ENABLE_FILE_WATCHER, WATCHER_DEBOUNCE_SECONDS, WATCHER_ROOTS
-from backend.metadata_store import get_folder_index_state, update_folder_index_state
+from backend.metadata_store import get_folder_index_state, index_file, register_library, update_folder_index_state
 
 
 @pytest.fixture(autouse=True)
@@ -124,6 +124,65 @@ def test_changed_image_can_be_staged_for_metadata_indexing(tmp_path: Path, monke
 
     ready = handler.get_and_clear_debounced()
     assert str(folder) in ready
+
+
+@pytest.mark.parametrize("event_type", ["created", "modified", "deleted"])
+def test_uppercase_image_sidecar_events_are_detected_on_case_sensitive_filesystems(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    event_type: str,
+):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    folder = isolated_gallery_root / "album"
+    folder.mkdir()
+    register_library(isolated_gallery_root)
+    image = folder / "IMAGE.PNG"
+    image.write_bytes(b"png")
+    stat = image.stat()
+    assert index_file(image, image.name, image.parent, "image", stat.st_mtime, stat.st_size, 1, 1, "image/png")
+    sidecar = folder / "IMAGE.txt"
+    if event_type != "deleted":
+        sidecar.write_text("Steps: 1", encoding="utf-8")
+
+    event = type(
+        "SidecarEvent",
+        (),
+        {"src_path": str(sidecar), "event_type": event_type, "is_directory": False},
+    )()
+    handler = watcher._DebouncedHandler(roots=[str(isolated_gallery_root)])
+    handler.handle_event(event)
+    time.sleep(0.02)
+    assert str(folder) in handler.get_and_clear_debounced()
+
+
+def test_uppercase_image_sidecar_move_detects_source_and_destination(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
+    folder = isolated_gallery_root / "album"
+    folder.mkdir()
+    register_library(isolated_gallery_root)
+    for stem in ("IMAGE", "MOVED"):
+        image = folder / f"{stem}.PNG"
+        image.write_bytes(b"png")
+        stat = image.stat()
+        assert index_file(image, image.name, image.parent, "image", stat.st_mtime, stat.st_size, 1, 1, "image/png")
+
+    event = type(
+        "SidecarMoveEvent",
+        (),
+        {
+            "src_path": str(folder / "IMAGE.txt"),
+            "dest_path": str(folder / "MOVED.txt"),
+            "event_type": "moved",
+            "is_directory": False,
+        },
+    )()
+    handler = watcher._DebouncedHandler(roots=[str(isolated_gallery_root)])
+    handler.handle_event(event)
+    time.sleep(0.02)
+    assert str(folder) in handler.get_and_clear_debounced()
 
 
 def test_no_registered_libraries_does_not_start(monkeypatch: pytest.MonkeyPatch):

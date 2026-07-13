@@ -2,6 +2,7 @@
 
 import copy
 import json
+import logging
 import sys
 import threading
 from concurrent.futures import Future
@@ -23,6 +24,8 @@ from .metadata_extract import (
 from .metadata_store import get_lightbox_metadata, upsert_extracted_metadata
 from .scan import require_media_path_allowed
 
+LOGGER = logging.getLogger(__name__)
+
 
 def _estimate_dict_size(d: dict) -> int:
     """Estimate memory size of a dict in bytes (rough approximation)."""
@@ -39,6 +42,15 @@ _metadata_inflight: dict[tuple, Future[dict]] = {}
 router = APIRouter()
 
 
+def _validate_metadata_path(path: str) -> Path:
+    file_path = require_media_path_allowed(path, "image")
+    if not file_path.exists() or not file_path.is_file():
+        raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
+    if not is_image(file_path):
+        raise APIError(400, ErrorType.INVALID_FILE, "Not a valid image file")
+    return file_path
+
+
 def _parse_metadata_uncached(path: Path) -> dict:
     if not path.exists() or not path.is_file():
         raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
@@ -53,7 +65,8 @@ def _parse_metadata_uncached(path: Path) -> dict:
     except APIError:
         raise
     except Exception as exc:  # noqa: BLE001
-        raise APIError(400, ErrorType.INVALID_FILE, f"Unable to parse metadata: {exc}") from exc
+        LOGGER.exception("Unexpected metadata parse failure for %s", path)
+        raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
 
 def _metadata_cache_key(path: Path) -> tuple:
@@ -120,10 +133,5 @@ def parse_metadata(path: Path) -> dict:
 @router.get("/api/metadata")
 async def api_metadata(path: str = Query(..., description="Absolute path to image file")):
     """Return normalized metadata for one image after path and type validation."""
-    file_path = require_media_path_allowed(path, "image")
-    if not file_path.exists() or not file_path.is_file():
-        raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
-    if not is_image(file_path):
-        raise APIError(400, ErrorType.INVALID_FILE, "Not a valid image file")
-
+    file_path = await run_in_threadpool(_validate_metadata_path, path)
     return await run_in_threadpool(parse_metadata, file_path)

@@ -9,7 +9,7 @@ from typing import Any, TypedDict, cast
 
 from ..catalog_maintenance_gate import MaintenanceGateBusy, maintenance_gate
 from ..config import THUMBNAIL_CACHE_DIR
-from ..files import is_index_excluded_path
+from ..files import IMAGE_EXTENSIONS, is_index_excluded_path
 from ._db import _DB_LOCK, _active_asset_where, _connect
 from .path_utils import _catalog_paths_overlap, _path_is_within
 from .types import CatalogMaintenanceBusy, LibraryOverlapError
@@ -444,6 +444,35 @@ def get_asset_state_for_path(path: str | Path) -> dict[str, Any] | None:
         "deleted_at": None if row["deleted_at"] is None else float(row["deleted_at"]),
         "library_id": int(row["library_id"]),
     }
+
+
+def has_active_image_sibling_for_sidecar(path: str | Path) -> bool:
+    """Return whether a .txt event has a catalog-owned same-stem image sibling."""
+    sidecar = Path(path)
+    if sidecar.suffix.lower() != ".txt":
+        return False
+    suffix_placeholders = ",".join("?" for _ in IMAGE_EXTENSIONS)
+    _initialize_database()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute(
+            f"""
+            SELECT 1
+            FROM assets AS a
+            JOIN libraries AS l ON l.id = a.library_id
+            WHERE a.parent_path = ? AND a.type = 'image' AND {_active_asset_where("a")}
+              AND substr(a.name, 1, ?) = ? COLLATE BINARY
+              AND lower(substr(a.name, ? + 1)) IN ({suffix_placeholders})
+            LIMIT 1
+            """,
+            (
+                str(sidecar.parent.resolve()),
+                len(sidecar.stem),
+                sidecar.stem,
+                len(sidecar.stem),
+                *sorted(IMAGE_EXTENSIONS),
+            ),
+        ).fetchone()
+    return row is not None
 
 
 def get_first_library_root() -> Path | None:

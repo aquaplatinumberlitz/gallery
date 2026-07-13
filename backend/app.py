@@ -50,6 +50,26 @@ from .watcher import stop_watcher as _stop_watcher
 LOGGER = logging.getLogger(__name__)
 
 
+class _LifecycleRegistry:
+    """Register cleanup before startup and unwind every service in reverse."""
+
+    def __init__(self) -> None:
+        self._cleanups: list[tuple[str, Callable[[], object]]] = []
+
+    def start(self, name: str, starter: Callable[[], object], cleanup: Callable[[], object]) -> None:
+        self._cleanups.append((name, cleanup))
+        starter()
+
+    def close(self) -> None:
+        for service_name, cleanup in reversed(self._cleanups):
+            try:
+                result = cleanup()
+                if result is False:
+                    LOGGER.warning("Backend service shutdown incomplete: %s", service_name)
+            except Exception:  # noqa: BLE001
+                LOGGER.exception("Backend service shutdown failed: %s", service_name)
+
+
 def _get_cors_origins() -> list[str]:
     origin = os.getenv("FRONTEND_ORIGIN")
     port = os.getenv("FRONTEND_PORT")
@@ -90,36 +110,26 @@ def _get_cors_origins() -> list[str]:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    cleanups: list[tuple[str, Callable[[], object]]] = []
+    lifecycle = _LifecycleRegistry()
     try:
         validate_trusted_proxy_configuration()
         recover_stale_jobs()
         if metadata_indexer.METADATA_INDEXER_ENABLED:
             recover_metadata_index_jobs()
         if GALLERY_CATALOG_SERVICE_ENABLED:
-            start()
-            cleanups.append(("catalog", stop))
+            lifecycle.start("catalog", start, stop)
             if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
                 queue_startup_scans()
         if metadata_indexer.METADATA_INDEXER_ENABLED:
-            metadata_worker.start()
-            cleanups.append(("metadata", metadata_worker.stop))
+            lifecycle.start("metadata", metadata_worker.start, metadata_worker.stop)
         if INTEGRITY_CHECK_ENABLED:
-            integrity_checker.start()
-            cleanups.append(("integrity", integrity_checker.stop))
-        scheduler.start()
-        cleanups.append(("derivative", scheduler.stop))
-        _start_refresh()
-        cleanups.append(("refresh", _stop_refresh))
-        _start_watcher()
-        cleanups.append(("watcher", _stop_watcher))
+            lifecycle.start("integrity", integrity_checker.start, integrity_checker.stop)
+        lifecycle.start("derivative", scheduler.start, scheduler.stop)
+        lifecycle.start("refresh", _start_refresh, _stop_refresh)
+        lifecycle.start("watcher", _start_watcher, _stop_watcher)
         yield
     finally:
-        for service_name, cleanup in reversed(cleanups):
-            try:
-                cleanup()
-            except Exception:  # noqa: BLE001
-                LOGGER.exception("Backend service shutdown failed: %s", service_name)
+        lifecycle.close()
 
 
 app = FastAPI(title="Museum Art Gallery API", lifespan=_lifespan)

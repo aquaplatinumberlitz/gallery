@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-07-10
+Last reviewed: 2026-07-13
 
 This document records how major third-party libraries are used in the current codebase and which integration contracts should not be changed casually.
 
@@ -116,6 +116,7 @@ Important tables:
 - `image_metadata_fts`: unicode61 FTS5 metadata search.
 - `image_metadata_fts_trigram`: trigram FTS5 for substring/CJK-oriented metadata search.
 - `metadata_index_jobs`: queued/running/done/failed/stale background metadata indexing jobs.
+- `library_jobs`: durable catalog work with worker owner, claim token, and renewable lease fencing.
 
 Search behavior:
 
@@ -123,13 +124,13 @@ Search behavior:
   first-page `albums` suggestions. Legacy grouped `photos`, `videos`, and
   `prompt` fields remain in the response for compatibility.
 - `scope=current` searches the current folder recursively.
-- `scope=all` searches all indexed files under `PATH_SAFETY_ROOT`.
+- `scope=all` searches only current active image/video assets owned by registered libraries; `PATH_SAFETY_ROOT` remains an outer boundary, not ownership.
 - Fielded queries are parsed by `fielded_search_parser.py` and executed by
   metadata-store search helpers. Metadata predicates apply only to
   filterable image/prompt media; filename-only videos are excluded from
   fielded media results until video metadata predicates are supported.
 - `/api/library/inspector` returns bounded DB-backed metadata rows; detail popovers call `/api/library/inspector/metadata`.
-- `/api/facets` derives counts from indexed DB metadata.
+- `/api/facets` derives counts only from current active registered image assets; legacy `file_index`/metadata rows without an owning asset never contribute.
 
 Not used: Meilisearch, Typesense, Tantivy, Whoosh, sqlite-vec, MeCab, Sudachi, Kuromoji, or an external search service.
 

@@ -15,7 +15,8 @@ from .config import (
     WATCHER_MAX_EVENTS_PER_TICK,
     WATCHER_ROOTS,
 )
-from .files import IMAGE_EXTENSIONS, is_asset_path, is_index_excluded_path
+from .files import is_asset_path, is_index_excluded_path
+from .metadata_store import has_active_image_sibling_for_sidecar
 from .scan_worker import queue_watcher_scan
 
 try:
@@ -82,9 +83,7 @@ class _DebouncedHandler:
             if event_type == "modified":
                 return
             folder = str(path.parent)
-        elif is_asset_path(path) or (
-            path.suffix.lower() == ".txt" and any(path.with_suffix(ext).is_file() for ext in IMAGE_EXTENSIONS)
-        ):
+        elif is_asset_path(path) or (path.suffix.lower() == ".txt" and has_active_image_sibling_for_sidecar(path)):
             folder = str(path.parent)
         else:
             return

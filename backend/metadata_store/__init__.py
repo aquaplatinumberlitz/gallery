@@ -161,10 +161,16 @@ from .job_store import (
     list_jobs as list_jobs,
 )
 from .job_store import (
+    mark_scheduled_refresh_attempt as mark_scheduled_refresh_attempt,
+)
+from .job_store import (
     order_library_ids_for_scheduled_refresh as order_library_ids_for_scheduled_refresh,
 )
 from .job_store import (
     recover_stale_jobs as recover_stale_jobs,
+)
+from .job_store import (
+    renew_catalog_job_lease as renew_catalog_job_lease,
 )
 from .job_store import (
     update_job_state as update_job_state,
@@ -198,6 +204,9 @@ from .library_store import (
 )
 from .library_store import (
     get_library_stats as get_library_stats,
+)
+from .library_store import (
+    has_active_image_sibling_for_sidecar as has_active_image_sibling_for_sidecar,
 )
 from .library_store import (
     list_libraries as list_libraries,

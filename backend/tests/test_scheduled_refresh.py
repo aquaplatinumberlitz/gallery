@@ -25,6 +25,7 @@ from backend.config import ENABLE_SCHEDULED_REFRESH
 @pytest.fixture(autouse=True)
 def reset_refresh_state(monkeypatch: pytest.MonkeyPatch, isolated_metadata_db: Path):
     monkeypatch.setattr(refresh, "_refresh_thread", None)
+    monkeypatch.setattr(refresh, "mark_scheduled_refresh_attempt", lambda _library_id: None)
     refresh._refresh_stop.clear()
     yield
     refresh.stop_refresh()
@@ -160,3 +161,64 @@ def test_refresh_tick_continues_after_queue_error(tmp_path: Path, monkeypatch: p
     refresh._run_refresh_tick()
 
     assert queued == [(2, "scheduled")]
+
+
+def test_busy_coalesced_jobs_do_not_starve_scheduled_refresh(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from backend.metadata_store import _DB_LOCK, _connect, create_library, create_or_coalesce_catalog_job
+    from backend.metadata_store.job_store import mark_scheduled_refresh_attempt
+
+    library_ids: list[int] = []
+    for index in range(3):
+        root = isolated_gallery_root / f"library-{index}"
+        root.mkdir()
+        library_ids.append(int(create_library([root])["id"]))
+    create_or_coalesce_catalog_job(library_ids[0], trigger="initial", priority=100)
+    create_or_coalesce_catalog_job(library_ids[1], trigger="manual", priority=100)
+    create_or_coalesce_catalog_job(library_ids[2], trigger="initial", priority=100)
+
+    monkeypatch.setattr(refresh, "mark_scheduled_refresh_attempt", mark_scheduled_refresh_attempt)
+    monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ROOTS", [])
+    monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 1)
+    monkeypatch.setattr(refresh, "_refresh_runs", None)
+    monkeypatch.setattr(refresh, "_refresh_folders", None)
+
+    refresh._run_refresh_tick()
+    refresh._run_refresh_tick()
+    refresh._run_refresh_tick()
+
+    with _DB_LOCK, _connect() as conn:
+        attempted = {
+            int(row["id"])
+            for row in conn.execute("SELECT id FROM libraries WHERE last_scheduled_attempt_at IS NOT NULL")
+        }
+    assert attempted == set(library_ids)
+
+
+def test_failed_scheduled_attempt_advances_fairness(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from backend.metadata_store import create_library
+    from backend.metadata_store.job_store import mark_scheduled_refresh_attempt
+
+    roots = [isolated_gallery_root / "first", isolated_gallery_root / "second"]
+    for root in roots:
+        root.mkdir()
+    libraries = [create_library([root]) for root in roots]
+    monkeypatch.setattr(refresh, "mark_scheduled_refresh_attempt", mark_scheduled_refresh_attempt)
+    monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_ROOTS", [])
+    monkeypatch.setattr(refresh, "SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK", 1)
+    queued: list[int] = []
+
+    def fail_first(library_id: int, *, trigger: str):
+        if library_id == int(libraries[0]["id"]):
+            raise RuntimeError("maintenance busy")
+        queued.append(library_id)
+
+    monkeypatch.setattr(refresh, "queue_scan", fail_first)
+    refresh._run_refresh_tick()
+    refresh._run_refresh_tick()
+    assert queued == [int(libraries[1]["id"])]
