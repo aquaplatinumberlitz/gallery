@@ -30,6 +30,7 @@ def _bulk_index_records(
     *,
     claim_job_id: int | None = None,
     claim_token: str | None = None,
+    claim_lease_seconds: float = 900,
 ) -> None:
     """Persist one scan's already-statted rows using bounded shared transactions."""
     if not records:
@@ -37,11 +38,11 @@ def _bulk_index_records(
     if (claim_job_id is None) != (claim_token is None):
         raise ValueError("Catalog claim job id and token must be provided together")
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            for start in range(0, len(records), _INDEX_WRITE_BATCH_SIZE):
-                batch = records[start : start + _INDEX_WRITE_BATCH_SIZE]
+    for start in range(0, len(records), _INDEX_WRITE_BATCH_SIZE):
+        batch = records[start : start + _INDEX_WRITE_BATCH_SIZE]
+        with _DB_LOCK, _connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
                 if claim_job_id is not None and claim_token is not None:
                     from .job_store import assert_catalog_job_claim_conn
 
@@ -128,10 +129,20 @@ def _bulk_index_records(
                             for record in batch
                         ),
                     )
-            conn.execute("COMMIT")
-        except Exception:
-            conn.execute("ROLLBACK")
-            raise
+                if claim_job_id is not None and claim_token is not None:
+                    from .job_store import refresh_catalog_job_claim_before_commit_conn
+
+                    refresh_catalog_job_claim_before_commit_conn(
+                        conn,
+                        claim_job_id,
+                        claim_token,
+                        lease_seconds=claim_lease_seconds,
+                        library_id=library_id,
+                    )
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
 
 
 def _initialize_database() -> None:
@@ -371,6 +382,7 @@ def index_directory_tree(
     *,
     claim_job_id: int | None = None,
     claim_token: str | None = None,
+    claim_lease_seconds: float = 900,
 ) -> int:
     """Recreate file_index rows under root. Optionally extract metadata or collect image paths.
 
@@ -516,6 +528,7 @@ def index_directory_tree(
         library_id,
         claim_job_id=claim_job_id,
         claim_token=claim_token,
+        claim_lease_seconds=claim_lease_seconds,
     )
     if include_metadata and local_image_paths:
         indexed += index_images(local_image_paths)

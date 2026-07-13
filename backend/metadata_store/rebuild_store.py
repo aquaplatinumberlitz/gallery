@@ -26,6 +26,7 @@ def enumerate_to_rebuild_staging(
     library_id: int,
     scope_paths: list[str | Path],
     claim_token: str,
+    claim_lease_seconds: float = 900,
 ) -> tuple[dict[str, int], list[str]]:
     """Walk scope_paths and write discovered entries to catalog_rebuild_entries.
 
@@ -79,6 +80,15 @@ def enumerate_to_rebuild_staging(
                   codec=excluded.codec
                 """,
                     rows,
+                )
+                from .job_store import refresh_catalog_job_claim_before_commit_conn
+
+                refresh_catalog_job_claim_before_commit_conn(
+                    conn,
+                    job_id,
+                    claim_token,
+                    lease_seconds=claim_lease_seconds,
+                    library_id=library_id,
                 )
                 conn.execute("COMMIT")
             except Exception:
@@ -184,6 +194,7 @@ def activate_rebuild_staging(
     library_id: int,
     scope_path: str | Path | None,
     claim_token: str,
+    claim_lease_seconds: float = 900,
 ) -> dict[str, int]:
     """Merge staged rebuild rows into the canonical catalog in one short transaction.
 
@@ -328,6 +339,15 @@ def activate_rebuild_staging(
                     ((now, library_id, path) for path in missing),
                 )
             conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
+            from .job_store import refresh_catalog_job_claim_before_commit_conn
+
+            refresh_catalog_job_claim_before_commit_conn(
+                conn,
+                job_id,
+                claim_token,
+                lease_seconds=claim_lease_seconds,
+                library_id=library_id,
+            )
             conn.execute("COMMIT")
             return {
                 "discovered": len(staged),
@@ -418,6 +438,7 @@ def reconcile_library_assets(
     scope_path: str | Path | None = None,
     claim_job_id: int | None = None,
     claim_token: str | None = None,
+    claim_lease_seconds: float = 900,
 ) -> int:
     """Reconcile active assets for a library or scoped subtree."""
     normalized = {str(Path(path).resolve()) for path in discovered_paths}
@@ -425,8 +446,25 @@ def reconcile_library_assets(
         raise ValueError("Catalog claim job id and token must be provided together")
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
-        if claim_job_id is not None and claim_token is not None:
-            from .job_store import assert_catalog_job_claim_conn
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            if claim_job_id is not None and claim_token is not None:
+                from .job_store import assert_catalog_job_claim_conn
 
-            assert_catalog_job_claim_conn(conn, claim_job_id, claim_token, library_id=library_id)
-        return _reconcile_assets_conn(conn, library_id, normalized, scope_path=scope_path)
+                assert_catalog_job_claim_conn(conn, claim_job_id, claim_token, library_id=library_id)
+            reconciled = _reconcile_assets_conn(conn, library_id, normalized, scope_path=scope_path)
+            if claim_job_id is not None and claim_token is not None:
+                from .job_store import refresh_catalog_job_claim_before_commit_conn
+
+                refresh_catalog_job_claim_before_commit_conn(
+                    conn,
+                    claim_job_id,
+                    claim_token,
+                    lease_seconds=claim_lease_seconds,
+                    library_id=library_id,
+                )
+            conn.execute("COMMIT")
+            return reconciled
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise

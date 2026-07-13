@@ -58,6 +58,42 @@ def assert_catalog_job_claim(job_id: int, claim_token: str, *, library_id: int |
         assert_catalog_job_claim_conn(conn, job_id, claim_token, library_id=library_id)
 
 
+def refresh_catalog_job_claim_before_commit_conn(
+    conn: sqlite3.Connection,
+    job_id: int,
+    claim_token: str,
+    *,
+    lease_seconds: float,
+    library_id: int | None = None,
+) -> float:
+    """Extend a claim already validated in the same immediate transaction.
+
+    The caller must first validate the live claim after acquiring its SQLite
+    write transaction. Because no recovery write can interleave, extending the
+    same token before commit remains safe even if wall-clock expiry passes while
+    the transaction performs bounded work.
+    """
+    now = time.time()
+    expires_at = now + max(1.0, lease_seconds)
+    params: list[Any] = [expires_at, now, job_id, claim_token]
+    library_sql = ""
+    if library_id is not None:
+        library_sql = " AND library_id = ?"
+        params.append(library_id)
+    cursor = conn.execute(
+        f"""
+        UPDATE library_jobs
+        SET lease_expires_at = ?, updated_at = ?
+        WHERE id = ? AND state = 'running' AND claim_token = ?
+          {library_sql}
+        """,
+        params,
+    )
+    if cursor.rowcount != 1:
+        raise CatalogJobClaimLost(f"Catalog job {job_id} claim was lost")
+    return expires_at
+
+
 def _initialize_database() -> None:
     from ._schema import initialize_database
 
@@ -811,9 +847,7 @@ def recover_stale_jobs(
                 )
             }
     recovered: list[dict[str, Any]] = []
-    touched_parent_ids = {
-        int(row["parent_job_id"]) for row, _require_expired in running_rows if row["parent_job_id"] is not None
-    }
+    touched_parent_ids: set[int] = set()
     with _DB_LOCK, _connect() as conn:
         for row, require_expired in running_rows:
             expiry_sql = " AND (lease_expires_at IS NULL OR lease_expires_at <= ?)" if require_expired else ""
@@ -833,6 +867,21 @@ def recover_stale_jobs(
             if cursor.rowcount != 1:
                 continue
             conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (int(row["id"]),))
+            touched_parent_ids.update(
+                int(parent["parent_job_id"])
+                for parent in conn.execute(
+                    """
+                    SELECT parent_job_id
+                    FROM catalog_job_dependencies
+                    WHERE child_job_id = ?
+                    UNION
+                    SELECT parent_job_id
+                    FROM library_jobs
+                    WHERE id = ? AND parent_job_id IS NOT NULL
+                    """,
+                    (int(row["id"]), int(row["id"])),
+                )
+            )
             updated = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (int(row["id"]),)).fetchone()
             recovered.append(_serialize_library_job(updated))
     seen_ids = {int(job["id"]) for job in recovered}

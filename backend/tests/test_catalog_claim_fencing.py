@@ -6,6 +6,7 @@ Verify multi-worker catalog ownership, fenced terminal writes, and schema v3.
 Guarantees:
 Only dead/expired claims recover, live heartbeats win races, stale workers cannot
 write catalog data, staging is cleaned, terminal library/job state is atomic,
+dependency-linked parents recover, bounded/atomic writes refresh their claim,
 healthy parents stay unchanged, and the v2-to-v3 migration rolls back safely.
 
 Run when:
@@ -40,7 +41,9 @@ from backend.metadata_store import (
     update_parent_aggregate_job,
 )
 from backend.metadata_store import _schema as schema_module
+from backend.metadata_store import file_index as file_index_module
 from backend.metadata_store import job_store as job_store_module
+from backend.metadata_store import rebuild_store as rebuild_store_module
 
 from .conftest import create_test_png
 
@@ -339,6 +342,166 @@ def test_runtime_recovery_does_not_rewrite_healthy_aggregate_parent(
     with _DB_LOCK, _connect() as conn:
         after = conn.execute("SELECT updated_at FROM library_jobs WHERE id = ?", (parent["id"],)).fetchone()[0]
     assert after == before
+
+
+def test_runtime_recovery_updates_dependency_only_aggregate_parent(
+    isolated_gallery_root: Path,
+) -> None:
+    library_id, _queued = _queued_job(isolated_gallery_root, "dependency-parent")
+    child = claim_next_catalog_job(worker_id="dead-worker", lease_seconds=60)
+    assert child is not None
+    parent = create_job("scan_all", progress_total=1, message="Updating all libraries")
+    coalesced, created = create_or_coalesce_catalog_job(
+        library_id,
+        operation="scan",
+        trigger="manual",
+        priority=100,
+        parent_job_id=parent["id"],
+    )
+    assert not created and coalesced["id"] == child["id"]
+    with _DB_LOCK, _connect() as conn:
+        child_row = conn.execute(
+            "SELECT parent_job_id FROM library_jobs WHERE id = ?",
+            (child["id"],),
+        ).fetchone()
+        dependency = conn.execute(
+            """SELECT 1 FROM catalog_job_dependencies
+               WHERE parent_job_id = ? AND child_job_id = ?""",
+            (parent["id"], child["id"]),
+        ).fetchone()
+    assert child_row["parent_job_id"] is None
+    assert dependency is not None
+    assert update_parent_aggregate_job(parent["id"])["state"] == "running"
+
+    recovered = recover_stale_jobs(live_worker_ids=set())
+    assert {job["id"] for job in recovered} == {child["id"], parent["id"]}
+    updated_parent = get_job(parent["id"])
+    assert updated_parent is not None
+    assert updated_parent["state"] == "failed"
+    assert updated_parent["progress_current"] == 1
+    assert updated_parent["finished_at"] is not None
+
+
+def test_scan_batches_release_lock_and_refresh_claim_before_each_commit(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    library_id, _queued = _queued_job(isolated_gallery_root, "bounded-scan")
+    claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=1)
+    assert claimed is not None
+    root = isolated_gallery_root / "bounded-scan"
+    records = []
+    for index in range(2):
+        image = root / f"image-{index}.png"
+        create_test_png(image)
+        stat = image.stat()
+        records.append(
+            (
+                str(image),
+                image.name,
+                str(root),
+                "image",
+                stat.st_mtime,
+                stat.st_mtime_ns,
+                stat.st_size,
+                64,
+                64,
+                time.time(),
+                "image/png",
+                None,
+                None,
+            )
+        )
+
+    monkeypatch.setattr(file_index_module, "_INDEX_WRITE_BATCH_SIZE", 1)
+    original_connect = file_index_module._connect
+    connection_count = 0
+
+    def counting_connect(*args, **kwargs):
+        nonlocal connection_count
+        connection_count += 1
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(file_index_module, "_connect", counting_connect)
+    original_refresh = job_store_module.refresh_catalog_job_claim_before_commit_conn
+
+    def slow_refresh(*args, **kwargs):
+        time.sleep(0.6)
+        return original_refresh(*args, **kwargs)
+
+    monkeypatch.setattr(job_store_module, "refresh_catalog_job_claim_before_commit_conn", slow_refresh)
+    started = time.monotonic()
+    file_index_module._bulk_index_records(
+        records,
+        library_id,
+        claim_job_id=claimed["id"],
+        claim_token=claimed["claim_token"],
+        claim_lease_seconds=1,
+    )
+
+    assert connection_count == 2
+    assert time.monotonic() - started >= 1.2
+    assert (
+        update_job_state(
+            claimed["id"],
+            "succeeded",
+            claim_token=claimed["claim_token"],
+            lease_seconds=1,
+        )
+        is not None
+    )
+
+
+def test_rebuild_activation_refreshes_claim_inside_long_transaction(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = isolated_gallery_root / "long-activation"
+    root.mkdir()
+    image = root / "image.png"
+    create_test_png(image)
+    library_id = int(create_library([root])["id"])
+    queued, _created = create_or_coalesce_catalog_job(
+        library_id,
+        operation="rebuild",
+        trigger="manual",
+        priority=100,
+    )
+    claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=1)
+    assert claimed is not None and claimed["id"] == queued["id"]
+    enumerate_to_rebuild_staging(
+        claimed["id"],
+        library_id,
+        [root],
+        claimed["claim_token"],
+        claim_lease_seconds=1,
+    )
+    original_scope_sql = rebuild_store_module.path_scope_sql
+
+    def slow_scope_sql(*args, **kwargs):
+        time.sleep(1.2)
+        return original_scope_sql(*args, **kwargs)
+
+    monkeypatch.setattr(rebuild_store_module, "path_scope_sql", slow_scope_sql)
+    activation = activate_rebuild_staging(
+        claimed["id"],
+        library_id,
+        root,
+        claimed["claim_token"],
+        claim_lease_seconds=1,
+    )
+    assert activation["created"] >= 1
+    assert (
+        update_job_state(
+            claimed["id"],
+            "succeeded",
+            claim_token=claimed["claim_token"],
+            lease_seconds=1,
+        )
+        is not None
+    )
+    with _DB_LOCK, _connect() as conn:
+        assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(image),)).fetchone()[0] == 1
 
 
 def _database_dump(path: Path) -> str:

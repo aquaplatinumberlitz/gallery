@@ -349,15 +349,19 @@ Backend modules are mostly flat, with selected domain packages.
 - Unexpected exceptions are logged server-side with tracebacks. Public `500` responses use a generic message; durable background-job error fields retain bounded operational detail.
 - The catalog service owns a supervisor thread. Each running job has a durable
   worker owner, unique claim token, and renewable lease; progress/completion is
-  fenced by the token and unexpired lease. Scan batches, rebuild staging flushes,
-  rebuild activation, reconciliation, and terminal library/job state writes
-  validate that claim inside the same SQLite transaction. Terminal job and
+  fenced by the token and unexpired lease. Scan writes are split into bounded
+  transactions so the heartbeat can run between batches. Each scan batch,
+  rebuild staging flush, rebuild activation, and reconciliation transaction
+  validates the claim at entry and refreshes the same token immediately before
+  commit; this remains safe if wall-clock expiry passes while its `BEGIN
+  IMMEDIATE` prevents any recovery write from interleaving. Terminal job and
   library state commit atomically. Recovery deletes the recovered rebuild's
   staging rows in the same transaction, lets a concurrent live heartbeat win,
-  and recomputes aggregate parents only at startup or when a child actually
-  recovered. Startup and runtime recovery otherwise use the same policy and
-  restore the configured worker count independently of status traffic. Library
-  and maintenance GET endpoints only observe worker and queue state.
+  and recomputes aggregate parents from both direct and dependency-table links
+  only at startup or when a child actually recovered. Startup and runtime
+  recovery otherwise use the same policy and restore the configured worker
+  count independently of status traffic. Library and maintenance GET endpoints
+  only observe worker and queue state.
 - Scheduled reconciliation records durable attempt time before queueing, even
   when work coalesces or maintenance is busy. Eligible libraries are ordered by
   oldest attempt, with never-attempted libraries first, so bounded ticks remain

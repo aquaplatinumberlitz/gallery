@@ -342,6 +342,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
                 scope_path=offline_path,
                 claim_job_id=job_id,
                 claim_token=claim_token,
+                claim_lease_seconds=CATALOG_JOB_LEASE_SECONDS,
             )
         if not online_paths:
             _transition_job(
@@ -378,6 +379,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
                 scan_path,
                 claim_job_id=job_id,
                 claim_token=claim_token,
+                claim_lease_seconds=CATALOG_JOB_LEASE_SECONDS,
             )
             counters["indexed"] += int(result.get("indexed", 0))
             counters["reconciled"] += int(result.get("reconciled", 0))
@@ -486,7 +488,13 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
             library_state="degraded" if offline_paths else "indexing",
             library_last_error=f"{len(offline_paths)} import path(s) offline" if offline_paths else None,
         )
-        discovery, asset_paths = enumerate_to_rebuild_staging(job_id, library_id, online_paths, claim_token)
+        discovery, asset_paths = enumerate_to_rebuild_staging(
+            job_id,
+            library_id,
+            online_paths,
+            claim_token,
+            CATALOG_JOB_LEASE_SECONDS,
+        )
         counters["discovered"] = int(discovery["discovered"])
         counters["folders"] = int(discovery["folders"])
         counters["assets"] = int(discovery["assets"])
@@ -499,7 +507,13 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
             message="Rebuild activating",
             counters=counters,
         )
-        activation = activate_rebuild_staging(job_id, library_id, job.get("scope_path"), claim_token)
+        activation = activate_rebuild_staging(
+            job_id,
+            library_id,
+            job.get("scope_path"),
+            claim_token,
+            CATALOG_JOB_LEASE_SECONDS,
+        )
         counters["created"] = int(activation["created"])
         counters["updated"] = int(activation["updated"])
         counters["offline"] = int(activation["offline"])

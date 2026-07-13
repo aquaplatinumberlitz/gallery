@@ -189,6 +189,7 @@ def rebuild_index_scope(
     *,
     claim_job_id: int | None = None,
     claim_token: str | None = None,
+    claim_lease_seconds: float = 900,
 ) -> dict[str, Any]:
     """Rebuild non-destructively for files: recreate DB index rows for a scoped root."""
     if (claim_job_id is None) != (claim_token is None):
@@ -203,6 +204,7 @@ def rebuild_index_scope(
         collected_asset_paths=asset_paths,
         claim_job_id=claim_job_id,
         claim_token=claim_token,
+        claim_lease_seconds=claim_lease_seconds,
     )
     library = get_library_for_path(root_path)
     reconciled = 0
@@ -213,6 +215,7 @@ def rebuild_index_scope(
             scope_path=root_path,
             claim_job_id=claim_job_id,
             claim_token=claim_token,
+            claim_lease_seconds=claim_lease_seconds,
         )
 
     if claim_job_id is not None and claim_token is not None:

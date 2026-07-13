@@ -15,6 +15,7 @@ Changing library CRUD, asset catalog writes, migrations, or listing helpers.
 from __future__ import annotations
 
 import sqlite3
+import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -172,7 +173,22 @@ def test_library_api_lists_progress_and_requires_delete_confirmation(
 
         rejected = client.delete(f"/api/libraries/{default_library['id']}")
         assert rejected.status_code == 400
-        deleted = client.delete(f"/api/libraries/{default_library['id']}?confirm=true")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            current = client.get(f"/api/libraries/{default_library['id']}/progress")
+            assert current.status_code == 200
+            if current.json()["active_job_id"] is None:
+                break
+            time.sleep(0.01)
+        assert current.json()["active_job_id"] is None
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            deleted = client.delete(f"/api/libraries/{default_library['id']}?confirm=true")
+            if deleted.status_code == 200:
+                break
+            assert deleted.status_code == 409
+            assert deleted.json()["detail"]["error"] == "maintenance_busy"
+            time.sleep(0.01)
         assert deleted.status_code == 200
     assert deleted.json()["source_files_deleted"] is False
 
