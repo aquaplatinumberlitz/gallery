@@ -14,14 +14,15 @@ Proposed plans, in required execution order:
      contracts, and Vue search UX.
 2. [Search Discovery Evolution Implementation Plan](SEARCH_DISCOVERY_EVOLUTION_IMPLEMENTATION_PLAN.md)
    - Search V2, shareable/saved queries, index lifecycle, prompt usage,
-     diffusion model identity, ComfyUI properties, and opt-in raw workflow search.
-3. [Semantic Search Implementation Plan](SEARCH_SEMANTIC_IMPLEMENTATION_PLAN.md)
-   - Optional local ML sidecar, semantic and similar-image retrieval, and
-     experimental hybrid ranking.
+     diffusion model identity, and optional ComfyUI/raw-workflow extensions.
+3. [Related Assets and Generation Discovery Plan](RELATED_ASSETS_IMPLEMENTATION_PLAN.md)
+   - Prompt ingredients, generation families, explainable metadata relations,
+     and optional Pillow-only visual-variant fingerprints.
 
-The discovery plan starts only after all hardening gates pass. The semantic
-plan starts only after hardening and the discovery index-lifecycle foundation
-pass. Raw workflow, semantic, and hybrid modes are implemented by their plans
-but remain disabled by default.
+The discovery plan starts only after all hardening gates pass. Related Assets
+starts after the D0-D2 discovery foundations and their applicable validation
+gates pass. ComfyUI property and raw-workflow extensions require explicit user
+approval and do not block Related Assets. No semantic ML, model sidecar, vector
+database, or hybrid ranking is planned.
 
 Completed or superseded plans live in [Archived Documentation](../archived/README.md).

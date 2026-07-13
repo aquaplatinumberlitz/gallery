@@ -28,6 +28,10 @@ Notable groups include:
 - Utility Library Migration — 12-item, 6-phase migration (clipboard, debounce, device breakpoints, focus trap → Reka FocusScope, column resize, natural sort, Axios interceptor, event listeners, localStorage, formatBytes), plus follow-up deferred cleanups for GalleryGrid intersection observer and scroll visibility mechanics.
 - Historical performance comparison and deprecated testing strategy.
 - Evolution and upstream-adaptation roadmaps retained for design context.
+- [Superseded Semantic Search plan](SEARCH_SEMANTIC_IMPLEMENTATION_PLAN.md) —
+  retained as the rejected optional-ML design; active discovery direction now
+  uses explainable metadata relations and Pillow-only visual fingerprints
+  without a model sidecar or vector database.
 - Completed Frontend Test Quality Refactor — 9-phase plan covering: baseline audit, 3 extra test file merges (Phase 1), component test cleanup (Phase 2), Playwright wait refactor (86→8 sleeps, Phase 3), locator refactor with 15 data-testid additions (Phase 4), catalog alignment (Phase 5), residual wait cleanup (22→5, Phase 6), residual selector cleanup (Phase 7), final docs (Phase 8), and test diet (−4 files, −28 tests, Phase 9).
 - Completed Search Pattern Adaptation plan — `/api/search` now exposes a
   bounded, cursor-paginated `media` stream; the frontend uses infinite query

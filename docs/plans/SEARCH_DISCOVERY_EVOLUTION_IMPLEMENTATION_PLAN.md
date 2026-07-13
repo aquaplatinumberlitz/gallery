@@ -8,12 +8,12 @@ Owner: OpenCode
 
 Priority: P2
 
-Execution: Sequential and phase-gated
+Execution: Core D0-D2 sequential; D3-D4 optional; D5-D6 gate the implemented scope
 
 Depends on: every acceptance gate in
 [Search Hardening](SEARCH_HARDENING_IMPLEMENTATION_PLAN.md)
 
-Follow-up: [Semantic Search](SEARCH_SEMANTIC_IMPLEMENTATION_PLAN.md)
+Follow-up: [Related Assets and Generation Discovery](RELATED_ASSETS_IMPLEMENTATION_PLAN.md)
 
 ## Objective
 
@@ -28,8 +28,8 @@ This plan implements:
 - explicit search-index readiness and durable rebuild jobs;
 - grouped positive/negative prompt discovery;
 - observed model-name/model-hash identity;
-- a typed, whitelisted ComfyUI node/property index;
-- opt-in bounded raw workflow search.
+- an optional, typed, whitelisted ComfyUI node/property index;
+- optional, explicitly approved, bounded raw workflow search.
 
 The useful DiffusionToolkit lesson is its separation of residual text,
 structured metadata, prompt groups, and workflow properties. The useful Immich
@@ -39,7 +39,7 @@ and do not copy Immich's PostgreSQL/Redis/ML operational stack.
 
 ## Non-goals
 
-- No semantic embeddings or image similarity in this plan.
+- No ML embeddings or related-asset visual fingerprints in this plan.
 - No arbitrary user-supplied SQL property names.
 - No raw workflow search enabled by default.
 - No server-global saved-search table without an authenticated owner model.
@@ -59,11 +59,14 @@ Apply all execution rules from the hardening plan. Additionally:
    long-running index work.
 5. Never log full prompts, raw workflows, local paths, or sidecar content in
    public status/error payloads.
+6. D3 and D4 require explicit user approval. Deferring them does not block the
+   D0-D2 core or the Related Assets follow-up. D5-D6 cover only the phases that
+   were approved and implemented.
 
 ## D0 - Canonical Search V2, URL state, and saved searches
 
 **Goal:** Create one versioned search representation for API requests, query
-keys, URLs, saved searches, and future semantic modes.
+keys, URLs, saved searches, and future related-asset navigation.
 
 ### Public request contract
 
@@ -139,10 +142,10 @@ Use versioned browser `localStorage`, wrapped in error handling:
 - [ ] Saved records contain ID, name, canonical request, created time, and updated time.
 - [ ] Recent records are written only after a successful first page with at
       least one result.
-- [ ] Dedupe by canonical semantic request key; do not lowercase paths/values.
+- [ ] Dedupe by canonical request key; do not lowercase paths/values.
 - [ ] Support save, rename, delete, clear recent, schema migration, and corrupt
       storage fallback.
-- [ ] Do not save an asset-reference/similar-image request when semantic support
+- [ ] Do not save an asset-reference related-assets request when that support
       is added later.
 
 ### Acceptance gates
@@ -368,7 +371,7 @@ PRIMARY KEY(normalized_name, normalized_hash)
 - [ ] Prompt usage first page and exact group filter meet the 300 ms lexical budget at 25,000 assets.
 - [ ] Model alias expansion is deterministic and covered for ambiguous names.
 
-## D3 - Typed ComfyUI node/property index
+## D3 - Optional typed ComfyUI node/property index
 
 **Goal:** Add rich ComfyUI search without dynamic SQL, arbitrary property
 names, or raw-workflow scans.
@@ -475,7 +478,7 @@ contains at most four groups.
 - [ ] Representative workflow queries remain at or below 300 ms on the
       25,000-asset/500,000-property fixture.
 
-## D4 - Opt-in raw workflow search
+## D4 - Optional opt-in raw workflow search
 
 **Goal:** Offer DT-style raw workflow discovery as a visibly expensive,
 bounded, separately controlled feature.
@@ -628,12 +631,14 @@ components.
 - Search state is shareable and browser Back/Forward safe.
 - Saved/recent searches are bounded and browser-local.
 - Prompt grouping and model aliases are indexed and paginated.
-- Typed ComfyUI queries use a fixed registry and same-node semantics.
-- Raw workflow search is implemented, bounded, warned, and disabled by default.
+- If D3 is approved, typed ComfyUI queries use a fixed registry and same-node semantics.
+- If D4 is approved, raw workflow search is bounded, warned, and disabled by default.
 - Search index readiness/rebuild state is explicit and durable.
 
-When complete, move this file to `docs/archived/`, update the plans index, and
-only then start the semantic plan.
+After D0-D2 and their applicable D5-D6 gates pass, the Related Assets plan may
+start. If D3 or D4 remains deferred, move that work into a separate proposed
+plan only when the user explicitly requests it. When this plan's approved scope
+is complete, move this file to `docs/archived/` and update the plans index.
 
 ## Execution log
 

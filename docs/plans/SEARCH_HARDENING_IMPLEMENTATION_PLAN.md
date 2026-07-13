@@ -15,7 +15,7 @@ Depends on: `AGENTS.md`, maintained project documentation, and the current imple
 Follow-up plans:
 
 - [Search Discovery Evolution](SEARCH_DISCOVERY_EVOLUTION_IMPLEMENTATION_PLAN.md)
-- [Semantic Search](SEARCH_SEMANTIC_IMPLEMENTATION_PLAN.md)
+- [Related Assets and Generation Discovery](RELATED_ASSETS_IMPLEMENTATION_PLAN.md)
 
 ## Objective
 
@@ -44,7 +44,7 @@ verified against code, maintained docs, and tests:
 
 - Do not replace SQLite with PostgreSQL or an external search server.
 - Do not add Redis, BullMQ, OCR, faces, people, or location search.
-- Do not add semantic search in this plan.
+- Do not add related-asset ranking, visual fingerprints, or semantic ML in this plan.
 - Do not remove the legacy grouped response fields.
 - Do not refactor unrelated gallery, lightbox, admin, or metadata-inspector UI.
 - Do not make filesystem scanning part of a search request.

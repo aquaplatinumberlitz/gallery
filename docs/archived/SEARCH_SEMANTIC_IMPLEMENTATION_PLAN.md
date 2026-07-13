@@ -1,8 +1,16 @@
 # Semantic Search Implementation Plan for OpenCode
 
-Status: Proposed
+Status: Superseded
 
 Last reviewed: 2026-07-13
+
+Superseded by:
+[Related Assets and Generation Discovery](../plans/RELATED_ASSETS_IMPLEMENTATION_PLAN.md)
+
+Decision: Do not add the optional ML sidecar, model bundle, embeddings,
+sqlite-vec database, or hybrid ranking to the active gallery roadmap. This file
+is retained as historical design context only and is not implementation
+authority.
 
 Owner: OpenCode
 
@@ -12,9 +20,9 @@ Execution: Sequential and phase-gated
 
 Depends on:
 
-- every gate in [Search Hardening](SEARCH_HARDENING_IMPLEMENTATION_PLAN.md);
+- every gate in [Search Hardening](../plans/SEARCH_HARDENING_IMPLEMENTATION_PLAN.md);
 - the Search V2 and index-lifecycle foundation in
-  [Search Discovery Evolution](SEARCH_DISCOVERY_EVOLUTION_IMPLEMENTATION_PLAN.md).
+  [Search Discovery Evolution](../plans/SEARCH_DISCOVERY_EVOLUTION_IMPLEMENTATION_PLAN.md).
 
 ## Objective
 
