@@ -113,7 +113,24 @@ def list_search_index_states(*, library_id: int | None = None) -> list[dict[str,
         params = (library_id,)
     query += " ORDER BY library_id, index_name"
     with _DB_LOCK, _connect() as conn:
-        return [_serialize_state(row) for row in conn.execute(query, params)]
+        result: list[dict[str, Any]] = []
+        for row in conn.execute(query, params):
+            item = _serialize_state(row)
+            reasons = conn.execute(
+                """
+                SELECT extraction.error_code, count(*) AS count
+                FROM asset_search_extractions AS extraction
+                JOIN assets AS asset ON asset.id = extraction.asset_id
+                WHERE extraction.index_name = ? AND asset.library_id = ?
+                  AND extraction.status = 'skipped' AND extraction.error_code IS NOT NULL
+                GROUP BY extraction.error_code
+                ORDER BY extraction.error_code
+                """,
+                (row["index_name"], row["library_id"]),
+            ).fetchall()
+            item["skip_reasons"] = {str(reason["error_code"]): int(reason["count"]) for reason in reasons}
+            result.append(item)
+        return result
 
 
 def get_search_index_job(job_id: int) -> dict[str, Any] | None:
@@ -394,12 +411,14 @@ def record_search_index_extraction(
                 """
                 UPDATE search_index_jobs
                 SET cursor_asset_id = ?, processed_count = processed_count + 1,
-                    failed_count = failed_count + ?, lease_expires_at = ?
+                    failed_count = failed_count + ?, skipped_count = skipped_count + ?,
+                    lease_expires_at = ?
                 WHERE id = ? AND claim_token = ?
                 """,
                 (
                     int(asset["id"]),
                     int(status == "failed"),
+                    int(status == "skipped"),
                     now + max(1.0, lease_seconds),
                     job_id,
                     claim_token,
@@ -411,13 +430,14 @@ def record_search_index_extraction(
             raise
 
 
-def _current_extraction_counts(conn: sqlite3.Connection, index_name: str, library_id: int) -> tuple[int, int, int]:
+def _current_extraction_counts(conn: sqlite3.Connection, index_name: str, library_id: int) -> tuple[int, int, int, int]:
     row = conn.execute(
         """
         SELECT
           count(*) AS target_count,
           count(extraction.asset_id) FILTER (WHERE extraction.status IN ('ready', 'not_applicable', 'skipped')) AS indexed_count,
-          count(extraction.asset_id) FILTER (WHERE extraction.status = 'failed') AS failed_count
+          count(extraction.asset_id) FILTER (WHERE extraction.status = 'failed') AS failed_count,
+          count(extraction.asset_id) FILTER (WHERE extraction.status = 'skipped') AS skipped_count
         FROM assets AS asset
         LEFT JOIN asset_search_extractions AS extraction
           ON extraction.asset_id = asset.id AND extraction.index_name = ?
@@ -426,7 +446,12 @@ def _current_extraction_counts(conn: sqlite3.Connection, index_name: str, librar
         """,
         (index_name, library_id),
     ).fetchone()
-    return int(row["indexed_count"]), int(row["target_count"]), int(row["failed_count"])
+    return (
+        int(row["indexed_count"]),
+        int(row["target_count"]),
+        int(row["failed_count"]),
+        int(row["skipped_count"]),
+    )
 
 
 def finish_search_index_job(
@@ -468,12 +493,13 @@ def finish_search_index_job(
                 """,
                 (state, now, code, summary, job_id, claim_token),
             )
-            indexed_count, target_count, failed_count = _current_extraction_counts(
+            indexed_count, target_count, failed_count, skipped_count = _current_extraction_counts(
                 conn, str(row["index_name"]), int(row["library_id"])
             )
             failed_count = max(failed_count, int(row["failed_count"] or 0))
+            skipped_count = max(skipped_count, int(row["skipped_count"] or 0))
             if state == "succeeded":
-                index_state = "degraded" if failed_count else "ready"
+                index_state = "degraded" if failed_count or skipped_count else "ready"
             elif indexed_count > 0 or target_count == 0:
                 index_state = "degraded"
             else:
@@ -481,7 +507,7 @@ def finish_search_index_job(
             conn.execute(
                 """
                 UPDATE search_index_states
-                SET state = ?, indexed_count = ?, target_count = ?, failed_count = ?,
+                SET state = ?, indexed_count = ?, target_count = ?, failed_count = ?, skipped_count = ?,
                     active_job_id = NULL, completed_at = ?, updated_at = ?,
                     error_code = ?, error_summary = ?
                 WHERE index_name = ? AND library_id = ? AND active_job_id = ?
@@ -491,6 +517,7 @@ def finish_search_index_job(
                     indexed_count,
                     target_count,
                     failed_count,
+                    skipped_count,
                     now,
                     now,
                     code,

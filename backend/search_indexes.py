@@ -7,6 +7,10 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
+from .config import (
+    GALLERY_SEARCH_WORKFLOW_RAW_INDEX_BUDGET_BYTES,
+    GALLERY_SEARCH_WORKFLOW_RAW_MAX_DOCUMENT_BYTES,
+)
 from .errors import APIError, ErrorType
 from .metadata_store import (
     SearchIndexJobConflict,
@@ -67,6 +71,8 @@ class SearchIndexStateResponse(BaseModel):
     indexed_count: int
     target_count: int
     failed_count: int
+    skipped_count: int = 0
+    skip_reasons: dict[str, int] = Field(default_factory=dict)
     active_job_id: int | None = None
     started_at: float | None = None
     completed_at: float | None = None
@@ -88,6 +94,7 @@ class SearchIndexJobResponse(BaseModel):
     processed_count: int
     target_count: int
     failed_count: int
+    skipped_count: int = 0
     requested_at: float
     started_at: float | None = None
     finished_at: float | None = None
@@ -136,6 +143,9 @@ def api_search_capabilities() -> SearchCapabilitiesResponse:
                 "query_min_chars": 3,
                 "query_max_chars": 128,
                 "limit_max": 50,
+                "deadline_ms": 250,
+                "max_document_bytes": GALLERY_SEARCH_WORKFLOW_RAW_MAX_DOCUMENT_BYTES,
+                "index_budget_bytes": GALLERY_SEARCH_WORKFLOW_RAW_INDEX_BUDGET_BYTES,
             },
             "index_requirements": {
                 "lexical": [],
@@ -179,6 +189,8 @@ def api_search_indexes(
                     "indexed_count": 0,
                     "target_count": 0,
                     "failed_count": 0,
+                    "skipped_count": 0,
+                    "skip_reasons": {},
                     "active_job_id": None,
                     "started_at": None,
                     "completed_at": None,

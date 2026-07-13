@@ -61,7 +61,7 @@ def test_no_implicit_library_on_fresh_startup(isolated_metadata_db: Path):
     initialize_database()
     assert list_libraries() == []
     with sqlite3.connect(isolated_metadata_db) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
         columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
         assert "root_path" not in columns
 

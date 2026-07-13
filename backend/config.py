@@ -226,6 +226,15 @@ GALLERY_SEARCH_INDEX_POLL_SECONDS = max(
     0.1,
     float(os.getenv("GALLERY_SEARCH_INDEX_POLL_SECONDS", "1.0")),
 )
+GALLERY_SEARCH_WORKFLOW_RAW_ENABLED = _env_flag("GALLERY_SEARCH_WORKFLOW_RAW_ENABLED", default=False)
+GALLERY_SEARCH_WORKFLOW_RAW_MAX_DOCUMENT_BYTES = max(
+    1,
+    int(os.getenv("GALLERY_SEARCH_WORKFLOW_RAW_MAX_DOCUMENT_BYTES", "1048576")),
+)
+GALLERY_SEARCH_WORKFLOW_RAW_INDEX_BUDGET_BYTES = max(
+    1,
+    int(os.getenv("GALLERY_SEARCH_WORKFLOW_RAW_INDEX_BUDGET_BYTES", "536870912")),
+)
 
 # ---------------------------------------------------------------------------
 # Scheduled catalog reconciliation

@@ -12,6 +12,7 @@ from .config import (
     GALLERY_SEARCH_INDEX_BATCH_SIZE,
     GALLERY_SEARCH_INDEX_JOB_LEASE_SECONDS,
     GALLERY_SEARCH_INDEX_POLL_SECONDS,
+    GALLERY_SEARCH_WORKFLOW_RAW_ENABLED,
 )
 from .errors import APIError, ErrorType
 from .metadata_store.library_store import list_libraries
@@ -28,6 +29,7 @@ from .metadata_store.search_index_store import (
 )
 from .prompt_discovery import extract_prompt_discovery, persist_prompt_discovery
 from .workflow_discovery import extract_workflow_properties, persist_workflow_properties
+from .workflow_raw_search import extract_raw_workflow, persist_raw_workflow
 
 LOGGER = logging.getLogger(__name__)
 SearchExtractionStatus = Literal["ready", "not_applicable", "skipped", "failed"]
@@ -82,8 +84,10 @@ _DEFINITIONS: dict[str, SearchIndexDefinition] = {
         name="workflow_raw",
         schema_version=1,
         extractor_version=1,
-        enabled=False,
+        enabled=GALLERY_SEARCH_WORKFLOW_RAW_ENABLED,
         required_mode="raw",
+        extractor=extract_raw_workflow,
+        persist=persist_raw_workflow,
     ),
 }
 

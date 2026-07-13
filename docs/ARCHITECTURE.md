@@ -295,6 +295,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/search`                         | Cursor-paginated unified search media stream plus first-page album suggestions, including fielded metadata queries | `search.py`         |
 | `POST /api/search/query`                  | Canonical Search V2 body with versioned ID-based scope, structured filters, and opaque cursor paging    | `search.py`         |
 | `POST /api/search/prompt-usage/query`     | Normalized prompt-group usage within an authorized canonical scope                                      | `search.py`         |
+| `POST /api/search/workflow/raw`           | Opt-in literal trigram search over size/budget-bounded canonical workflow JSON                           | `search.py`         |
 | `GET /api/search/capabilities`            | Enabled modes, scopes, fixed limits/registries, and required derived indexes                            | `search_indexes.py` |
 | `GET /api/search/indexes`                 | Per-library derived-index state with separate usability and active job progress                         | `search_indexes.py` |
 | `POST /api/search/indexes/{name}/rebuild` | Queue one durable missing/full rebuild; duplicate active work returns 409                               | `search_indexes.py` |
@@ -352,7 +353,9 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
-- Catalog schema version 7 additively creates typed `workflow_nodes` and
+- Catalog schema version 8 additively creates `workflow_raw_documents`, its
+  external-content trigram FTS table, and visible skipped-index counters; its
+  `.v7.bak` migration performs no backfill. Version 7 creates typed `workflow_nodes` and
   `workflow_property_values` with fixed per-type lookup indexes; its `.v6.bak`
   migration creates storage only and leaves extraction to the durable
   `workflow_properties` index. Version 6 creates normalized
@@ -380,6 +383,13 @@ Backend modules are mostly flat, with selected domain packages.
   inputs; supported UI graph widgets use a versioned positional map. Search
   predicates compile to fixed same-node `EXISTS` SQL with bound values, while
   links, containers, non-finite numbers, and unsupported identifiers are not indexed.
+- Raw workflow search is disabled by default and owns a separate durable index.
+  Enabled extraction compacts supported JSON without truncation, skips per-file
+  or total-budget overflow into degraded status, and queries only trigram FTS.
+  Reads use a dedicated query-only SQLite connection with a 250 ms progress
+  deadline; timeout returns a typed complete failure rather than partial rows.
+  Legacy `param:`/`advanced:` keys are limited to
+  `[A-Za-z_][A-Za-z0-9_]{0,127}` and JSON paths and values remain bound parameters.
 - FastAPI lifespan startup registers each stop callback immediately after its service starts. Startup failures and normal shutdown unwind callbacks in reverse order, attempt every cleanup, and log incomplete stops without masking the initiating failure.
 - Unexpected exceptions are logged server-side with tracebacks. Public `500` responses use a generic message; durable background-job error fields retain bounded operational detail.
 - The catalog service owns a supervisor thread. Each running job has a durable

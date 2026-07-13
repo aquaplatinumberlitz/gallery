@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -28,6 +29,8 @@ from .models import (
     MetadataSearchResponse,
     PromptUsageQueryRequestV1,
     PromptUsageResponseV1,
+    RawWorkflowSearchRequestV1,
+    RawWorkflowSearchResponseV1,
     SearchAllScopeV1,
     SearchFolderScopeV1,
     SearchLibraryScopeV1,
@@ -39,6 +42,7 @@ from .prompt_discovery import decode_prompt_value_id, query_prompt_usage
 from .scan import require_registered_path_allowed
 from .search_indexer import require_search_index_mode
 from .search_scope import SearchScopeContext, SearchScopeInput, resolve_search_scope, resolve_search_v2_scope
+from .workflow_raw_search import RawWorkflowTimeout, query_raw_workflows
 
 router = APIRouter()
 LOGGER = logging.getLogger(__name__)
@@ -156,6 +160,8 @@ def api_search_metadata(
         data = search_metadata(q, limit, offset)
     except sqlite3.OperationalError as exc:
         raise APIError(503, ErrorType.SERVER_ERROR, "Search index temporarily unavailable") from exc
+    except APIError:
+        raise
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Metadata search failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
@@ -236,6 +242,24 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
 
     try:
         parsed = parse_fielded_query(request.text)
+        if any(token.field == "raw" for token in parsed.fields):
+            raise APIError(
+                409,
+                ErrorType.FEATURE_DISABLED,
+                "The raw: field is deprecated; use POST /api/search/workflow/raw when enabled",
+            )
+        invalid_json_key = next(
+            (
+                token.key
+                for token in parsed.fields
+                if token.field in {"param", "advanced"}
+                and token.key is not None
+                and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,127}", token.key) is None
+            ),
+            None,
+        )
+        if invalid_json_key is not None:
+            raise APIError(400, ErrorType.BAD_REQUEST, "Invalid param/advanced identifier")
         decoded_prompt_groups = [
             (group.kind, decode_prompt_value_id(group.value_id)) for group in request.filters.prompt_groups
         ]
@@ -263,6 +287,8 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
         raise APIError(400, ErrorType.BAD_REQUEST, "Invalid search cursor") from exc
     except sqlite3.OperationalError as exc:
         raise APIError(503, ErrorType.SERVER_ERROR, "Search index temporarily unavailable") from exc
+    except APIError:
+        raise
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Search failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
@@ -297,6 +323,29 @@ def api_prompt_usage_query(request: PromptUsageQueryRequestV1) -> PromptUsageRes
     except ValueError as exc:
         raise APIError(400, ErrorType.BAD_REQUEST, "Invalid prompt usage cursor") from exc
     return PromptUsageResponseV1.model_validate(data)
+
+
+@router.post("/api/search/workflow/raw", responses=_SEARCH_ERROR_RESPONSES)
+def api_raw_workflow_search(request: RawWorkflowSearchRequestV1) -> RawWorkflowSearchResponseV1:
+    """Run an opt-in literal trigram query over bounded canonical workflow JSON."""
+    context = resolve_search_v2_scope(request.scope)
+    require_search_index_mode("raw", library_id=context.library_id)
+    try:
+        data = query_raw_workflows(
+            query=request.query,
+            scope=context.kind,
+            root_path=context.folder_path,
+            library_id=context.library_id,
+            cursor=request.cursor,
+            limit=request.limit,
+        )
+    except ValueError as exc:
+        raise APIError(400, ErrorType.BAD_REQUEST, str(exc)) from exc
+    except RawWorkflowTimeout as exc:
+        raise APIError(504, ErrorType.SEARCH_TIMEOUT, "Raw workflow search deadline exceeded") from exc
+    except sqlite3.OperationalError as exc:
+        raise APIError(503, ErrorType.SERVER_ERROR, "Raw workflow index temporarily unavailable") from exc
+    return RawWorkflowSearchResponseV1.model_validate(data)
 
 
 @router.get("/api/library/inspector")

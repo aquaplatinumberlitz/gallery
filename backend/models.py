@@ -206,6 +206,38 @@ class PromptUsageResponseV1(BaseModel):
     returned: int
 
 
+class RawWorkflowSearchRequestV1(BaseModel):
+    """Bounded opt-in raw workflow literal-search request."""
+
+    query: str = Field(min_length=3, max_length=128)
+    scope: SearchScopeV1
+    cursor: str | None = Field(default=None, max_length=2048)
+    limit: int = Field(default=50, ge=1, le=50)
+
+
+class RawWorkflowSearchItemV1(BaseModel):
+    """One authorized active asset matching canonical raw workflow JSON."""
+
+    asset_id: int
+    library_id: int
+    library_name: str
+    path: str
+    name: str
+    mtime_ns: int
+
+
+class RawWorkflowSearchResponseV1(BaseModel):
+    """One deadline-bounded raw workflow result page and warning metadata."""
+
+    query: str
+    items: list[RawWorkflowSearchItemV1]
+    next_cursor: str | None = None
+    has_more: bool
+    returned: int
+    warning: str
+    capability: dict[str, int]
+
+
 class SearchWorkflowPredicateV1(BaseModel):
     """Typed workflow predicate shape validated against the D3 registry later."""
 

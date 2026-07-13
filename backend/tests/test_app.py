@@ -479,9 +479,10 @@ def test_search_fielded_advanced_no_crash():
 
 
 def test_search_fielded_raw_no_crash():
-    """raw: does not 500."""
+    """Deprecated raw: points callers to the bounded opt-in endpoint."""
     resp = _search('raw:"ComfyUI workflow"')
-    assert resp.status_code == 200
+    assert resp.status_code == 409
+    assert "deprecated" in resp.text
 
 
 def test_search_fielded_no_results():
@@ -525,11 +526,13 @@ def test_search_generic_fallback_forms_no_crash():
         "param:some_key:value",
         'advanced:wf:"test"',
         "advanced:wf:test",
-        'raw:"text"',
-        "raw:text",
     ]:
         resp = _search(q)
         assert resp.status_code == 200, f"FAILED: {q!r}"
+
+    for q in ['raw:"text"', "raw:text"]:
+        resp = _search(q)
+        assert resp.status_code == 409, f"FAILED: {q!r}"
 
 
 def test_search_empty_query_returns_empty():

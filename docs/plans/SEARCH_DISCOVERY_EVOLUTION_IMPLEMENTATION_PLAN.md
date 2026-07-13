@@ -505,28 +505,28 @@ workflow_raw_documents
 
 ### Required behavior
 
-- [ ] Canonicalize supported JSON into compact UTF-8 before indexing.
-- [ ] Skip documents over 1 MiB; do not truncate silently.
-- [ ] Stop adding documents when the configured index budget is reached and
+- [x] Canonicalize supported JSON into compact UTF-8 before indexing.
+- [x] Skip documents over 1 MiB; do not truncate silently.
+- [x] Stop adding documents when the configured index budget is reached and
       report skipped counts as degraded status.
-- [ ] Use trigram FTS literal search; never `%LIKE%` over raw JSON.
-- [ ] Query length is 3-128 characters, limit is at most 50, and scope is required.
-- [ ] Use a dedicated SQLite read connection with a 250 ms progress-handler deadline.
-- [ ] Timeout returns a typed error, never partial results presented as complete.
-- [ ] Add `POST /api/search/workflow/raw`; include warning/capability metadata
+- [x] Use trigram FTS literal search; never `%LIKE%` over raw JSON.
+- [x] Query length is 3-128 characters, limit is at most 50, and scope is required.
+- [x] Use a dedicated SQLite read connection with a 250 ms progress-handler deadline.
+- [x] Timeout returns a typed error, never partial results presented as complete.
+- [x] Add `POST /api/search/workflow/raw`; include warning/capability metadata
       in the response.
-- [ ] Keep the feature absent from normal UI when disabled or unsupported.
-- [ ] Deprecate the old `raw:` fielded alias. When enabled it may redirect into
+- [x] Keep the feature absent from normal UI when disabled or unsupported.
+- [x] Deprecate the old `raw:` fielded alias. When enabled it may redirect into
       the bounded raw mode; when disabled it returns a clear validation error.
-- [ ] Restrict `param:`/`advanced:` keys to a documented identifier grammar and
+- [x] Restrict `param:`/`advanced:` keys to a documented identifier grammar and
       bind JSON paths/values as parameters.
 
 ### Acceptance gates
 
-- [ ] Disabled or unavailable raw search does not prevent application startup.
-- [ ] Oversized documents and total-budget overflow are visible in index status.
-- [ ] Malicious/control-character terms are rejected.
-- [ ] Raw workflow p95 is at most 500 ms on the bounded fixture and every query
+- [x] Disabled or unavailable raw search does not prevent application startup.
+- [x] Oversized documents and total-budget overflow are visible in index status.
+- [x] Malicious/control-character terms are rejected.
+- [x] Raw workflow p95 is at most 500 ms on the bounded fixture and every query
       terminates within its deadline.
 
 ## D5 - Vue discovery surfaces
@@ -648,3 +648,4 @@ is complete, move this file to `docs/archived/` and update the plans index.
 | 2026-07-13 | D1 | Complete | Additive schema v5 with rollback backup/no inline backfill; supervised single-writer registry, 200-row asset keysets, per-asset atomic fingerprints, fenced resume/cancel, typed capability/status/rebuild APIs, distinct disabled/not-ready errors, and stale-index usability; 117 broad backend regressions, 16 focused contracts, and 105 backend API tests passed. |
 | 2026-07-13 | D2 | Complete | Additive schema v6 and durable DB-only `prompt_values` backfill; fixed NFKC/casefold/kind-separated prompt identities, active-catalog usage paging and exact Search V2 groups, cursor privacy, and deterministic many-to-many observed model aliases; 113 focused and 227 broad backend contracts passed, including 25,000-asset sub-300 ms usage/exact-filter gates. |
 | 2026-07-13 | D3 | Complete | Additive schema v7 and enabled durable `workflow_properties` index; normalized API/UI Comfy graphs, fixed registry v1, bounded typed scalar extraction, canonical uint64 seeds, same-node fixed SQL, field-specific validation, and degraded parse failures; 97 focused contracts passed plus the 25,000-asset/500,000-property sub-300 ms gate. |
+| 2026-07-13 | D4 | Complete | Additive schema v8 with external-content trigram FTS and skipped counters; default-off canonical raw-workflow index, 1 MiB/document and 512 MiB total budgets, literal scoped API, deprecated `raw:` alias, identifier grammar, dedicated 250 ms read deadline, typed timeout, and 25,000-document performance coverage. |
