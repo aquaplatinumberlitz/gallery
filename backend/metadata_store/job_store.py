@@ -890,9 +890,7 @@ def recover_stale_jobs(
             dead_owner = row["claimed_by"] is None or str(row["claimed_by"]) not in live_workers
             expired = row["lease_expires_at"] is None or float(row["lease_expires_at"]) <= now
             active_local_claim = (int(row["id"]), str(row["claim_token"] or "")) in live_claims
-            unregistered_live_claim = (
-                recover_unregistered_live_claims and not dead_owner and not active_local_claim
-            )
+            unregistered_live_claim = recover_unregistered_live_claims and not dead_owner and not active_local_claim
             if dead_owner or unregistered_live_claim or (expired and not active_local_claim):
                 # A dead owner is recoverable regardless of lease. A live
                 # owner selected only for expiry must not have an active local

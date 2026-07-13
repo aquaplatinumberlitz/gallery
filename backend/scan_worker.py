@@ -689,11 +689,7 @@ class _CatalogLeaseHeartbeat:
 
     def stop(self) -> None:
         self._stop.set()
-        if (
-            self._thread is not None
-            and self._thread is not threading.current_thread()
-            and self._thread.is_alive()
-        ):
+        if self._thread is not None and self._thread is not threading.current_thread() and self._thread.is_alive():
             self._thread.join(timeout=max(1.0, CATALOG_LEASE_HEARTBEAT_SECONDS + 1.0))
         with _active_claims_lock:
             _active_catalog_claims.discard((self._job_id, self._claim_token))

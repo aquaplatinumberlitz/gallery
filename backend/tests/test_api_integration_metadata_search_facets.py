@@ -75,11 +75,77 @@ class TestSearchPlainQuery:
         assert data["prompt"] == []
 
     def test_search_response_shape(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
+        _index_gallery_images(temp_gallery_with_metadata)
         resp = isolated_app.get("/api/search", params={"q": "mika", "scope": "all"})
         assert resp.status_code == 200
         data = resp.json()
-        for key in ("query", "scope", "root", "albums", "photos", "prompt"):
-            assert key in data
+        assert {
+            "query",
+            "scope",
+            "root",
+            "albums",
+            "photos",
+            "videos",
+            "prompt",
+            "media",
+            "next_cursor",
+            "has_more",
+            "returned",
+            "limit",
+        } <= data.keys()
+        assert data["query"] == "mika"
+        assert data["scope"] == "all"
+        assert isinstance(data["albums"], list)
+        assert isinstance(data["photos"], list)
+        assert isinstance(data["videos"], list)
+        assert isinstance(data["prompt"], list)
+        assert isinstance(data["media"], list)
+        assert isinstance(data["returned"], int)
+        assert isinstance(data["limit"], int)
+        assert data["next_cursor"] is None or isinstance(data["next_cursor"], int)
+        assert isinstance(data["has_more"], bool)
+
+        result = next(row for row in data["media"] if row["name"] == "mika_portrait.png")
+        assert {
+            "name",
+            "path",
+            "type",
+            "parent_path",
+            "relative_path",
+            "mtime",
+            "width",
+            "height",
+            "duration_ms",
+            "mime_type",
+            "match_type",
+            "prompt_snippet",
+            "model",
+            "sampler",
+            "seed",
+        } <= result.keys()
+
+    def test_search_metadata_response_shape(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
+        _index_gallery_images(temp_gallery_with_metadata)
+        resp = isolated_app.get("/api/search-metadata", params={"q": "mika", "limit": 1})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert {"query", "total", "results"} <= data.keys()
+        assert data["query"] == "mika"
+        assert isinstance(data["total"], int)
+        assert isinstance(data["results"], list)
+        assert data["results"]
+        assert {
+            "name",
+            "path",
+            "type",
+            "mtime",
+            "width",
+            "height",
+            "model",
+            "sampler",
+            "seed",
+            "prompt_snippet",
+        } <= data["results"][0].keys()
 
     def test_search_landscape_finds_second_image(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _index_gallery_images(temp_gallery_with_metadata)
@@ -143,8 +209,23 @@ class TestFacetsEndpoint:
         resp = isolated_app.get("/api/facets", params={"path": str(temp_gallery_with_metadata / "mika_album")})
         assert resp.status_code == 200
         data = resp.json()
-        for key in ("tool", "model", "sampler", "folders", "orientation"):
-            assert key in data
+        assert {
+            "tool",
+            "model",
+            "sampler",
+            "scheduler",
+            "folders",
+            "orientation",
+            "seed_availability",
+            "metadata_availability",
+            "lora",
+        } <= data.keys()
+        for values in data.values():
+            assert isinstance(values, list)
+            for item in values:
+                assert {"value", "count"} <= item.keys()
+                assert isinstance(item["value"], str)
+                assert isinstance(item["count"], int)
 
     def test_facets_tool_counts_are_deterministic(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _seed_metadata_for_facets(temp_gallery_with_metadata)

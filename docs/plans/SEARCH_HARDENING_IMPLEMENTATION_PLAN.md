@@ -1,6 +1,6 @@
 # Search Hardening Implementation Plan for OpenCode
 
-Status: Proposed
+Status: Active
 
 Last reviewed: 2026-07-13
 
@@ -72,15 +72,15 @@ verified against code, maintained docs, and tests:
 
 ### Tasks
 
-- [ ] Capture HEAD, dirty files, Python/Node versions, and SQLite version.
-- [ ] Run the current targeted backend search/facet/parser tests.
-- [ ] Run the current targeted frontend search composable, parser, and drawer tests.
-- [ ] Run the current managed fielded-search Playwright specs.
-- [ ] Run `scripts/bench_search.py` against the deterministic fixture and one
+- [x] Capture HEAD, dirty files, Python/Node versions, and SQLite version.
+- [x] Run the current targeted backend search/facet/parser tests.
+- [x] Run the current targeted frontend search composable, parser, and drawer tests.
+- [x] Run the current managed fielded-search Playwright specs.
+- [x] Run `scripts/bench_search.py` against the deterministic fixture and one
       representative local database when available.
-- [ ] Capture `EXPLAIN QUERY PLAN` for the active-catalog predicate, filename
+- [x] Capture `EXPLAIN QUERY PLAN` for the active-catalog predicate, filename
       search, prompt search, and album suggestion query.
-- [ ] Record current API shapes for `/api/search`, `/api/search-metadata`, and
+- [x] Record current API shapes for `/api/search`, `/api/search-metadata`, and
       `/api/facets` in tests before refactoring them.
 
 ### Baseline commands
@@ -395,4 +395,4 @@ When complete, move this file to `docs/archived/` and update
 
 | Date | Phase | Result | Evidence |
 | --- | --- | --- | --- |
-| - | - | Not started | - |
+| 2026-07-13 | H0 | Complete | `docs/reports/SEARCH_HARDENING_H0_BASELINE.md`; 157 backend, 77 frontend, and 18 E2E tests passed; deterministic/live p95 stayed below 300 ms. |
