@@ -52,11 +52,15 @@ async function installStubbedGallery(page: Page) {
   const requests: ApiRequest[] = [];
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
+    const searchPayload =
+      url.pathname === "/api/search/query"
+        ? (route.request().postDataJSON() as { text?: string; scope?: { kind?: string }; limit?: number } | null)
+        : null;
     const req: ApiRequest = {
       pathname: url.pathname,
       path: url.searchParams.get("path") ?? "",
       cursor: url.searchParams.get("cursor") ?? "0",
-      q: url.searchParams.get("q") ?? "",
+      q: searchPayload?.text ?? url.searchParams.get("q") ?? "",
     };
     requests.push(req);
 
@@ -100,16 +104,22 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/search") {
+    if (url.pathname === "/api/search/query") {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          query: url.searchParams.get("q") ?? "",
-          scope: "all",
+          query: req.q,
+          scope: searchPayload?.scope?.kind ?? "all",
           root: rootPath,
           albums: [],
           photos: [],
           prompt: [],
+          media: [],
+          videos: [],
+          next_cursor: null,
+          has_more: false,
+          returned: 0,
+          limit: searchPayload?.limit ?? 60,
         }),
       });
       return;
@@ -187,7 +197,9 @@ test("soft revisit via search UI does not trigger duplicate cursor=0 browse requ
   // Soft navigation: enter search (switches to search view)
   await page.locator("#gallery-search").fill("navigate-away");
   await page.locator("#gallery-search").press("Enter");
-  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("navigate-away"))).toBe(true);
+  await expect
+    .poll(() => requestsFor(requests, "/api/search/query").some((r) => r.q.includes("navigate-away")))
+    .toBe(true);
 
   // Soft navigation back: clear search (restores gallery view)
   await page.locator("#gallery-search").fill("");

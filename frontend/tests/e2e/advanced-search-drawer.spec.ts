@@ -333,7 +333,11 @@ test.describe("AdvancedSearchDrawer", () => {
     await drawer.getByRole("button", { name: /Custom metadata/ }).click();
     await expect(drawerField(drawer, "advanced-search-param")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-advanced")).toBeVisible();
-    await expect(drawerField(drawer, "advanced-search-raw")).toBeVisible();
+    await expect(drawerField(drawer, "advanced-search-raw")).not.toBeAttached();
+    await expect(drawer.getByRole("button", { name: /Prompt discovery/ })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: /Workflow properties/ })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: /Index status/ })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: /Raw workflow/ })).not.toBeAttached();
 
     await expect(drawer.getByRole("button", { name: "Revert edits" })).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Clear all" })).toBeVisible();

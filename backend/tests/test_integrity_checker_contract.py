@@ -759,5 +759,6 @@ class TestSchemaCheckEdgeCases:
             );
         """)
         issues = check_catalog_schema(conn)
-        col_issues = [i for i in issues if "extra" in i.lower() or "extra_column" in i]
+        injected_columns = ("extra_column_1", "extra_column_2", "extra_col")
+        col_issues = [issue for issue in issues if any(column in issue for column in injected_columns)]
         assert len(col_issues) == 0, "Extra columns should not cause false positives"

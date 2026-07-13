@@ -4,6 +4,7 @@ import {
   MAX_RECENT_SEARCHES,
   MAX_SAVED_SEARCHES,
   recordRecentSearch,
+  SEARCH_LIBRARY_CHANGE_EVENT,
   SEARCH_LIBRARY_STORAGE_KEY,
   useSavedSearches,
 } from "../useSavedSearches";
@@ -50,6 +51,7 @@ describe("useSavedSearches", () => {
   });
 
   it("bounds recent searches and keeps case-distinct canonical requests", () => {
+    const dispatch = vi.spyOn(window, "dispatchEvent");
     for (let index = 0; index < MAX_RECENT_SEARCHES + 5; index += 1) {
       expect(recordRecentSearch(request(`query-${index}`), index)).toBe(true);
     }
@@ -64,6 +66,7 @@ describe("useSavedSearches", () => {
     ]);
     expect(library.clearRecent()).toBe(true);
     expect(library.recent.value).toEqual([]);
+    expect(dispatch.mock.calls.some(([event]) => event.type === SEARCH_LIBRARY_CHANGE_EVENT)).toBe(true);
   });
 
   it("migrates the previous browser document shape", () => {

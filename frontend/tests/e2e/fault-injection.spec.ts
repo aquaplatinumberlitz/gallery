@@ -65,7 +65,7 @@ const metadataResponse = (name: string) => ({
   name,
 });
 
-type ApiRequest = { pathname: string; path: string };
+type ApiRequest = { pathname: string; path: string; q: string };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((r) => r.pathname === pathname);
@@ -85,7 +85,15 @@ async function installGalleryWithFaults(
   const requests: ApiRequest[] = [];
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
-    const req: ApiRequest = { pathname: url.pathname, path: url.searchParams.get("path") ?? "" };
+    const searchPayload =
+      url.pathname === "/api/search/query"
+        ? (route.request().postDataJSON() as { text?: string; scope?: { kind?: string }; limit?: number } | null)
+        : null;
+    const req: ApiRequest = {
+      pathname: url.pathname,
+      path: url.searchParams.get("path") ?? "",
+      q: searchPayload?.text ?? "",
+    };
     requests.push(req);
 
     if (url.pathname === "/api/libraries") {
@@ -120,7 +128,7 @@ async function installGalleryWithFaults(
       return;
     }
 
-    if (url.pathname === "/api/search") {
+    if (url.pathname === "/api/search/query") {
       if (faults.failSearch) {
         await route.fulfill({
           status: 500,
@@ -129,12 +137,12 @@ async function installGalleryWithFaults(
         });
         return;
       }
-      const q = url.searchParams.get("q") ?? "";
+      const q = req.q;
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           query: q,
-          scope: "all",
+          scope: searchPayload?.scope?.kind ?? "all",
           root: rootPath,
           albums: [],
           photos: q
@@ -157,6 +165,12 @@ async function installGalleryWithFaults(
               ]
             : [],
           prompt: [],
+          media: [],
+          videos: [],
+          next_cursor: null,
+          has_more: false,
+          returned: 0,
+          limit: searchPayload?.limit ?? 60,
         }),
       });
       return;
@@ -262,7 +276,7 @@ test("search 500 shows fallback; no page error", async ({ page, monitoredErrors:
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("test-query");
   await searchInput.press("Enter");
-  await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => requestsFor(requests, "/api/search/query").length).toBeGreaterThanOrEqual(1);
 
   // The app should not crash - page should still have content
   const pageContent = await page.content();

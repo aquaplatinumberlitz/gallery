@@ -41,6 +41,10 @@ Notable groups include:
   album suggestions and response authorization, unified relevance with opaque
   keyset pagination, typed scope-parity contracts, lossless Vue query state,
   explicit result UX, and managed 5,000-row lexical performance budgets.
+- Completed Search Discovery Evolution plan — versioned Search V2 requests,
+  shareable and browser-local saved/recent state, durable prompt/model/workflow
+  indexes, typed same-node ComfyUI filters, bounded opt-in raw workflow search,
+  explicit index lifecycle UI, and managed responsive discovery contracts.
 - Gallery Browse Lifecycle Manager — deferred frontend browse-lifecycle
   refactor criteria retained as historical tech-debt context.
 - Derivative Lifecycle Full Convergence Plan — 7-phase end-to-end

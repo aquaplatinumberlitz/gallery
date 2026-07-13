@@ -1,4 +1,4 @@
-import { computed, shallowRef } from "vue";
+import { computed, getCurrentInstance, onMounted, onUnmounted, shallowRef } from "vue";
 import type { PersistableSearchRequestV1, SearchQueryRequestV1 } from "@/types";
 import {
   canonicalSearchRequestKey,
@@ -8,6 +8,7 @@ import {
 } from "@/utils/searchRequest";
 
 export const SEARCH_LIBRARY_STORAGE_KEY = "gallery-search-library-v1";
+export const SEARCH_LIBRARY_CHANGE_EVENT = "gallery-search-library-change";
 export const MAX_SAVED_SEARCHES = 50;
 export const MAX_RECENT_SEARCHES = 20;
 
@@ -122,6 +123,10 @@ const writeDocument = (document: SearchLibraryDocument): boolean => {
   }
 };
 
+const notifySearchLibraryChange = () => {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(SEARCH_LIBRARY_CHANGE_EVENT));
+};
+
 const newId = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -136,7 +141,9 @@ export const recordRecentSearch = (request: SearchQueryRequestV1, now = Date.now
     { request: persistable, used_at: now },
     ...document.recent.filter((item) => canonicalSearchRequestKey(item.request) !== key),
   ].slice(0, MAX_RECENT_SEARCHES);
-  return writeDocument(document);
+  const written = writeDocument(document);
+  if (written) notifySearchLibraryChange();
+  return written;
 };
 
 export function useSavedSearches() {
@@ -145,6 +152,7 @@ export function useSavedSearches() {
   const persist = (next: SearchLibraryDocument): boolean => {
     if (!writeDocument(next)) return false;
     document.value = next;
+    notifySearchLibraryChange();
     return true;
   };
 
@@ -183,6 +191,11 @@ export function useSavedSearches() {
   const refresh = () => {
     document.value = readDocument();
   };
+
+  if (getCurrentInstance()) {
+    onMounted(() => window.addEventListener(SEARCH_LIBRARY_CHANGE_EVENT, refresh));
+    onUnmounted(() => window.removeEventListener(SEARCH_LIBRARY_CHANGE_EVENT, refresh));
+  }
 
   return {
     saved: computed(() => document.value.saved),

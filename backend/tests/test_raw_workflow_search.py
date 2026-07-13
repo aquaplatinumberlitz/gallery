@@ -84,6 +84,17 @@ def _run_raw_index(library_id: int) -> dict:
     return finished
 
 
+def test_raw_workflow_document_detection_handles_wrappers_and_invalid_payloads() -> None:
+    prompt_document = {"nodes": []}
+    api_document = {"1": {"class_type": "SaveImage", "inputs": {}}}
+
+    assert raw_module._is_workflow_document([]) is False
+    assert raw_module._is_workflow_document(prompt_document) is True
+    assert raw_module._workflow_json_from_raw(f"prompt: {json.dumps(prompt_document)}") == prompt_document
+    assert raw_module._workflow_json_from_raw(f"workflow: {json.dumps(api_document)}") == api_document
+    assert raw_module._workflow_json_from_raw("not json\nworkflow: also not json") is None
+
+
 def test_v8_migration_is_additive_transactional_and_has_no_inline_backfill(
     isolated_metadata_db: Path,
 ) -> None:

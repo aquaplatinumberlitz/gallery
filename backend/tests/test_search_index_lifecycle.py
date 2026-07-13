@@ -43,6 +43,7 @@ from backend.search_indexer import (
     SearchExtractionResult,
     SearchIndexDefinition,
     SearchIndexWorker,
+    register_search_index_definition,
     run_search_index_once,
 )
 
@@ -402,6 +403,110 @@ def test_capabilities_status_rebuild_cancel_and_readiness_errors(
         },
     )
     assert lexical.status_code == 200
+
+
+def test_search_index_api_not_found_disabled_and_version_mismatch_branches(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    library, _asset_ids = _seed_assets(isolated_gallery_root, 1)
+    definition = _enabled_definition("test_api_state_branches")
+    monkeypatch.setitem(indexer_module._DEFINITIONS, definition.name, definition)
+
+    job = create_search_index_job(
+        definition.name,
+        library["id"],
+        mode="full",
+        schema_version=definition.schema_version,
+        extractor_version=definition.extractor_version,
+    )
+    assert run_search_index_once(worker_id="state-branches") is True
+    assert get_search_index_job(int(job["id"]))["state"] == "succeeded"
+
+    monkeypatch.setitem(indexer_module._DEFINITIONS, definition.name, replace(definition, enabled=False))
+    disabled = next(
+        item
+        for item in isolated_app.get("/api/search/indexes", params={"library_id": library["id"]}).json()
+        if item["index_name"] == definition.name
+    )
+    assert disabled["state"] == "disabled"
+    assert disabled["usable"] is False
+
+    monkeypatch.setitem(indexer_module._DEFINITIONS, definition.name, replace(definition, schema_version=2))
+    mismatched = next(
+        item
+        for item in isolated_app.get("/api/search/indexes", params={"library_id": library["id"]}).json()
+        if item["index_name"] == definition.name
+    )
+    assert mismatched["state"] == "degraded"
+    assert mismatched["usable"] is True
+    assert mismatched["warning"] == "version_mismatch"
+
+    assert isolated_app.get("/api/search/indexes").status_code == 200
+    assert isolated_app.get("/api/search/indexes", params={"library_id": 999_999}).status_code == 404
+    assert isolated_app.get("/api/search/index-jobs/999999").status_code == 404
+    assert (
+        isolated_app.post(
+            "/api/search/indexes/not_registered/rebuild",
+            json={"library_id": library["id"]},
+        ).status_code
+        == 404
+    )
+    assert (
+        isolated_app.post(
+            f"/api/search/indexes/{definition.name}/rebuild",
+            json={"library_id": 999_999},
+        ).status_code
+        == 404
+    )
+    assert isolated_app.post("/api/search/index-jobs/999999/cancel").status_code == 404
+
+
+def test_search_index_registry_and_worker_failure_control_branches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValueError, match="Invalid search index definition"):
+        register_search_index_definition(SearchIndexDefinition("", 0, 0, False, "workflow"))
+    with pytest.raises(ValueError, match="require extractor"):
+        register_search_index_definition(SearchIndexDefinition("missing_callbacks", 1, 1, True, "workflow"))
+
+    finished: list[tuple[int, str, str, dict]] = []
+    monkeypatch.setattr(
+        indexer_module,
+        "finish_search_index_job",
+        lambda job_id, token, state, **kwargs: finished.append((job_id, token, state, kwargs)),
+    )
+    job = {"id": 41, "claim_token": "claim", "index_name": "not_registered"}
+    monkeypatch.setattr(indexer_module, "claim_next_search_index_job", lambda *_args, **_kwargs: dict(job))
+    assert run_search_index_once(worker_id="disabled") is True
+    assert finished[-1][2:] == (
+        "failed",
+        {"error_code": "feature_disabled", "error_summary": "Search index feature is disabled"},
+    )
+
+    definition = _enabled_definition("worker_control_branches")
+    monkeypatch.setitem(indexer_module._DEFINITIONS, definition.name, definition)
+    job["index_name"] = definition.name
+
+    monkeypatch.setattr(indexer_module, "search_index_job_control_state", lambda *_args: "cancel_requested")
+    assert run_search_index_once(worker_id="cancel") is True
+    assert finished[-1][2] == "cancelled"
+
+    monkeypatch.setattr(indexer_module, "search_index_job_control_state", lambda *_args: "running")
+    monkeypatch.setattr(indexer_module, "renew_search_index_job_lease", lambda *_args, **_kwargs: False)
+    assert run_search_index_once(worker_id="lost-claim") is True
+
+    monkeypatch.setattr(
+        indexer_module,
+        "search_index_job_control_state",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("worker failure")),
+    )
+    assert run_search_index_once(worker_id="failed") is True
+    assert finished[-1][2:] == (
+        "failed",
+        {"error_code": "worker_failed", "error_summary": "Search index worker failed"},
+    )
 
 
 def test_single_writer_lifecycle_is_idempotent(isolated_metadata_db: Path) -> None:
