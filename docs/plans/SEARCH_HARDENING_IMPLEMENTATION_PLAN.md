@@ -151,23 +151,23 @@ search request hot path.
 
 ### Required implementation
 
-- [ ] Extract or reuse a batch catalog folder aggregation helper from the browse
+- [x] Extract or reuse a batch catalog folder aggregation helper from the browse
       data layer.
-- [ ] Return album search rows with `library_id` and calculate, in bounded SQL:
+- [x] Return album search rows with `library_id` and calculate, in bounded SQL:
   - direct image count;
   - up to three newest direct image covers;
   - whether the folder has visible catalog children when the response contract
     needs that value.
-- [ ] Preserve the current first-page-only and 12-album suggestion limits.
-- [ ] Remove search calls to `build_album_metadata()`, `Path.iterdir()`,
+- [x] Preserve the current first-page-only and 12-album suggestion limits.
+- [x] Remove search calls to `build_album_metadata()`, `Path.iterdir()`,
       `os.scandir()`, `Path.stat()`, and `Path.exists()`.
-- [ ] Join response rows to active assets, libraries, and import-path ownership.
+- [x] Join response rows to active assets, libraries, and import-path ownership.
       Use pure catalog path-containment helpers to protect against corrupted
       rows without resolving every filesystem path.
-- [ ] Remove the five separate `_filter_safe_paths()` passes from `/api/search`.
-- [ ] Do not schedule stale-index cleanup from a search response. Scan, watcher,
+- [x] Remove the five separate `_filter_safe_paths()` passes from `/api/search`.
+- [x] Do not schedule stale-index cleanup from a search response. Scan, watcher,
       offline-asset, and integrity workflows own catalog freshness.
-- [ ] Apply the same DB-only policy to `/api/search-metadata`.
+- [x] Apply the same DB-only policy to `/api/search-metadata`.
 
 ### Compatibility rule
 
@@ -177,10 +177,10 @@ route authorizes it; it must not force filesystem I/O into search.
 
 ### Acceptance gates
 
-- [ ] Monkeypatch all album filesystem helpers to raise; indexed search still succeeds.
-- [ ] Search performs no filesystem call proportional to album/result count.
-- [ ] Album count and cover semantics match DB-first browse for the same folder.
-- [ ] All-scope results include correct library context without exposing an
+- [x] Monkeypatch all album filesystem helpers to raise; indexed search still succeeds.
+- [x] Search performs no filesystem call proportional to album/result count.
+- [x] Album count and cover semantics match DB-first browse for the same folder.
+- [x] All-scope results include correct library context without exposing an
       unowned path.
 
 ## H3 - Unified relevance and opaque keyset pagination
@@ -397,3 +397,4 @@ When complete, move this file to `docs/archived/` and update
 | --- | --- | --- | --- |
 | 2026-07-13 | H0 | Complete | `docs/reports/SEARCH_HARDENING_H0_BASELINE.md`; 157 backend, 77 frontend, and 18 E2E tests passed; deterministic/live p95 stayed below 300 ms. |
 | 2026-07-13 | H1 | Complete | Schema v4 ownership backfill and rollback tests; shared predicate remains indexed by `(library_id, path)` and rejects cross-library same-path rows. |
+| 2026-07-13 | H2 | Complete | DB-only search joins and browse-shared album aggregation; 82 focused backend tests passed with filesystem hot-path guards and library/import ownership coverage. |

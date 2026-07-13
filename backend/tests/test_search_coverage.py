@@ -99,11 +99,10 @@ def test_search_failure_returns_500(isolated_app: TestClient, monkeypatch: pytes
 # ---------------------------------------------------------------------------
 
 
-def test_search_filters_stale_rows_and_triggers_cleanup(
+def test_search_uses_catalog_state_without_request_time_cleanup(
     isolated_app: TestClient, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """When search returns rows for deleted/missing files, the safe_section
-    filter should drop them and cleanup_stale_index should be called."""
+    """Search remains DB-only until watcher/scan/integrity reconciliation runs."""
     image = isolated_gallery_root / "ghost.png"
     image.write_bytes(b"data")
 
@@ -117,7 +116,7 @@ def test_search_filters_stale_rows_and_triggers_cleanup(
     # Delete the file so the index row becomes stale
     image.unlink()
 
-    cleanup_called = []
+    cleanup_called: list[int] = []
     monkeypatch.setattr(
         search_module,
         "cleanup_stale_index",
@@ -126,11 +125,8 @@ def test_search_filters_stale_rows_and_triggers_cleanup(
 
     resp = isolated_app.get("/api/search", params={"q": "ghost", "scope": "all"})
     assert resp.status_code == 200
-    for _ in range(50):
-        if cleanup_called:
-            break
-        time.sleep(0.01)
-    assert len(cleanup_called) >= 1
+    assert [row["path"] for row in resp.json()["media"]] == [str(image.resolve())]
+    assert cleanup_called == []
 
 
 def test_search_empty_query_returns_paginated_media_shape(isolated_app: TestClient):

@@ -123,6 +123,10 @@ Search behavior:
 - `/api/search` returns a bounded, cursor-paginated `media` stream and
   first-page `albums` suggestions. Legacy grouped `photos`, `videos`, and
   `prompt` fields remain in the response for compatibility.
+- Search response rows are authorized through active asset, library, and
+  import-path joins. Album counts/covers come from the same bounded SQLite
+  aggregation as DB-first browse; `/api/search` and `/api/search-metadata` do
+  not enumerate folders, stat results, or schedule stale-index cleanup.
 - `scope=current` searches the current folder recursively.
 - `scope=all` searches only current active image/video assets owned by registered libraries; `PATH_SAFETY_ROOT` remains an outer boundary, not ownership.
 - Fielded queries are parsed by `fielded_search_parser.py` and executed by

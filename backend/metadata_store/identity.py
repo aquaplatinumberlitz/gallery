@@ -165,6 +165,23 @@ def active_catalog_file_sql(*, fi_alias: str = "fi") -> str:
     return f"EXISTS (SELECT 1 FROM assets AS catalog_asset WHERE {ownership})"
 
 
+def catalog_import_path_owns_sql(*, library_id_sql: str, path_sql: str) -> str:
+    """Require lexical containment in one registered import path.
+
+    This is intentionally catalog-only: it does not resolve or stat the path.
+    Catalog writes normalize import paths and asset paths before persistence.
+    """
+    separator = os.sep.replace("'", "''")
+    return (
+        "EXISTS (SELECT 1 FROM library_import_paths AS catalog_import_path "
+        f"WHERE catalog_import_path.library_id = {library_id_sql} AND ("
+        f"{path_sql} = catalog_import_path.path OR "
+        f"(catalog_import_path.path = '{separator}' AND substr({path_sql}, 1, 1) = '{separator}') OR "
+        f"substr({path_sql}, 1, length(catalog_import_path.path) + 1) = "
+        f"catalog_import_path.path || '{separator}'))"
+    )
+
+
 def catalog_folder_has_active_asset_sql(*, fi_alias: str = "fi") -> str:
     """Require a registered folder row that contains at least one active asset."""
     separator = os.sep.replace("'", "''")

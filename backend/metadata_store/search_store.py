@@ -12,22 +12,41 @@ from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
 from ..metadata_extract import contains_cjk
 from ._db import _DB_LOCK, _connect
 from ._schema import initialize_database
-from .identity import active_catalog_file_sql, catalog_folder_has_active_asset_sql, current_file_metadata_sql
-from .path_utils import named_path_scope_sql, path_scope_sql
-
-
-def _metadata_store_build_album_metadata(path: Path) -> dict[str, Any]:
-    from . import build_album_metadata
-
-    return build_album_metadata(path)
-
+from .browse_store import catalog_folder_aggregates_conn
+from .identity import (
+    asset_owns_file_index_sql,
+    catalog_folder_has_active_asset_sql,
+    catalog_import_path_owns_sql,
+    file_index_matches_image_metadata_sql,
+)
+from .path_utils import canonicalize_catalog_path, named_path_scope_sql, path_scope_sql
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 ALBUM_SUGGESTION_LIMIT = 12
-_CURRENT_METADATA_SQL = current_file_metadata_sql(fi_alias="fi", im_alias="m")
-_ACTIVE_FILE_SQL = active_catalog_file_sql(fi_alias="fi")
+_CURRENT_METADATA_IDENTITY_SQL = file_index_matches_image_metadata_sql(fi_alias="fi", im_alias="m")
 _CATALOG_FOLDER_SQL = catalog_folder_has_active_asset_sql(fi_alias="fi")
+
+
+def _active_asset_join_sql(*, fi_alias: str = "fi", asset_alias: str = "catalog_asset") -> str:
+    ownership = asset_owns_file_index_sql(asset_alias=asset_alias, fi_alias=fi_alias)
+    import_ownership = catalog_import_path_owns_sql(
+        library_id_sql=f"{asset_alias}.library_id",
+        path_sql=f"{fi_alias}.path",
+    )
+    return (
+        f"JOIN assets AS {asset_alias} ON {ownership} "
+        f"JOIN libraries AS catalog_library ON catalog_library.id = {asset_alias}.library_id "
+        f"AND {import_ownership}"
+    )
+
+
+def _folder_owner_join_sql(*, fi_alias: str = "fi") -> str:
+    import_ownership = catalog_import_path_owns_sql(
+        library_id_sql=f"{fi_alias}.library_id",
+        path_sql=f"{fi_alias}.path",
+    )
+    return f"JOIN libraries AS catalog_library ON catalog_library.id = {fi_alias}.library_id AND {import_ownership}"
 
 
 def _escape_fts_token(token: str) -> str:
@@ -56,8 +75,8 @@ def _like_escape(value: str) -> str:
 
 def _folder_relative_path(parent_path: str, root: Path) -> str:
     try:
-        relative = Path(parent_path).resolve().relative_to(root)
-    except (OSError, ValueError):
+        relative = Path(canonicalize_catalog_path(parent_path)).relative_to(canonicalize_catalog_path(root))
+    except ValueError:
         return ""
     if str(relative) == ".":
         return ""
@@ -87,7 +106,12 @@ def _scope_clause(scope: str, root_path: str | Path | None, alias: str = "fi") -
     return clause, params, root
 
 
-def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str) -> list[dict[str, Any]]:
+def _format_file_index_rows(
+    rows: list[sqlite3.Row],
+    root: Path,
+    match_type: str,
+    folder_aggregates: dict[tuple[int, str], tuple[bool, int, list[str]]],
+) -> list[dict[str, Any]]:
     seen: set[str] = set()
     results: list[dict[str, Any]] = []
     for row in rows:
@@ -105,16 +129,17 @@ def _format_file_index_rows(rows: list[sqlite3.Row], root: Path, match_type: str
             "height": row["height"],
             "duration_ms": _optional_row_value(row, "duration_ms"),
             "mime_type": _optional_row_value(row, "mime_type"),
+            "library_id": int(row["library_id"]),
+            "library_name": str(row["library_name"]),
         }
         if row["type"] == "folder":
-            resolved_path = Path(row["path"]).resolve()
-            if resolved_path.exists() and resolved_path.is_dir():
-                meta = _metadata_store_build_album_metadata(resolved_path)
-                result["cover_images"] = meta["cover_images"]
-                result["image_count"] = meta["image_count"]
-            else:
-                result["cover_images"] = []
-                result["image_count"] = 0
+            has_children, image_count, cover_images = folder_aggregates.get(
+                (int(row["library_id"]), str(row["path"])),
+                (False, 0, []),
+            )
+            result["cover_images"] = cover_images
+            result["image_count"] = image_count
+            result["has_children"] = has_children
         result.update(
             {
                 "match_type": match_type,
@@ -146,21 +171,23 @@ def _search_file_index_fts(
     scope_sql, scope_params, root = _scope_clause(scope, root_path, "fi")
     type_sql = "fi.type IN ('image', 'photo')" if file_type in {"image", "photo"} else "fi.type = ?"
     type_params = [] if file_type in {"image", "photo"} else [file_type]
-    catalog_sql = _CATALOG_FOLDER_SQL if file_type == "folder" else _ACTIVE_FILE_SQL
+    is_folder = file_type == "folder"
+    catalog_sql = _CATALOG_FOLDER_SQL if is_folder else "1=1"
+    owner_join = _folder_owner_join_sql() if is_folder else _active_asset_join_sql()
+    duration_sql = "NULL" if is_folder else "catalog_asset.duration_ms"
+    mime_type_sql = "NULL" if is_folder else "catalog_asset.mime_type"
     try:
         match_query = _unicode_match_query(query)
         rows = list(
             conn.execute(
                 f"""
                 SELECT fi.*,
-                       (SELECT a.duration_ms FROM assets a
-                        WHERE a.path = fi.path AND a.duration_ms IS NOT NULL
-                        LIMIT 1) AS duration_ms,
-                       (SELECT a.mime_type FROM assets a
-                        WHERE a.path = fi.path AND a.mime_type IS NOT NULL
-                        LIMIT 1) AS mime_type
+                       catalog_library.name AS library_name,
+                       {duration_sql} AS duration_ms,
+                       {mime_type_sql} AS mime_type
                 FROM file_index_fts fts
                 JOIN file_index fi ON fi.path = fts.path
+                {owner_join}
                 WHERE fts MATCH ? AND {type_sql} AND {catalog_sql} {scope_sql}
                 ORDER BY bm25(file_index_fts) ASC, fi.mtime DESC, fi.name ASC
                 LIMIT ?
@@ -179,13 +206,11 @@ def _search_file_index_fts(
         conn.execute(
             f"""
             SELECT fi.*,
-                   (SELECT a.duration_ms FROM assets a
-                    WHERE a.path = fi.path AND a.duration_ms IS NOT NULL
-                    LIMIT 1) AS duration_ms,
-                   (SELECT a.mime_type FROM assets a
-                    WHERE a.path = fi.path AND a.mime_type IS NOT NULL
-                    LIMIT 1) AS mime_type
+                   catalog_library.name AS library_name,
+                   {duration_sql} AS duration_ms,
+                   {mime_type_sql} AS mime_type
             FROM file_index fi
+            {owner_join}
             WHERE fi.name LIKE ? ESCAPE '\\' AND {type_sql} AND {catalog_sql} {scope_sql}
             ORDER BY fi.mtime DESC, fi.name ASC
             LIMIT ?
@@ -254,6 +279,9 @@ def _format_media_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, An
                 "model": row["model"] or "",
                 "sampler": row["sampler"] or "",
                 "seed": row["seed"] or "",
+                "asset_id": int(row["asset_id"]),
+                "library_id": int(row["library_id"]),
+                "library_name": str(row["library_name"]),
             }
         )
     return results
@@ -281,6 +309,9 @@ def _format_rows(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
             "sampler": row["sampler"] or "",
             "seed": row["seed"] or "",
             "prompt_snippet": _snippet(row),
+            "asset_id": int(row["asset_id"]),
+            "library_id": int(row["library_id"]),
+            "library_name": str(row["library_name"]),
         }
         for row in rows
     ]
@@ -290,11 +321,15 @@ def _search_fts(
     conn: sqlite3.Connection, table: str, bm25_table: str, match_query: str, limit: int, offset: int
 ) -> list[sqlite3.Row]:
     sql = f"""
-        SELECT m.*, bm25({bm25_table}) AS rank
+        SELECT m.*, bm25({bm25_table}) AS rank,
+               catalog_asset.id AS asset_id,
+               catalog_asset.library_id AS library_id,
+               catalog_library.name AS library_name
         FROM {table}
         JOIN image_metadata m ON m.id = {table}.rowid
         JOIN file_index fi ON fi.path = m.path
-        WHERE {table} MATCH ? AND {_CURRENT_METADATA_SQL}
+        {_active_asset_join_sql()}
+        WHERE {table} MATCH ? AND {_CURRENT_METADATA_IDENTITY_SQL}
         ORDER BY rank ASC, m.mtime DESC, m.name ASC
         LIMIT ? OFFSET ?
     """
@@ -307,7 +342,8 @@ def _count_fts(conn: sqlite3.Connection, table: str, match_query: str) -> int:
             FROM {table}
             JOIN image_metadata m ON m.id = {table}.rowid
             JOIN file_index fi ON fi.path = m.path
-            WHERE {table} MATCH ? AND {_CURRENT_METADATA_SQL}""",
+            {_active_asset_join_sql()}
+            WHERE {table} MATCH ? AND {_CURRENT_METADATA_IDENTITY_SQL}""",
         (match_query,),
     ).fetchone()
     return int(row["total"] if row else 0)
@@ -317,10 +353,14 @@ def _search_like(conn: sqlite3.Connection, query: str, limit: int, offset: int) 
     pattern = _like_pattern(query)
     where = " OR ".join(f"m.{field} LIKE ? ESCAPE '\\'" for field in SEARCH_FIELDS)
     sql = f"""
-        SELECT m.*
+        SELECT m.*,
+               catalog_asset.id AS asset_id,
+               catalog_asset.library_id AS library_id,
+               catalog_library.name AS library_name
         FROM image_metadata m
         JOIN file_index fi ON fi.path = m.path
-        WHERE ({where}) AND {_CURRENT_METADATA_SQL}
+        {_active_asset_join_sql()}
+        WHERE ({where}) AND {_CURRENT_METADATA_IDENTITY_SQL}
         ORDER BY m.mtime DESC, m.name ASC
         LIMIT ? OFFSET ?
     """
@@ -334,7 +374,8 @@ def _count_like(conn: sqlite3.Connection, query: str) -> int:
         f"""SELECT count(*) AS total
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
-            WHERE ({where}) AND {_CURRENT_METADATA_SQL}""",
+            {_active_asset_join_sql()}
+            WHERE ({where}) AND {_CURRENT_METADATA_IDENTITY_SQL}""",
         [pattern] * len(SEARCH_FIELDS),
     ).fetchone()
     return int(row["total"] if row else 0)
@@ -354,10 +395,10 @@ def _media_file_select(
         source_sql = f"""
             FROM file_index_fts fts
             JOIN file_index fi ON fi.path = fts.path
+            {_active_asset_join_sql()}
             {extra_join}
             WHERE fts MATCH :filename_match
               AND {type_sql}
-              AND {_ACTIVE_FILE_SQL}
               {scope_sql}
               {extra_where}
         """
@@ -365,10 +406,10 @@ def _media_file_select(
     else:
         source_sql = f"""
             FROM file_index fi
+            {_active_asset_join_sql()}
             {extra_join}
             WHERE fi.name LIKE :filename_like ESCAPE '\\'
               AND {type_sql}
-              AND {_ACTIVE_FILE_SQL}
               {scope_sql}
               {extra_where}
         """
@@ -383,12 +424,11 @@ def _media_file_select(
           fi.mtime AS mtime,
           fi.width AS width,
           fi.height AS height,
-          (SELECT a.duration_ms FROM assets a
-           WHERE a.path = fi.path AND a.duration_ms IS NOT NULL
-           LIMIT 1) AS duration_ms,
-          (SELECT a.mime_type FROM assets a
-           WHERE a.path = fi.path AND a.mime_type IS NOT NULL
-           LIMIT 1) AS mime_type,
+          catalog_asset.duration_ms AS duration_ms,
+          catalog_asset.mime_type AS mime_type,
+          catalog_asset.id AS asset_id,
+          catalog_asset.library_id AS library_id,
+          catalog_library.name AS library_name,
           {section_order} AS section_order,
           {rank_sql} AS rank,
           'filename' AS match_type,
@@ -412,8 +452,9 @@ def _media_prompt_select(
             FROM image_metadata_fts fts
             JOIN image_metadata m ON m.id = fts.rowid
             JOIN file_index fi ON fi.path = m.path
+            {_active_asset_join_sql()}
             WHERE image_metadata_fts MATCH :prompt_match
-              AND {_CURRENT_METADATA_SQL}
+              AND {_CURRENT_METADATA_IDENTITY_SQL}
               {scope_sql}
               {extra_where}
         """
@@ -423,8 +464,9 @@ def _media_prompt_select(
             FROM image_metadata_fts_trigram fts
             JOIN image_metadata m ON m.id = fts.rowid
             JOIN file_index fi ON fi.path = m.path
+            {_active_asset_join_sql()}
             WHERE image_metadata_fts_trigram MATCH :prompt_match
-              AND {_CURRENT_METADATA_SQL}
+              AND {_CURRENT_METADATA_IDENTITY_SQL}
               {scope_sql}
               {extra_where}
         """
@@ -433,8 +475,9 @@ def _media_prompt_select(
         source_sql = f"""
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
+            {_active_asset_join_sql()}
             WHERE 1=1
-              AND {_CURRENT_METADATA_SQL}
+              AND {_CURRENT_METADATA_IDENTITY_SQL}
               {scope_sql}
               {extra_where}
         """
@@ -444,8 +487,9 @@ def _media_prompt_select(
         source_sql = f"""
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
+            {_active_asset_join_sql()}
             WHERE ({prompt_where})
-              AND {_CURRENT_METADATA_SQL}
+              AND {_CURRENT_METADATA_IDENTITY_SQL}
               {scope_sql}
               {extra_where}
         """
@@ -462,6 +506,9 @@ def _media_prompt_select(
           m.height AS height,
           NULL AS duration_ms,
           NULL AS mime_type,
+          catalog_asset.id AS asset_id,
+          catalog_asset.library_id AS library_id,
+          catalog_library.name AS library_name,
           {section_order} AS section_order,
           {rank_sql} AS rank,
           'prompt' AS match_type,
@@ -497,7 +544,8 @@ def _count_filename_matches(
             SELECT count(*) AS total
             FROM file_index_fts fts
             JOIN file_index fi ON fi.path = fts.path
-            WHERE fts MATCH ? AND {type_sql} AND {_ACTIVE_FILE_SQL} {scope_sql}
+            {_active_asset_join_sql()}
+            WHERE fts MATCH ? AND {type_sql} {scope_sql}
             """,
             [match_query, *type_params, *scope_params],
         ).fetchone()
@@ -512,7 +560,8 @@ def _count_filename_matches(
         f"""
         SELECT count(*) AS total
         FROM file_index fi
-        WHERE fi.name LIKE ? ESCAPE '\\' AND {type_sql} AND {_ACTIVE_FILE_SQL} {scope_sql}
+        {_active_asset_join_sql()}
+        WHERE fi.name LIKE ? ESCAPE '\\' AND {type_sql} {scope_sql}
         """,
         [pattern, *type_params, *scope_params],
     ).fetchone()
@@ -529,7 +578,8 @@ def _prompt_match_kind(conn: sqlite3.Connection, query: str, scope: str, root_pa
                 FROM image_metadata_fts_trigram fts
                 JOIN image_metadata m ON m.id = fts.rowid
                 JOIN file_index fi ON fi.path = m.path
-                WHERE image_metadata_fts_trigram MATCH ? AND {_CURRENT_METADATA_SQL} {scope_sql}
+                {_active_asset_join_sql()}
+                WHERE image_metadata_fts_trigram MATCH ? AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql}
                 """,
                 [_trigram_match_query(query), *scope_params],
             ).fetchone()
@@ -542,7 +592,8 @@ def _prompt_match_kind(conn: sqlite3.Connection, query: str, scope: str, root_pa
                 FROM image_metadata_fts fts
                 JOIN image_metadata m ON m.id = fts.rowid
                 JOIN file_index fi ON fi.path = m.path
-                WHERE image_metadata_fts MATCH ? AND {_CURRENT_METADATA_SQL} {scope_sql}
+                {_active_asset_join_sql()}
+                WHERE image_metadata_fts MATCH ? AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql}
                 """,
                 [_unicode_match_query(query), *scope_params],
             ).fetchone()
@@ -671,9 +722,12 @@ def _search_fielded_media_page(
                 SELECT m.path
                 FROM image_metadata m
                 JOIN file_index fi ON fi.path = m.path
+                __ACTIVE_ASSET_JOIN__
                 WHERE __FIELD_WHERE__ AND __CURRENT_METADATA__
             )
-            """.replace("__FIELD_WHERE__", field_where).replace("__CURRENT_METADATA__", _CURRENT_METADATA_SQL)
+            """.replace("__ACTIVE_ASSET_JOIN__", _active_asset_join_sql())
+            .replace("__FIELD_WHERE__", field_where)
+            .replace("__CURRENT_METADATA__", _CURRENT_METADATA_IDENTITY_SQL)
         )
         params["filename_like"] = _like_pattern(residual)
         selects.append(
@@ -777,6 +831,10 @@ def search_index(
             )
         else:
             album_rows = []
+        album_aggregates = catalog_folder_aggregates_conn(
+            conn,
+            [(int(row["library_id"]), str(row["path"])) for row in album_rows],
+        )
         media_rows, root, has_more = _search_media_page(conn, trimmed, normalized_scope, root_path, limit, cursor)
 
     format_root = root if root is not None else Path(os.sep)
@@ -787,7 +845,7 @@ def search_index(
         "query": query,
         "scope": normalized_scope,
         "root": str(format_root),
-        "albums": _format_file_index_rows(album_rows, format_root, "filename"),
+        "albums": _format_file_index_rows(album_rows, format_root, "filename", album_aggregates),
         "photos": page_photos,
         "videos": page_videos,
         "prompt": page_prompt,
@@ -850,6 +908,10 @@ def search_index_fielded(
             )
         else:
             album_rows = []
+        album_aggregates = catalog_folder_aggregates_conn(
+            conn,
+            [(int(row["library_id"]), str(row["path"])) for row in album_rows],
+        )
         media_rows, root, has_more = _search_fielded_media_page(
             conn, parsed, normalized_scope, root_path, limit, cursor
         )
@@ -862,7 +924,7 @@ def search_index_fielded(
         "query": query,
         "scope": normalized_scope,
         "root": str(format_root),
-        "albums": _format_file_index_rows(album_rows, format_root, "filename"),
+        "albums": _format_file_index_rows(album_rows, format_root, "filename", album_aggregates),
         "photos": page_photos,
         "videos": page_videos,
         "prompt": page_prompt,

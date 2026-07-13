@@ -162,6 +162,31 @@ def _browse_folder_counts_batch_conn(
     }
 
 
+def catalog_folder_aggregates_conn(
+    conn: sqlite3.Connection,
+    folders: list[tuple[int, str]],
+    *,
+    include_offline: bool = False,
+) -> dict[tuple[int, str], tuple[bool, int, list[str]]]:
+    """Return browse-equivalent direct folder counts and covers in bounded batches."""
+    grouped: dict[int, list[str]] = {}
+    for library_id, folder_path in folders:
+        paths = grouped.setdefault(library_id, [])
+        if folder_path not in paths:
+            paths.append(folder_path)
+
+    aggregates: dict[tuple[int, str], tuple[bool, int, list[str]]] = {}
+    for library_id, folder_paths in grouped.items():
+        values = _browse_folder_counts_batch_conn(
+            conn,
+            library_id,
+            folder_paths,
+            include_offline=include_offline,
+        )
+        aggregates.update({(library_id, path): aggregate for path, aggregate in values.items()})
+    return aggregates
+
+
 def _catalog_browse_virtual_root_conn(
     conn: sqlite3.Connection,
     library: sqlite3.Row,

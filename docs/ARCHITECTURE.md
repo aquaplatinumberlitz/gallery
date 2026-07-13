@@ -541,13 +541,25 @@ Header search or AdvancedSearchDrawer
   `returned`, and `limit`. Legacy `albums`, `photos`, `videos`, and `prompt`
   fields remain for compatibility; the active gallery search UI renders
   `media`.
-- Album suggestions are returned only on the first search page.
+- Media rows are joined to their active asset, registered library, and import
+  path ownership in SQLite and include `asset_id`, `library_id`, and
+  `library_name`. Search does not perform per-result path resolution or
+  existence checks.
+- Album suggestions are returned only on the first search page. Their direct
+  image count, three newest direct covers, and child visibility reuse the same
+  bounded catalog aggregation as DB-first browse; search never enumerates the
+  source directory.
+- Watcher, scan, offline-asset, and integrity workflows reconcile stale catalog
+  state. Search reflects the current catalog snapshot and never schedules
+  cleanup from a response.
 - Fielded queries are parsed server-side, for example `prompt:"blue hair"`, `seed:12345`, `model:pony`, `steps:>25`, `width:>=1024`.
 - Fielded search keeps metadata filters scoped to filterable image/prompt
   media; filename-only videos are not returned for fielded queries unless a
   future video metadata index supports the same predicates.
 - The shared Advanced Search drawer is owned by `App.vue`, uses TanStack Form and `/api/facets`, and builds the same fielded query syntax from desktop, tablet, and mobile headers. It renders as a right sheet on tablet/desktop and a full-width sheet on compact mobile viewports.
-- `GET /api/search-metadata` remains available for older callers, but the main gallery UI uses `/api/search`.
+- `GET /api/search-metadata` remains available for older callers, returns the
+  catalog-filtered global total, and follows the same DB-only response policy;
+  the main gallery UI uses `/api/search`.
 - Desktop/tablet gallery sorting uses `SortSelect.vue`, a local shadcn-vue Select wrapper. `MobileHeader.vue` still uses `SortDropdown.vue`.
 
 ### Library Inspector

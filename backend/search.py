@@ -125,7 +125,7 @@ async def api_search_metadata(
     limit: int = Query(100, ge=1, le=200, description="Maximum search results"),
     offset: int = Query(0, ge=0, description="Result offset"),
 ):
-    """Search extracted image metadata and return path-safe results."""
+    """Search current catalog-owned image metadata without filesystem probes."""
     if not q.strip():
         return {"query": q, "total": 0, "results": []}
 
@@ -135,14 +135,7 @@ async def api_search_metadata(
         LOGGER.exception("Metadata search failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
-    safe_results, stale_paths = await run_in_threadpool(_filter_safe_paths, data["results"])
-    if stale_paths:
-        _schedule_stale_cleanup(stale_paths)
-    return {
-        "query": data["query"],
-        "total": len(safe_results),
-        "results": safe_results,
-    }
+    return data
 
 
 @router.get("/api/search")
@@ -187,33 +180,18 @@ async def api_search(
         LOGGER.exception("Search failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
-    stale_paths: set[str] = set()
-    albums, stale = await run_in_threadpool(_filter_safe_paths, data["albums"])
-    stale_paths.update(stale)
-    photos, stale = await run_in_threadpool(_filter_safe_paths, data["photos"])
-    stale_paths.update(stale)
-    videos, stale = await run_in_threadpool(_filter_safe_paths, data.get("videos", []))
-    stale_paths.update(stale)
-    prompt, stale = await run_in_threadpool(_filter_safe_paths, data["prompt"])
-    stale_paths.update(stale)
-    media, stale = await run_in_threadpool(_filter_safe_paths, data.get("media", []))
-    stale_paths.update(stale)
-
-    if stale_paths:
-        _schedule_stale_cleanup(stale_paths)
-
     return {
         "query": data["query"],
         "scope": data["scope"],
         "root": data["root"],
-        "albums": albums,
-        "photos": photos,
-        "videos": videos,
-        "prompt": prompt,
-        "media": media,
+        "albums": data["albums"],
+        "photos": data["photos"],
+        "videos": data.get("videos", []),
+        "prompt": data["prompt"],
+        "media": data.get("media", []),
         "next_cursor": data.get("next_cursor"),
-        "has_more": data.get("next_cursor") is not None,
-        "returned": len(media),
+        "has_more": bool(data.get("has_more")),
+        "returned": int(data.get("returned", len(data.get("media", [])))),
         "limit": data.get("limit", limit),
     }
 
