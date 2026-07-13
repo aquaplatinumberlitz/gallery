@@ -352,6 +352,35 @@ def enqueue_startup_catalog_scans(*, priority: int = 10) -> list[dict[str, Any]]
     return jobs
 
 
+def order_library_ids_for_scheduled_refresh(library_ids: list[int]) -> list[int]:
+    """Order eligible libraries by durable scheduled-job recency and ID."""
+    if not library_ids:
+        return []
+    _initialize_database()
+    placeholders = ",".join("?" for _ in library_ids)
+    with _DB_LOCK, _connect() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT l.id, max(j.created_at) AS last_scheduled_at
+            FROM libraries AS l
+            LEFT JOIN library_jobs AS j
+              ON j.library_id = l.id
+             AND j.type = 'scan'
+             AND j.trigger = 'scheduled'
+            WHERE l.id IN ({placeholders})
+            GROUP BY l.id
+            ORDER BY last_scheduled_at IS NOT NULL ASC,
+                     last_scheduled_at ASC,
+                     l.id ASC
+            """,
+            library_ids,
+        ).fetchall()
+    ordered = [int(row["id"]) for row in rows]
+    seen = set(ordered)
+    ordered.extend(sorted(library_id for library_id in library_ids if library_id not in seen))
+    return ordered
+
+
 def update_job_state(
     job_id: int,
     state: str,

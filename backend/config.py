@@ -216,7 +216,7 @@ ENABLE_FILE_WATCHER = _env_flag(
 )
 WATCHER_ROOTS = [p.strip() for p in os.getenv("WATCHER_ROOTS", "").split(",") if p.strip()]
 WATCHER_DEBOUNCE_SECONDS = max(
-    0.0,
+    0.1,
     float(os.getenv("GALLERY_CATALOG_WATCHER_DEBOUNCE_SECONDS", os.getenv("WATCHER_DEBOUNCE_SECONDS", "2.0"))),
 )
 WATCHER_MAX_EVENTS_PER_TICK = max(1, int(os.getenv("WATCHER_MAX_EVENTS_PER_TICK", "500")))

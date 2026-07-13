@@ -71,10 +71,8 @@ def _record_event(kind: str) -> None:
 class _DebouncedHandler:
     def __init__(self, roots: list[str]) -> None:
         self.affected_folders: dict[str, float] = {}
-        self.affected_image_paths: dict[str, float] = {}
         self.lock = threading.Lock()
         self.roots = roots
-        self._last_cleanup = 0.0
 
     def _record_path(self, path_str: str, *, is_directory: bool, event_type: str) -> None:
         path = Path(path_str)
@@ -84,20 +82,15 @@ class _DebouncedHandler:
             if event_type == "modified":
                 return
             folder = str(path.parent)
-            image_path: str | None = None
-        elif is_asset_path(path):
+        elif is_asset_path(path) or (
+            path.suffix.lower() == ".txt" and any(path.with_suffix(ext).is_file() for ext in IMAGE_EXTENSIONS)
+        ):
             folder = str(path.parent)
-            image_path = path_str
-        elif path.suffix.lower() == ".txt" and any(path.with_suffix(ext).is_file() for ext in IMAGE_EXTENSIONS):
-            folder = str(path.parent)
-            image_path = None
         else:
             return
         now = time.time()
         with self.lock:
             self.affected_folders[folder] = now
-            if image_path is not None:
-                self.affected_image_paths[image_path] = now
 
     def handle_event(self, event: Any) -> None:
         kind = "unknown"
@@ -128,27 +121,18 @@ class _DebouncedHandler:
         for path_str in path_strings:
             self._record_path(path_str, is_directory=is_directory, event_type=kind)
 
-    def get_and_clear_debounced(self) -> list[str]:
+    def get_and_clear_debounced(self, max_count: int = WATCHER_MAX_EVENTS_PER_TICK) -> list[str]:
+        """Drain at most max_count ready folders in deterministic debounce order."""
         now = time.time()
         cutoff = now - WATCHER_DEBOUNCE_SECONDS
         with self.lock:
-            ready = [f for f, t in self.affected_folders.items() if t <= cutoff]
+            ready = [
+                folder
+                for folder, _timestamp in sorted(self.affected_folders.items(), key=lambda item: (item[1], item[0]))
+                if _timestamp <= cutoff
+            ][:max_count]
             for f in ready:
                 del self.affected_folders[f]
-            if now - self._last_cleanup > 60:
-                for f in list(self.affected_folders):
-                    if self.affected_folders[f] < now - 300:
-                        del self.affected_folders[f]
-                self._last_cleanup = now
-        return ready
-
-    def get_and_clear_debounced_image_paths(self) -> list[str]:
-        now = time.time()
-        cutoff = now - WATCHER_DEBOUNCE_SECONDS
-        with self.lock:
-            ready = [p for p, t in self.affected_image_paths.items() if t <= cutoff]
-            for p in ready:
-                del self.affected_image_paths[p]
         return ready
 
 
@@ -182,14 +166,10 @@ def _watcher_loop(roots: list[str] | None = None) -> None:
     try:
         while not _watcher_stop.is_set():
             _watcher_stop.wait(WATCHER_DEBOUNCE_SECONDS)
-            ready = handler.get_and_clear_debounced()
-            tick_count = 0
+            ready = handler.get_and_clear_debounced(WATCHER_MAX_EVENTS_PER_TICK)
             for folder in ready:
-                if tick_count >= WATCHER_MAX_EVENTS_PER_TICK:
-                    break
                 try:
                     queue_watcher_scan(folder)
-                    tick_count += 1
                 except Exception as exc:  # noqa: BLE001
                     LOGGER.warning("Watcher scan queue failed for %s: %s", folder, exc)
     finally:

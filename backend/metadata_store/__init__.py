@@ -161,6 +161,9 @@ from .job_store import (
     list_jobs as list_jobs,
 )
 from .job_store import (
+    order_library_ids_for_scheduled_refresh as order_library_ids_for_scheduled_refresh,
+)
+from .job_store import (
     recover_stale_jobs as recover_stale_jobs,
 )
 from .job_store import (

@@ -318,6 +318,8 @@ Backend modules are mostly flat, with selected domain packages.
 - Registered libraries store ordered roots in `library_import_paths`. Relative globstar exclusions live in `library_exclusion_patterns`.
 - `/api/browse` is the read-only catalog query endpoint. It accepts `library_id`, `path`, `cursor`, `limit`, and `include_offline`. The response contains `folders`, `media`, `next_cursor`, legacy alias `next_media_cursor`, `total_images`, `total_videos`, `total_assets`, `request_path`, `index_source`, `library_id`, and `path`. Image media rows also include `derivative_ready` for thumbnail/preview readiness; the frontend treats this as a loading/preload hint, not visible user-facing status. Catalog update and status are managed through library endpoints; imported-data clear, rebuild, and catalog reset are managed through maintenance endpoints.
 - Catalog scan workers, the DB-claim metadata lifecycle worker, the derivative scheduler, and the integrity checker run as background services. The catalog watcher and scheduled reconciliation are enabled by default for registered libraries.
+- The catalog service owns a supervisor thread. It restores the configured worker count and recovers orphaned runtime work independently of status traffic; library and maintenance GET endpoints only observe worker and queue state.
+- Scheduled reconciliation orders eligible libraries by oldest durable scheduled-job timestamp, with never-scheduled libraries first, so bounded ticks remain fair. Watcher drains are deterministic and bounded; overflow stays pending for the next tick.
 
 ## Frontend
 

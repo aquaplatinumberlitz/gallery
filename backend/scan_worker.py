@@ -41,10 +41,15 @@ from .metadata_store import (
 LOGGER = logging.getLogger(__name__)
 
 _worker_threads: list[threading.Thread] = []
+_supervisor_thread: threading.Thread | None = None
 _service_lock = threading.RLock()
 _wake_event = threading.Event()
 _stop_event = threading.Event()
 _shutdown_incomplete = False
+_last_supervisor_check_at: float | None = None
+_last_supervisor_recovered_jobs = 0
+_supervisor_failures = 0
+_SUPERVISOR_INTERVAL_SECONDS = 1.0
 
 TRIGGER_PRIORITIES = {
     "initial": 100,
@@ -130,6 +135,18 @@ def _spawn_missing_workers_locked() -> None:
         )
         _worker_threads.append(thread)
         thread.start()
+
+
+def _spawn_supervisor_locked() -> None:
+    global _supervisor_thread
+    if _supervisor_thread is not None and _supervisor_thread.is_alive():
+        return
+    _supervisor_thread = threading.Thread(
+        target=_supervisor_loop,
+        name="gallery-catalog-supervisor",
+        daemon=True,
+    )
+    _supervisor_thread.start()
 
 
 def notify_workers() -> None:
@@ -490,6 +507,18 @@ def _worker_loop() -> None:
         _wake_event.clear()
 
 
+def _supervisor_loop() -> None:
+    global _last_supervisor_check_at, _last_supervisor_recovered_jobs, _supervisor_failures
+    while not _stop_event.wait(_SUPERVISOR_INTERVAL_SECONDS):
+        try:
+            result = ensure_running(service_enabled=GALLERY_CATALOG_SERVICE_ENABLED)
+            _last_supervisor_check_at = time.time()
+            _last_supervisor_recovered_jobs = int(result["recovered_jobs"])
+        except Exception:  # noqa: BLE001
+            _supervisor_failures += 1
+            LOGGER.exception("Catalog supervisor iteration failed")
+
+
 def start() -> None:
     """Start bounded in-process catalog workers."""
     with _service_lock:
@@ -499,6 +528,7 @@ def start() -> None:
             return
         if alive:
             _spawn_missing_workers_locked()
+            _spawn_supervisor_locked()
             return
         # Recover orphaned running jobs before spawning workers
         recovered_jobs = recover_stale_jobs()
@@ -506,6 +536,7 @@ def start() -> None:
             LOGGER.warning("Recovered orphaned catalog job %s after server restart", job["id"])
         _emit_recovered_jobs(recovered_jobs)
         _spawn_missing_workers_locked()
+        _spawn_supervisor_locked()
         notify_workers()
 
 
@@ -555,24 +586,37 @@ def stop() -> None:
     _wake_event.set()
     deadline = time.monotonic() + CATALOG_SHUTDOWN_TIMEOUT_SECONDS
     with _service_lock:
-        threads = list(_worker_threads)
-        for thread in threads:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                break
-            thread.join(timeout=remaining)
+        threads = [*_worker_threads]
+        if _supervisor_thread is not None:
+            threads.append(_supervisor_thread)
+    for thread in threads:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        thread.join(timeout=remaining)
+    with _service_lock:
         alive = _prune_worker_threads_locked()
-        _shutdown_incomplete = bool(alive)
-        if alive:
-            LOGGER.warning("Catalog shutdown timed out with %s worker(s) still running", len(alive))
+        supervisor_alive = bool(_supervisor_thread and _supervisor_thread.is_alive())
+        _shutdown_incomplete = bool(alive or supervisor_alive)
+        if _shutdown_incomplete:
+            LOGGER.warning(
+                "Catalog shutdown timed out with %s worker(s) and supervisor_alive=%s",
+                len(alive),
+                supervisor_alive,
+            )
 
 
 def runtime_status() -> dict[str, int]:
     """Return catalog worker runtime counts."""
     with _service_lock:
-        active = _prune_worker_threads_locked()
         return {
             "worker_count": GALLERY_CATALOG_WORKERS,
-            "alive_workers": len(active),
+            "alive_workers": sum(1 for thread in _worker_threads if thread.is_alive()),
             "shutdown_incomplete": int(_shutdown_incomplete),
+            "supervisor_alive": int(bool(_supervisor_thread and _supervisor_thread.is_alive())),
+            "supervisor_last_check_at": int(_last_supervisor_check_at * 1000)
+            if _last_supervisor_check_at is not None
+            else 0,
+            "supervisor_last_recovered_jobs": _last_supervisor_recovered_jobs,
+            "supervisor_failures": _supervisor_failures,
         }

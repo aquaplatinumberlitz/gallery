@@ -142,46 +142,6 @@ def test_future_enable_path_documented():
     assert "max_events_per_tick" in status
 
 
-def test_handler_tracks_image_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
-
-    handler = watcher._DebouncedHandler(roots=[str(tmp_path)])
-
-    class FakeCreateEvent:
-        src_path = str(tmp_path / "new.jpg")
-        event_type = "created"
-
-    class FakeTxtEvent:
-        src_path = str(tmp_path / "readme.txt")
-        event_type = "created"
-
-    handler.handle_event(FakeCreateEvent())
-    handler.handle_event(FakeTxtEvent())
-    time.sleep(0.02)
-
-    ready_paths = handler.get_and_clear_debounced_image_paths()
-    assert str(tmp_path / "new.jpg") in ready_paths
-    assert str(tmp_path / "readme.txt") not in ready_paths
-
-
-def test_watcher_image_event_is_tracked_without_direct_metadata_staging(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.01)
-
-    from backend.watcher import _DebouncedHandler
-
-    handler = _DebouncedHandler(roots=["/test"])
-
-    class FakeEvent:
-        src_path = "/test/album/new_image.png"
-        event_type = "created"
-
-    handler.handle_event(FakeEvent())
-    time.sleep(0.02)
-
-    ready_paths = handler.get_and_clear_debounced_image_paths()
-    assert "/test/album/new_image.png" in ready_paths
-
-
 # ---------------------------------------------------------------------------
 # _DebouncedHandler.handle_event edge cases
 # ---------------------------------------------------------------------------
@@ -245,9 +205,7 @@ def test_non_asset_path_is_ignored(monkeypatch: pytest.MonkeyPatch):
     handler.handle_event(FakeTxtEvent())
     time.sleep(0.02)
     ready_folders = handler.get_and_clear_debounced()
-    ready_paths = handler.get_and_clear_debounced_image_paths()
     assert "/test" not in ready_folders
-    assert "/test/readme.txt" not in ready_paths
 
 
 def test_excluded_paths_are_ignored(monkeypatch: pytest.MonkeyPatch):
@@ -308,24 +266,20 @@ def test_debounce_returns_ready_folders_after_cutoff(monkeypatch: pytest.MonkeyP
     assert "/test/new" not in ready
 
 
-def test_cleanup_removes_stale_entries(monkeypatch: pytest.MonkeyPatch):
+def test_drain_removes_ready_entries(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 2.0)
     handler = watcher._DebouncedHandler(roots=["/test"])
 
     handler.affected_folders["/test/very_old"] = time.time() - 400
-    handler._last_cleanup = time.time() - 120
-
     handler.get_and_clear_debounced()
     assert "/test/very_old" not in handler.affected_folders
 
 
-def test_recent_entries_preserved_after_cleanup(monkeypatch: pytest.MonkeyPatch):
+def test_recent_entries_remain_pending(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 2.0)
     handler = watcher._DebouncedHandler(roots=["/test"])
 
     handler.affected_folders["/test/recent"] = time.time()
-    handler._last_cleanup = time.time() - 120
-
     handler.get_and_clear_debounced()
     assert "/test/recent" in handler.affected_folders
 
@@ -599,21 +553,19 @@ class _StopAfterFirstWait:
         pass
 
 
-def test_stale_cleanup_removes_very_old_entries(monkeypatch: pytest.MonkeyPatch):
-    """Cover the stale-cleanup path (line 116) when entries are not debounce-ready
-    but older than 300 seconds."""
-    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 1000)
+def test_debounce_drain_keeps_overflow_pending(monkeypatch: pytest.MonkeyPatch):
+    """A bounded drain removes only selected ready folders."""
+    monkeypatch.setattr(watcher, "WATCHER_DEBOUNCE_SECONDS", 0.1)
     handler = watcher._DebouncedHandler(roots=["/test"])
-
     now = time.time()
-    handler.affected_folders["/test/stale"] = now - 400  # older than 5 min
-    handler._last_cleanup = now - 120  # older than 60s, triggers cleanup
+    handler.affected_folders = {
+        "/test/b": now - 2,
+        "/test/a": now - 2,
+        "/test/c": now - 1,
+    }
 
-    ready = handler.get_and_clear_debounced()
-    # "/test/stale" should NOT be in ready (timestamp is before cutoff of now-1000)
-    assert "/test/stale" not in ready
-    # But it should have been removed by the stale cleanup
-    assert "/test/stale" not in handler.affected_folders
+    assert handler.get_and_clear_debounced(2) == ["/test/a", "/test/b"]
+    assert handler.get_and_clear_debounced(2) == ["/test/c"]
 
 
 def test_watcher_loop_processes_ready_folders(monkeypatch: pytest.MonkeyPatch):
@@ -713,6 +665,7 @@ def test_watcher_loop_respects_max_events_per_tick(monkeypatch: pytest.MonkeyPat
 
     watcher._watcher_loop()
     assert len(queued) == 1
+    assert "/test/b" in handler.affected_folders
 
 
 def test_watcher_loop_logs_and_continues_on_exception(monkeypatch: pytest.MonkeyPatch):

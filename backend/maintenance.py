@@ -38,7 +38,7 @@ class ResetCatalogRequest(BaseModel):
 
 
 @router.get("/runtime")
-async def get_maintenance_runtime():
+def get_maintenance_runtime():
     """Return global runtime diagnostics and metadata lifecycle counters."""
     global_runtime = build_global_runtime()
     try:

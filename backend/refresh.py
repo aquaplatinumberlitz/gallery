@@ -13,7 +13,7 @@ from .config import (
     SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK,
     SCHEDULED_REFRESH_ROOTS,
 )
-from .metadata_store import list_libraries
+from .metadata_store import list_libraries, order_library_ids_for_scheduled_refresh
 from .scan_worker import queue_scan
 
 LOGGER = logging.getLogger(__name__)
@@ -62,6 +62,9 @@ def _run_refresh_tick() -> None:
                     for import_path in library["import_paths"]
                 )
             ]
+        library_by_id = {int(library["id"]): library for library in libraries}
+        ordered_ids = order_library_ids_for_scheduled_refresh(list(library_by_id))
+        libraries = [library_by_id[library_id] for library_id in ordered_ids]
         tick_count = 0
         for library in libraries[:SCHEDULED_REFRESH_MAX_FOLDERS_PER_TICK]:
             if _refresh_stop.is_set():

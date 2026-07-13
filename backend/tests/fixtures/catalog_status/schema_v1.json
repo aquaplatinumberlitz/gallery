@@ -285,6 +285,10 @@
         "catalog_alive_workers",
         "catalog_active_jobs",
         "catalog_queue_depth",
+        "catalog_supervisor_alive",
+        "catalog_supervisor_last_check_at",
+        "catalog_supervisor_last_recovered_jobs",
+        "catalog_supervisor_failures",
         "metadata_worker_count",
         "metadata_active_jobs",
         "metadata_queue_depth",
@@ -322,6 +326,20 @@
           "minimum": 0
         },
         "catalog_queue_depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "catalog_supervisor_alive": {
+          "type": "boolean"
+        },
+        "catalog_supervisor_last_check_at": {
+          "$ref": "#/$defs/NullableTimestamp"
+        },
+        "catalog_supervisor_last_recovered_jobs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "catalog_supervisor_failures": {
           "type": "integer",
           "minimum": 0
         },

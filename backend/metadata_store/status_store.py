@@ -142,6 +142,10 @@ class GlobalRuntime(TypedDict):
     catalog_alive_workers: int
     catalog_active_jobs: int
     catalog_queue_depth: int
+    catalog_supervisor_alive: bool
+    catalog_supervisor_last_check_at: int | None
+    catalog_supervisor_last_recovered_jobs: int
+    catalog_supervisor_failures: int
     metadata_worker_count: int
     metadata_active_jobs: int
     metadata_queue_depth: int
@@ -813,14 +817,13 @@ def _build_status(
 def build_global_runtime() -> GlobalRuntime:
     """Return process and durable-queue runtime status for one response envelope."""
     initialize_database()
-    from ..config import GALLERY_CATALOG_SERVICE_ENABLED
     from ..derivative_scheduler import scheduler as derivative_scheduler
     from ..indexer import get_indexer_runtime_status
     from ..refresh import get_refresh_status
-    from ..scan_worker import ensure_running, runtime_status
+    from ..scan_worker import runtime_status
     from ..watcher import get_watcher_status
 
-    catalog_runtime = ensure_running(service_enabled=True) if GALLERY_CATALOG_SERVICE_ENABLED else runtime_status()
+    catalog_runtime = runtime_status()
     derivative_reconcile = derivative_scheduler.reconciliation_status()
 
     with _DB_LOCK, _connect() as conn:
@@ -893,6 +896,10 @@ def build_global_runtime() -> GlobalRuntime:
         "catalog_alive_workers": int(catalog_runtime["alive_workers"]),
         "catalog_active_jobs": catalog_running,
         "catalog_queue_depth": catalog_queued,
+        "catalog_supervisor_alive": bool(catalog_runtime["supervisor_alive"]),
+        "catalog_supervisor_last_check_at": int(catalog_runtime["supervisor_last_check_at"]) or None,
+        "catalog_supervisor_last_recovered_jobs": int(catalog_runtime["supervisor_last_recovered_jobs"]),
+        "catalog_supervisor_failures": int(catalog_runtime["supervisor_failures"]),
         "metadata_worker_count": int(metadata_runtime["worker_count"]),
         "metadata_active_jobs": int(metadata_runtime["active_jobs"]),
         "metadata_queue_depth": int(metadata_runtime["runtime_queue_depth"]),
