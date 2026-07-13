@@ -240,6 +240,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_parse.py`        | `/api/metadata`, in-memory metadata cache, response shaping                                                                                |
 | `fielded_search_parser.py` | Parser for `prompt:`, `seed:`, `model:`, numeric operators, quoted values, and related fielded search syntax                               |
 | `search.py`                | `/api/search/query`, legacy `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata`              |
+| `related_assets.py`        | `/api/search/related` reference authorization and persisted relation-readiness contract                                                      |
 | `search_indexes.py`        | Search capabilities plus derived-index state, rebuild-job, and cancellation APIs                                                          |
 | `search_indexer.py`        | Fixed index registry and supervised single-writer durable derived-index worker                                                             |
 | `facets.py`                | `/api/facets` aggregation over indexed metadata                                                                                            |
@@ -294,6 +295,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/metadata`                       | Extract and normalize AI generation metadata for one image            | `metadata_parse.py` |
 | `GET /api/search`                         | Cursor-paginated unified search media stream plus first-page album suggestions, including fielded metadata queries | `search.py`         |
 | `POST /api/search/query`                  | Canonical Search V2 body with versioned ID-based scope, structured filters, and opaque cursor paging    | `search.py`         |
+| `POST /api/search/related`                | Bounded reference-asset relation request with explicit profile, reason, score, and index-status models   | `related_assets.py` |
 | `POST /api/search/prompt-usage/query`     | Normalized prompt-group usage within an authorized canonical scope                                      | `search.py`         |
 | `POST /api/search/workflow/raw`           | Opt-in literal trigram search over size/budget-bounded canonical workflow JSON                           | `search.py`         |
 | `GET /api/search/capabilities`            | Enabled modes, scopes, fixed limits/registries, and required derived indexes                            | `search_indexes.py` |
@@ -601,6 +603,13 @@ Header search or AdvancedSearchDrawer
   never accepts an absolute client path. Persisted/URL forms omit cursor and
   limit; query keys omit only cursor. Legacy `GET /api/search` authorizes its
   absolute-path inputs and adapts them into the same lexical executor.
+- `/api/search/related` is a separate, non-persistable reference request. It
+  reuses the canonical folder/library/all scope union, authorizes an active
+  image reference before reading relation data, excludes the reference from
+  results, and distinguishes missing relation coverage (409) from unusable
+  persisted relation data (503). R0 exposes the complete contract while the
+  generation-signature and visual-fingerprint indexes remain intentionally
+  not ready until their later phases.
 - Derived discovery indexes use durable per-library states and jobs. Claims
   carry worker ID, opaque token, and lease; completion is fenced. Workers read
   active assets by `asset_id` keyset in batches of at most 200, extract outside

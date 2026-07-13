@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "reference": "reference",
+  "assets": [
+    {
+      "key": "reference",
+      "library": "primary",
+      "active": true,
+      "metadata": {
+        "prompt": "masterpiece, cinematic red fox, snowy pine forest",
+        "negative_prompt": "blurry, watermark",
+        "model": "forest-xl",
+        "model_hash": "model-hash-a",
+        "resources": ["lora:fox-detail:resource-hash-a"],
+        "sampler": "euler_ancestral",
+        "scheduler": "karras",
+        "steps": 28,
+        "cfg": 7.0,
+        "width": 1024,
+        "height": 1024,
+        "seed": "101"
+      }
+    },
+    {
+      "key": "same_exact_recorded_settings",
+      "library": "primary",
+      "active": true,
+      "copy_metadata_from": "reference",
+      "expected": {
+        "profile": "related",
+        "tier": 100,
+        "reasons": ["same_exact_signature", "same_recipe", "same_generation_family"]
+      }
+    },
+    {
+      "key": "same_family_different_seed",
+      "library": "primary",
+      "active": true,
+      "copy_metadata_from": "reference",
+      "metadata_patch": { "seed": "202" },
+      "expected": {
+        "profile": "related",
+        "tier": 90,
+        "reasons": ["same_recipe", "same_generation_family"]
+      }
+    },
+    {
+      "key": "same_model_unrelated_prompt",
+      "library": "primary",
+      "active": true,
+      "metadata": {
+        "prompt": "technical blueprint, concrete train station",
+        "model": "forest-xl",
+        "model_hash": "model-hash-a",
+        "seed": "303"
+      },
+      "expected": { "max_tier": 40, "forbidden_reasons": ["same_generation_family", "same_prompt"] }
+    },
+    {
+      "key": "shared_lora_unrelated_prompt",
+      "library": "primary",
+      "active": true,
+      "metadata": {
+        "prompt": "macro photograph of a mechanical watch",
+        "model": "studio-xl",
+        "resources": ["lora:fox-detail:resource-hash-a"]
+      },
+      "expected": { "max_tier": 40, "forbidden_reasons": ["same_generation_family"] }
+    },
+    {
+      "key": "rare_prompt_with_common_boilerplate",
+      "library": "primary",
+      "active": true,
+      "metadata": {
+        "prompt": "masterpiece, best quality, cinematic red fox, frozen waterfall",
+        "model": "forest-xl",
+        "model_hash": "model-hash-a"
+      },
+      "expected": {
+        "profile": "related",
+        "tier": 60,
+        "reasons": ["strong_prompt_overlap", "same_model_hash"]
+      }
+    },
+    {
+      "key": "missing_metadata",
+      "library": "primary",
+      "active": true,
+      "metadata": {},
+      "expected": { "excluded": true }
+    },
+    {
+      "key": "malformed_metadata",
+      "library": "primary",
+      "active": true,
+      "metadata_raw": "{broken",
+      "expected": { "excluded": true }
+    },
+    {
+      "key": "resized_variant",
+      "library": "primary",
+      "active": true,
+      "visual_transform": "resize",
+      "expected": { "profile": "visual", "tier": 80, "reasons": ["visual_variant"], "visual_match": true }
+    },
+    {
+      "key": "reencoded_variant",
+      "library": "primary",
+      "active": true,
+      "visual_transform": "reencode",
+      "expected": { "profile": "visual", "tier": 80, "reasons": ["visual_variant"], "visual_match": true }
+    },
+    {
+      "key": "light_color_change",
+      "library": "primary",
+      "active": true,
+      "visual_transform": "light_color_change",
+      "expected": { "profile": "visual", "tier": 60, "reasons": ["visual_variant"], "visual_match": true }
+    },
+    {
+      "key": "large_crop_limit",
+      "library": "primary",
+      "active": true,
+      "visual_transform": "crop",
+      "expected": { "visual_match": false, "documented_limitation": true }
+    },
+    {
+      "key": "mirror_limit",
+      "library": "primary",
+      "active": true,
+      "visual_transform": "mirror",
+      "expected": { "visual_match": false, "documented_limitation": true }
+    },
+    {
+      "key": "rotation_limit",
+      "library": "primary",
+      "active": true,
+      "visual_transform": "rotation",
+      "expected": { "visual_match": false, "documented_limitation": true }
+    },
+    {
+      "key": "cross_library_match",
+      "library": "secondary",
+      "active": true,
+      "copy_metadata_from": "reference",
+      "expected": { "excluded_in_primary_scope": true }
+    },
+    {
+      "key": "inactive_match",
+      "library": "primary",
+      "active": false,
+      "copy_metadata_from": "reference",
+      "expected": { "excluded": true }
+    }
+  ]
+}

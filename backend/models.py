@@ -1,6 +1,7 @@
 """Pydantic request and response models shared by gallery API routes."""
 
 import json
+from enum import Enum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -298,6 +299,86 @@ class SearchQueryRequestV1(BaseModel):
     def persistable(self) -> dict:
         """Return the versioned request shape that may be stored or shared."""
         return self.model_dump(mode="json", exclude={"cursor", "limit"})
+
+
+class RelationReasonCodeV1(str, Enum):
+    """Stable, non-probabilistic evidence codes for related assets."""
+
+    SAME_EXACT_SIGNATURE = "same_exact_signature"
+    SAME_RECIPE = "same_recipe"
+    SAME_GENERATION_FAMILY = "same_generation_family"
+    SAME_PROMPT = "same_prompt"
+    STRONG_PROMPT_OVERLAP = "strong_prompt_overlap"
+    SAME_MODEL_HASH = "same_model_hash"
+    SAME_MODEL_NAME = "same_model_name"
+    SHARED_LORA = "shared_lora"
+    SHARED_RESOURCE = "shared_resource"
+    SHARED_WORKFLOW_PROPERTY = "shared_workflow_property"
+    SIMILAR_GENERATION_SETTINGS = "similar_generation_settings"
+    VISUAL_VARIANT = "visual_variant"
+
+
+class RelatedSearchRequestV1(BaseModel):
+    """Versioned, reference-based request that is never persisted as a search."""
+
+    schema_version: Literal[1] = 1
+    reference_asset_id: int = Field(ge=1)
+    profile: Literal["related", "recipe", "visual"] = "related"
+    scope: SearchScopeV1
+    limit: int = Field(default=60, ge=1, le=100)
+
+
+class RelatedIndexComponentStatusV1(BaseModel):
+    """Readiness of one persisted relation component."""
+
+    index_name: Literal["generation_signatures", "visual_fingerprints"]
+    state: Literal["not_ready", "ready", "building", "degraded", "failed", "disabled", "unavailable"]
+    usable: bool
+    indexed_count: int = Field(default=0, ge=0)
+    target_count: int = Field(default=0, ge=0)
+
+
+class RelatedSearchStatusV1(BaseModel):
+    """Metadata and visual readiness returned without semantic claims."""
+
+    metadata: RelatedIndexComponentStatusV1
+    visual: RelatedIndexComponentStatusV1
+
+
+class RelatedSearchResultV1(SearchMediaResult):
+    """Canonical image row plus explicit metadata or visual relation evidence."""
+
+    relation_tier: Literal[100, 90, 80, 70, 60, 40]
+    relation_reasons: list[RelationReasonCodeV1]
+    visual_distance: float | None = Field(default=None, ge=0)
+    metadata_score: float | None = Field(default=None, ge=0)
+
+
+class RelatedSearchResponseV1(BaseModel):
+    """One bounded related-assets page; v1 deliberately has no cursor."""
+
+    schema_version: Literal[1] = 1
+    reference_asset_id: int
+    profile: Literal["related", "recipe", "visual"]
+    scope: SearchScopeV1
+    items: list[RelatedSearchResultV1] = Field(default_factory=list)
+    returned: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+    status: RelatedSearchStatusV1
+
+
+class RelatedAPIErrorPayloadV1(BaseModel):
+    """Related-assets error detail with optional typed readiness context."""
+
+    error: str
+    message: str
+    status: RelatedSearchStatusV1 | None = None
+
+
+class RelatedAPIErrorResponseV1(BaseModel):
+    """Typed related-assets error envelope."""
+
+    detail: RelatedAPIErrorPayloadV1
 
 
 class MetadataSearchResponse(BaseModel):

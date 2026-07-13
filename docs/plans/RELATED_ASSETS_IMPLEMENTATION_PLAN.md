@@ -13,9 +13,9 @@ Execution: Sequential and phase-gated
 Depends on:
 
 - every acceptance gate in
-  [Search Hardening](SEARCH_HARDENING_IMPLEMENTATION_PLAN.md);
+  [Search Hardening](../archived/SEARCH_HARDENING_IMPLEMENTATION_PLAN.md);
 - the canonical request, scope, prompt-group, and observed-model foundations in
-  [Search Discovery Evolution](SEARCH_DISCOVERY_EVOLUTION_IMPLEMENTATION_PLAN.md).
+  [Search Discovery Evolution](../archived/SEARCH_DISCOVERY_EVOLUTION_IMPLEMENTATION_PLAN.md).
 
 Supersedes the active implementation direction in the archived
 [Semantic Search plan](../archived/SEARCH_SEMANTIC_IMPLEMENTATION_PLAN.md).
@@ -102,12 +102,12 @@ before adding derived relation data.
 
 ### Baseline tasks
 
-- [ ] Record HEAD, dirty files, Python/Node/SQLite versions, and schema version.
-- [ ] Measure active image count and current coverage for prompt, negative
+- [x] Record HEAD, dirty files, Python/Node/SQLite versions, and schema version.
+- [x] Measure active image count and current coverage for prompt, negative
       prompt, model/hash, LoRA/resources, workflow data, and preview derivatives.
-- [ ] Record exact duplicate prompt groups and representative generation batches.
-- [ ] Capture current lexical search and facet p50/p95 on the managed fixture.
-- [ ] Add deterministic relation fixtures covering:
+- [x] Record exact duplicate prompt groups and representative generation batches.
+- [x] Capture current lexical search and facet p50/p95 on the managed fixture.
+- [x] Add deterministic relation fixtures covering:
   - exact recorded generation settings;
   - same family with different seed;
   - same model with unrelated prompts;
@@ -151,14 +151,14 @@ models:
 
 Contract rules:
 
-- [ ] `schema_version` is exactly `1`.
-- [ ] `profile` is `related`, `recipe`, or `visual`.
-- [ ] Scope reuses the canonical Search V2 discriminated union.
-- [ ] `reference_asset_id` must identify an active image visible in that scope.
-- [ ] `limit` defaults to 60 and is bounded to 1-100.
-- [ ] V1 returns one bounded page with no cursor.
-- [ ] The reference asset is excluded from its own results.
-- [ ] Related requests are not stored as saved or recent searches.
+- [x] `schema_version` is exactly `1`.
+- [x] `profile` is `related`, `recipe`, or `visual`.
+- [x] Scope reuses the canonical Search V2 discriminated union.
+- [x] `reference_asset_id` must identify an active image visible in that scope.
+- [x] `limit` defaults to 60 and is bounded to 1-100.
+- [x] V1 returns one bounded page with no cursor.
+- [x] The reference asset is excluded from its own results.
+- [x] Related requests are not stored as saved or recent searches.
 
 Each result adds:
 
@@ -181,10 +181,35 @@ Each result adds:
 
 ### Acceptance gates
 
-- [ ] Fixtures define the expected relation tier and reason codes.
-- [ ] Metadata and visual relation terminology is unambiguous in API and UI copy.
-- [ ] OpenAPI documents request, result, status, and error models completely.
-- [ ] Baseline evidence is recorded before schema or ranking changes.
+- [x] Fixtures define the expected relation tier and reason codes.
+- [x] Metadata and visual relation terminology is unambiguous in API and UI copy.
+- [x] OpenAPI documents request, result, status, and error models completely.
+- [x] Baseline evidence is recorded before schema or ranking changes.
+
+### R0 baseline evidence (2026-07-13)
+
+- Baseline commit: `234321051c40950eac2c2aafecbd4f91c1ee8254`; working tree clean.
+- Runtime: Python 3.11.15, Node 22.22.2, SQLite 3.50.4 through Python;
+  the standalone `sqlite3` CLI is not installed.
+- Catalog: schema constant and `PRAGMA user_version` were both 8. The active
+  database contained 516 active images, all with current metadata and current
+  ready preview derivatives. Coverage counts were 128 positive prompts, 93
+  negative prompts, 92 model-name/hash rows, 60 LoRA-bearing assets, and 130
+  workflow-bearing assets.
+- Prompt/batch evidence: zero exact duplicate indexed prompt groups were
+  present. Representative exact recorded-setting batches included groups of
+  11 (`er_sde`, 12 steps, CFG 1.1, 1672x944), 10
+  (`waiNSFWIllustrious_v120`, Euler ancestral/Karras, 28 steps, CFG 8,
+  840x1080), and 10 assets with the same model/sampler/scheduler at CFG 5,
+  1024x1024.
+- Managed 5,000-row fixture, 20 warmed in-process HTTP iterations: broad
+  lexical p50/p95 201.59/211.64 ms; prompt-heavy lexical p50/p95
+  222.93/247.69 ms; all-scope facets p50/p95 265.96/339.09 ms.
+- Deterministic fixture: `backend/tests/fixtures/related_assets_v1.json`
+  covers exact settings, seed-only family changes, unrelated same-model and
+  shared-LoRA cases, boilerplate prompts, missing/malformed metadata, resize,
+  re-encode, color change, crop/mirror/rotation limitations, cross-library
+  scope, and inactive-asset exclusion.
 
 ## R1 - Prompt normalization and generation signatures
 
@@ -606,4 +631,4 @@ When complete, move this file to `docs/archived/` and update
 
 | Date | Phase | Result | Evidence |
 | --- | --- | --- | --- |
-| - | - | Not started | - |
+| 2026-07-13 | R0 | Complete | Pre-change schema/runtime/catalog and managed 5,000-row search/facet baselines recorded; deterministic metadata/visual relation fixture added; versioned `/api/search/related` request/result/status/reason/error models and canonical reference authorization covered by 8 focused contracts. |

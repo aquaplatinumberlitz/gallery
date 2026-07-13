@@ -36,4 +36,6 @@ class ErrorType:
     CAPACITY_EXCEEDED = "capacity_exceeded"  # Derivative quota/deferred capacity reached
     FEATURE_DISABLED = "feature_disabled"
     SEARCH_INDEX_NOT_READY = "search_index_not_ready"
+    RELATION_INDEX_NOT_READY = "relation_index_not_ready"
+    REFERENCE_NOT_INDEXED = "reference_not_indexed"
     SEARCH_TIMEOUT = "search_timeout"

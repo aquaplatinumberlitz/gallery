@@ -38,6 +38,7 @@ from .metadata_store import recover_stale_jobs
 from .paths import InvalidPathError
 from .refresh import start_refresh as _start_refresh
 from .refresh import stop_refresh as _stop_refresh
+from .related_assets import router as related_assets_router
 from .scan import router as scan_router
 from .scan_worker import queue_startup_scans, start, stop
 from .search import router as search_router
@@ -166,6 +167,7 @@ app.include_router(scan_router, dependencies=_api_dependencies)
 app.include_router(browse_router, dependencies=_api_dependencies)
 app.include_router(folders_router, dependencies=_api_dependencies)
 app.include_router(search_router, dependencies=_api_dependencies)
+app.include_router(related_assets_router, dependencies=_api_dependencies)
 app.include_router(search_indexes_router, dependencies=_api_dependencies)
 app.include_router(health_router, dependencies=_api_dependencies)
 app.include_router(indexer_router, dependencies=_api_dependencies)
