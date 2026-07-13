@@ -213,3 +213,15 @@ Icon rules:
   explicit acknowledgement and Apply action; typing alone never sends a query.
 - Index controls distinguish ready, usable-stale/building, degraded, failed,
   unavailable, and disabled. Confirm rebuilds and disable duplicate actions.
+
+## Related Assets Language
+
+- Use `Related Assets`, `Same Recipe`, and `Visual Variants`; never label the
+  feature semantic search, AI similarity, or lineage detection.
+- Visual evidence means near-duplicate or compositionally close pixels only.
+  It does not prove a shared prompt, recipe, source file, or generation lineage.
+- Expose honest limitations where visual results are explained: large crops,
+  mirrors, rotations, and generative composition changes may not match, while
+  similar colors/layouts can produce false positives.
+- A missing current visual fingerprint is a coverage state, not an empty result.
+  Show rebuild/index status context without blocking metadata-related results.

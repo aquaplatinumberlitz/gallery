@@ -13,7 +13,7 @@ This document records how major third-party libraries are used in the current co
 | FastAPI                                                         | Backend API app and routing                                                       | `backend/app.py`, route modules in `backend/`                                                         | Routers are composed in `app.py`; `backend.main:app` is the uvicorn target                              |
 | Uvicorn                                                         | ASGI dev/prod server                                                              | `start.py`, `backend/main.py`                                                                         | `start.py` runs `python3 -m uvicorn backend.main:app` from repo root                                    |
 | Pydantic                                                        | Backend DTO validation                                                            | `backend/models.py`                                                                                   | Used for `FileNode` and shared response/request schemas                                                 |
-| Pillow                                                          | Image opening, dimensions, metadata, derivative and video-poster rendering        | `backend/metadata_extract.py`, `backend/thumbnails.py`, `backend/video.py`, `backend/files.py`        | Honors project file size/pixel limits                                                                   |
+| Pillow                                                          | Image opening, dimensions, metadata, derivatives, posters, and visual fingerprints | `backend/metadata_extract.py`, `backend/thumbnails.py`, `backend/video.py`, `backend/visual_fingerprints.py`, `backend/files.py` | Honors project file size/pixel limits; fingerprinting reads derivatives in background work             |
 | diskcache                                                       | Small persistent derivative key-to-path index                                     | `backend/thumbnails.py`, `backend/config.py`                                                          | Capped at 64 MiB; rendered WebP bytes live only in the quota-counted file cache                          |
 | cachetools                                                      | In-memory metadata response cache                                                 | `backend/metadata_parse.py`                                                                           | Metadata cache only; thumbnail bytes are disk-backed                                                    |
 | SQLite FTS5                                                     | Folder/photo/metadata index and search                                            | `backend/metadata_store/`, `backend/search.py`, `backend/facets.py`                                   | Uses Python stdlib `sqlite3`; no external search service                                                |
@@ -75,8 +75,13 @@ Pillow is used for:
 - Reading dimensions and format/mode information.
 - Extracting PNG text chunks, EXIF/UserComment, WebP metadata where available, and other Pillow-exposed metadata.
 - Rendering WebP thumbnails and previews.
+- Computing background-only horizontal/vertical dHash and 4x4 RGB grids from
+  current derivatives for visual near-duplicate lookup.
 
-Metadata extraction lives in `metadata_extract.py`; derivative rendering lives in `thumbnails.py`. ExifTool is not part of the runtime.
+Metadata extraction lives in `metadata_extract.py`; derivative rendering lives
+in `thumbnails.py`; visual fingerprints live in `visual_fingerprints.py`.
+Fingerprint v1 uses no NumPy, OpenCV, pHash/DCT, image model, vector extension,
+or model files. ExifTool is not part of the runtime.
 
 ### diskcache
 

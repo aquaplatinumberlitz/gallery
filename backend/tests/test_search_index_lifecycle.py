@@ -48,6 +48,11 @@ from backend.search_indexer import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_search_index_database(isolated_metadata_db: Path) -> None:
+    """Keep unrelated metadata/derivative backfill jobs out of lifecycle cases."""
+
+
 def _drop_v5_tables(conn: sqlite3.Connection) -> None:
     conn.execute("DROP TABLE IF EXISTS search_index_states")
     conn.execute("DROP TABLE IF EXISTS asset_search_extractions")

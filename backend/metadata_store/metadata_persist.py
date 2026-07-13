@@ -38,6 +38,14 @@ def _sanitize_metadata_for_json(metadata: dict[str, Any]) -> Any:
     return sanitize_metadata_for_json(metadata)
 
 
+def _schedule_relation_backfills(library_id: int) -> None:
+    """Coalesce metadata and visual relation refreshes after metadata commits."""
+    from ..visual_fingerprints import schedule_visual_fingerprint_backfill
+
+    schedule_generation_signature_backfill(library_id)
+    schedule_visual_fingerprint_backfill(library_id)
+
+
 def _needs_reindex(conn: sqlite3.Connection, path: Path, mtime: float, mtime_ns: int, size: int) -> bool:
     row = conn.execute(
         f"""SELECT source_path, source_mtime_ns, source_size FROM image_metadata
@@ -234,7 +242,7 @@ def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: boo
             job = _metadata_job_from_path(metadata.path)
             if job is not None and job.mtime == metadata.mtime and job.size == metadata.size:
                 _mark_current_metadata_done(conn, job, metadata.indexed_at)
-    schedule_generation_signature_backfill(library_id)
+    _schedule_relation_backfills(library_id)
     return True
 
 
@@ -253,7 +261,7 @@ def upsert_metadata_batch(metadata_items: Iterable[ExtractedMetadata]) -> int:
                 persisted += 1
                 library_ids.add(library_id)
     for library_id in sorted(library_ids):
-        schedule_generation_signature_backfill(library_id)
+        _schedule_relation_backfills(library_id)
     return persisted
 
 
@@ -277,7 +285,7 @@ def index_image(path: Path) -> bool:
             return False
         library_id = _upsert_extracted_metadata_conn(conn, metadata)
     if library_id is not None:
-        schedule_generation_signature_backfill(library_id)
+        _schedule_relation_backfills(library_id)
     return library_id is not None
 
 
@@ -626,5 +634,5 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
                 library_id = int(owner["library_id"])
                 invalidate_generation_signature_conn(conn, asset_id)
     if library_id is not None:
-        schedule_generation_signature_backfill(library_id)
+        _schedule_relation_backfills(library_id)
     return True

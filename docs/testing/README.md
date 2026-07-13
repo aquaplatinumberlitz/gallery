@@ -50,6 +50,11 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
   drive the deterministic fixture through exact/recipe/overlap tiers, stable
   reasons, scope/activity/source filtering, recipe-profile behavior, bounded
   candidate loading, and optional-workflow degradation.
+- Visual fingerprint tests: `backend/tests/test_visual_fingerprints.py` cover
+  fixed-size Pillow hashes/color grids, v11 migration rollback, atomic bands,
+  durable derivative-backed extraction, indexed near-duplicate lookup,
+  resize/re-encode/light-change fixtures, crop/mirror/rotation limits, typed
+  reference coverage, disabled isolation, and the no-HTTP-decode guarantee.
 - Performance contract tests: backend pytest hot-path tests such as `backend/tests/test_browse_api.py`, `backend/tests/test_search_ranked_pagination.py`, and `backend/tests/test_warm_folder_listing.py` prevent known slow-path regressions with query-plan/SQL-shape assertions rather than wall-clock unit assertions.
 - Performance diagnostics: `frontend/tests/e2e/metadata-performance.spec.ts`, `frontend/tests/e2e/perf/album-open.perf.spec.ts`, `frontend/tests/e2e/perf/lightbox.perf.spec.ts`, `scripts/bench_search.py`, `scripts/perf_library_inspector.py`, and `scripts/perf_warm_listing.py` emit compact timing reports.
 - Album-open performance reports the first thumbnail iteration as cold-cache diagnostics and gates `thumbnail_p95_ms` on later warm-cache iterations.

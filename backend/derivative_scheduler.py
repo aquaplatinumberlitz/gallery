@@ -1758,6 +1758,12 @@ class DerivativeScheduler:
                     self._generating_paths.discard(cache_path)
             if succeeded:
                 self._enforce_quota()
+                try:
+                    from .visual_fingerprints import notify_derivative_ready
+
+                    notify_derivative_ready(int(job["asset_id"]))
+                except Exception:  # noqa: BLE001
+                    logger.exception("Could not queue visual fingerprint refresh for asset %s", job["asset_id"])
 
     def _validate_claimed_source(self, job: sqlite3.Row, source: Path) -> None:
         """Revalidate applicability after claim and before cache/render work."""

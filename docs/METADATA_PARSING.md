@@ -91,7 +91,9 @@ resets interrupted `running` jobs, fails exhausted attempts, and repairs
 historical rows where a done job/current metadata row exists but the asset state
 was not materialized.
 
-The shared catalog database is schema version 10. Version 10 creates
+The shared catalog database is schema version 11. Version 11 creates visual
+fingerprint/band storage through `.v10.bak` without inline image decoding or
+backfill. Version 10 creates
 `asset_generation_signatures` through a consistent `.v8.bak`, one
 `BEGIN IMMEDIATE`, a foreign-key check, and a final `user_version` publish. It
 does not backfill inline. Version 9 remains reserved for a historical catalog
@@ -163,6 +165,13 @@ downweights boilerplate, then resource overlap, model/workflow compatibility,
 recorded-setting proximity, mtime, and asset ID produce deterministic ordering
 inside fixed relation tiers. Stable reason codes describe recorded evidence;
 they do not claim lineage, semantic understanding, or probability.
+
+Visual fingerprints are separate from generation metadata. A background
+derived-index extractor opens only a current cached thumbnail or preview,
+applies EXIF transpose, composites alpha onto white, and stores two 64-bit
+dHashes plus a 48-byte 4x4 RGB grid. It never hashes raw prompt/workflow data
+and the request path never decodes media. Fingerprint source mtime/size,
+derivative cache version, and algorithm version must all be current.
 
 For ComfyUI, parsing also retains a bounded normalized internal workflow
 document in the stored metadata payload. The document prefers API prompt graph

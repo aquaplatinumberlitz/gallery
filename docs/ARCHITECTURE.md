@@ -355,7 +355,11 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
-- Catalog schema version 10 additively creates
+- Catalog schema version 11 additively creates
+  `asset_visual_fingerprints`, eight per-asset `asset_visual_hash_bands`, and
+  the `(hash_kind, band_no, band_value, library_id, asset_id)` candidate index.
+  Its `.v10.bak` migration creates storage only and never decodes or backfills
+  media inline. Version 10 creates
   `asset_generation_signatures` and its library/hash candidate indexes. The
   `.v8.bak` migration performs no inline backfill, checks foreign keys, and
   publishes version 10 last; version 9 remains a historical reset sentinel.
@@ -408,6 +412,22 @@ Backend modules are mostly flat, with selected domain packages.
   common boilerplate alone never creates a result. The `recipe` profile keeps
   only exact-signature and same-recipe tiers; missing workflow-property rows
   safely reduce candidate evidence without disabling metadata ranking.
+- The optional `visual_fingerprints` index uses only current persisted
+  thumbnail/preview derivatives. Its background extractor applies EXIF
+  transpose, composites alpha onto white, computes horizontal and vertical
+  64-bit dHash plus a 4x4 RGB grid, and persists the fingerprint and eight
+  16-bit bands atomically. Missing derivatives queue the normal `thumb_512`
+  variant at low priority; successful derivative completion invalidates a
+  pending extraction and coalesces durable retry work. Decode/hash work occurs
+  outside SQLite writes, and related HTTP handlers never open an image.
+- Visual requests probe exact and one-bit alternatives for each indexed
+  16-bit band, cap the candidate pool at 500, then use Python `int.bit_count()`
+  for exact Hamming distance. Color-grid and aspect-ratio distances only reject
+  or order weak dHash matches; they are not semantic features. Resize and
+  re-encode matches use tier 80, light modifications use tier 60, and every
+  result carries `visual_variant`. Large crops, mirrors, rotations, and
+  generative composition changes are documented limitations; a visual match
+  does not prove prompt, recipe, lineage, or common source.
 - The enabled `workflow_properties` index accepts only the code-owned ComfyUI
   registry advertised by search capabilities. API prompt graphs provide named
   inputs; supported UI graph widgets use a versioned positional map. Search

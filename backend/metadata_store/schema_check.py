@@ -17,6 +17,8 @@ _TABLES: tuple[str, ...] = (
     "search_index_states",
     "search_index_jobs",
     "asset_search_extractions",
+    "asset_visual_fingerprints",
+    "asset_visual_hash_bands",
 )
 
 _TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
@@ -92,6 +94,25 @@ _TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
         "extractor_version",
         "status",
     ),
+    "asset_visual_fingerprints": (
+        "asset_id",
+        "library_id",
+        "source_mtime_ns",
+        "source_size",
+        "derivative_role",
+        "derivative_version",
+        "algorithm_version",
+        "dhash_horizontal",
+        "dhash_vertical",
+        "color_grid",
+    ),
+    "asset_visual_hash_bands": (
+        "asset_id",
+        "library_id",
+        "hash_kind",
+        "band_no",
+        "band_value",
+    ),
 }
 
 _INDEXES: tuple[str, ...] = (
@@ -102,6 +123,7 @@ _INDEXES: tuple[str, ...] = (
     "idx_search_index_jobs_pick",
     "idx_search_index_jobs_one_active",
     "idx_asset_search_extractions_index_status",
+    "idx_visual_hash_bands_lookup",
 )
 
 

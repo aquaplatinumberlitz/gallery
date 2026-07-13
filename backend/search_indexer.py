@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from .config import (
+    GALLERY_RELATED_VISUAL_ENABLED,
     GALLERY_SEARCH_INDEX_BATCH_SIZE,
     GALLERY_SEARCH_INDEX_JOB_LEASE_SECONDS,
     GALLERY_SEARCH_INDEX_POLL_SECONDS,
@@ -33,6 +34,11 @@ from .metadata_store.search_index_store import (
     search_index_job_control_state,
 )
 from .prompt_discovery import extract_prompt_discovery, persist_prompt_discovery
+from .visual_fingerprints import (
+    VISUAL_FINGERPRINT_EXTRACTOR_VERSION,
+    extract_visual_fingerprint,
+    persist_visual_fingerprint,
+)
 from .workflow_discovery import extract_workflow_properties, persist_workflow_properties
 from .workflow_raw_search import extract_raw_workflow, persist_raw_workflow
 
@@ -57,7 +63,7 @@ class SearchIndexDefinition:
     schema_version: int
     extractor_version: int
     enabled: bool
-    required_mode: Literal["prompt_groups", "workflow", "raw", "related"]
+    required_mode: Literal["prompt_groups", "workflow", "raw", "related", "visual"]
     extractor: Any = None
     persist: Any = None
 
@@ -75,6 +81,15 @@ _DEFINITIONS: dict[str, SearchIndexDefinition] = {
         required_mode="related",
         extractor=extract_generation_signature,
         persist=persist_generation_signature,
+    ),
+    "visual_fingerprints": SearchIndexDefinition(
+        name="visual_fingerprints",
+        schema_version=1,
+        extractor_version=VISUAL_FINGERPRINT_EXTRACTOR_VERSION,
+        enabled=GALLERY_RELATED_VISUAL_ENABLED,
+        required_mode="visual",
+        extractor=extract_visual_fingerprint,
+        persist=persist_visual_fingerprint,
     ),
     "prompt_values": SearchIndexDefinition(
         name="prompt_values",
@@ -179,6 +194,7 @@ def run_search_index_once(*, worker_id: str | None = None) -> bool:
         return True
 
     try:
+        repair_pass_complete = False
         while True:
             control_state = search_index_job_control_state(job_id, claim_token)
             if control_state is None:
@@ -198,6 +214,11 @@ def run_search_index_once(*, worker_id: str | None = None) -> bool:
                 limit=GALLERY_SEARCH_INDEX_BATCH_SIZE,
             )
             if not batch:
+                if definition.name in {"generation_signatures", "visual_fingerprints"} and not repair_pass_complete:
+                    repair_pass_complete = True
+                    job["mode"] = "missing"
+                    job["cursor_asset_id"] = 0
+                    continue
                 finish_search_index_job(job_id, claim_token, "succeeded")
                 return True
 

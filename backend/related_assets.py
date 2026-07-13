@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
+from .config import GALLERY_RELATED_VISUAL_ENABLED
 from .errors import APIError, ErrorType
 from .generation_signatures import GENERATION_SIGNATURE_EXTRACTOR_VERSION, PROMPT_NORMALIZER_VERSION
 from .metadata_store._db import _DB_LOCK, _connect, _table_exists
@@ -22,6 +23,12 @@ from .models import (
 )
 from .related_ranking import rank_related_metadata
 from .search_scope import SearchScopeContext, resolve_search_v2_scope
+from .visual_fingerprints import (
+    VISUAL_DERIVATIVE_VERSION,
+    VISUAL_FINGERPRINT_ALGORITHM_VERSION,
+    VISUAL_FINGERPRINT_EXTRACTOR_VERSION,
+    query_visual_variants,
+)
 
 router = APIRouter()
 LOGGER = logging.getLogger(__name__)
@@ -72,7 +79,7 @@ def _related_status(reference_asset_id: int) -> RelatedSearchStatusV1:
         metadata_state = (
             conn.execute(
                 """
-                SELECT state, indexed_count, target_count
+                SELECT state, schema_version, extractor_version, indexed_count, target_count
                 FROM search_index_states
                 WHERE index_name = 'generation_signatures' AND library_id = ?
                 """,
@@ -83,9 +90,30 @@ def _related_status(reference_asset_id: int) -> RelatedSearchStatusV1:
         )
         visual_ready = _table_exists(conn, "asset_visual_fingerprints") and bool(
             conn.execute(
-                "SELECT 1 FROM asset_visual_fingerprints WHERE asset_id = ?",
-                (reference_asset_id,),
+                """
+                SELECT 1
+                FROM asset_visual_fingerprints AS fingerprint
+                JOIN assets AS current_asset ON current_asset.id = fingerprint.asset_id
+                WHERE fingerprint.asset_id = ?
+                  AND fingerprint.source_mtime_ns = current_asset.mtime_ns
+                  AND fingerprint.source_size = current_asset.size
+                  AND fingerprint.derivative_version = ?
+                  AND fingerprint.algorithm_version = ?
+                """,
+                (reference_asset_id, VISUAL_DERIVATIVE_VERSION, VISUAL_FINGERPRINT_ALGORITHM_VERSION),
             ).fetchone()
+        )
+        visual_state = (
+            conn.execute(
+                """
+                SELECT state, schema_version, extractor_version, indexed_count, target_count
+                FROM search_index_states
+                WHERE index_name = 'visual_fingerprints' AND library_id = ?
+                """,
+                (int(asset["library_id"]),),
+            ).fetchone()
+            if asset is not None
+            else None
         )
     if metadata_state is None:
         metadata = _component_status("generation_signatures", ready=False)
@@ -94,6 +122,11 @@ def _related_status(reference_asset_id: int) -> RelatedSearchStatusV1:
         indexed_count = int(metadata_state["indexed_count"] or 0)
         target_count = int(metadata_state["target_count"] or 0)
         usable = state == "ready" or (state in {"building", "degraded"} and (indexed_count > 0 or target_count == 0))
+        usable = (
+            usable
+            and int(metadata_state["schema_version"]) == 1
+            and int(metadata_state["extractor_version"]) == GENERATION_SIGNATURE_EXTRACTOR_VERSION
+        )
         if state == "pending":
             state = "not_ready"
         if usable and not metadata_reference_ready:
@@ -106,9 +139,64 @@ def _related_status(reference_asset_id: int) -> RelatedSearchStatusV1:
             indexed_count=indexed_count,
             target_count=target_count,
         )
+    if not GALLERY_RELATED_VISUAL_ENABLED:
+        visual = RelatedIndexComponentStatusV1(
+            index_name="visual_fingerprints",
+            state="disabled",
+            usable=False,
+        )
+    elif visual_state is None:
+        visual = _component_status("visual_fingerprints", ready=False)
+    else:
+        state = str(visual_state["state"])
+        indexed_count = int(visual_state["indexed_count"] or 0)
+        target_count = int(visual_state["target_count"] or 0)
+        usable = state == "ready" or (state in {"building", "degraded"} and (indexed_count > 0 or target_count == 0))
+        usable = (
+            usable
+            and int(visual_state["schema_version"]) == 1
+            and int(visual_state["extractor_version"]) == VISUAL_FINGERPRINT_EXTRACTOR_VERSION
+        )
+        if state == "pending":
+            state = "not_ready"
+        if usable and not visual_ready:
+            state = "not_ready"
+            usable = False
+        visual = RelatedIndexComponentStatusV1(
+            index_name="visual_fingerprints",
+            state=state,
+            usable=usable,
+            indexed_count=indexed_count,
+            target_count=target_count,
+        )
     return RelatedSearchStatusV1(
         metadata=metadata,
-        visual=_component_status("visual_fingerprints", ready=visual_ready),
+        visual=visual,
+    )
+
+
+def _visual_index_globally_usable(library_id: int) -> bool:
+    if not GALLERY_RELATED_VISUAL_ENABLED:
+        return False
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT state, schema_version, extractor_version, indexed_count, target_count FROM search_index_states
+            WHERE index_name = 'visual_fingerprints' AND library_id = ?
+            """,
+            (library_id,),
+        ).fetchone()
+    if row is None:
+        return False
+    versions_current = (
+        int(row["schema_version"]) == 1 and int(row["extractor_version"]) == VISUAL_FINGERPRINT_EXTRACTOR_VERSION
+    )
+    return versions_current and (
+        str(row["state"]) == "ready"
+        or (
+            str(row["state"]) in {"building", "degraded"}
+            and (int(row["indexed_count"] or 0) > 0 or int(row["target_count"] or 0) == 0)
+        )
     )
 
 
@@ -154,6 +242,24 @@ def api_search_related(request: RelatedSearchRequestV1) -> RelatedSearchResponse
         reference = _reference_asset(request.reference_asset_id, context)
         status = _related_status(int(reference["id"]))
         required = _required_component(request, status)
+        if request.profile == "visual" and required.state == "disabled":
+            raise APIError(
+                409,
+                ErrorType.FEATURE_DISABLED,
+                "Visual related-assets indexing is disabled",
+                extra={"status": status.model_dump(mode="json")},
+            )
+        if (
+            request.profile == "visual"
+            and required.state == "not_ready"
+            and _visual_index_globally_usable(int(reference["library_id"]))
+        ):
+            raise APIError(
+                409,
+                ErrorType.REFERENCE_NOT_INDEXED,
+                "Reference asset does not have a current visual fingerprint",
+                extra={"status": status.model_dump(mode="json")},
+            )
         if required.state in {"not_ready", "building", "disabled"}:
             raise APIError(
                 409,
@@ -169,7 +275,7 @@ def api_search_related(request: RelatedSearchRequestV1) -> RelatedSearchResponse
                 extra={"status": status.model_dump(mode="json")},
             )
         items = (
-            []
+            query_visual_variants(int(reference["id"]), context, limit=request.limit)
             if request.profile == "visual"
             else rank_related_metadata(
                 int(reference["id"]),

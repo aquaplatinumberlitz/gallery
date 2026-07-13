@@ -22,6 +22,7 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 - Fielded metadata search (`prompt:`, `seed:`, `model:`, `steps:`, etc.) with a dedicated parser; warm metadata reads from SQLite without re-parsing PNG chunks
 - Warm indexed folder listing (SQLite-first, `os.stat` + SQLite only) with optional scheduled refresh and file-watcher support
 - DB-derived faceted aggregation endpoint (`/api/facets`) for tool, model, sampler, and other metadata dimensions
+- Explainable Related Assets with recorded-generation tiers and Pillow-only visual-variant fingerprints
 - Desktop Library Inspector at `/metadata` for read-only AI photo metadata inspection with prompt/negative/LoRA search, DB-first detail popovers, copy actions, server-side model/prompt filtering and sorting, TanStack Table row models, and TanStack Virtual table rows
 
 ## Tech Stack

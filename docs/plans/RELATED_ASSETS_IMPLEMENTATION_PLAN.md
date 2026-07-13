@@ -433,27 +433,27 @@ Candidate index:
 
 ### Candidate and distance policy
 
-- [ ] Split each 64-bit dHash into four 16-bit bands.
-- [ ] Query indexed band matches and bounded one-bit band probes for the v1
+- [x] Split each 64-bit dHash into four 16-bit bands.
+- [x] Query indexed band matches and bounded one-bit band probes for the v1
       near-duplicate threshold.
-- [ ] Calculate exact Hamming distance with Python `int.bit_count()` only for
+- [x] Calculate exact Hamming distance with Python `int.bit_count()` only for
       the bounded candidate set.
-- [ ] Use color-grid distance and aspect ratio only to break or reject weak
+- [x] Use color-grid distance and aspect ratio only to break or reject weak
       dHash matches; do not call them semantic features.
-- [ ] Keep the visual candidate pool bounded before metadata enrichment.
-- [ ] Exclude the reference and apply active catalog/scope filters.
+- [x] Keep the visual candidate pool bounded before metadata enrichment.
+- [x] Exclude the reference and apply active catalog/scope filters.
 
 ### Lifecycle
 
-- [ ] One bounded background worker computes fingerprints.
-- [ ] Prefer an existing current derivative; missing derivatives queue normal
+- [x] One bounded background worker computes fingerprints.
+- [x] Prefer an existing current derivative; missing derivatives queue normal
       low-priority derivative work instead of opening originals in the request.
-- [ ] Decode and hash outside SQLite write transactions.
-- [ ] Persist fingerprint and band rows atomically.
-- [ ] Source, derivative, or algorithm version changes invalidate the row.
-- [ ] A reference without a current fingerprint returns
+- [x] Decode and hash outside SQLite write transactions.
+- [x] Persist fingerprint and band rows atomically.
+- [x] Source, derivative, or algorithm version changes invalidate the row.
+- [x] A reference without a current fingerprint returns
       `409 REFERENCE_NOT_INDEXED` with coverage/status context.
-- [ ] Visual indexing can be disabled or degraded without affecting lexical or
+- [x] Visual indexing can be disabled or degraded without affecting lexical or
       metadata-related search.
 
 ### Honest quality limits
@@ -465,12 +465,12 @@ Candidate index:
 
 ### Acceptance gates
 
-- [ ] Resize and re-encode fixtures match within the documented threshold.
-- [ ] Light color changes remain discoverable without admitting unrelated fixtures.
-- [ ] Crop, mirror, and rotation limitations are represented in tests and docs.
-- [ ] Candidate lookup is index-bounded at the 100,000-asset fixture scale.
-- [ ] No related-assets HTTP request decodes an image.
-- [ ] Lexical search works unchanged when visual indexing is disabled or failed.
+- [x] Resize and re-encode fixtures match within the documented threshold.
+- [x] Light color changes remain discoverable without admitting unrelated fixtures.
+- [x] Crop, mirror, and rotation limitations are represented in tests and docs.
+- [x] Candidate lookup is index-bounded at the 100,000-asset fixture scale.
+- [x] No related-assets HTTP request decodes an image.
+- [x] Lexical search works unchanged when visual indexing is disabled or failed.
 
 ## R4 - Vue related-assets and generation-family UX
 
@@ -634,3 +634,4 @@ When complete, move this file to `docs/archived/` and update
 | 2026-07-13 | R0 | Complete | Pre-change schema/runtime/catalog and managed 5,000-row search/facet baselines recorded; deterministic metadata/visual relation fixture added; versioned `/api/search/related` request/result/status/reason/error models and canonical reference authorization covered by 8 focused contracts. |
 | 2026-07-13 | R1 | Complete | Schema v10 adds compact generation signatures with rollback-safe `.v8.bak`; versioned prompt atoms and canonical numeric hashing lock family/recipe/exact boundaries; metadata persistence invalidates and coalesces durable active-only backfill; 15 focused tests plus lifecycle/API regression coverage pass. |
 | 2026-07-13 | R2 | Complete | Bounded signature/model/resource/workflow/16-atom FTS candidates feed scoring outside SQLite writes; fixed explainable tiers/reasons and recipe filtering pass the golden fixture; stale, inactive, cross-scope, seed-only, model-only, LoRA-only, and boilerplate-only leakage is rejected. |
+| 2026-07-13 | R3 | Complete | Schema v11 adds fixed Pillow-only dHash/color fingerprints and eight indexed bands without inline decode; derivative-backed durable extraction, 500-row exact/one-bit band candidates, bit-count/color/aspect ranking, typed coverage, disable isolation, and honest transform limits pass focused tests. |

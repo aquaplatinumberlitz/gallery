@@ -23,7 +23,7 @@ def _gallery_metadata_db() -> Path:
     return _gallery_metadata_db_path()
 
 
-CATALOG_SCHEMA_VERSION = 10
+CATALOG_SCHEMA_VERSION = 11
 
 
 def _ensure_generation_signature_schema(
@@ -63,6 +63,52 @@ def _ensure_generation_signature_schema(
         """
         CREATE INDEX IF NOT EXISTS idx_generation_signatures_exact
           ON asset_generation_signatures(library_id, exact_hash, asset_id)
+        """,
+    ]
+    execute = execute_statement or conn.execute
+    for statement in statements:
+        execute(statement)
+
+
+def _ensure_visual_fingerprint_schema(
+    conn: sqlite3.Connection,
+    *,
+    execute_statement: Callable[[str], object] | None = None,
+) -> None:
+    """Create Pillow-only visual fingerprints and indexed hash bands."""
+    statements = [
+        """
+        CREATE TABLE IF NOT EXISTS asset_visual_fingerprints (
+          asset_id INTEGER PRIMARY KEY REFERENCES assets(id) ON DELETE CASCADE,
+          library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+          source_mtime_ns INTEGER NOT NULL,
+          source_size INTEGER NOT NULL,
+          derivative_role TEXT NOT NULL,
+          derivative_version INTEGER NOT NULL,
+          algorithm_version INTEGER NOT NULL,
+          dhash_horizontal BLOB NOT NULL CHECK(length(dhash_horizontal) = 8),
+          dhash_vertical BLOB NOT NULL CHECK(length(dhash_vertical) = 8),
+          color_grid BLOB NOT NULL CHECK(length(color_grid) = 48),
+          indexed_at REAL NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS asset_visual_hash_bands (
+          asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+          library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+          hash_kind INTEGER NOT NULL CHECK(hash_kind IN (0, 1)),
+          band_no INTEGER NOT NULL CHECK(band_no BETWEEN 0 AND 3),
+          band_value INTEGER NOT NULL CHECK(band_value BETWEEN 0 AND 65535),
+          PRIMARY KEY(asset_id, hash_kind, band_no)
+        )
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_visual_hash_bands_lookup
+          ON asset_visual_hash_bands(hash_kind, band_no, band_value, library_id, asset_id)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_visual_fingerprints_library_asset
+          ON asset_visual_fingerprints(library_id, asset_id)
         """,
     ]
     execute = execute_statement or conn.execute
@@ -961,6 +1007,41 @@ def _migrate_v8_to_v10(conn: sqlite3.Connection) -> None:
         raise
 
 
+def _execute_v11_migration_statement(conn: sqlite3.Connection, statement: str) -> None:
+    """Execute one v10-to-v11 migration statement (test injection seam)."""
+    conn.execute(statement)
+
+
+def _backup_v10_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v11 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v10.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v10_to_v11(conn: sqlite3.Connection) -> None:
+    """Add visual fingerprints and band indexes without inline decoding."""
+    conn.commit()
+    _backup_v10_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _ensure_visual_fingerprint_schema(
+            conn,
+            execute_statement=lambda statement: _execute_v11_migration_statement(conn, statement),
+        )
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v11 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 11")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     current_version = conn.execute("PRAGMA user_version").fetchone()[0]
     has_application_tables = _database_has_application_tables(conn)
@@ -1002,6 +1083,10 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         current_version = 10
 
     if current_version == 10:
+        _migrate_v10_to_v11(conn)
+        current_version = 11
+
+    if current_version == 11:
         _cleanup_ignored_index_conn(conn)
         _ensure_post_v1_additive_columns(conn)
         _ensure_v3_schema(conn)
@@ -1010,13 +1095,14 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         _ensure_workflow_property_schema(conn)
         _ensure_raw_workflow_schema(conn)
         _ensure_generation_signature_schema(conn)
+        _ensure_visual_fingerprint_schema(conn)
         return
 
     if current_version == 0 and has_application_tables:
         raise RuntimeError("Catalog database has application tables but no schema version; delete it and start fresh")
 
     if current_version != 0:
-        raise RuntimeError(f"Catalog database must be fresh (v0-v10); found v{current_version}")
+        raise RuntimeError(f"Catalog database must be fresh (v0-v11); found v{current_version}")
 
     conn.executescript(
         """
@@ -1360,6 +1446,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     _ensure_workflow_property_schema(conn)
     _ensure_raw_workflow_schema(conn)
     _ensure_generation_signature_schema(conn)
+    _ensure_visual_fingerprint_schema(conn)
 
     conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")
     _cleanup_ignored_index_conn(conn)

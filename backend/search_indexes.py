@@ -153,6 +153,7 @@ def api_search_capabilities() -> SearchCapabilitiesResponse:
                 "workflow": ["workflow_properties"],
                 "raw": ["workflow_raw"],
                 "related": ["generation_signatures"],
+                "visual": ["visual_fingerprints"],
             },
             "indexes": [_capability_index(item) for item in definitions],
         }
