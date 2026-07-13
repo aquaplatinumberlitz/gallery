@@ -611,17 +611,25 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
 def run_once() -> bool:
     """Claim and execute one queued catalog job. Returns True when work ran."""
     worker_id = str(getattr(threading.current_thread(), "_gallery_worker_id", threading.current_thread().name))
-    job = claim_next_catalog_job(
-        max_queue_wait_seconds=GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS,
-        worker_id=worker_id,
-        lease_seconds=CATALOG_JOB_LEASE_SECONDS,
-    )
-    if job is None:
-        return False
-    _emit_job(job)
-    heartbeat = _CatalogLeaseHeartbeat(int(job["id"]), str(job["claim_token"]))
-    heartbeat.start()
+    job: dict[str, Any] | None = None
+    claim: tuple[int, str] | None = None
+    heartbeat: _CatalogLeaseHeartbeat | None = None
     try:
+        with _service_lock:
+            job = claim_next_catalog_job(
+                max_queue_wait_seconds=GALLERY_CATALOG_JOB_MAX_QUEUE_WAIT_SECONDS,
+                worker_id=worker_id,
+                lease_seconds=CATALOG_JOB_LEASE_SECONDS,
+            )
+            if job is None:
+                return False
+            claim = (int(job["id"]), str(job["claim_token"]))
+            with _active_claims_lock:
+                _active_catalog_claims.add(claim)
+
+        heartbeat = _CatalogLeaseHeartbeat(*claim)
+        heartbeat.start()
+        _emit_job(job)
         if job["type"] == "scan":
             execute_scan_job(job)
         elif job["type"] == "rebuild":
@@ -635,20 +643,22 @@ def run_once() -> bool:
                 error="Unsupported",
             )
     finally:
-        try:
-            heartbeat.stop()
-        except Exception:  # noqa: BLE001
-            LOGGER.exception("Failed to stop catalog heartbeat for job %s", job["id"])
-        with _active_claims_lock:
-            _active_catalog_claims.discard((int(job["id"]), str(job["claim_token"])))
-        try:
-            abandoned = fail_abandoned_catalog_job_claim(int(job["id"]), str(job["claim_token"]))
-        except Exception:  # noqa: BLE001
-            LOGGER.exception("Failed to close abandoned catalog claim for job %s", job["id"])
-        else:
-            if abandoned is not None:
-                LOGGER.error("Catalog job %s exited without a terminal claim write", job["id"])
-                _emit_job_and_parent_updates(abandoned, "job.failed")
+        if job is not None and claim is not None:
+            if heartbeat is not None:
+                try:
+                    heartbeat.stop()
+                except Exception:  # noqa: BLE001
+                    LOGGER.exception("Failed to stop catalog heartbeat for job %s", job["id"])
+            with _active_claims_lock:
+                _active_catalog_claims.discard(claim)
+            try:
+                abandoned = fail_abandoned_catalog_job_claim(*claim)
+            except Exception:  # noqa: BLE001
+                LOGGER.exception("Failed to close abandoned catalog claim for job %s", job["id"])
+            else:
+                if abandoned is not None:
+                    LOGGER.error("Catalog job %s exited without a terminal claim write", job["id"])
+                    _emit_job_and_parent_updates(abandoned, "job.failed")
     return True
 
 
@@ -679,7 +689,11 @@ class _CatalogLeaseHeartbeat:
 
     def stop(self) -> None:
         self._stop.set()
-        if self._thread is not None and self._thread is not threading.current_thread():
+        if (
+            self._thread is not None
+            and self._thread is not threading.current_thread()
+            and self._thread.is_alive()
+        ):
             self._thread.join(timeout=max(1.0, CATALOG_LEASE_HEARTBEAT_SECONDS + 1.0))
         with _active_claims_lock:
             _active_catalog_claims.discard((self._job_id, self._claim_token))
@@ -748,8 +762,9 @@ def ensure_running(*, service_enabled: bool = GALLERY_CATALOG_SERVICE_ENABLED) -
 
     Startup recovery handles jobs left running by a prior process. This runtime
     guard covers the same failure shape inside the current process: if no
-    catalog worker thread is alive, no thread can finish the durable running
-    job, so mark it failed before starting a replacement worker.
+    catalog worker thread is alive, or a live worker no longer has the exact
+    claim token registered, no executor can finish the durable running job.
+    Mark it failed before starting or continuing replacement work.
     """
     with _service_lock:
         alive, _dead_worker_ids = _prune_worker_threads_locked()
@@ -773,6 +788,7 @@ def ensure_running(*, service_enabled: bool = GALLERY_CATALOG_SERVICE_ENABLED) -
                 reason="Catalog worker stopped before completing the job",
                 live_worker_ids=live_worker_ids,
                 live_claim_tokens=live_claim_tokens,
+                recover_unregistered_live_claims=True,
             )
             recovered_count = len(recovered_jobs)
             for job in recovered_jobs:

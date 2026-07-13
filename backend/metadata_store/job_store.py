@@ -616,6 +616,25 @@ def renew_catalog_job_lease(job_id: int, claim_token: str, *, lease_seconds: flo
         return cursor.rowcount == 1
 
 
+def _mark_catalog_job_library_error_conn(
+    conn: sqlite3.Connection,
+    library_id: int | None,
+    reason: str,
+    now: float,
+) -> None:
+    """Move a library with abandoned catalog work into the error state."""
+    if library_id is None:
+        return
+    conn.execute(
+        """
+        UPDATE libraries
+        SET state = 'error', last_error = ?, updated_at = ?
+        WHERE id = ? AND state IN ('discovering', 'indexing', 'degraded')
+        """,
+        (reason, now, library_id),
+    )
+
+
 def fail_abandoned_catalog_job_claim(
     job_id: int,
     claim_token: str,
@@ -645,15 +664,12 @@ def fail_abandoned_catalog_job_claim(
         if cursor.rowcount != 1:
             return None
         conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
-        if row["library_id"] is not None:
-            conn.execute(
-                """
-                UPDATE libraries
-                SET state = 'error', last_error = ?, updated_at = ?
-                WHERE id = ? AND state IN ('discovering', 'indexing', 'degraded')
-                """,
-                (reason, now, int(row["library_id"])),
-            )
+        _mark_catalog_job_library_error_conn(
+            conn,
+            int(row["library_id"]) if row["library_id"] is not None else None,
+            reason,
+            now,
+        )
         updated = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
         return _serialize_library_job(updated)
 
@@ -844,11 +860,14 @@ def recover_stale_jobs(
     reason: str = "Interrupted by server restart",
     live_worker_ids: set[str] | None = None,
     live_claim_tokens: set[tuple[int, str]] | None = None,
+    recover_unregistered_live_claims: bool = False,
 ) -> list[dict[str, Any]]:
     """Fail catalog claims whose owner is dead or whose lease expired.
 
     Queued durable jobs remain queued so startup can resume them or coalesce a
-    low-priority catch-up scan without losing work.
+    low-priority catch-up scan without losing work. Runtime supervisors may
+    additionally recover a live worker's claim when its exact token is no
+    longer registered, which means that executor has already exited.
     """
     _initialize_database()
     startup_recovery = live_worker_ids is None
@@ -859,7 +878,7 @@ def recover_stale_jobs(
         candidates = list(
             conn.execute(
                 """
-                SELECT id, parent_job_id, claimed_by, claim_token, lease_expires_at
+                SELECT id, library_id, parent_job_id, claimed_by, claim_token, lease_expires_at
                 FROM library_jobs
                 WHERE state = 'running' AND type IN (?, ?)
                 """,
@@ -871,11 +890,16 @@ def recover_stale_jobs(
             dead_owner = row["claimed_by"] is None or str(row["claimed_by"]) not in live_workers
             expired = row["lease_expires_at"] is None or float(row["lease_expires_at"]) <= now
             active_local_claim = (int(row["id"]), str(row["claim_token"] or "")) in live_claims
-            if dead_owner or (expired and not active_local_claim):
+            unregistered_live_claim = (
+                recover_unregistered_live_claims and not dead_owner and not active_local_claim
+            )
+            if dead_owner or unregistered_live_claim or (expired and not active_local_claim):
                 # A dead owner is recoverable regardless of lease. A live
                 # owner selected only for expiry must not have an active local
                 # heartbeat and must still be expired in the fenced UPDATE.
-                running_rows.append((row, not dead_owner))
+                # An unregistered live-owner token belongs to an executor that
+                # already exited, so it is recoverable even after a late renew.
+                running_rows.append((row, not dead_owner and not unregistered_live_claim))
         parent_ids: set[int] = set()
         if startup_recovery:
             parent_ids = {
@@ -911,6 +935,12 @@ def recover_stale_jobs(
             if cursor.rowcount != 1:
                 continue
             conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (int(row["id"]),))
+            _mark_catalog_job_library_error_conn(
+                conn,
+                int(row["library_id"]) if row["library_id"] is not None else None,
+                reason,
+                now,
+            )
             touched_parent_ids.update(
                 int(parent["parent_job_id"])
                 for parent in conn.execute(

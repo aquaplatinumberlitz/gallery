@@ -8,8 +8,9 @@ Only dead/expired claims recover, live heartbeats win races, stale workers canno
 write catalog data, staging is cleaned, terminal library/job state is atomic,
 dependency-linked parents recover, bounded/atomic writes refresh their claim,
 metadata enqueue is claim-aware, live heartbeats survive another worker's long
-write, late renewal cannot orphan an executor-less job, healthy parents stay
-unchanged, and v2-to-v3 migration rolls back safely.
+write, setup and close failures cannot orphan executor-less jobs, runtime
+recovery closes unregistered live-owner claims, healthy parents stay unchanged,
+and v2-to-v3 migration rolls back safely.
 
 Run when:
 Changing catalog workers, library_jobs claims, supervisor recovery, or schema.
@@ -167,6 +168,132 @@ def test_run_once_closes_claim_renewed_by_late_heartbeat(
     assert tuple(claim) == (None, None, None)
 
 
+def test_runtime_recovery_closes_unregistered_claim_after_close_failure(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    library_id, queued = _queued_job(isolated_gallery_root, "close-failure")
+
+    def abort_after_expiry(job: dict) -> bool:
+        assert (
+            update_job_state(
+                job["id"],
+                "running",
+                claim_token=job["claim_token"],
+                lease_seconds=60,
+                library_state="indexing",
+            )
+            is not None
+        )
+        with _DB_LOCK, _connect() as conn:
+            conn.execute(
+                "UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?",
+                (time.time() - 1, job["id"]),
+            )
+        return False
+
+    class LateHeartbeat:
+        def __init__(self, job_id: int, claim_token: str) -> None:
+            self.job_id = job_id
+            self.claim_token = claim_token
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            assert renew_catalog_job_lease(self.job_id, self.claim_token, lease_seconds=900)
+
+    class FakeThread:
+        _gallery_worker_id = "MainThread"
+
+        @staticmethod
+        def is_alive() -> bool:
+            return True
+
+    def fail_close(*args, **kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(scan_worker, "execute_scan_job", abort_after_expiry)
+    monkeypatch.setattr(scan_worker, "_CatalogLeaseHeartbeat", LateHeartbeat)
+    monkeypatch.setattr(scan_worker, "fail_abandoned_catalog_job_claim", fail_close)
+    assert scan_worker.run_once()
+    assert get_job(queued["id"])["state"] == "running"
+
+    monkeypatch.setattr(scan_worker, "_worker_threads", [FakeThread()])
+    monkeypatch.setattr(scan_worker, "GALLERY_CATALOG_WORKERS", 1)
+    monkeypatch.setattr(scan_worker, "_spawn_missing_workers_locked", lambda: None)
+    scan_worker._stop_event.clear()
+    status = scan_worker.ensure_running(service_enabled=True)
+
+    assert status["recovered_jobs"] == 1
+    job = get_job(queued["id"])
+    assert job is not None
+    assert job["state"] == "failed"
+    library = get_library(library_id)
+    assert library["state"] == "error"
+    assert library["last_error"] == "Catalog worker stopped before completing the job"
+
+
+def test_run_once_closes_claim_when_heartbeat_start_fails(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    library_id, queued = _queued_job(isolated_gallery_root, "heartbeat-start-failure")
+
+    class FailingHeartbeat:
+        def __init__(self, job_id: int, claim_token: str) -> None:
+            self.job_id = job_id
+            self.claim_token = claim_token
+
+        def start(self) -> None:
+            raise RuntimeError("cannot start heartbeat")
+
+        def stop(self) -> None:
+            return None
+
+    monkeypatch.setattr(scan_worker, "_CatalogLeaseHeartbeat", FailingHeartbeat)
+    with pytest.raises(RuntimeError, match="cannot start heartbeat"):
+        scan_worker.run_once()
+
+    job = get_job(queued["id"])
+    assert job is not None
+    assert job["state"] == "failed"
+    assert get_library(library_id)["state"] == "error"
+    with _DB_LOCK, _connect() as conn:
+        claim = conn.execute(
+            "SELECT claimed_by, claim_token, lease_expires_at FROM library_jobs WHERE id = ?",
+            (queued["id"],),
+        ).fetchone()
+    assert tuple(claim) == (None, None, None)
+
+
+def test_run_once_closes_claim_when_initial_event_emit_fails(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    library_id, queued = _queued_job(isolated_gallery_root, "initial-event-failure")
+    original_emit = scan_worker._emit_job
+    calls = 0
+
+    def fail_first_emit(job: dict, event_type: str = "job.updated") -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("event loop closed")
+        original_emit(job, event_type)
+
+    monkeypatch.setattr(scan_worker, "_emit_job", fail_first_emit)
+    with pytest.raises(RuntimeError, match="event loop closed"):
+        scan_worker.run_once()
+
+    job = get_job(queued["id"])
+    assert job is not None
+    assert job["state"] == "failed"
+    assert get_library(library_id)["state"] == "error"
+    with scan_worker._active_claims_lock:
+        assert not scan_worker._active_catalog_claims
+
+
 def test_recovery_update_allows_concurrent_heartbeat_to_win(
     isolated_gallery_root: Path,
     isolated_metadata_db: Path,
@@ -258,6 +385,8 @@ def test_supervisor_recovery_with_one_live_worker(
     monkeypatch.setattr(scan_worker, "GALLERY_CATALOG_WORKERS", 2)
     monkeypatch.setattr(scan_worker, "_spawn_missing_workers_locked", lambda: None)
     scan_worker._stop_event.clear()
+    with scan_worker._active_claims_lock:
+        scan_worker._active_catalog_claims.add((live_job["id"], live_job["claim_token"]))
 
     status = scan_worker.ensure_running(service_enabled=True)
     assert status["recovered_jobs"] == 1
