@@ -22,7 +22,7 @@ def _gallery_metadata_db() -> Path:
     return _gallery_metadata_db_path()
 
 
-CATALOG_SCHEMA_VERSION = 3
+CATALOG_SCHEMA_VERSION = 4
 
 
 def _ensure_catalog_schema(conn: sqlite3.Connection) -> None:
@@ -350,6 +350,54 @@ def _migrate_v2_to_v3(conn: sqlite3.Connection) -> None:
         raise
 
 
+def _execute_v4_migration_statement(conn: sqlite3.Connection, statement: str) -> None:
+    """Execute one v3-to-v4 migration statement (test injection seam)."""
+    conn.execute(statement)
+
+
+def _backup_v3_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v4 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v3.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v3_to_v4(conn: sqlite3.Connection) -> None:
+    """Backfill unambiguous file-index ownership atomically."""
+    conn.commit()
+    _backup_v3_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _execute_v4_migration_statement(
+            conn,
+            """
+            UPDATE file_index AS fi
+            SET library_id = (
+                SELECT MIN(owner.library_id)
+                FROM assets AS owner
+                WHERE owner.path = fi.path
+            )
+            WHERE fi.library_id IS NULL
+              AND 1 = (
+                  SELECT COUNT(DISTINCT owner.library_id)
+                  FROM assets AS owner
+                  WHERE owner.path = fi.path
+              )
+            """,
+        )
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v4 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 4")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     current_version = conn.execute("PRAGMA user_version").fetchone()[0]
     has_application_tables = _database_has_application_tables(conn)
@@ -367,6 +415,10 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         current_version = 3
 
     if current_version == 3:
+        _migrate_v3_to_v4(conn)
+        current_version = 4
+
+    if current_version == 4:
         _cleanup_ignored_index_conn(conn)
         _ensure_post_v1_additive_columns(conn)
         _ensure_v3_schema(conn)
@@ -376,7 +428,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         raise RuntimeError("Catalog database has application tables but no schema version; delete it and start fresh")
 
     if current_version != 0:
-        raise RuntimeError(f"Catalog database must be fresh (v0), v1, v2, or v3; found v{current_version}")
+        raise RuntimeError(f"Catalog database must be fresh (v0), v1, v2, v3, or v4; found v{current_version}")
 
     conn.executescript(
         """

@@ -118,30 +118,30 @@ correctness.
 
 ### Required implementation
 
-- [ ] Change the shared active file-index ownership predicate to require both:
+- [x] Change the shared active file-index ownership predicate to require both:
   - `catalog_asset.library_id = fi.library_id`
   - `catalog_asset.path = fi.path`
-- [ ] Keep all current active-version checks: offline/deleted state, source
+- [x] Keep all current active-version checks: offline/deleted state, source
       mtime, size, media type, and registered-library ownership.
-- [ ] Add a versioned migration that backfills `file_index.library_id` only
+- [x] Add a versioned migration that backfills `file_index.library_id` only
       when exactly one catalog owner exists for the path.
-- [ ] Leave ambiguous or ownerless rows unowned and exclude them from active
+- [x] Leave ambiguous or ownerless rows unowned and exclude them from active
       search. Surface them through existing integrity diagnostics rather than
       guessing an owner.
-- [ ] Use the existing unique asset index on `(library_id, path)`. Do not add a
+- [x] Use the existing unique asset index on `(library_id, path)`. Do not add a
       redundant `assets(path)` index.
-- [ ] Apply the corrected predicate consistently to search, facets, metadata
+- [x] Apply the corrected predicate consistently to search, facets, metadata
       search, and other current-file helpers.
 
 ### Acceptance gates
 
-- [ ] `EXPLAIN QUERY PLAN` reports indexed lookup on `(library_id, path)` and no
+- [x] `EXPLAIN QUERY PLAN` reports indexed lookup on `(library_id, path)` and no
       full scan of `assets` for the correlated predicate.
-- [ ] Two libraries cannot satisfy each other's file-index rows even when test
+- [x] Two libraries cannot satisfy each other's file-index rows even when test
       data deliberately reuses a path.
-- [ ] Null, mismatched, inactive, offline, deleted, stale-mtime, and stale-size
+- [x] Null, mismatched, inactive, offline, deleted, stale-mtime, and stale-size
       rows are excluded.
-- [ ] Migration rollback/backup behavior follows the current schema migration
+- [x] Migration rollback/backup behavior follows the current schema migration
       pattern and passes foreign-key checks.
 
 ## H2 - DB-only album suggestions and response authorization
@@ -396,3 +396,4 @@ When complete, move this file to `docs/archived/` and update
 | Date | Phase | Result | Evidence |
 | --- | --- | --- | --- |
 | 2026-07-13 | H0 | Complete | `docs/reports/SEARCH_HARDENING_H0_BASELINE.md`; 157 backend, 77 frontend, and 18 E2E tests passed; deterministic/live p95 stayed below 300 ms. |
+| 2026-07-13 | H1 | Complete | Schema v4 ownership backfill and rollback tests; shared predicate remains indexed by `(library_id, path)` and rejects cross-library same-path rows. |

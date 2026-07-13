@@ -91,10 +91,11 @@ resets interrupted `running` jobs, fails exhausted attempts, and repairs
 historical rows where a done job/current metadata row exists but the asset state
 was not materialized.
 
-The shared catalog database is schema version 3. Version 1 first upgrades via a
+The shared catalog database is schema version 4. Version 1 first upgrades via a
 consistent `.v1.bak` and atomic REAL-to-INTEGER nanosecond migration. Version 2
 then creates `.v2.bak` and atomically adds catalog claim fencing and durable
-scheduled-attempt fields. Metadata and catalog rows remain in the same
+scheduled-attempt fields. Version 3 creates `.v3.bak` and backfills file-index
+library ownership only for paths with exactly one catalog owner. Metadata and catalog rows remain in the same
 single-process SQLite database; migrations do not introduce a second store or
 modify source media.
 
