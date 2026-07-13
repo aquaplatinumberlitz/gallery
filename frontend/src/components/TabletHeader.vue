@@ -8,11 +8,12 @@ import { useGalleryStore } from "../stores/gallery";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRouteChrome } from "@/composables/useRouteChrome";
 import { AnimatePresence, motion } from "motion-v";
+import type { SearchScope } from "@/types";
 
 interface Props {
   isDark: boolean;
   searchQuery: string;
-  searchScope: "current" | "all";
+  searchScope: SearchScope;
   searchLoading: boolean;
   currentPath: string;
 }
@@ -22,7 +23,7 @@ const emit = defineEmits<{
   "toggle-sidebar": [];
   "toggle-theme": [];
   "update:searchQuery": [value: string];
-  "scope-change": [value: "current" | "all"];
+  "scope-change": [value: SearchScope];
   "open-advanced-search": [];
 }>();
 

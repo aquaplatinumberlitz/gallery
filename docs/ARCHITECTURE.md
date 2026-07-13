@@ -239,7 +239,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_extract.py`      | Raw metadata extraction/parsing helpers for A1111, SwarmUI, ComfyUI, NovelAI, EasyDiffusion, and generic EXIF/text fields                  |
 | `metadata_parse.py`        | `/api/metadata`, in-memory metadata cache, response shaping                                                                                |
 | `fielded_search_parser.py` | Parser for `prompt:`, `seed:`, `model:`, numeric operators, quoted values, and related fielded search syntax                               |
-| `search.py`                | `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata`                                         |
+| `search.py`                | `/api/search/query`, legacy `/api/search`, `/api/search-metadata`, `/api/library/inspector`, `/api/library/inspector/metadata`              |
 | `facets.py`                | `/api/facets` aggregation over indexed metadata                                                                                            |
 | `indexer.py`               | DB-claim metadata lifecycle worker, durable scheduling, startup recovery, diagnostics, and scan worker rebuild helpers                      |
 | `integrity_checker.py`     | Periodic cross-table consistency checker for metadata jobs, assets, image metadata, derivatives, and derivative jobs                       |
@@ -290,6 +290,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/video/poster`                   | Serve a cached WebP poster generated with ffmpeg                      | `video.py`          |
 | `GET /api/metadata`                       | Extract and normalize AI generation metadata for one image            | `metadata_parse.py` |
 | `GET /api/search`                         | Cursor-paginated unified search media stream plus first-page album suggestions, including fielded metadata queries | `search.py`         |
+| `POST /api/search/query`                  | Canonical Search V2 body with versioned ID-based scope, structured filters, and opaque cursor paging    | `search.py`         |
 | `GET /api/search-metadata`                | Legacy metadata-only search endpoint                                  | `search.py`         |
 | `GET /api/library/inspector`              | Bounded read-only rows for the desktop metadata inspector             | `search.py`         |
 | `GET /api/library/inspector/metadata`     | DB-first full metadata detail for one inspector row                   | `search.py`         |
@@ -418,7 +419,7 @@ Key paths:
 
 | Layer                | Responsibilities                                                                                                                                      |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TanStack Query       | `/api/browse`, `/api/folders`, `/api/search`, `/api/metadata`, `/api/facets`, library status/jobs/stats, generated-image status/actions, Library Inspector rows/details, landing page fetches |
+| TanStack Query       | `/api/browse`, `/api/folders`, `/api/search/query`, `/api/metadata`, `/api/facets`, library status/jobs/stats, generated-image status/actions, Library Inspector rows/details, landing page fetches |
 | TanStack DB          | Beta local reactive collection foundation; currently only the landing-pages collection is a runtime pilot                                             |
 | Pinia gallery store  | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state                                 |
 | Pinia lightbox store | Open image, current index, visible item list, navigation                                                                                              |
@@ -534,8 +535,9 @@ IntersectionObserver sees load-more sentinel
 ```text
 Header search or AdvancedSearchDrawer
 -> Pinia stores search text/scope
+-> useSearchUrlSync() encodes versioned shareable state after library hydration
 -> useUnifiedSearchQuery()
--> GET /api/search?cursor=...
+-> POST /api/search/query with a canonical ID-scoped request
 -> SearchResultsPanel renders first-page Album suggestions and an appended Media stream
 ```
 
@@ -545,7 +547,12 @@ Header search or AdvancedSearchDrawer
   canonical `folder` value.
 - Search and facets share one registered-ID/path resolver. A folder outside the
   selected library returns `404`; invalid/missing scope values are `422`.
-- `/api/search` returns bounded `media` pages with opaque string `next_cursor`, `has_more`,
+- `/api/search/query` is the active frontend contract. It accepts schema version
+  1, lexical/workflow/raw modes, a discriminated folder/library/all scope, and
+  never accepts an absolute client path. Persisted/URL forms omit cursor and
+  limit; query keys omit only cursor. Legacy `GET /api/search` authorizes its
+  absolute-path inputs and adapts them into the same lexical executor.
+- Search returns bounded `media` pages with opaque string `next_cursor`, `has_more`,
   `returned`, and `limit`. Legacy `albums`, `photos`, `videos`, and `prompt`
   fields remain for compatibility; the active gallery search UI renders
   `media`.
@@ -580,9 +587,14 @@ Header search or AdvancedSearchDrawer
   future video metadata index supports the same predicates.
 - The raw search string is the only frontend query source. The shared Advanced Search drawer is owned by `App.vue`, uses TanStack Form and scope-matched `/api/facets`, and replaces only drawer-managed filters while preserving residual text and pass-through tokens. It renders as a right sheet on tablet/desktop and a full-width sheet on compact mobile viewports.
 - Active search replaces browse sorting with a visible `Relevance` label. Search feedback distinguishes initial pending, blocking error, stale-data warning, next-page error, and successful empty states on desktop, tablet, and mobile.
+- Search URL state uses `search_v=1` plus bounded base64url structured groups.
+  Debounced edits replace browser history; committed actions push; guarded
+  hydration applies Back/Forward without a write loop. Saved searches (50) and
+  successful recent searches (20) are versioned, browser-local, and preserve
+  case-sensitive values.
 - `GET /api/search-metadata` remains available for older callers, returns the
   catalog-filtered global total, and follows the same DB-only response policy;
-  the main gallery UI uses `/api/search`.
+  the main gallery UI uses `POST /api/search/query`.
 - Search, legacy metadata search, and facets use regular Pydantic response
   models and explicit synchronous FastAPI path operations. OpenAPI documents
   canonical media/album rows, legacy projections, facet values, opaque cursor

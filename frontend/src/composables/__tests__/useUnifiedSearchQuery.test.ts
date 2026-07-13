@@ -1,15 +1,17 @@
 import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { mount } from "@vue/test-utils";
-import { defineComponent, h, ref } from "vue";
+import { computed, defineComponent, h, ref } from "vue";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { unifiedSearch } from "@/services/api";
+import { unifiedSearchV2 } from "@/services/api";
 import { useUnifiedSearchQuery } from "../useUnifiedSearchQuery";
 import { GALLERY_SEARCH_DEBOUNCE_MS } from "@/constants";
-import type { SearchScope, UnifiedSearchResponse, UnifiedSearchResult } from "@/types";
+import type { SearchQueryRequestV1, SearchScope, UnifiedSearchResponse, UnifiedSearchResult } from "@/types";
 
 vi.mock("@/services/api", () => ({
-  unifiedSearch: vi.fn(),
+  unifiedSearchV2: vi.fn(),
 }));
+
+vi.mock("../useSavedSearches", () => ({ recordRecentSearch: vi.fn() }));
 
 const makeSearchResult = (name: string): UnifiedSearchResult => ({
   name,
@@ -52,11 +54,35 @@ function setup(query: string, scope: SearchScope, path: string) {
   const queryRef = ref(query);
   const scopeRef = ref(scope);
   const pathRef = ref(path);
+  const requestRef = computed<SearchQueryRequestV1 | null>(() => {
+    const text = queryRef.value.trim();
+    if (!text) return null;
+    const requestScope: SearchQueryRequestV1["scope"] =
+      scopeRef.value === "all"
+        ? { kind: "all" }
+        : scopeRef.value === "library"
+          ? { kind: "library", library_id: 2 }
+          : {
+              kind: "folder",
+              library_id: 2,
+              import_path_id: 7,
+              relative_path: pathRef.value.replace(/^\/+/, ""),
+            };
+    return {
+      schema_version: 1,
+      mode: "lexical",
+      text,
+      scope: requestScope,
+      filters: { prompt_groups: [], workflow_groups: [] },
+      cursor: null,
+      limit: 60,
+    };
+  });
   let result!: ReturnType<typeof useUnifiedSearchQuery>;
   const wrapper = mount(
     defineComponent({
       setup() {
-        result = useUnifiedSearchQuery(queryRef, scopeRef, pathRef);
+        result = useUnifiedSearchQuery(requestRef);
         return () => h("div");
       },
     }),
@@ -76,26 +102,33 @@ afterEach(() => {
 
 describe("useUnifiedSearchQuery", () => {
   it("fetches search results when query is non-empty after debounce", async () => {
-    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
     const { result } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
 
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
-    expect(unifiedSearch).toHaveBeenCalledWith(
-      "cat",
-      { scope: "all", path: "", limit: 60, cursor: undefined },
+    expect(unifiedSearchV2).toHaveBeenCalledWith(
+      {
+        schema_version: 1,
+        mode: "lexical",
+        text: "cat",
+        scope: { kind: "all" },
+        filters: { prompt_groups: [], workflow_groups: [] },
+        cursor: null,
+        limit: 60,
+      },
       expect.any(AbortSignal),
     );
   });
 
   it("does not fetch when query is empty", () => {
     setup("", "all", "");
-    expect(unifiedSearch).not.toHaveBeenCalled();
+    expect(unifiedSearchV2).not.toHaveBeenCalled();
   });
 
   it("does not fetch when query is whitespace (trimmed to empty)", () => {
     setup("   ", "all", "");
-    expect(unifiedSearch).not.toHaveBeenCalled();
+    expect(unifiedSearchV2).not.toHaveBeenCalled();
   });
 
   it("returns empty results when query is empty", () => {
@@ -104,37 +137,37 @@ describe("useUnifiedSearchQuery", () => {
   });
 
   it("returns empty results before debounce settles", () => {
-    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
     const { result } = setup("cat", "all", "");
     expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [], media: [] });
   });
 
   it("debounces query changes before fetching", async () => {
-    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
     const { queryRef } = setup("ca", "all", "");
     // On mount, trimmedDebounced = "ca" and debouncedQuery = "ca" (initial value)
     // So the query fires on mount. Let's first wait for that.
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
-    vi.mocked(unifiedSearch).mockClear();
+    vi.mocked(unifiedSearchV2).mockClear();
 
     queryRef.value = "cat";
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS - 1);
-    expect(unifiedSearch).not.toHaveBeenCalled();
+    expect(unifiedSearchV2).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
     await vi.waitFor(() =>
-      expect(unifiedSearch).toHaveBeenCalledWith("cat", expect.anything(), expect.any(AbortSignal)),
+      expect(unifiedSearchV2).toHaveBeenCalledWith(expect.objectContaining({ text: "cat" }), expect.any(AbortSignal)),
     );
   });
 
   it("clears previous results for a new query while the next fetch is pending", async () => {
-    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
     const { result, queryRef } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
 
     // Keep second fetch pending so we can observe the new-key loading state.
-    vi.mocked(unifiedSearch).mockReturnValue(new Promise(() => {}));
+    vi.mocked(unifiedSearchV2).mockReturnValue(new Promise(() => {}));
     queryRef.value = "dog";
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS - 1);
 
@@ -146,20 +179,22 @@ describe("useUnifiedSearchQuery", () => {
   });
 
   it("uses scope current to scope search within path", async () => {
-    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults());
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
     const { result } = setup("cat", "current", "/photos");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
 
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
-    expect(unifiedSearch).toHaveBeenCalledWith(
-      "cat",
-      { scope: "current", path: "/photos", limit: 60, cursor: undefined },
+    expect(unifiedSearchV2).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "cat",
+        scope: { kind: "folder", library_id: 2, import_path_id: 7, relative_path: "photos" },
+      }),
       expect.any(AbortSignal),
     );
   });
 
   it("fetches the next page with the previous next_cursor", async () => {
-    vi.mocked(unifiedSearch)
+    vi.mocked(unifiedSearchV2)
       .mockResolvedValueOnce(
         makeMockResults({ media: [makeSearchResult("1.png")], next_cursor: "cursor-1", has_more: true }),
       )
@@ -171,21 +206,20 @@ describe("useUnifiedSearchQuery", () => {
     await result.fetchNextPage();
 
     await vi.waitFor(() => expect(result.results.value.media?.map((item) => item.name)).toEqual(["1.png", "2.png"]));
-    expect(unifiedSearch).toHaveBeenLastCalledWith(
-      "cat",
-      { scope: "all", path: "", limit: 60, cursor: "cursor-1" },
+    expect(unifiedSearchV2).toHaveBeenLastCalledWith(
+      expect.objectContaining({ text: "cat", scope: { kind: "all" }, cursor: "cursor-1", limit: 60 }),
       expect.any(AbortSignal),
     );
   });
 
   it("has isPending true while loading", () => {
-    vi.mocked(unifiedSearch).mockReturnValue(new Promise(() => {}));
+    vi.mocked(unifiedSearchV2).mockReturnValue(new Promise(() => {}));
     const { result } = setup("cat", "all", "");
     expect(result.isPending.value).toBe(true);
   });
 
   it("sets isError on fetch failure", async () => {
-    vi.mocked(unifiedSearch).mockRejectedValue(new Error("network error"));
+    vi.mocked(unifiedSearchV2).mockRejectedValue(new Error("network error"));
     const { result } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(result.isError.value).toBe(true));
@@ -194,7 +228,7 @@ describe("useUnifiedSearchQuery", () => {
   it("deduplicates by library and asset identity before path", async () => {
     const first = { ...makeSearchResult("A.png"), library_id: 4, asset_id: 9, path: "/A.png" };
     const duplicate = { ...first, path: "/renamed.png" };
-    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults({ media: [first, duplicate] }));
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults({ media: [first, duplicate] }));
     const { result } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(result.media.value).toEqual([first]));
@@ -203,7 +237,7 @@ describe("useUnifiedSearchQuery", () => {
   it("keeps case-distinct compatibility paths", async () => {
     const upper = { ...makeSearchResult("A.png"), path: "/A.png" };
     const lower = { ...makeSearchResult("a.png"), path: "/a.png" };
-    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults({ media: [upper, lower] }));
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults({ media: [upper, lower] }));
     const { result } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(result.media.value).toEqual([upper, lower]));
@@ -213,12 +247,12 @@ describe("useUnifiedSearchQuery", () => {
     const photo = makeSearchResult("legacy.png");
     const response = makeMockResults({ photos: [photo], prompt: [], videos: [] });
     delete response.media;
-    vi.mocked(unifiedSearch).mockResolvedValue(response);
+    vi.mocked(unifiedSearchV2).mockResolvedValue(response);
     const { result } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(result.media.value).toEqual([photo]));
 
-    vi.mocked(unifiedSearch).mockResolvedValue(makeMockResults({ media: [], photos: [photo] }));
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults({ media: [], photos: [photo] }));
     const second = setup("dog", "all", "");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(second.result.media.value).toEqual([]));
@@ -227,7 +261,7 @@ describe("useUnifiedSearchQuery", () => {
   it("preserves earlier pages while retrying a failed next page", async () => {
     const first = makeSearchResult("1.png");
     const second = makeSearchResult("2.png");
-    vi.mocked(unifiedSearch)
+    vi.mocked(unifiedSearchV2)
       .mockResolvedValueOnce(makeMockResults({ media: [first], next_cursor: "cursor-1", has_more: true }))
       .mockRejectedValueOnce(new Error("page failed"))
       .mockResolvedValueOnce(makeMockResults({ media: [second], next_cursor: null, has_more: false }));

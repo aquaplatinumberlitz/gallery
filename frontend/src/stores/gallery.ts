@@ -3,6 +3,8 @@ import type {
   FileNode,
   LibraryImportPath,
   RegisteredLibrary,
+  SearchFiltersV1,
+  SearchMode,
   SearchScope,
   SortField,
   SortOrder,
@@ -254,6 +256,9 @@ export const useGalleryStore = defineStore("gallery", {
       searchQuery: "",
       submittedSearchQuery: "",
       searchScope: "current" as SearchScope,
+      searchMode: "lexical" as SearchMode,
+      searchFilters: { prompt_groups: [], workflow_groups: [] } as SearchFiltersV1,
+      searchNavigationVersion: 0,
       searchLoading: false,
       sortField: storedSort.field as SortField,
       sortOrder: storedSort.order as SortOrder,
@@ -290,10 +295,30 @@ export const useGalleryStore = defineStore("gallery", {
 
     submitSearch() {
       this.submittedSearchQuery = this.searchQuery.trim();
+      this.searchNavigationVersion += 1;
     },
 
-    setSearchScope(scope: SearchScope) {
+    setSearchScope(scope: SearchScope, navigate = true) {
+      if (this.searchScope === scope) return;
       this.searchScope = scope;
+      if (navigate) this.searchNavigationVersion += 1;
+    },
+
+    setSearchMode(mode: SearchMode, navigate = true) {
+      if (this.searchMode === mode) return;
+      this.searchMode = mode;
+      if (navigate) this.searchNavigationVersion += 1;
+    },
+
+    setSearchFilters(filters: SearchFiltersV1, navigate = true) {
+      this.searchFilters = {
+        prompt_groups: [...filters.prompt_groups],
+        workflow_groups: filters.workflow_groups.map((group) => ({
+          ...group,
+          predicates: group.predicates.map((predicate) => ({ ...predicate })),
+        })),
+      };
+      if (navigate) this.searchNavigationVersion += 1;
     },
 
     setSearchLoading(loading: boolean) {

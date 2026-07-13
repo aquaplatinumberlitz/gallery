@@ -5,13 +5,13 @@ import { RouterLink } from "vue-router";
 import { useGalleryStore } from "../stores/gallery";
 import SortDropdown from "./SortDropdown.vue";
 import SearchScopeSelect from "./SearchScopeSelect.vue";
-import type { SortValue } from "../types";
+import type { SearchScope, SortValue } from "../types";
 import { AnimatePresence, motion } from "motion-v";
 
 interface Props {
   isDark: boolean;
   searchQuery: string;
-  searchScope: "current" | "all";
+  searchScope: SearchScope;
   searchLoading: boolean;
   currentPath: string;
   barsVisible: boolean;
@@ -22,7 +22,7 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   "update:searchQuery": [value: string];
-  "scope-change": [value: "current" | "all"];
+  "scope-change": [value: SearchScope];
   "toggle-sidebar": [];
   "toggle-theme": [];
   "open-advanced-search": [];

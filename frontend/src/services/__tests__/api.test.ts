@@ -60,6 +60,7 @@ import {
   scanAllLibraries,
   scanLibrary,
   unifiedSearch,
+  unifiedSearchV2,
   updateLibrary,
   validateLibraryCreate,
   validateLibraryUpdate,
@@ -227,6 +228,24 @@ describe("unifiedSearch", () => {
     expect(mockApi.get).toHaveBeenCalledWith("/api/search", {
       params: { q: "*", scope: "all", path: "/p", limit: 10, cursor: "opaque-20" },
     });
+  });
+});
+
+describe("unifiedSearchV2", () => {
+  it("POSTs the complete canonical request and cancellation signal", async () => {
+    const request = {
+      schema_version: 1 as const,
+      mode: "lexical" as const,
+      text: "cat",
+      scope: { kind: "all" as const },
+      filters: { prompt_groups: [], workflow_groups: [] },
+      cursor: null,
+      limit: 60,
+    };
+    const signal = new AbortController().signal;
+    mockApi.post.mockResolvedValueOnce({ data: { query: "cat", media: [] } });
+    await unifiedSearchV2(request, signal);
+    expect(mockApi.post).toHaveBeenCalledWith("/api/search/query", request, { signal });
   });
 });
 

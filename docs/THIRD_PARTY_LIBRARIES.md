@@ -120,6 +120,10 @@ Important tables:
 
 Search behavior:
 
+- `POST /api/search/query` is the active frontend Search V2 contract. Its
+  versioned request uses registered library/import-path IDs plus a
+  case-preserved relative folder path; legacy `GET /api/search` adapts into the
+  same lexical executor after authorization.
 - `/api/search` returns a bounded, cursor-paginated `media` stream and
   first-page `albums` suggestions. Legacy grouped `photos`, `videos`, and
   `prompt` fields remain in the response for compatibility.
@@ -268,6 +272,10 @@ Unified search forwards TanStack Query cancellation to Axios, merges canonical
 pages by `(library_id, asset_id)`, preserves case-sensitive fallback paths, and
 keeps earlier pages visible when a later page fails. Facet keys include the
 canonical scope, library ID, and normalized folder path.
+
+Vue Router owns the shareable Search V2 URL codec. Pinia owns the active search
+session, while versioned saved/recent searches remain bounded in browser
+`localStorage`; neither cursor nor absolute catalog paths are persisted.
 
 ### TanStack Virtual
 

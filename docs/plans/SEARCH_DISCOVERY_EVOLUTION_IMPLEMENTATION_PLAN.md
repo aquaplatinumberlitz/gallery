@@ -1,6 +1,6 @@
 # Search Discovery Evolution Implementation Plan for OpenCode
 
-Status: Proposed
+Status: Active
 
 Last reviewed: 2026-07-13
 
@@ -11,7 +11,7 @@ Priority: P2
 Execution: Core D0-D2 sequential; D3-D4 optional; D5-D6 gate the implemented scope
 
 Depends on: every acceptance gate in
-[Search Hardening](SEARCH_HARDENING_IMPLEMENTATION_PLAN.md)
+[Search Hardening](../archived/SEARCH_HARDENING_IMPLEMENTATION_PLAN.md)
 
 Follow-up: [Related Assets and Generation Discovery](RELATED_ASSETS_IMPLEMENTATION_PLAN.md)
 
@@ -94,20 +94,20 @@ Add `POST /api/search/query` with a regular Pydantic request model:
 
 ### Contract rules
 
-- [ ] `schema_version` is exactly `1`.
-- [ ] Initial modes are `lexical`, `workflow`, and `raw`.
-- [ ] Scope is a discriminated union:
+- [x] `schema_version` is exactly `1`.
+- [x] Initial modes are `lexical`, `workflow`, and `raw`.
+- [x] Scope is a discriminated union:
   - `folder`: requires library, import path, and case-preserved relative path;
   - `library`: requires library only;
   - `all`: has no path fields.
-- [ ] The backend resolves folder scope from registered IDs. The canonical
+- [x] The backend resolves folder scope from registered IDs. The canonical
       request never accepts an absolute path.
-- [ ] `text` is at most 512 Unicode characters.
-- [ ] Request body is at most 32 KiB after JSON decoding constraints.
-- [ ] `limit` defaults to 60 and is bounded to 1-100.
-- [ ] A persistable search removes `cursor` and `limit`.
-- [ ] Every TanStack Query key contains the complete canonical request except cursor.
-- [ ] Legacy GET search maps `current`/absolute path into the canonical model
+- [x] `text` is at most 512 Unicode characters.
+- [x] Request body is at most 32 KiB after JSON decoding constraints.
+- [x] `limit` defaults to 60 and is bounded to 1-100.
+- [x] A persistable search removes `cursor` and `limit`.
+- [x] Every TanStack Query key contains the complete canonical request except cursor.
+- [x] Legacy GET search maps `current`/absolute path into the canonical model
       after authorization.
 
 ### Frontend state and URL codec
@@ -126,34 +126,34 @@ Use Vue Router query parameters on the existing gallery route:
 | `pg` | Bounded base64url JSON prompt-group filters |
 | `wf` | Bounded base64url JSON workflow groups |
 
-- [ ] Hydrate URL state once after libraries are available.
-- [ ] Debounced typing uses `router.replace()`.
-- [ ] Enter, drawer Apply, saved/recent selection, scope change, and mode change
+- [x] Hydrate URL state once after libraries are available.
+- [x] Debounced typing uses `router.replace()`.
+- [x] Enter, drawer Apply, saved/recent selection, scope change, and mode change
       use `router.push()`.
-- [ ] Back/Forward updates search state without writing the same state back.
-- [ ] Invalid URL data is sanitized with one `replace()` and a safe fallback.
-- [ ] Do not store cursor, drawer-open state, loading state, or absolute paths in URLs.
+- [x] Back/Forward updates search state without writing the same state back.
+- [x] Invalid URL data is sanitized with one `replace()` and a safe fallback.
+- [x] Do not store cursor, drawer-open state, loading state, or absolute paths in URLs.
 
 ### Saved and recent searches
 
 Use versioned browser `localStorage`, wrapped in error handling:
 
-- [ ] Maximum 50 saved searches and 20 recent searches.
-- [ ] Saved records contain ID, name, canonical request, created time, and updated time.
-- [ ] Recent records are written only after a successful first page with at
+- [x] Maximum 50 saved searches and 20 recent searches.
+- [x] Saved records contain ID, name, canonical request, created time, and updated time.
+- [x] Recent records are written only after a successful first page with at
       least one result.
-- [ ] Dedupe by canonical request key; do not lowercase paths/values.
-- [ ] Support save, rename, delete, clear recent, schema migration, and corrupt
+- [x] Dedupe by canonical request key; do not lowercase paths/values.
+- [x] Support save, rename, delete, clear recent, schema migration, and corrupt
       storage fallback.
-- [ ] Do not save an asset-reference related-assets request when that support
+- [x] Do not save an asset-reference related-assets request when that support
       is added later.
 
 ### Acceptance gates
 
-- [ ] URL copy/reload reproduces the same request.
-- [ ] Back/Forward produces no request loop or duplicate request.
-- [ ] A folder path's casing survives URL and localStorage round-trips.
-- [ ] Legacy GET and Search V2 return equivalent lexical rows for equivalent input.
+- [x] URL copy/reload reproduces the same request.
+- [x] Back/Forward produces no request loop or duplicate request.
+- [x] A folder path's casing survives URL and localStorage round-trips.
+- [x] Legacy GET and Search V2 return equivalent lexical rows for equivalent input.
 
 ## D1 - Search capabilities and durable index lifecycle
 
@@ -644,4 +644,4 @@ is complete, move this file to `docs/archived/` and update the plans index.
 
 | Date | Phase | Result | Evidence |
 | --- | --- | --- | --- |
-| - | - | Not started | - |
+| 2026-07-13 | D0 | Complete | Versioned `POST /api/search/query` with discriminated ID scopes and legacy GET parity; canonical query keys, Vue Router push/replace hydration, bounded browser-local saved/recent searches, 224 focused backend/frontend tests, 105 backend API tests, and 18 managed search E2E tests passed. |

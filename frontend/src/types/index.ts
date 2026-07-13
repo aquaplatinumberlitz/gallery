@@ -118,8 +118,60 @@ export interface BrowseResponse {
 
 export type FolderChildrenResponse = FolderTreeNode[];
 
-export type SearchScope = "current" | "all";
+export type SearchScope = "current" | "library" | "all";
 export type CanonicalSearchScope = "folder" | "library" | "all";
+export type SearchMode = "lexical" | "workflow" | "raw";
+
+export interface SearchFolderScopeV1 {
+  kind: "folder";
+  library_id: number;
+  import_path_id: number;
+  relative_path: string;
+}
+
+export interface SearchLibraryScopeV1 {
+  kind: "library";
+  library_id: number;
+}
+
+export interface SearchAllScopeV1 {
+  kind: "all";
+}
+
+export type SearchScopeV1 = SearchFolderScopeV1 | SearchLibraryScopeV1 | SearchAllScopeV1;
+
+export interface SearchPromptGroupV1 {
+  kind: "positive" | "negative";
+  value_id: string;
+}
+
+export interface SearchWorkflowPredicateV1 {
+  property: string;
+  op: "eq" | "prefix" | "contains" | "gt" | "gte" | "lt" | "lte";
+  value: string | number | boolean;
+}
+
+export interface SearchWorkflowGroupV1 {
+  node_type: string;
+  predicates: SearchWorkflowPredicateV1[];
+}
+
+export interface SearchFiltersV1 {
+  prompt_groups: SearchPromptGroupV1[];
+  workflow_groups: SearchWorkflowGroupV1[];
+}
+
+export interface SearchQueryRequestV1 {
+  schema_version: 1;
+  mode: SearchMode;
+  text: string;
+  scope: SearchScopeV1;
+  filters: SearchFiltersV1;
+  cursor: string | null;
+  limit: number;
+}
+
+export type PersistableSearchRequestV1 = Omit<SearchQueryRequestV1, "cursor" | "limit">;
 
 export interface UnifiedSearchResult {
   asset_id?: number;

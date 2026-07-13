@@ -36,7 +36,7 @@ import { useFieldedSearch } from "@/composables/useFieldedSearch";
 import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "@/composables/useColumnResize";
 import SearchScopeSelect from "@/components/SearchScopeSelect.vue";
 import SearchFilterChips from "@/components/SearchFilterChips.vue";
-import type { SortValue } from "@/types";
+import type { SearchScope, SortValue } from "@/types";
 import { prefetchLibrariesRoute, prefetchMetadataRoute } from "@/router";
 import { useGalleryStore } from "@/stores/gallery";
 import { queryClient } from "@/query";
@@ -53,14 +53,14 @@ interface Props {
   isSidebarOpen: boolean;
   isDark: boolean;
   searchQuery: string;
-  searchScope: "current" | "all";
+  searchScope: SearchScope;
   searchLoading: boolean;
 }
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
   "update:searchQuery": [value: string];
-  "scope-change": [value: "current" | "all"];
+  "scope-change": [value: SearchScope];
   "toggle-sidebar": [];
   "toggle-theme": [];
   "open-settings": [];

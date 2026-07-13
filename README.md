@@ -212,6 +212,7 @@ gallery-repo/
 | `GET`                  | `/api/video/poster?path=...`                    | Serve a cached WebP video poster                                                                |
 | `GET`                  | `/api/metadata?path=...`                        | Parse AI generation metadata                                                                    |
 | `GET`                  | `/api/search`                                   | Typed folder/library/all photo/album/prompt search with opaque cursors                           |
+| `POST`                 | `/api/search/query`                             | Canonical Search V2 request with ID-based scope, structured filters, and opaque cursors          |
 | `GET`                  | `/api/search-metadata`                          | Typed legacy metadata text search (prompt/model/filename)                                       |
 | `GET`                  | `/api/library/inspector`                        | Cursor-paginated metadata inspection rows with `q`, model, prompt-presence, scope, and sort filters |
 | `GET`                  | `/api/library/inspector/metadata?path=...`      | DB-first full prompt/negative/LoRA/resource metadata detail for inspector popovers/copy actions |

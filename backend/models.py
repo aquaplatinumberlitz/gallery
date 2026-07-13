@@ -1,8 +1,9 @@
-"""Pydantic response models shared by gallery API routes."""
+"""Pydantic request and response models shared by gallery API routes."""
 
-from typing import Literal
+import json
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class FileNode(BaseModel):
@@ -110,6 +111,106 @@ class SearchResponse(BaseModel):
     has_more: bool = False
     returned: int = 0
     limit: int
+
+
+class SearchFolderScopeV1(BaseModel):
+    """ID-based folder scope that never accepts an absolute client path."""
+
+    kind: Literal["folder"]
+    library_id: int = Field(ge=1)
+    import_path_id: int = Field(ge=1)
+    relative_path: str = Field(default="", max_length=4096)
+
+    @field_validator("relative_path")
+    @classmethod
+    def validate_relative_path(cls, value: str) -> str:
+        """Normalize separators and reject absolute or traversing paths."""
+        if "\x00" in value or value.startswith(("/", "\\")):
+            raise ValueError("relative_path must be a relative catalog path")
+        normalized = value.replace("\\", "/")
+        if any(part in {".", ".."} for part in normalized.split("/") if part):
+            raise ValueError("relative_path must not contain traversal segments")
+        return normalized.strip("/")
+
+
+class SearchLibraryScopeV1(BaseModel):
+    """One registered library search scope."""
+
+    kind: Literal["library"]
+    library_id: int = Field(ge=1)
+
+
+class SearchAllScopeV1(BaseModel):
+    """All registered libraries search scope."""
+
+    kind: Literal["all"]
+
+
+SearchScopeV1 = Annotated[
+    SearchFolderScopeV1 | SearchLibraryScopeV1 | SearchAllScopeV1,
+    Field(discriminator="kind"),
+]
+
+
+class SearchPromptGroupV1(BaseModel):
+    """Stable prompt-group identity used by the D2 index."""
+
+    kind: Literal["positive", "negative"]
+    value_id: str = Field(min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class SearchWorkflowPredicateV1(BaseModel):
+    """Typed workflow predicate shape validated against the D3 registry later."""
+
+    property: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    op: Literal["eq", "prefix", "contains", "gt", "gte", "lt", "lte"]
+    value: str | int | float | bool
+
+    @field_validator("value")
+    @classmethod
+    def validate_scalar_value(cls, value: str | int | float | bool) -> str | int | float | bool:
+        """Keep text predicates within the public request bound."""
+        if isinstance(value, str) and len(value) > 512:
+            raise ValueError("workflow predicate text values are limited to 512 characters")
+        return value
+
+
+class SearchWorkflowGroupV1(BaseModel):
+    """Same-node workflow predicate group."""
+
+    node_type: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    predicates: list[SearchWorkflowPredicateV1] = Field(min_length=1, max_length=8)
+
+
+class SearchFiltersV1(BaseModel):
+    """Structured discovery filters carried by the canonical request."""
+
+    prompt_groups: list[SearchPromptGroupV1] = Field(default_factory=list, max_length=8)
+    workflow_groups: list[SearchWorkflowGroupV1] = Field(default_factory=list, max_length=4)
+
+
+class SearchQueryRequestV1(BaseModel):
+    """Canonical Search V2 request shared by API, URLs, and saved searches."""
+
+    schema_version: Literal[1] = 1
+    mode: Literal["lexical", "workflow", "raw"] = "lexical"
+    text: str = Field(default="", max_length=512)
+    scope: SearchScopeV1
+    filters: SearchFiltersV1 = Field(default_factory=SearchFiltersV1)
+    cursor: str | None = Field(default=None, max_length=2048)
+    limit: int = Field(default=60, ge=1, le=100)
+
+    @model_validator(mode="after")
+    def validate_decoded_size(self) -> "SearchQueryRequestV1":
+        """Reject canonical decoded requests larger than 32 KiB."""
+        encoded = json.dumps(self.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        if len(encoded) > 32 * 1024:
+            raise ValueError("decoded search request exceeds 32 KiB")
+        return self
+
+    def persistable(self) -> dict:
+        """Return the versioned request shape that may be stored or shared."""
+        return self.model_dump(mode="json", exclude={"cursor", "limit"})
 
 
 class MetadataSearchResponse(BaseModel):

@@ -40,6 +40,7 @@ const stubLibrary = {
 };
 
 type ApiRequest = { pathname: string; path: string; q: string };
+type SearchPayload = { text?: string; scope?: { kind?: string; relative_path?: string }; limit?: number };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((r) => r.pathname === pathname);
@@ -49,10 +50,12 @@ async function installStubbedGallery(page: Page) {
   const requests: ApiRequest[] = [];
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
+    const searchPayload =
+      url.pathname === "/api/search/query" ? (route.request().postDataJSON() as SearchPayload | null) : null;
     const req: ApiRequest = {
       pathname: url.pathname,
-      path: url.searchParams.get("path") ?? "",
-      q: url.searchParams.get("q") ?? "",
+      path: searchPayload?.scope?.relative_path ?? url.searchParams.get("path") ?? "",
+      q: searchPayload?.text ?? url.searchParams.get("q") ?? "",
     };
     requests.push(req);
 
@@ -96,8 +99,8 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/search") {
-      const q = url.searchParams.get("q") ?? "";
+    if (url.pathname === "/api/search/query") {
+      const q = req.q;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test route fixtures build heterogeneous API payloads before JSON serialization.
       const photos: any[] = [];
@@ -156,12 +159,17 @@ async function installStubbedGallery(page: Page) {
         contentType: "application/json",
         body: JSON.stringify({
           query: q,
-          scope: url.searchParams.get("scope") ?? "all",
+          scope: searchPayload?.scope?.kind ?? "all",
           root: rootPath,
           albums: [],
           photos,
           media: [...photos, ...promptResults],
           prompt: promptResults,
+          videos: [],
+          next_cursor: null,
+          has_more: false,
+          returned: photos.length + promptResults.length,
+          limit: searchPayload?.limit ?? 60,
         }),
       });
       return;
@@ -356,9 +364,9 @@ test.describe("AdvancedSearchDrawer", () => {
 
     await drawer.getByRole("button", { name: /^Apply 2 filters$/ }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
-    await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => requestsFor(requests, "/api/search/query").length).toBeGreaterThanOrEqual(1);
 
-    const searchReqs = requestsFor(requests, "/api/search");
+    const searchReqs = requestsFor(requests, "/api/search/query");
     const lastSearch = searchReqs[searchReqs.length - 1]!;
     expect(lastSearch.q).toContain("prompt");
     expect(lastSearch.q).toContain("blue archive");
@@ -395,10 +403,10 @@ test.describe("AdvancedSearchDrawer", () => {
     await expect(promptInput).toHaveValue("");
 
     // Verify no new search was executed after cancel
-    const countBefore = requestsFor(requests, "/api/search").length;
+    const countBefore = requestsFor(requests, "/api/search/query").length;
     await drawer2.getByRole("button", { name: "Cancel" }).click();
     await expect(drawer2).not.toBeVisible({ timeout: 5_000 });
-    const countAfter = requestsFor(requests, "/api/search").length;
+    const countAfter = requestsFor(requests, "/api/search/query").length;
     expect(countAfter).toBe(countBefore);
   });
 
@@ -436,7 +444,7 @@ test.describe("AdvancedSearchDrawer", () => {
     const searchInput = page.locator("#gallery-search");
     await searchInput.fill("seed:12345");
     await searchInput.press("Enter");
-    await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("seed"))).toBe(true);
+    await expect.poll(() => requestsFor(requests, "/api/search/query").some((r) => r.q.includes("seed"))).toBe(true);
 
     await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
@@ -475,7 +483,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await drawerField(drawer, "advanced-search-prompt").fill("mika");
     await drawer.getByRole("button", { name: "Apply 1 filter" }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
-    await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => requestsFor(requests, "/api/search/query").length).toBeGreaterThanOrEqual(1);
 
     // Verify chip appears
     const chip = page.getByLabel(/Remove filter:/i);
@@ -519,9 +527,9 @@ test.describe("AdvancedSearchDrawer", () => {
 
     await drawer.getByRole("button", { name: /^Apply 5 filters$/ }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
-    await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => requestsFor(requests, "/api/search/query").length).toBeGreaterThanOrEqual(1);
 
-    const searchReqs = requestsFor(requests, "/api/search");
+    const searchReqs = requestsFor(requests, "/api/search/query");
     const lastSearch = searchReqs[searchReqs.length - 1]!;
     expect(lastSearch.q).toContain("seed:12345");
     expect(lastSearch.q).toContain("steps:30");
@@ -559,9 +567,9 @@ test.describe("AdvancedSearchDrawer", () => {
     // Apply
     await drawer.getByRole("button", { name: /^Apply 2 filters$/ }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
-    await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => requestsFor(requests, "/api/search/query").length).toBeGreaterThanOrEqual(1);
 
-    const searchReqs = requestsFor(requests, "/api/search");
+    const searchReqs = requestsFor(requests, "/api/search/query");
     const lastSearch = searchReqs[searchReqs.length - 1]!;
     expect(lastSearch.q).toContain("ratio:16:9");
     expect(lastSearch.q).toContain("size:1024x768");
@@ -581,9 +589,9 @@ test.describe("AdvancedSearchDrawer", () => {
     const searchInput = page.locator("#gallery-search");
     await searchInput.fill("rain");
     await searchInput.press("Enter");
-    await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q === "rain")).toBe(true);
+    await expect.poll(() => requestsFor(requests, "/api/search/query").some((r) => r.q === "rain")).toBe(true);
 
-    const searchReqs = requestsFor(requests, "/api/search");
+    const searchReqs = requestsFor(requests, "/api/search/query");
     expect(searchReqs.some((r) => r.q === "rain")).toBe(true);
 
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
@@ -635,7 +643,7 @@ for (const viewport of [
       await drawerField(drawer, "advanced-search-prompt").fill(`${viewport.name} search`);
       await drawer.getByRole("button", { name: "Apply 1 filter" }).click();
       await expect(drawer).not.toBeVisible();
-      await expect.poll(() => requestsFor(requests, "/api/search").length).toBeGreaterThanOrEqual(1);
+      await expect.poll(() => requestsFor(requests, "/api/search/query").length).toBeGreaterThanOrEqual(1);
     });
   });
 }

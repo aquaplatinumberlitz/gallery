@@ -4,7 +4,7 @@ import MobileHeader from "../components/MobileHeader.vue";
 import { RouterView } from "vue-router";
 import MobileFloatingBottomBar from "../components/MobileFloatingBottomBar.vue";
 import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar";
-import type { FolderTreeNode } from "@/types";
+import type { FolderTreeNode, SearchScope } from "@/types";
 
 defineProps<{
   theme: "light" | "dark";
@@ -14,7 +14,7 @@ defineProps<{
   hasActiveLibrary: boolean;
   currentPath: string;
   searchQuery: string;
-  searchScope: "current" | "all";
+  searchScope: SearchScope;
   searchLoading: boolean;
   barsVisible: boolean;
   canBack: boolean;
@@ -24,7 +24,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: "update:searchQuery", value: string): void;
-  (e: "scope-change", value: "current" | "all"): void;
+  (e: "scope-change", value: SearchScope): void;
   (e: "update:sidebarOpen", value: boolean): void;
   (e: "toggleSidebar"): void;
   (e: "toggleTheme"): void;

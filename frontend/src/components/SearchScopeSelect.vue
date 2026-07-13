@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Component, HTMLAttributes } from "vue";
 import { computed } from "vue";
-import { Earth, FolderSearch } from "lucide-vue-next";
+import { Earth, FolderSearch, Library } from "lucide-vue-next";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { SearchScope } from "@/types";
@@ -19,6 +19,7 @@ const props = withDefaults(
     size?: "default" | "compact" | "icon";
     align?: "start" | "center" | "end";
     currentLabel?: string;
+    libraryLabel?: string;
     allLabel?: string;
     class?: HTMLAttributes["class"];
   }>(),
@@ -26,6 +27,7 @@ const props = withDefaults(
     size: "default",
     align: "end",
     currentLabel: "This folder",
+    libraryLabel: "This library",
     allLabel: "All indexed",
     class: undefined,
   },
@@ -43,6 +45,12 @@ const scopeOptions = computed<ScopeOption[]>(() => [
     icon: FolderSearch,
   },
   {
+    value: "library",
+    label: props.libraryLabel,
+    description: "Search the active registered library.",
+    icon: Library,
+  },
+  {
     value: "all",
     label: props.allLabel,
     description: "Search across indexed libraries.",
@@ -55,7 +63,7 @@ const selectedOption = computed(
 );
 
 function handleUpdate(value: unknown) {
-  if (value === "current" || value === "all") {
+  if (value === "current" || value === "library" || value === "all") {
     emit("update:modelValue", value);
   }
 }

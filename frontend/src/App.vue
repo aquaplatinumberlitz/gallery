@@ -16,6 +16,7 @@ import { useRouteChrome } from "@/composables/useRouteChrome";
 import { useSidebarTreeQuery } from "./composables/useSidebarTreeQuery";
 import { MotionConfig } from "motion-v";
 import { useFieldedSearch } from "./composables/useFieldedSearch";
+import { useSearchUrlSync } from "./composables/useSearchUrlSync";
 import type { FieldFilter } from "./types";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
@@ -87,6 +88,7 @@ function openAdvancedSearch() {
 
 function handleAdvancedSearchApply(filters: FieldFilter[]) {
   galleryStore.setSearchQuery(fieldedSearch.applyFilters(filters));
+  galleryStore.submitSearch();
 }
 
 watch(
@@ -97,6 +99,11 @@ watch(
     }
   },
   { immediate: true },
+);
+
+useSearchUrlSync(
+  () => librariesQuery.data.value ?? [],
+  () => librariesQuery.isSuccess.value && galleryStore.activeLibraryHydrated,
 );
 
 const { resolvedTheme, toggleTheme } = useGalleryTheme();

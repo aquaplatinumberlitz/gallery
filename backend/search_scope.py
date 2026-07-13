@@ -10,6 +10,7 @@ from .errors import APIError, ErrorType
 from .files import is_index_excluded_path
 from .metadata_store import list_libraries
 from .metadata_store.path_utils import canonicalize_catalog_path, catalog_path_contains
+from .models import SearchAllScopeV1, SearchFolderScopeV1, SearchLibraryScopeV1, SearchScopeV1
 
 CanonicalSearchScope = Literal["folder", "library", "all"]
 SearchScopeInput = Literal["current", "folder", "library", "all"]
@@ -23,6 +24,8 @@ class SearchScopeContext:
     library_id: int | None = None
     library_name: str | None = None
     folder_path: str | None = None
+    import_path_id: int | None = None
+    relative_path: str | None = None
 
 
 def _library_by_id(libraries: list[dict], library_id: int) -> dict:
@@ -34,6 +37,15 @@ def _library_by_id(libraries: list[dict], library_id: int) -> dict:
 
 def _import_paths(library: dict) -> list[str]:
     return [canonicalize_catalog_path(item["path"]) for item in library.get("import_paths", [])]
+
+
+def _import_path_records(library: dict) -> list[tuple[int, str]]:
+    return [(int(item["id"]), canonicalize_catalog_path(item["path"])) for item in library.get("import_paths", [])]
+
+
+def _relative_catalog_path(import_root: str, folder_path: str) -> str:
+    relative = Path(folder_path).relative_to(import_root)
+    return "" if str(relative) == "." else relative.as_posix()
 
 
 def resolve_search_scope(
@@ -96,9 +108,50 @@ def resolve_search_scope(
     if is_index_excluded_path(folder_path, import_root, selected_library.get("exclusion_patterns", [])):
         raise APIError(404, ErrorType.NOT_FOUND, "Folder is excluded from the selected library")
 
+    import_path_id = next(path_id for path_id, root in _import_path_records(selected_library) if root == import_root)
     return SearchScopeContext(
         kind="folder",
         library_id=int(selected_library["id"]),
         library_name=str(selected_library["name"]),
         folder_path=folder_path,
+        import_path_id=import_path_id,
+        relative_path=_relative_catalog_path(import_root, folder_path),
+    )
+
+
+def resolve_search_v2_scope(scope: SearchScopeV1) -> SearchScopeContext:
+    """Resolve a canonical ID-based request into an authorized catalog scope."""
+    libraries = list_libraries()
+    if isinstance(scope, SearchAllScopeV1):
+        return SearchScopeContext(kind="all")
+
+    library = _library_by_id(libraries, scope.library_id)
+    if isinstance(scope, SearchLibraryScopeV1):
+        return SearchScopeContext(
+            kind="library",
+            library_id=scope.library_id,
+            library_name=str(library["name"]),
+        )
+
+    if not isinstance(scope, SearchFolderScopeV1):  # pragma: no cover - discriminated Pydantic union
+        raise APIError(422, ErrorType.BAD_REQUEST, "Unsupported search scope")
+    import_path = next(
+        (item for item in library.get("import_paths", []) if int(item["id"]) == scope.import_path_id),
+        None,
+    )
+    if import_path is None:
+        raise APIError(404, ErrorType.NOT_FOUND, "Import path not found in selected library")
+    import_root = canonicalize_catalog_path(import_path["path"])
+    folder_path = canonicalize_catalog_path(Path(import_root, *scope.relative_path.split("/")))
+    if not catalog_path_contains(import_root, folder_path):
+        raise APIError(404, ErrorType.NOT_FOUND, "Folder is outside the selected import path")
+    if is_index_excluded_path(folder_path, import_root, library.get("exclusion_patterns", [])):
+        raise APIError(404, ErrorType.NOT_FOUND, "Folder is excluded from the selected library")
+    return SearchScopeContext(
+        kind="folder",
+        library_id=scope.library_id,
+        library_name=str(library["name"]),
+        folder_path=folder_path,
+        import_path_id=scope.import_path_id,
+        relative_path=scope.relative_path,
     )

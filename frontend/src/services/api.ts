@@ -25,6 +25,7 @@ import type {
   RegisteredLibrary,
   ScanAllLibrariesResponse,
   SearchScope,
+  SearchQueryRequestV1,
   SortValue,
   PromptPresenceFilter,
   UnifiedSearchResponse,
@@ -93,6 +94,7 @@ export type ErrorType =
   | "timeout"
   | "server_error"
   | "confirmation_required"
+  | "feature_disabled"
   | "network"
   | LibraryErrorType;
 
@@ -296,6 +298,14 @@ export const unifiedSearch = async (
     },
     signal,
   });
+  return data;
+};
+
+export const unifiedSearchV2 = async (
+  request: SearchQueryRequestV1,
+  signal?: AbortSignal,
+): Promise<UnifiedSearchResponse> => {
+  const { data } = await api.post<UnifiedSearchResponse>("/api/search/query", request, { signal });
   return data;
 };
 

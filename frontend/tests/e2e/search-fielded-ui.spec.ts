@@ -40,6 +40,7 @@ const stubLibrary = {
 };
 
 type ApiRequest = { pathname: string; path: string; q: string };
+type SearchPayload = { text?: string; scope?: { kind?: string; relative_path?: string }; limit?: number };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((r) => r.pathname === pathname);
@@ -49,10 +50,12 @@ async function installStubbedGallery(page: Page) {
   const requests: ApiRequest[] = [];
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
+    const searchPayload =
+      url.pathname === "/api/search/query" ? (route.request().postDataJSON() as SearchPayload | null) : null;
     const req: ApiRequest = {
       pathname: url.pathname,
-      path: url.searchParams.get("path") ?? "",
-      q: url.searchParams.get("q") ?? "",
+      path: searchPayload?.scope?.relative_path ?? url.searchParams.get("path") ?? "",
+      q: searchPayload?.text ?? url.searchParams.get("q") ?? "",
     };
     requests.push(req);
 
@@ -96,9 +99,9 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
-    if (url.pathname === "/api/search") {
-      const q = url.searchParams.get("q") ?? "";
-      const scope = url.searchParams.get("scope") ?? "all";
+    if (url.pathname === "/api/search/query") {
+      const q = req.q;
+      const scope = searchPayload?.scope?.kind ?? "all";
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test route fixtures build heterogeneous API payloads before JSON serialization.
       let photos: any[] = [];
@@ -195,6 +198,11 @@ async function installStubbedGallery(page: Page) {
           photos,
           media: [...photos, ...promptResults],
           prompt: promptResults,
+          videos: [],
+          next_cursor: null,
+          has_more: false,
+          returned: photos.length + promptResults.length,
+          limit: searchPayload?.limit ?? 60,
         }),
       });
       return;
@@ -257,10 +265,10 @@ test("plain search finds results and shows them in UI", async ({ page }) => {
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("rain");
   await searchInput.press("Enter");
-  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("rain"))).toBe(true);
+  await expect.poll(() => requestsFor(requests, "/api/search/query").some((r) => r.q.includes("rain"))).toBe(true);
 
   // Search request should have been made
-  const searchRequests = requestsFor(requests, "/api/search");
+  const searchRequests = requestsFor(requests, "/api/search/query");
   expect(searchRequests.length).toBeGreaterThanOrEqual(1);
   expect(searchRequests.some((r) => r.q.includes("rain"))).toBe(true);
 
@@ -284,9 +292,9 @@ test("fielded search prompt:mika sends correct query and shows results", async (
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("prompt:mika");
   await searchInput.press("Enter");
-  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q === "prompt:mika")).toBe(true);
+  await expect.poll(() => requestsFor(requests, "/api/search/query").some((r) => r.q === "prompt:mika")).toBe(true);
 
-  const searchRequests = requestsFor(requests, "/api/search");
+  const searchRequests = requestsFor(requests, "/api/search/query");
   expect(searchRequests.some((r) => r.q === "prompt:mika")).toBe(true);
 
   // Result cards should be visible
@@ -309,9 +317,9 @@ test("seed query sends correct query string and shows results", async ({ page })
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("seed:12345");
   await searchInput.press("Enter");
-  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q === "seed:12345")).toBe(true);
+  await expect.poll(() => requestsFor(requests, "/api/search/query").some((r) => r.q === "seed:12345")).toBe(true);
 
-  const searchRequests = requestsFor(requests, "/api/search");
+  const searchRequests = requestsFor(requests, "/api/search/query");
   expect(searchRequests.some((r) => r.q === "seed:12345")).toBe(true);
 });
 
@@ -330,7 +338,7 @@ test("clear search restores gallery view", async ({ page }) => {
   const searchInput = page.locator("#gallery-search");
   await searchInput.fill("rain");
   await searchInput.press("Enter");
-  await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q.includes("rain"))).toBe(true);
+  await expect.poll(() => requestsFor(requests, "/api/search/query").some((r) => r.q.includes("rain"))).toBe(true);
 
   // Clear the search
   await searchInput.fill("");
@@ -392,7 +400,7 @@ test("search query with special characters does not crash", async ({ page }) => 
     await searchInput.press("Enter");
 
     // Verify search request was made
-    await expect.poll(() => requestsFor(requests, "/api/search").some((r) => r.q === q)).toBe(true);
+    await expect.poll(() => requestsFor(requests, "/api/search/query").some((r) => r.q === q)).toBe(true);
   }
 
   // Clear and restore

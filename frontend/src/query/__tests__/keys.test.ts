@@ -44,7 +44,6 @@ describe("queryKeys", () => {
     ["folderChildren", ["/p"], ["folder-children", "/p"]],
     ["browseInfiniteAllRoot", [], ["browse-infinite"]],
     ["browseInfiniteRoot", [4], ["browse-infinite", 4]],
-    ["search", ["cat", "all", "/p", 60], ["search", "cat", "all", "/p", 60]],
     ["metadata", ["/a.png"], ["metadata", "/a.png"]],
     ["statusRoot", [], ["status"]],
     ["statusBatch", [], ["status", "libraries", "batch"]],
@@ -73,6 +72,30 @@ describe("queryKeys", () => {
 
   it("jobs includes limit when provided", () => {
     expect(queryKeys.jobs(8)).toEqual(["jobs", "list", 8]);
+  });
+
+  it("search contains the complete persistable canonical request and limit but not cursor", () => {
+    expect(
+      queryKeys.search({
+        schema_version: 1,
+        mode: "lexical",
+        text: "CaseSensitive",
+        scope: { kind: "folder", library_id: 4, import_path_id: 9, relative_path: "Portraits/A" },
+        filters: { prompt_groups: [], workflow_groups: [] },
+        cursor: "opaque",
+        limit: 60,
+      }),
+    ).toEqual([
+      "search-v2",
+      {
+        schema_version: 1,
+        mode: "lexical",
+        text: "CaseSensitive",
+        scope: { kind: "folder", library_id: 4, import_path_id: 9, relative_path: "Portraits/A" },
+        filters: { prompt_groups: [], workflow_groups: [] },
+      },
+      60,
+    ]);
   });
 
   it.each([

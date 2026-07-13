@@ -1,10 +1,11 @@
 import { useInfiniteQuery } from "@tanstack/vue-query";
-import { computed, type Ref } from "vue";
+import { computed, type Ref, watch } from "vue";
 import { refDebounced } from "@vueuse/core";
-import { normalizeQueryPath, queryKeys } from "../query/keys";
-import { unifiedSearch } from "../services/api";
-import type { SearchScope, UnifiedSearchResponse, UnifiedSearchResult, UnifiedSearchResults } from "../types";
+import { queryKeys } from "../query/keys";
+import { unifiedSearchV2 } from "../services/api";
+import type { SearchQueryRequestV1, UnifiedSearchResponse, UnifiedSearchResult, UnifiedSearchResults } from "../types";
 import { GALLERY_SEARCH_DEBOUNCE_MS } from "../constants";
+import { recordRecentSearch } from "./useSavedSearches";
 
 export const SEARCH_PAGE_SIZE = 60;
 
@@ -31,38 +32,47 @@ const dedupeCanonicalResults = (results: UnifiedSearchResult[]) => {
   });
 };
 
-export function useUnifiedSearchQuery(query: Ref<string>, scope: Ref<SearchScope>, path: Ref<string>) {
-  const trimmedQuery = computed(() => query.value.trim());
+export function useUnifiedSearchQuery(request: Ref<SearchQueryRequestV1 | null>) {
+  const trimmedQuery = computed(() => request.value?.text.trim() ?? "");
   const trimmedDebounced = refDebounced(trimmedQuery, GALLERY_SEARCH_DEBOUNCE_MS);
   const debouncedQuery = computed(() => (trimmedQuery.value ? trimmedDebounced.value : ""));
-
-  const normalizedPath = computed(() => normalizeQueryPath(path.value || ""));
-  const requestPath = computed(() => (scope.value === "current" ? normalizedPath.value : ""));
+  const debouncedRequest = computed<SearchQueryRequestV1 | null>(() => {
+    if (!request.value) return null;
+    if (trimmedQuery.value && debouncedQuery.value !== trimmedQuery.value) return null;
+    return { ...request.value, text: debouncedQuery.value };
+  });
 
   const searchQuery = useInfiniteQuery({
-    queryKey: computed(() => {
-      const requestQuery = debouncedQuery.value;
-      const requestScope = scope.value;
-      const pathForRequest = requestPath.value;
-      return queryKeys.search(requestQuery, requestScope, pathForRequest, SEARCH_PAGE_SIZE);
-    }),
-    queryFn: ({ queryKey, pageParam, signal }) => {
-      const [, requestQuery, requestScope, pathForRequest, limit] = queryKey as ReturnType<typeof queryKeys.search>;
-      return unifiedSearch(
-        requestQuery,
-        {
-          scope: requestScope as SearchScope,
-          path: pathForRequest,
-          limit,
-          cursor: pageParam ?? undefined,
+    queryKey: computed(() =>
+      queryKeys.search(
+        debouncedRequest.value ?? {
+          schema_version: 1,
+          mode: "lexical",
+          text: "",
+          scope: { kind: "all" },
+          filters: { prompt_groups: [], workflow_groups: [] },
+          cursor: null,
+          limit: SEARCH_PAGE_SIZE,
         },
-        signal,
-      );
+      ),
+    ),
+    queryFn: ({ queryKey, pageParam, signal }) => {
+      const [, persistable, limit] = queryKey as ReturnType<typeof queryKeys.search>;
+      return unifiedSearchV2({ ...persistable, cursor: pageParam ?? null, limit }, signal);
     },
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage: UnifiedSearchResponse) => lastPage.next_cursor ?? undefined,
-    enabled: computed(() => debouncedQuery.value.length > 0),
+    enabled: computed(() => debouncedRequest.value !== null),
   });
+
+  watch(
+    () => searchQuery.data.value?.pages[0],
+    (firstPage) => {
+      if (firstPage && firstPage.returned > 0 && debouncedRequest.value) {
+        recordRecentSearch(debouncedRequest.value);
+      }
+    },
+  );
 
   const pages = computed(() => searchQuery.data.value?.pages ?? []);
   const results = computed<UnifiedSearchResults>(() => {

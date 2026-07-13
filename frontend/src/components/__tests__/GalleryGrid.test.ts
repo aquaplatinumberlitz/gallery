@@ -114,11 +114,14 @@ vi.mock("@/utils/gallery", () => ({
 const mockStore: Record<string, any> = {
   activeLibraryId: 1,
   activeImportPathId: 1,
+  activeImportRootPath: "/photos",
   activeLibraryHydrated: true,
   currentBrowsePath: "/photos",
   searchQuery: "",
   submittedSearchQuery: "",
   searchScope: "current",
+  searchMode: "lexical",
+  searchFilters: { prompt_groups: [], workflow_groups: [] },
   sortField: "date",
   sortOrder: "desc",
   isLoading: false,
@@ -161,11 +164,17 @@ vi.mock("vue-router", () => ({
 
 function defaultStoreValues() {
   return {
+    activeLibraryId: 1,
+    activeImportPathId: 1,
+    activeImportRootPath: "/photos",
     errorMessage: "",
     errorType: null,
     isLoading: false,
     searchQuery: "",
     submittedSearchQuery: "",
+    searchScope: "current",
+    searchMode: "lexical",
+    searchFilters: { prompt_groups: [], workflow_groups: [] },
   };
 }
 
@@ -331,7 +340,7 @@ describe("GalleryGrid", () => {
     const wrapper = await mountSubject({ store: { searchQuery: "mi", submittedSearchQuery: "" } });
 
     expect(mockUseUnifiedSearchQuery).toHaveBeenCalled();
-    expect(mockUseUnifiedSearchQuery.mock.calls[0][0].value).toBe("mi");
+    expect(mockUseUnifiedSearchQuery.mock.calls[0][0].value?.text).toBe("mi");
     expect(fuzzySearchFileNodes).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain("Keep typing to search, or press Enter.");
   });
@@ -343,6 +352,6 @@ describe("GalleryGrid", () => {
     await mountSubject({ store: { searchQuery: "m", submittedSearchQuery: "m" } });
 
     expect(mockUseUnifiedSearchQuery).toHaveBeenCalled();
-    expect(mockUseUnifiedSearchQuery.mock.calls[0][0].value).toBe("m");
+    expect(mockUseUnifiedSearchQuery.mock.calls[0][0].value?.text).toBe("m");
   });
 });

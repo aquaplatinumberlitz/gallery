@@ -1,4 +1,5 @@
-import type { PromptPresenceFilter, SortValue } from "@/types";
+import type { PromptPresenceFilter, SearchQueryRequestV1, SortValue } from "@/types";
+import { persistableSearchRequest } from "@/utils/searchRequest";
 
 export const normalizeQueryPath = (path: string | null | undefined) => {
   const normalized = (path ?? "").trim().replace(/\\/g, "/").replace(/\/+/g, "/");
@@ -58,8 +59,7 @@ export const queryKeys = {
   browseInfinite: (libraryId: number, path: string | null | undefined, limit: number, includeOffline = false) =>
     ["browse-infinite", libraryId, normalizeBrowsePath(path), limit, includeOffline] as const,
 
-  search: (query: string, scope: string, path: string, limit: number) =>
-    ["search", query.trim(), scope, normalizeQueryPath(path), limit] as const,
+  search: (request: SearchQueryRequestV1) => ["search-v2", persistableSearchRequest(request), request.limit] as const,
 
   metadata: (path: string) => ["metadata", normalizeQueryPath(path)] as const,
 

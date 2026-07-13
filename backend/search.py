@@ -23,10 +23,18 @@ from .metadata_store import (
     search_index_fielded,
     search_metadata,
 )
-from .models import APIErrorResponse, MetadataSearchResponse, SearchResponse
+from .models import (
+    APIErrorResponse,
+    MetadataSearchResponse,
+    SearchAllScopeV1,
+    SearchFolderScopeV1,
+    SearchLibraryScopeV1,
+    SearchQueryRequestV1,
+    SearchResponse,
+)
 from .paths import InvalidPathError, is_path_safe, resolve_path
 from .scan import require_registered_path_allowed
-from .search_scope import SearchScopeInput, resolve_search_scope
+from .search_scope import SearchScopeContext, SearchScopeInput, resolve_search_scope, resolve_search_v2_scope
 
 router = APIRouter()
 LOGGER = logging.getLogger(__name__)
@@ -164,15 +172,44 @@ def api_search(
     limit: Annotated[int, Query(ge=1, le=200, description="Maximum media rows per page")] = 50,
     cursor: Annotated[str | None, Query(description="Opaque result cursor; decimal offsets are deprecated")] = None,
 ) -> SearchResponse:
-    """Search albums, photos, and prompts in either current folder or all indexed files."""
+    """Legacy GET adapter for canonical Search V2 lexical execution."""
     if cursor is not None and cursor.isdecimal():
         response.headers["Deprecation"] = "true"
         response.headers["Warning"] = '299 - "Decimal search cursors are deprecated; use next_cursor"'
     context = resolve_search_scope(scope, library_id=library_id, path=path)
-    if not q.strip():
+    if context.kind == "folder":
+        canonical_scope = SearchFolderScopeV1(
+            kind="folder",
+            library_id=context.library_id,
+            import_path_id=context.import_path_id,
+            relative_path=context.relative_path or "",
+        )
+    elif context.kind == "library":
+        canonical_scope = SearchLibraryScopeV1(kind="library", library_id=context.library_id)
+    else:
+        canonical_scope = SearchAllScopeV1(kind="all")
+    # Preserve the legacy GET bounds (including limit up to 200 and unversioned
+    # text length) while adapting the already-authorized scope into the shared
+    # executor. Only the POST contract is validated as Search V2 input.
+    request = SearchQueryRequestV1.model_construct(
+        schema_version=1,
+        mode="lexical",
+        text=q,
+        scope=canonical_scope,
+        cursor=cursor,
+        limit=limit,
+    )
+    return _execute_search_query(request, context)
+
+
+def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeContext) -> SearchResponse:
+    """Execute one already-authorized canonical search request."""
+    if request.mode != "lexical" or request.filters.prompt_groups or request.filters.workflow_groups:
+        raise APIError(409, ErrorType.FEATURE_DISABLED, f"Search mode '{request.mode}' is not enabled")
+    if not request.text.strip():
         return SearchResponse.model_validate(
             {
-                "query": q,
+                "query": request.text,
                 "scope": context.kind,
                 "root": context.folder_path or "/",
                 "albums": [],
@@ -183,28 +220,28 @@ def api_search(
                 "next_cursor": None,
                 "has_more": False,
                 "returned": 0,
-                "limit": limit,
+                "limit": request.limit,
             }
         )
 
     try:
-        parsed = parse_fielded_query(q)
+        parsed = parse_fielded_query(request.text)
         if parsed.fields:
             data = search_index_fielded(
-                q,
+                request.text,
                 context.kind,
                 context.folder_path,
-                limit,
-                cursor,
+                request.limit,
+                request.cursor,
                 library_id=context.library_id,
             )
         else:
             data = search_index(
-                q,
+                request.text,
                 context.kind,
                 context.folder_path,
-                limit,
-                cursor,
+                request.limit,
+                request.cursor,
                 library_id=context.library_id,
             )
     except ValueError as exc:
@@ -216,6 +253,13 @@ def api_search(
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
 
     return SearchResponse.model_validate(data)
+
+
+@router.post("/api/search/query", responses=_SEARCH_ERROR_RESPONSES)
+def api_search_query(request: SearchQueryRequestV1) -> SearchResponse:
+    """Execute the canonical versioned Search V2 contract."""
+    context = resolve_search_v2_scope(request.scope)
+    return _execute_search_query(request, context)
 
 
 @router.get("/api/library/inspector")

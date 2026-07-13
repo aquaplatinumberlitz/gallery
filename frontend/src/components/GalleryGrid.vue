@@ -24,6 +24,7 @@ import { useDelayedBoolean } from "../composables/useDelayedBoolean";
 import { useInfiniteBrowseQuery } from "../composables/useInfiniteBrowseQuery";
 import { useInfiniteLoadSentinel } from "../composables/useInfiniteLoadSentinel";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
+import { buildSearchRequestV1 } from "@/utils/searchRequest";
 import { chunkGridRows, useVirtualGridRows } from "../composables/useVirtualGridRows";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import type { ErrorType } from "../services/api";
@@ -133,7 +134,19 @@ const effectiveSearchQuery = computed(() =>
 );
 const searchScope = computed(() => galleryStore.searchScope);
 const searchContextPath = computed(() => infiniteBrowseQuery.activeFolderPath.value);
-const unifiedSearchQuery = useUnifiedSearchQuery(effectiveSearchQuery, searchScope, searchContextPath);
+const canonicalSearchRequest = computed(() =>
+  buildSearchRequestV1({
+    text: effectiveSearchQuery.value,
+    scope: searchScope.value,
+    libraryId: galleryStore.activeLibraryId,
+    importPathId: galleryStore.activeImportPathId,
+    importRootPath: galleryStore.activeImportRootPath,
+    folderPath: searchContextPath.value || galleryStore.activeImportRootPath,
+    mode: galleryStore.searchMode,
+    filters: galleryStore.searchFilters,
+  }),
+);
+const unifiedSearchQuery = useUnifiedSearchQuery(canonicalSearchRequest);
 const settledSearchQuery = computed(() => unifiedSearchQuery.debouncedQuery.value);
 const hasSearchQuery = computed(
   () =>

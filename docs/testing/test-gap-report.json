@@ -44,15 +44,15 @@
     }
   },
   "counts": {
-    "backend_test_files": 75,
-    "backend_tests": 1131,
-    "catalog_entries": 203,
+    "backend_test_files": 76,
+    "backend_tests": 1135,
+    "catalog_entries": 207,
     "frontend_test_files": 25,
     "frontend_tests": 170,
-    "important_files": 205,
+    "important_files": 209,
     "perf_reports": 0,
-    "vitest_test_files": 91,
-    "vitest_tests": 1000
+    "vitest_test_files": 94,
+    "vitest_tests": 1013
   },
   "coverage": {
     "backend_modules_below_threshold": [],
@@ -66,9 +66,9 @@
       "percent_statements_covered": 91.0768251948465,
       "percent_statements_covered_display": "91"
     },
-    "frontend_summary_found": false
+    "frontend_summary_found": true
   },
-  "generated_at": "2026-07-13T17:35:34+00:00",
+  "generated_at": "2026-07-13T18:11:19+00:00",
   "matrix": [
     {
       "backend": "OK",
