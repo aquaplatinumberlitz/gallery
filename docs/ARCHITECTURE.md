@@ -537,10 +537,20 @@ Header search or AdvancedSearchDrawer
 
 - Default scope is `current`, meaning the current folder recursively.
 - `all` searches indexed assets from explicit registered libraries.
-- `/api/search` returns bounded `media` pages with `next_cursor`, `has_more`,
+- `/api/search` returns bounded `media` pages with opaque string `next_cursor`, `has_more`,
   `returned`, and `limit`. Legacy `albums`, `photos`, `videos`, and `prompt`
   fields remain for compatibility; the active gallery search UI renders
   `media`.
+- One candidate CTE combines exact/prefix/FTS/substring filename matches,
+  positive-prompt phrases/FTS, negative prompts, and structured-filter-only
+  rows. It deduplicates by stable asset ID and orders by relevance tier, a
+  bounded/rounded FTS rank, source `mtime_ns`, then `asset_id`.
+- Active pagination is keyset-only. The versioned base64url JSON cursor is bound
+  to the canonical query/scope/root fingerprint and stores the complete final
+  ordering tuple. Malformed, wrong-version, or wrong-request cursors return
+  `400`. Decimal cursors are accepted only by legacy `GET /api/search`, use the
+  old offset path for that request, and emit `Deprecation`/`Warning` headers;
+  responses always return opaque cursors.
 - Media rows are joined to their active asset, registered library, and import
   path ownership in SQLite and include `asset_id`, `library_id`, and
   `library_name`. Search does not perform per-result path resolution or

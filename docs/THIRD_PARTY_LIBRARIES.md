@@ -123,6 +123,11 @@ Search behavior:
 - `/api/search` returns a bounded, cursor-paginated `media` stream and
   first-page `albums` suggestions. Legacy grouped `photos`, `videos`, and
   `prompt` fields remain in the response for compatibility.
+- Search candidates use fixed relevance tiers and dedupe/order on
+  `(tier, rounded FTS rank, mtime_ns, asset_id)`. Opaque versioned base64url
+  cursors carry that tuple plus a canonical request fingerprint, so active
+  pages use keyset predicates without `OFFSET`. Decimal GET cursors remain a
+  deprecated compatibility input only.
 - Search response rows are authorized through active asset, library, and
   import-path joins. Album counts/covers come from the same bounded SQLite
   aggregation as DB-first browse; `/api/search` and `/api/search-metadata` do

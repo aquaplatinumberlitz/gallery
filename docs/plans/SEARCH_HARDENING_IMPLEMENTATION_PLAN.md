@@ -208,37 +208,37 @@ then stable `asset_id` ascending. Use the same tuple for dedupe and pagination.
 
 ### Required implementation
 
-- [ ] Build one normalized candidate query/CTE for filename, video filename,
+- [x] Build one normalized candidate query/CTE for filename, video filename,
       prompt, negative prompt, and field-only candidates.
-- [ ] Join active assets directly so every row has stable `asset_id` and
+- [x] Join active assets directly so every row has stable `asset_id` and
       `library_id`.
-- [ ] Compute match tier/type in candidate rows. Remove
+- [x] Compute match tier/type in candidate rows. Remove
       `_count_filename_matches()` and `_prompt_match_kind()` preflight probes.
-- [ ] Use `LIMIT page_size + 1` for `has_more`; do not calculate an exact total
+- [x] Use `LIMIT page_size + 1` for `has_more`; do not calculate an exact total
       for the active gallery stream.
-- [ ] Replace `LIMIT/OFFSET` pagination with a versioned base64url JSON cursor.
-- [ ] Cursor payload contains:
+- [x] Replace `LIMIT/OFFSET` pagination with a versioned base64url JSON cursor.
+- [x] Cursor payload contains:
   - version;
   - canonical request fingerprint;
   - relevance tier;
   - FTS rank or deterministic fallback rank;
   - `mtime_ns`;
   - `asset_id`.
-- [ ] Reject malformed, wrong-version, or wrong-request cursors with a clear
+- [x] Reject malformed, wrong-version, or wrong-request cursors with a clear
       `400` response.
-- [ ] Keep decimal cursor input only on legacy `GET /api/search`; route it
+- [x] Keep decimal cursor input only on legacy `GET /api/search`; route it
       through the old offset path and emit a deprecation header. New responses
       and the active frontend use only opaque cursors.
 
 ### Acceptance gates
 
-- [ ] A strong prompt phrase outranks a weak filename substring.
-- [ ] Exact filenames remain first in the relevance goldens.
-- [ ] Tied results have deterministic order.
-- [ ] Pages have no duplicates or omissions, including equal-score rows.
-- [ ] Insertion/deletion between pages does not repeat an already returned row.
-- [ ] A cursor from query/scope A is rejected for query/scope B.
-- [ ] The active keyset query contains no `OFFSET`.
+- [x] A strong prompt phrase outranks a weak filename substring.
+- [x] Exact filenames remain first in the relevance goldens.
+- [x] Tied results have deterministic order.
+- [x] Pages have no duplicates or omissions, including equal-score rows.
+- [x] Insertion/deletion between pages does not repeat an already returned row.
+- [x] A cursor from query/scope A is rejected for query/scope B.
+- [x] The active keyset query contains no `OFFSET`.
 
 ## H4 - Typed FastAPI contracts and scope parity
 
@@ -398,3 +398,4 @@ When complete, move this file to `docs/archived/` and update
 | 2026-07-13 | H0 | Complete | `docs/reports/SEARCH_HARDENING_H0_BASELINE.md`; 157 backend, 77 frontend, and 18 E2E tests passed; deterministic/live p95 stayed below 300 ms. |
 | 2026-07-13 | H1 | Complete | Schema v4 ownership backfill and rollback tests; shared predicate remains indexed by `(library_id, path)` and rejects cross-library same-path rows. |
 | 2026-07-13 | H2 | Complete | DB-only search joins and browse-shared album aggregation; 82 focused backend tests passed with filesystem hot-path guards and library/import ownership coverage. |
+| 2026-07-13 | H3 | Complete | Unified tiered candidate CTE and request-bound opaque keyset cursors; 176 focused search tests plus 9 ranking/cursor goldens passed. |

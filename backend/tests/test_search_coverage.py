@@ -164,7 +164,8 @@ def test_search_media_pages_do_not_duplicate_paths(isolated_app: TestClient, iso
     assert first.status_code == 200
     first_data = first.json()
     assert first_data["returned"] == 2
-    assert first_data["next_cursor"] == 2
+    assert isinstance(first_data["next_cursor"], str)
+    assert not first_data["next_cursor"].isdecimal()
 
     second = isolated_app.get(
         "/api/search",

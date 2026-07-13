@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from fastapi.concurrency import run_in_threadpool
 
 from .errors import APIError, ErrorType
@@ -140,15 +140,19 @@ async def api_search_metadata(
 
 @router.get("/api/search")
 async def api_search(
+    response: Response,
     q: str = Query("", description="Filename, album name, prompt, or metadata text to search"),
     scope: Literal["current", "all"] = Query(
         "current", description="Search current folder recursively or all indexed files"
     ),
     path: str | None = Query(None, description="Current folder path when scope=current"),
     limit: int = Query(50, ge=1, le=200, description="Maximum results per section"),
-    cursor: int = Query(0, ge=0, description="Result cursor for the merged media stream"),
+    cursor: str | None = Query(None, description="Opaque result cursor; decimal offsets are deprecated"),
 ):
     """Search albums, photos, and prompts in either current folder or all indexed files."""
+    if cursor is not None and cursor.isdecimal():
+        response.headers["Deprecation"] = "true"
+        response.headers["Warning"] = '299 - "Decimal search cursors are deprecated; use next_cursor"'
     if not q.strip():
         root = await run_in_threadpool(_validated_search_root, path) if scope == "current" else None
         return {
@@ -176,6 +180,8 @@ async def api_search(
             data = await run_in_threadpool(search_index_fielded, q, scope, root_path, limit, cursor)
         else:
             data = await run_in_threadpool(search_index, q, scope, root_path, limit, cursor)
+    except ValueError as exc:
+        raise APIError(400, ErrorType.BAD_REQUEST, "Invalid search cursor") from exc
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Search failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc

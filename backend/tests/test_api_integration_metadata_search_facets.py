@@ -102,7 +102,7 @@ class TestSearchPlainQuery:
         assert isinstance(data["media"], list)
         assert isinstance(data["returned"], int)
         assert isinstance(data["limit"], int)
-        assert data["next_cursor"] is None or isinstance(data["next_cursor"], int)
+        assert data["next_cursor"] is None or isinstance(data["next_cursor"], str)
         assert isinstance(data["has_more"], bool)
 
         result = next(row for row in data["media"] if row["name"] == "mika_portrait.png")

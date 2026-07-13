@@ -20,6 +20,7 @@ from .identity import (
     file_index_matches_image_metadata_sql,
 )
 from .path_utils import canonicalize_catalog_path, named_path_scope_sql, path_scope_sql
+from .ranked_search import encode_search_cursor, is_first_search_page, search_ranked_media_page
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
@@ -527,7 +528,7 @@ def _media_prompt_select(
     """
 
 
-def _count_filename_matches(
+def _legacy_count_filename_matches(
     conn: sqlite3.Connection,
     query: str,
     file_type: str,
@@ -568,7 +569,7 @@ def _count_filename_matches(
     return "like", int(row["total"] if row else 0)
 
 
-def _prompt_match_kind(conn: sqlite3.Connection, query: str, scope: str, root_path: str | Path | None) -> str:
+def _legacy_prompt_match_kind(conn: sqlite3.Connection, query: str, scope: str, root_path: str | Path | None) -> str:
     scope_sql, scope_params, _root = _scope_clause(scope, root_path, "fi")
     try:
         if contains_cjk(query) and len(query) >= 3:
@@ -641,9 +642,9 @@ def _search_media_page(
     cursor: int,
 ) -> tuple[list[sqlite3.Row], Path, bool]:
     _scope_sql, _scope_params, root = _scope_clause(scope, root_path, "fi")
-    filename_kind, _filename_count = _count_filename_matches(conn, query, "photo", scope, root_path)
-    video_kind, _video_count = _count_filename_matches(conn, query, "video", scope, root_path)
-    prompt_kind = _prompt_match_kind(conn, query, scope, root_path)
+    filename_kind, _filename_count = _legacy_count_filename_matches(conn, query, "photo", scope, root_path)
+    video_kind, _video_count = _legacy_count_filename_matches(conn, query, "video", scope, root_path)
+    prompt_kind = _legacy_prompt_match_kind(conn, query, scope, root_path)
     params: dict[str, Any] = {
         "filename_match": _unicode_match_query(query),
         "filename_like": _like_pattern(query),
@@ -807,14 +808,13 @@ def search_index(
     scope: str,
     root_path: str | Path | None = None,
     limit: int = 50,
-    cursor: int = 0,
+    cursor: str | int | None = None,
 ) -> dict[str, Any]:
     """Search indexed albums, photos, and prompts using free-text query semantics."""
     initialize_database()
     trimmed = query.strip()
     normalized_scope = "all" if scope == "all" else "current"
     limit = max(1, min(limit, 200))
-    cursor = max(0, int(cursor))
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
     display_root = root if root is not None else Path(os.sep)
 
@@ -825,7 +825,7 @@ def search_index(
         return _empty_search_response(query, normalized_scope, "", limit)
 
     with _DB_LOCK, _connect() as conn:
-        if cursor == 0:
+        if is_first_search_page(cursor):
             album_rows, root = _search_file_index_fts(
                 conn, trimmed, "folder", normalized_scope, root_path, ALBUM_SUGGESTION_LIMIT
             )
@@ -835,12 +835,19 @@ def search_index(
             conn,
             [(int(row["library_id"]), str(row["path"])) for row in album_rows],
         )
-        media_rows, root, has_more = _search_media_page(conn, trimmed, normalized_scope, root_path, limit, cursor)
+        media_rows, has_more, fingerprint = search_ranked_media_page(
+            conn,
+            trimmed,
+            normalized_scope,
+            root_path,
+            limit,
+            cursor,
+        )
 
     format_root = root if root is not None else Path(os.sep)
     media = _format_media_rows(media_rows, format_root)
     page_photos, page_videos, page_prompt = _partition_media_page(media)
-    next_cursor = cursor + len(media) if has_more else None
+    next_cursor = encode_search_cursor(media_rows[-1], fingerprint) if has_more and media_rows else None
     return {
         "query": query,
         "scope": normalized_scope,
@@ -869,7 +876,7 @@ def search_index_fielded(
     scope: str,
     root_path: str | Path | None = None,
     limit: int = 50,
-    cursor: int = 0,
+    cursor: str | int | None = None,
 ) -> dict[str, Any]:
     """Search indexed albums and photos with structured field filters."""
     from ..fielded_search_parser import (
@@ -880,7 +887,6 @@ def search_index_fielded(
     trimmed = query.strip()
     normalized_scope = "all" if scope == "all" else "current"
     limit = max(1, min(limit, 200))
-    cursor = max(0, int(cursor))
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
     display_root = root if root is not None else Path(os.sep)
 
@@ -902,7 +908,7 @@ def search_index_fielded(
     album_query = parsed.residual_text if parsed.residual_text else ""
 
     with _DB_LOCK, _connect() as conn:
-        if album_query and cursor == 0:
+        if album_query and is_first_search_page(cursor):
             album_rows, root = _search_file_index_fts(
                 conn, album_query, "folder", normalized_scope, root_path, ALBUM_SUGGESTION_LIMIT
             )
@@ -912,14 +918,20 @@ def search_index_fielded(
             conn,
             [(int(row["library_id"]), str(row["path"])) for row in album_rows],
         )
-        media_rows, root, has_more = _search_fielded_media_page(
-            conn, parsed, normalized_scope, root_path, limit, cursor
+        media_rows, has_more, fingerprint = search_ranked_media_page(
+            conn,
+            trimmed,
+            normalized_scope,
+            root_path,
+            limit,
+            cursor,
+            parsed=parsed,
         )
 
     format_root = root if root is not None else Path(os.sep)
     media = _format_media_rows(media_rows, format_root)
     page_photos, page_videos, page_prompt = _partition_media_page(media)
-    next_cursor = cursor + len(media) if has_more else None
+    next_cursor = encode_search_cursor(media_rows[-1], fingerprint) if has_more and media_rows else None
     return {
         "query": query,
         "scope": normalized_scope,
