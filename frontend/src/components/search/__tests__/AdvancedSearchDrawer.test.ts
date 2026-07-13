@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { createIsolatedQueryClient } from "@/test/queryClient";
 import type { FieldFilter } from "@/types";
+import { useGalleryStore } from "@/stores/gallery";
 import AdvancedSearchDrawer from "../AdvancedSearchDrawer.vue";
 
 const facetState = vi.hoisted(() => ({
@@ -22,6 +23,12 @@ vi.mock("@/composables/useActiveLibrarySelection", () => ({
   }),
 }));
 
+vi.mock("@/composables/useSearchCapabilitiesQuery", () => ({
+  useSearchCapabilitiesQuery: () => ({
+    data: { value: { workflow_registry: { nodes: {} }, raw_search: { enabled: false } } },
+  }),
+}));
+
 function createWrapper(initialFilters: FieldFilter[] = []) {
   setActivePinia(createPinia());
   const queryClient = createIsolatedQueryClient();
@@ -35,6 +42,11 @@ function createWrapper(initialFilters: FieldFilter[] = []) {
         Tooltip: { template: "<div><slot /></div>" },
         TooltipTrigger: { template: "<div><slot /></div>" },
         TooltipContent: { template: "<div><slot /></div>" },
+        SearchLibraryPopover: true,
+        PromptUsagePanel: true,
+        WorkflowFilterBuilder: true,
+        RawWorkflowSearch: true,
+        SearchIndexStatusPanel: true,
       },
     },
   });
@@ -68,6 +80,7 @@ describe("AdvancedSearchDrawer", () => {
     expect(button(wrapper, /^Dimensions/)?.attributes("aria-expanded")).toBe("false");
     expect(button(wrapper, /^Custom metadata/)?.attributes("aria-expanded")).toBe("false");
     expect(wrapper.get("#advanced-search-prompt").isVisible()).toBe(true);
+    expect(button(wrapper, /^Raw workflow/)).toBeUndefined();
   });
 
   it("keeps the action footer outside the scrollable filter body", () => {
@@ -216,10 +229,36 @@ describe("AdvancedSearchDrawer", () => {
     expect(wrapper.emitted("close")).toHaveLength(1);
   });
 
-  it("does not apply on an unmodified Enter in raw metadata text", async () => {
+  it("does not expose the deprecated raw metadata field", async () => {
     const wrapper = createWrapper();
     await openGroup(wrapper, "Custom metadata");
-    await wrapper.get("#advanced-search-raw").trigger("keydown", { key: "Enter" });
-    expect(wrapper.emitted("apply")).toBeUndefined();
+    expect(wrapper.find("#advanced-search-raw").exists()).toBe(false);
+  });
+
+  it("turns a prompt selection into the canonical exact-group request", async () => {
+    const wrapper = createWrapper();
+    const store = useGalleryStore();
+    store.activeLibraryId = 2;
+    store.activeImportPathId = 7;
+    store.activeImportRootPath = "/photos";
+    store.currentBrowsePath = "/photos/Portraits";
+    await openGroup(wrapper, "Prompt discovery");
+    wrapper.findComponent({ name: "PromptUsagePanel" }).vm.$emit("showAssets", {
+      kind: "positive",
+      value_id: "abcdefghijklmnopqrstuvwxyz0123456789_-ABCDE",
+    });
+    await flushPromises();
+    expect(wrapper.emitted("applyRequest")?.[0]).toEqual([
+      {
+        schema_version: 1,
+        mode: "lexical",
+        text: "",
+        scope: { kind: "folder", library_id: 2, import_path_id: 7, relative_path: "Portraits" },
+        filters: {
+          prompt_groups: [{ kind: "positive", value_id: "abcdefghijklmnopqrstuvwxyz0123456789_-ABCDE" }],
+          workflow_groups: [],
+        },
+      },
+    ]);
   });
 });

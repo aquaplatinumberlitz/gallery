@@ -43,6 +43,9 @@ import {
   fetchLibraryStatusBatch,
   fetchMaintenanceRuntime,
   fetchMetadata,
+  fetchPromptUsage,
+  fetchSearchCapabilities,
+  fetchSearchIndexes,
   GalleryAPIError,
   generateMissingImages,
   getImageUrl,
@@ -57,6 +60,7 @@ import {
   rebuildImportedData,
   resetCatalogDatabase,
   runFileHealthCheck,
+  searchRawWorkflows,
   scanAllLibraries,
   scanLibrary,
   unifiedSearch,
@@ -98,6 +102,26 @@ describe("GalleryAPIError", () => {
   it("parses FastAPI detail wrapped error", () => {
     const err = { response: { data: { detail: { error: "bad_request", message: "bad" } } } } as unknown as AxiosError;
     expect(GalleryAPIError.fromAxiosError(err).type).toBe("bad_request");
+  });
+
+  it("maps FastAPI 422 details to exact workflow predicate rows", () => {
+    const err = {
+      response: {
+        data: {
+          detail: [
+            {
+              loc: ["body", "filters", "workflow_groups", 1, "predicates", 2, "op"],
+              msg: "Unsupported operator",
+            },
+          ],
+        },
+      },
+    } as unknown as AxiosError;
+    const apiError = GalleryAPIError.fromAxiosError(err);
+    expect(apiError.type).toBe("bad_request");
+    expect(apiError.fieldErrors).toEqual({
+      "filters.workflow_groups[1].predicates[2].op": "Unsupported operator",
+    });
   });
 
   it("handles data without detail wrapper", () => {
@@ -246,6 +270,44 @@ describe("unifiedSearchV2", () => {
     mockApi.post.mockResolvedValueOnce({ data: { query: "cat", media: [] } });
     await unifiedSearchV2(request, signal);
     expect(mockApi.post).toHaveBeenCalledWith("/api/search/query", request, { signal });
+  });
+});
+
+describe("search discovery APIs", () => {
+  it("uses typed capability, prompt, index, and raw endpoints", async () => {
+    const signal = new AbortController().signal;
+    mockApi.get.mockResolvedValue({ data: [] });
+    mockApi.post.mockResolvedValue({ data: { items: [] } });
+    await fetchSearchCapabilities(signal);
+    await fetchSearchIndexes(2, signal);
+    await fetchPromptUsage(
+      {
+        polarity: "positive",
+        scope: { kind: "library", library_id: 2 },
+        prefix: null,
+        text: null,
+        sort: "usage",
+        cursor: null,
+        limit: 40,
+      },
+      signal,
+    );
+    await searchRawWorkflows({ query: "model", scope: { kind: "all" } }, signal);
+    expect(mockApi.get).toHaveBeenCalledWith("/api/search/capabilities", { signal });
+    expect(mockApi.get).toHaveBeenCalledWith("/api/search/indexes", {
+      params: { library_id: 2 },
+      signal,
+    });
+    expect(mockApi.post).toHaveBeenCalledWith(
+      "/api/search/prompt-usage/query",
+      expect.objectContaining({ polarity: "positive" }),
+      { signal },
+    );
+    expect(mockApi.post).toHaveBeenCalledWith(
+      "/api/search/workflow/raw",
+      expect.objectContaining({ query: "model", cursor: null, limit: 50 }),
+      { signal },
+    );
   });
 });
 

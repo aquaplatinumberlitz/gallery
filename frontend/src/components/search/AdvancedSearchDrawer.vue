@@ -7,15 +7,27 @@ import Input from "@/components/ui/Input.vue";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useFacetsQuery } from "@/composables/useFacetsQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
 import { useGalleryStore } from "@/stores/gallery";
 import { filterToDisplayString } from "@/utils/serializeAdvancedSearchToQuery";
-import type { FacetEntry, FieldFilter } from "@/types";
+import { buildSearchRequestV1, buildSearchScopeV1 } from "@/utils/searchRequest";
+import { useSearchCapabilitiesQuery } from "@/composables/useSearchCapabilitiesQuery";
+import type {
+  FacetEntry,
+  FieldFilter,
+  PersistableSearchRequestV1,
+  SearchPromptGroupV1,
+  SearchWorkflowGroupV1,
+} from "@/types";
 import AdvancedSearchNumericField from "./AdvancedSearchNumericField.vue";
 import AdvancedSearchPrefixedField from "./AdvancedSearchPrefixedField.vue";
+import PromptUsagePanel from "./PromptUsagePanel.vue";
+import RawWorkflowSearch from "./RawWorkflowSearch.vue";
+import SearchIndexStatusPanel from "./SearchIndexStatusPanel.vue";
+import SearchLibraryPopover from "./SearchLibraryPopover.vue";
+import WorkflowFilterBuilder from "./WorkflowFilterBuilder.vue";
 import {
   NUMERIC_OPS,
   aspectRatios,
@@ -41,6 +53,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   close: [];
   apply: [filters: FieldFilter[]];
+  applyRequest: [request: PersistableSearchRequestV1];
 }>();
 
 const galleryStore = useGalleryStore();
@@ -54,6 +67,57 @@ const facetsQuery = useFacetsQuery(
   facetContext,
   computed(() => props.isOpen),
 );
+const capabilitiesQuery = useSearchCapabilitiesQuery();
+const canonicalScope = computed(() =>
+  buildSearchScopeV1({
+    scope: galleryStore.searchScope,
+    libraryId: galleryStore.activeLibraryId,
+    importPathId: galleryStore.activeImportPathId,
+    importRootPath: galleryStore.activeImportRootPath,
+    folderPath: galleryStore.currentBrowsePath || activeImportRootPath.value,
+  }),
+);
+const currentCanonicalRequest = computed(() =>
+  buildSearchRequestV1({
+    text: galleryStore.searchQuery,
+    scope: galleryStore.searchScope,
+    libraryId: galleryStore.activeLibraryId,
+    importPathId: galleryStore.activeImportPathId,
+    importRootPath: galleryStore.activeImportRootPath,
+    folderPath: galleryStore.currentBrowsePath || activeImportRootPath.value,
+    mode: galleryStore.searchMode,
+    filters: galleryStore.searchFilters,
+  }),
+);
+const workflowRegistry = computed(() => capabilitiesQuery.data.value?.workflow_registry.nodes ?? {});
+const rawCapability = computed(() => capabilitiesQuery.data.value?.raw_search);
+
+function applyCanonicalRequest(request: PersistableSearchRequestV1) {
+  emit("applyRequest", request);
+  emit("close");
+}
+
+function showPromptAssets(group: SearchPromptGroupV1) {
+  if (!canonicalScope.value) return;
+  applyCanonicalRequest({
+    schema_version: 1,
+    mode: "lexical",
+    text: "",
+    scope: canonicalScope.value,
+    filters: { prompt_groups: [group], workflow_groups: [] },
+  });
+}
+
+function applyWorkflowGroups(groups: SearchWorkflowGroupV1[]) {
+  if (!canonicalScope.value) return;
+  applyCanonicalRequest({
+    schema_version: 1,
+    mode: "workflow",
+    text: galleryStore.searchQuery,
+    scope: canonicalScope.value,
+    filters: { prompt_groups: [], workflow_groups: groups },
+  });
+}
 
 function stageFilters(filters: FieldFilter[]) {
   const { values, tokens, openSections } = buildStagedState(filters);
@@ -280,6 +344,13 @@ watch(
             </ul>
           </div>
 
+          <SearchLibraryPopover
+            class="mb-4"
+            :current-request="currentCanonicalRequest"
+            @apply="applyCanonicalRequest"
+            @keydown.stop
+          />
+
           <section
             v-if="additionalFacetGroups.some((group) => group.entries.length)"
             class="mb-4"
@@ -312,6 +383,72 @@ watch(
             class="min-w-0 max-w-full"
             data-testid="advanced-search-groups"
           >
+            <AccordionItem value="prompts">
+              <AccordionTrigger class="text-left no-underline hover:no-underline">
+                <span class="flex flex-col gap-0.5"
+                  ><span>Prompt discovery</span
+                  ><span class="text-xs font-normal text-muted-foreground"
+                    >Browse grouped positive and negative prompts</span
+                  ></span
+                >
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-2">
+                <PromptUsagePanel
+                  :scope="canonicalScope"
+                  :enabled="props.isOpen"
+                  @show-assets="showPromptAssets"
+                  @keydown.stop
+                />
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="workflow">
+              <AccordionTrigger class="text-left no-underline hover:no-underline">
+                <span class="flex flex-col gap-0.5"
+                  ><span>Workflow properties</span
+                  ><span class="text-xs font-normal text-muted-foreground"
+                    >Build typed same-node ComfyUI filters</span
+                  ></span
+                >
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-2">
+                <WorkflowFilterBuilder
+                  :registry="workflowRegistry"
+                  :initial-groups="galleryStore.searchFilters.workflow_groups"
+                  @apply="applyWorkflowGroups"
+                  @keydown.stop
+                />
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem v-if="rawCapability?.enabled" value="raw-workflow">
+              <AccordionTrigger class="text-left no-underline hover:no-underline">
+                <span class="flex flex-col gap-0.5"
+                  ><span>Raw workflow</span
+                  ><span class="text-xs font-normal text-muted-foreground"
+                    >Explicit, bounded, Apply-only search</span
+                  ></span
+                >
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-2">
+                <RawWorkflowSearch :capability="rawCapability" :scope="canonicalScope" @keydown.stop />
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="indexes">
+              <AccordionTrigger class="text-left no-underline hover:no-underline">
+                <span class="flex flex-col gap-0.5"
+                  ><span>Index status</span
+                  ><span class="text-xs font-normal text-muted-foreground"
+                    >Readiness, progress, rebuilds, and failures</span
+                  ></span
+                >
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-2">
+                <SearchIndexStatusPanel :library-id="galleryStore.activeLibraryId" :open="props.isOpen" @keydown.stop />
+              </AccordionContent>
+            </AccordionItem>
+
             <AccordionItem value="content">
               <AccordionTrigger class="text-left no-underline hover:no-underline">
                 <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
@@ -757,21 +894,6 @@ watch(
                       @update:model-value="field.handleChange"
                     />
                   </form.Field>
-                  <form.Field name="raw" v-slot="{ field }">
-                    <Field class="gap-1.5">
-                      <FieldLabel for="advanced-search-raw">Raw metadata contains</FieldLabel
-                      ><Textarea
-                        id="advanced-search-raw"
-                        :model-value="field.state.value"
-                        class="min-h-24 resize-y font-mono"
-                        placeholder="model:PonyXL"
-                        @update:model-value="(value) => field.handleChange(String(value))"
-                      /><FieldDescription class="text-xs">
-                        Matches this text anywhere in embedded metadata. Use it when you know the text but not its key.
-                      </FieldDescription>
-                    </Field>
-                  </form.Field>
-
                   <Field v-if="passThroughTokens.length" class="gap-2">
                     <FieldLabel>Additional preserved filters</FieldLabel>
                     <FieldDescription class="text-xs">

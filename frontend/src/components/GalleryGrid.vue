@@ -146,10 +146,16 @@ const canonicalSearchRequest = computed(() =>
     filters: galleryStore.searchFilters,
   }),
 );
+const hasStructuredSearch = computed(
+  () =>
+    Boolean(canonicalSearchRequest.value?.filters.prompt_groups.length) ||
+    Boolean(canonicalSearchRequest.value?.filters.workflow_groups.length),
+);
 const unifiedSearchQuery = useUnifiedSearchQuery(canonicalSearchRequest);
 const settledSearchQuery = computed(() => unifiedSearchQuery.debouncedQuery.value);
 const hasSearchQuery = computed(
   () =>
+    hasStructuredSearch.value ||
     isSubmittedSearchQuery.value ||
     (settledSearchQuery.value.length > 0 && settledSearchQuery.value === effectiveSearchQuery.value),
 );

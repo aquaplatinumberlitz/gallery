@@ -173,6 +173,114 @@ export interface SearchQueryRequestV1 {
 
 export type PersistableSearchRequestV1 = Omit<SearchQueryRequestV1, "cursor" | "limit">;
 
+export interface PromptUsageQueryRequestV1 {
+  polarity: "positive" | "negative";
+  scope: SearchScopeV1;
+  prefix?: string | null;
+  text?: string | null;
+  sort: "usage" | "recent";
+  cursor: string | null;
+  limit: number;
+}
+
+export interface PromptUsageItemV1 {
+  value_id: string;
+  kind: "positive" | "negative";
+  text: string;
+  asset_count: number;
+  last_asset_mtime_ns: number;
+  sample_asset: { asset_id: number; library_id: number; path: string };
+}
+
+export interface PromptUsageResponseV1 {
+  items: PromptUsageItemV1[];
+  next_cursor: string | null;
+  has_more: boolean;
+  returned: number;
+}
+
+export interface WorkflowRegistryPropertyV1 {
+  type: "text" | "integer" | "real" | "boolean" | "uint64_token";
+  operators: Array<"eq" | "prefix" | "contains" | "gt" | "gte" | "lt" | "lte">;
+}
+
+export interface SearchCapabilitiesV1 {
+  schema_version: number;
+  enabled_modes: SearchMode[];
+  supported_scopes: string[];
+  field_limits: Record<string, number>;
+  workflow_registry: {
+    version: number;
+    nodes: Record<string, Record<string, WorkflowRegistryPropertyV1>>;
+  };
+  raw_search: {
+    enabled: boolean;
+    query_min_chars: number;
+    query_max_chars: number;
+    limit_max: number;
+    deadline_ms: number;
+    max_document_bytes: number;
+    index_budget_bytes: number;
+  };
+  index_requirements: Record<string, string[]>;
+  indexes: Array<{
+    index_name: string;
+    enabled: boolean;
+    schema_version: number;
+    extractor_version: number;
+    required_mode: string;
+  }>;
+}
+
+export interface SearchIndexStateV1 {
+  index_name: string;
+  library_id: number;
+  library_name: string;
+  state: "pending" | "building" | "ready" | "degraded" | "failed" | "disabled";
+  usable: boolean;
+  enabled: boolean;
+  schema_version: number;
+  extractor_version: number;
+  indexed_count: number;
+  target_count: number;
+  failed_count: number;
+  skipped_count: number;
+  skip_reasons: Record<string, number>;
+  active_job_id: number | null;
+  error_code?: string | null;
+  error_summary?: string | null;
+  warning?: string | null;
+}
+
+export interface SearchIndexJobV1 {
+  id: number;
+  index_name: string;
+  library_id: number;
+  mode: "missing" | "full";
+  state: string;
+  processed_count: number;
+  target_count: number;
+  failed_count: number;
+  skipped_count: number;
+}
+
+export interface RawWorkflowSearchResponseV1 {
+  query: string;
+  items: Array<{
+    asset_id: number;
+    library_id: number;
+    library_name: string;
+    path: string;
+    name: string;
+    mtime_ns: number;
+  }>;
+  next_cursor: string | null;
+  has_more: boolean;
+  returned: number;
+  warning: string;
+  capability: { deadline_ms: number; max_query_chars: number; max_limit: number };
+}
+
 export interface UnifiedSearchResult {
   asset_id?: number;
   library_id?: number;

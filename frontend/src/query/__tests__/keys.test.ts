@@ -98,6 +98,18 @@ describe("queryKeys", () => {
     ]);
   });
 
+  it("prompt usage keys contain polarity, scope, text, sort, and limit but no cursor", () => {
+    const request = {
+      polarity: "negative" as const,
+      scope: { kind: "library" as const, library_id: 4 },
+      prefix: null,
+      text: "watermark",
+      sort: "recent" as const,
+      limit: 40,
+    };
+    expect(queryKeys.promptUsage(request)).toEqual(["prompt-usage", request]);
+  });
+
   it.each([
     [4, "/p", ["status", "path", 4, "/p"]],
     [4, "", ["status", "path", 4, null]],

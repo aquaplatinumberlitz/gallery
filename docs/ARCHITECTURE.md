@@ -446,7 +446,12 @@ Key paths:
 | `frontend/src/components/admin/MaintenancePage.vue`       | Admin maintenance page with file-health sections, global generated-file actions, and active job visibility                      |
 | `frontend/src/components/SortSelect.vue`                  | shadcn-vue Select sort control used by gallery desktop/tablet toolbars and the Library Inspector                               |
 | `frontend/src/components/SortDropdown.vue`                | Dropdown-menu sort control still used by the mobile header                                                                     |
-| `frontend/src/components/search/AdvancedSearchDrawer.vue` | Facet-backed fielded search form                                                                                               |
+| `frontend/src/components/search/AdvancedSearchDrawer.vue` | Shared metadata/discovery composition sheet and canonical-request emitter                                                     |
+| `frontend/src/components/search/SearchLibraryPopover.vue` | Browser-local saved/recent search actions                                                                                      |
+| `frontend/src/components/search/PromptUsagePanel.vue`     | Query-backed positive/negative prompt groups and exact-group action                                                            |
+| `frontend/src/components/search/WorkflowFilterBuilder.vue` | Capability-driven typed same-node predicate drafts                                                                             |
+| `frontend/src/components/search/RawWorkflowSearch.vue`    | Optional acknowledged Apply-only raw workflow query                                                                            |
+| `frontend/src/components/search/SearchIndexStatusPanel.vue` | Query-backed derived-index readiness, rebuild, and cancellation                                                               |
 | `frontend/src/components/search/SearchResultsPanel.vue`   | Virtualized album/media search sections, page loading, and typed open/retry actions                                            |
 | `frontend/src/components/search/SearchFeedback.vue`       | Pending, blocking-error, stale-warning, pagination-error, and successful-empty search states                                   |
 | `frontend/src/components/search/SearchResultMetadata.vue` | Escaped match/snippet/generation/library context for one search result                                                         |
@@ -579,6 +584,7 @@ IntersectionObserver sees load-more sentinel
 Header search or AdvancedSearchDrawer
 -> Pinia stores search text/scope
 -> useSearchUrlSync() encodes versioned shareable state after library hydration
+-> useSearchCapabilitiesQuery()/usePromptUsageQuery()/useSearchIndexStatusQuery() own discovery server state
 -> useUnifiedSearchQuery()
 -> POST /api/search/query with a canonical ID-scoped request
 -> SearchResultsPanel renders first-page Album suggestions and an appended Media stream
@@ -639,7 +645,16 @@ Header search or AdvancedSearchDrawer
 - Fielded search keeps metadata filters scoped to filterable image/prompt
   media; filename-only videos are not returned for fielded queries unless a
   future video metadata index supports the same predicates.
-- The raw search string is the only frontend query source. The shared Advanced Search drawer is owned by `App.vue`, uses TanStack Form and scope-matched `/api/facets`, and replaces only drawer-managed filters while preserving residual text and pass-through tokens. It renders as a right sheet on tablet/desktop and a full-width sheet on compact mobile viewports.
+- The shared Advanced Search drawer is owned by `App.vue`, uses TanStack Form
+  for fielded metadata drafts, and composes separate saved/recent, prompt,
+  workflow, raw, and index-status children. Children keep local drafts and emit
+  typed canonical requests; `App.vue` applies library/import-path navigation
+  and Pinia session state. It renders as a right sheet on tablet/desktop and a
+  full-width sheet on compact mobile viewports.
+- TanStack Query owns capabilities, prompt usage pages, index states/jobs, raw
+  search mutations, facets, and canonical result pages. Pinia owns only the
+  active query/scope/mode/filters and navigation/UI state. Filter-only prompt
+  or workflow requests are active searches even when their lexical text is empty.
 - Active search replaces browse sorting with a visible `Relevance` label. Search feedback distinguishes initial pending, blocking error, stale-data warning, next-page error, and successful empty states on desktop, tablet, and mobile.
 - Search URL state uses `search_v=1` plus bounded base64url structured groups.
   Debounced edits replace browser history; committed actions push; guarded

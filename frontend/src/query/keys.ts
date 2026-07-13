@@ -1,4 +1,4 @@
-import type { PromptPresenceFilter, SearchQueryRequestV1, SortValue } from "@/types";
+import type { PromptPresenceFilter, PromptUsageQueryRequestV1, SearchQueryRequestV1, SortValue } from "@/types";
 import { persistableSearchRequest } from "@/utils/searchRequest";
 
 export const normalizeQueryPath = (path: string | null | undefined) => {
@@ -60,6 +60,12 @@ export const queryKeys = {
     ["browse-infinite", libraryId, normalizeBrowsePath(path), limit, includeOffline] as const,
 
   search: (request: SearchQueryRequestV1) => ["search-v2", persistableSearchRequest(request), request.limit] as const,
+
+  searchCapabilities: () => ["search-capabilities"] as const,
+
+  promptUsage: (request: Omit<PromptUsageQueryRequestV1, "cursor">) => ["prompt-usage", request] as const,
+
+  searchIndexes: (libraryId?: number | null) => ["search-indexes", libraryId ?? null] as const,
 
   metadata: (path: string) => ["metadata", normalizeQueryPath(path)] as const,
 

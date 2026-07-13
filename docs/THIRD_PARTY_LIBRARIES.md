@@ -265,6 +265,9 @@ Integration files:
 - `frontend/src/composables/useInfiniteBrowseQuery.ts`
 - `frontend/src/composables/useFolderChildrenQuery.ts`
 - `frontend/src/composables/useUnifiedSearchQuery.ts`
+- `frontend/src/composables/useSearchCapabilitiesQuery.ts`
+- `frontend/src/composables/usePromptUsageQuery.ts`
+- `frontend/src/composables/useSearchIndexStatusQuery.ts`
 - `frontend/src/composables/usePhotoMetadataQuery.ts`
 - `frontend/src/composables/useFacetsQuery.ts`
 - `frontend/src/composables/useCatalogStatusQuery.ts`
@@ -277,6 +280,10 @@ Unified search forwards TanStack Query cancellation to Axios, merges canonical
 pages by `(library_id, asset_id)`, preserves case-sensitive fallback paths, and
 keeps earlier pages visible when a later page fails. Facet keys include the
 canonical scope, library ID, and normalized folder path.
+Capabilities, prompt usage, and search-index status also use complete scoped
+keys. Status polling runs only while the discovery sheet is open and an index
+is pending/building; rebuild and cancellation are mutations that invalidate the
+matching status key.
 
 Vue Router owns the shareable Search V2 URL codec. Pinia owns the active search
 session, while versioned saved/recent searches remain bounded in browser

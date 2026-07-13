@@ -76,7 +76,11 @@ export function useUnifiedSearchQuery(request: Ref<SearchQueryRequestV1 | null>)
 
   const pages = computed(() => searchQuery.data.value?.pages ?? []);
   const results = computed<UnifiedSearchResults>(() => {
-    if (!debouncedQuery.value || trimmedQuery.value !== debouncedQuery.value || !pages.value.length) {
+    if (
+      !debouncedRequest.value ||
+      (trimmedQuery.value && trimmedQuery.value !== debouncedQuery.value) ||
+      !pages.value.length
+    ) {
       return EMPTY_SEARCH_RESULTS;
     }
     const [firstPage] = pages.value;

@@ -28,6 +28,12 @@ import type {
   SearchQueryRequestV1,
   SortValue,
   PromptPresenceFilter,
+  PromptUsageQueryRequestV1,
+  PromptUsageResponseV1,
+  RawWorkflowSearchResponseV1,
+  SearchCapabilitiesV1,
+  SearchIndexJobV1,
+  SearchIndexStateV1,
   UnifiedSearchResponse,
 } from "../types";
 
@@ -96,6 +102,7 @@ export type ErrorType =
   | "confirmation_required"
   | "feature_disabled"
   | "search_index_not_ready"
+  | "search_timeout"
   | "network"
   | LibraryErrorType;
 
@@ -111,14 +118,22 @@ export class GalleryAPIError extends Error {
   readonly userMessage: string;
   readonly suggestion: string;
   readonly canRetry: boolean;
+  readonly fieldErrors: Record<string, string>;
 
-  constructor(type: ErrorType, userMessage: string, suggestion: string, canRetry: boolean = false) {
+  constructor(
+    type: ErrorType,
+    userMessage: string,
+    suggestion: string,
+    canRetry: boolean = false,
+    fieldErrors: Record<string, string> = {},
+  ) {
     super(userMessage);
     this.name = "GalleryAPIError";
     this.type = type;
     this.userMessage = userMessage;
     this.suggestion = suggestion;
     this.canRetry = canRetry;
+    this.fieldErrors = fieldErrors;
   }
 
   static fromAxiosError(error: AxiosError): GalleryAPIError {
@@ -144,10 +159,28 @@ export class GalleryAPIError extends Error {
     // FastAPI wraps our error in "detail" field: {"detail": {"error": "...", "message": "..."}}
     const responseData: unknown = error.response.data;
     let parsed: APIErrorResponse | undefined;
+    let validationFields: Record<string, string> = {};
 
     if (responseData && typeof responseData === "object") {
       const maybeDetail = (responseData as { detail?: unknown }).detail;
-      if (maybeDetail && typeof maybeDetail === "object") {
+      if (Array.isArray(maybeDetail)) {
+        validationFields = Object.fromEntries(
+          maybeDetail
+            .filter((item): item is { loc: Array<string | number>; msg: string } =>
+              Boolean(item && typeof item === "object" && Array.isArray(item.loc) && typeof item.msg === "string"),
+            )
+            .map((item) => [
+              item.loc
+                .slice(item.loc[0] === "body" ? 1 : 0)
+                .reduce(
+                  (path, part) => (typeof part === "number" ? `${path}[${part}]` : `${path ? `${path}.` : ""}${part}`),
+                  "",
+                ),
+              item.msg,
+            ]),
+        );
+        parsed = { error: "bad_request", message: "One or more search fields are invalid." };
+      } else if (maybeDetail && typeof maybeDetail === "object") {
         parsed = maybeDetail as APIErrorResponse;
       } else {
         parsed = responseData as APIErrorResponse;
@@ -172,6 +205,7 @@ export class GalleryAPIError extends Error {
           "Invalid request",
           parsed?.message || "Check the supplied values and try again.",
           false,
+          validationFields,
         );
 
       case "not_found":
@@ -197,6 +231,7 @@ export class GalleryAPIError extends Error {
         return new GalleryAPIError("invalid_file", "Invalid file", "This file type is not supported.", false);
 
       case "timeout":
+      case "search_timeout":
         return new GalleryAPIError(
           "timeout",
           "Taking too long",
@@ -210,6 +245,22 @@ export class GalleryAPIError extends Error {
           "Confirmation required",
           "This action requires explicit confirmation.",
           false,
+        );
+
+      case "feature_disabled":
+        return new GalleryAPIError(
+          "feature_disabled",
+          "Feature unavailable",
+          parsed?.message || "This search feature is disabled.",
+          false,
+        );
+
+      case "search_index_not_ready":
+        return new GalleryAPIError(
+          "search_index_not_ready",
+          "Search index is still building",
+          parsed?.message || "Wait for the derived index to become usable, then try again.",
+          true,
         );
 
       default:
@@ -307,6 +358,59 @@ export const unifiedSearchV2 = async (
   signal?: AbortSignal,
 ): Promise<UnifiedSearchResponse> => {
   const { data } = await api.post<UnifiedSearchResponse>("/api/search/query", request, { signal });
+  return data;
+};
+
+export const fetchSearchCapabilities = async (signal?: AbortSignal): Promise<SearchCapabilitiesV1> => {
+  const { data } = await api.get<SearchCapabilitiesV1>("/api/search/capabilities", { signal });
+  return data;
+};
+
+export const fetchPromptUsage = async (
+  request: PromptUsageQueryRequestV1,
+  signal?: AbortSignal,
+): Promise<PromptUsageResponseV1> => {
+  const { data } = await api.post<PromptUsageResponseV1>("/api/search/prompt-usage/query", request, { signal });
+  return data;
+};
+
+export const fetchSearchIndexes = async (
+  libraryId?: number | null,
+  signal?: AbortSignal,
+): Promise<SearchIndexStateV1[]> => {
+  const { data } = await api.get<SearchIndexStateV1[]>("/api/search/indexes", {
+    params: { library_id: libraryId ?? undefined },
+    signal,
+  });
+  return data;
+};
+
+export const rebuildSearchIndex = async (
+  indexName: string,
+  libraryId: number,
+  mode: "missing" | "full" = "missing",
+): Promise<SearchIndexJobV1> => {
+  const { data } = await api.post<SearchIndexJobV1>(`/api/search/indexes/${indexName}/rebuild`, {
+    library_id: libraryId,
+    mode,
+  });
+  return data;
+};
+
+export const cancelSearchIndexJob = async (jobId: number): Promise<SearchIndexJobV1> => {
+  const { data } = await api.post<SearchIndexJobV1>(`/api/search/index-jobs/${jobId}/cancel`);
+  return data;
+};
+
+export const searchRawWorkflows = async (
+  request: { query: string; scope: SearchQueryRequestV1["scope"]; cursor?: string | null; limit?: number },
+  signal?: AbortSignal,
+): Promise<RawWorkflowSearchResponseV1> => {
+  const { data } = await api.post<RawWorkflowSearchResponseV1>(
+    "/api/search/workflow/raw",
+    { ...request, cursor: request.cursor ?? null, limit: request.limit ?? 50 },
+    { signal },
+  );
   return data;
 };
 

@@ -551,15 +551,15 @@ components.
 
 ### Data-flow rules
 
-- [ ] Root/layout components remain composition surfaces.
-- [ ] Presentational children use typed props down and events up.
-- [ ] Drawer sections keep local drafts and emit an applied canonical request.
-- [ ] TanStack Query owns capabilities, prompt groups, facets, jobs, and index status.
-- [ ] Pinia owns the current search session and UI preferences only.
-- [ ] Computed getters remain pure; router/localStorage writes happen in explicit
+- [x] Root/layout components remain composition surfaces.
+- [x] Presentational children use typed props down and events up.
+- [x] Drawer sections keep local drafts and emit an applied canonical request.
+- [x] TanStack Query owns capabilities, prompt groups, facets, jobs, and index status.
+- [x] Pinia owns the current search session and UI preferences only.
+- [x] Computed getters remain pure; router/localStorage writes happen in explicit
       actions or watchers with loop guards.
-- [ ] New primitive local state uses `shallowRef()`.
-- [ ] All SFCs use `<script setup lang="ts">`, PascalCase filenames, declarative
+- [x] New primitive local state uses `shallowRef()`.
+- [x] All SFCs use `<script setup lang="ts">`, PascalCase filenames, declarative
       templates, scoped class selectors, and `useTemplateRef()` where DOM access
       is required.
 
@@ -576,11 +576,11 @@ components.
 
 ### Acceptance gates
 
-- [ ] Saved/recent searches survive reload and corrupted storage fails safely.
-- [ ] Prompt group selection creates the expected canonical filter.
-- [ ] Workflow controls cannot produce an unsupported request.
-- [ ] Raw search remains hidden/disabled when capability is false.
-- [ ] Desktop, tablet, and mobile expose equivalent behavior and keyboard labels.
+- [x] Saved/recent searches survive reload and corrupted storage fails safely.
+- [x] Prompt group selection creates the expected canonical filter.
+- [x] Workflow controls cannot produce an unsupported request.
+- [x] Raw search remains hidden/disabled when capability is false.
+- [x] Desktop, tablet, and mobile expose equivalent behavior and keyboard labels.
 
 ## D6 - Test, performance, and documentation gates
 
@@ -649,3 +649,4 @@ is complete, move this file to `docs/archived/` and update the plans index.
 | 2026-07-13 | D2 | Complete | Additive schema v6 and durable DB-only `prompt_values` backfill; fixed NFKC/casefold/kind-separated prompt identities, active-catalog usage paging and exact Search V2 groups, cursor privacy, and deterministic many-to-many observed model aliases; 113 focused and 227 broad backend contracts passed, including 25,000-asset sub-300 ms usage/exact-filter gates. |
 | 2026-07-13 | D3 | Complete | Additive schema v7 and enabled durable `workflow_properties` index; normalized API/UI Comfy graphs, fixed registry v1, bounded typed scalar extraction, canonical uint64 seeds, same-node fixed SQL, field-specific validation, and degraded parse failures; 97 focused contracts passed plus the 25,000-asset/500,000-property sub-300 ms gate. |
 | 2026-07-13 | D4 | Complete | Additive schema v8 with external-content trigram FTS and skipped counters; default-off canonical raw-workflow index, 1 MiB/document and 512 MiB total budgets, literal scoped API, deprecated `raw:` alias, identifier grammar, dedicated 250 ms read deadline, typed timeout, and 25,000-document performance coverage. |
+| 2026-07-13 | D5 | Complete | Shared responsive Advanced Search composition with browser-local saved/recent actions, prompt usage paging/copy/exact groups, registry-only typed workflow rows, capability-hidden Apply-only raw search, and query-backed index rebuild/cancel status; filter-only canonical searches now render and focused frontend contracts pass. |

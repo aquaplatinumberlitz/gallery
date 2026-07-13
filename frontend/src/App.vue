@@ -17,7 +17,7 @@ import { useSidebarTreeQuery } from "./composables/useSidebarTreeQuery";
 import { MotionConfig } from "motion-v";
 import { useFieldedSearch } from "./composables/useFieldedSearch";
 import { useSearchUrlSync } from "./composables/useSearchUrlSync";
-import type { FieldFilter } from "./types";
+import type { FieldFilter, PersistableSearchRequestV1 } from "./types";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const DesktopLayout = defineAsyncComponent(() => import("./layouts/DesktopLayout.vue"));
@@ -88,6 +88,29 @@ function openAdvancedSearch() {
 
 function handleAdvancedSearchApply(filters: FieldFilter[]) {
   galleryStore.setSearchQuery(fieldedSearch.applyFilters(filters));
+  galleryStore.submitSearch();
+}
+
+function handleCanonicalSearchApply(request: PersistableSearchRequestV1) {
+  const libraries = librariesQuery.data.value ?? [];
+  const scope = request.scope;
+  if (scope.kind !== "all") {
+    const library = libraries.find((item) => item.id === scope.library_id);
+    if (!library) return;
+    const importPath =
+      scope.kind === "folder"
+        ? library.import_paths.find((item) => item.id === scope.import_path_id)
+        : library.import_paths[0];
+    if (!importPath || !galleryStore.setActiveLibrary(library, importPath)) return;
+    if (scope.kind === "folder" && scope.relative_path) {
+      const root = importPath.path.replace(/[\\/]+$/, "");
+      galleryStore.selectFolder(`${root}/${scope.relative_path}`);
+    }
+  }
+  galleryStore.setSearchQuery(request.text);
+  galleryStore.setSearchMode(request.mode, false);
+  galleryStore.setSearchFilters(request.filters, false);
+  galleryStore.setSearchScope(scope.kind === "folder" ? "current" : scope.kind, false);
   galleryStore.submitSearch();
 }
 
@@ -246,6 +269,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
         :initial-filters="advancedSearchInitialFilters"
         @close="isAdvancedSearchOpen = false"
         @apply="handleAdvancedSearchApply"
+        @apply-request="handleCanonicalSearchApply"
       />
       <GalleryToaster v-if="!isMobile" />
       <SettingsModal

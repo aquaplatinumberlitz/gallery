@@ -52,12 +52,7 @@ export interface BuildSearchRequestOptions {
   limit?: number;
 }
 
-export const buildSearchRequestV1 = (options: BuildSearchRequestOptions): SearchQueryRequestV1 | null => {
-  const text = options.text.trim();
-  const filters = options.filters ?? emptySearchFilters();
-  const hasFilters = filters.prompt_groups.length > 0 || filters.workflow_groups.length > 0;
-  if (!text && !hasFilters) return null;
-
+export const buildSearchScopeV1 = (options: Omit<BuildSearchRequestOptions, "text" | "mode" | "filters" | "limit">) => {
   let scope: SearchQueryRequestV1["scope"];
   if (options.scope === "all") {
     scope = { kind: "all" };
@@ -75,6 +70,17 @@ export const buildSearchRequestV1 = (options: BuildSearchRequestOptions): Search
       relative_path: relativePath,
     };
   }
+
+  return scope;
+};
+
+export const buildSearchRequestV1 = (options: BuildSearchRequestOptions): SearchQueryRequestV1 | null => {
+  const text = options.text.trim();
+  const filters = options.filters ?? emptySearchFilters();
+  const hasFilters = filters.prompt_groups.length > 0 || filters.workflow_groups.length > 0;
+  if (!text && !hasFilters) return null;
+  const scope = buildSearchScopeV1(options);
+  if (!scope) return null;
 
   return {
     schema_version: SEARCH_V2_SCHEMA_VERSION,

@@ -202,3 +202,14 @@ Icon rules:
 - Show validation counts on affected section headers and in the footer; submitting an invalid form must open and focus the first invalid field.
 - Do not dismiss dirty edits from an outside pointer interaction. Explicit Cancel, Close, or Escape may discard staged changes.
 - Maintain 44x44px touch targets for compact-header actions and sheet close controls.
+- Keep discovery inside the same shared sheet on desktop, tablet, and mobile:
+  saved/recent searches, prompt usage, typed workflow filters, optional raw
+  workflow search, and derived-index status are independent sections rather
+  than new header or root-component responsibilities.
+- Prompt usage keeps positive/negative tabs, visible counts, a sample image,
+  Copy, and Show assets. Workflow controls render only capability-advertised
+  nodes/properties/operators and identify validation errors by predicate row.
+- Raw workflow controls are absent when disabled. When enabled they require an
+  explicit acknowledgement and Apply action; typing alone never sends a query.
+- Index controls distinguish ready, usable-stale/building, degraded, failed,
+  unavailable, and disabled. Confirm rebuilds and disable duplicate actions.

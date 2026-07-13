@@ -5,7 +5,13 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { unifiedSearchV2 } from "@/services/api";
 import { useUnifiedSearchQuery } from "../useUnifiedSearchQuery";
 import { GALLERY_SEARCH_DEBOUNCE_MS } from "@/constants";
-import type { SearchQueryRequestV1, SearchScope, UnifiedSearchResponse, UnifiedSearchResult } from "@/types";
+import type {
+  SearchFiltersV1,
+  SearchQueryRequestV1,
+  SearchScope,
+  UnifiedSearchResponse,
+  UnifiedSearchResult,
+} from "@/types";
 
 vi.mock("@/services/api", () => ({
   unifiedSearchV2: vi.fn(),
@@ -49,14 +55,19 @@ const makeMockResults = (overrides?: Partial<UnifiedSearchResponse>): UnifiedSea
   ...overrides,
 });
 
-function setup(query: string, scope: SearchScope, path: string) {
+function setup(
+  query: string,
+  scope: SearchScope,
+  path: string,
+  filters: SearchFiltersV1 = { prompt_groups: [], workflow_groups: [] },
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const queryRef = ref(query);
   const scopeRef = ref(scope);
   const pathRef = ref(path);
   const requestRef = computed<SearchQueryRequestV1 | null>(() => {
     const text = queryRef.value.trim();
-    if (!text) return null;
+    if (!text && !filters.prompt_groups.length && !filters.workflow_groups.length) return null;
     const requestScope: SearchQueryRequestV1["scope"] =
       scopeRef.value === "all"
         ? { kind: "all" }
@@ -73,7 +84,7 @@ function setup(query: string, scope: SearchScope, path: string) {
       mode: "lexical",
       text,
       scope: requestScope,
-      filters: { prompt_groups: [], workflow_groups: [] },
+      filters,
       cursor: null,
       limit: 60,
     };
@@ -124,6 +135,19 @@ describe("useUnifiedSearchQuery", () => {
   it("does not fetch when query is empty", () => {
     setup("", "all", "");
     expect(unifiedSearchV2).not.toHaveBeenCalled();
+  });
+
+  it("fetches and exposes filter-only prompt group results", async () => {
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
+    const { result } = setup("", "all", "", {
+      prompt_groups: [{ kind: "positive", value_id: "abcdefghijklmnopqrstuvwxyz0123456789_-ABCDE" }],
+      workflow_groups: [],
+    });
+    await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
+    expect(unifiedSearchV2).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "", filters: expect.objectContaining({ prompt_groups: [expect.any(Object)] }) }),
+      expect.any(AbortSignal),
+    );
   });
 
   it("does not fetch when query is whitespace (trimmed to empty)", () => {
