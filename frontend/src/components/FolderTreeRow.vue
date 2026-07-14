@@ -121,13 +121,30 @@ watch(
 <style scoped>
 @media (max-width: 1023px) {
   .folder-tree-label {
-    min-height: 44px;
+    min-height: 46px;
+    border-radius: var(--gallery-radius-md);
+    padding-inline: 8px;
+    transition: background 150ms ease, transform 80ms ease;
+    position: relative;
+  }
+
+  .folder-tree-label:active {
+    transform: scale(0.98);
+    background: color-mix(in srgb, var(--sidebar-accent) 80%, transparent);
+  }
+
+  /* Selected item accent indicator */
+  :deep([data-selected]) .folder-tree-label {
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    border-left: 3px solid var(--primary);
+    padding-left: 6px;
   }
 }
 
 .folder-icon {
   color: var(--primary);
-  transition: color 120ms ease;
+  transition: color 120ms ease, transform 120ms ease;
+  flex-shrink: 0;
 }
 
 .gallery-icon-md {

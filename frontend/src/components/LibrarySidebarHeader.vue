@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { FolderOpen, Library, Settings2 } from "lucide-vue-next";
+import { FolderOpen, Library, Settings2, ChevronRight } from "lucide-vue-next";
 import ResponsiveLibrarySelector from "@/components/ResponsiveLibrarySelector.vue";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
@@ -46,7 +46,12 @@ function openLibrarySelector() {
 </script>
 
 <template>
-  <div class="relative bg-sidebar p-4 pb-3 group-data-[collapsible=icon]:p-1">
+  <div class="sidebar-header-root relative bg-sidebar group-data-[collapsible=icon]:p-1">
+    <!-- Mobile drag handle indicator -->
+    <div v-if="isSidebarSheet" class="drag-handle-bar" aria-hidden="true">
+      <span class="drag-handle" />
+    </div>
+
     <SidebarTrigger
       v-if="!isSidebarSheet"
       class="sidebar-close-trigger absolute right-2 top-2 z-20 size-7 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mx-auto"
@@ -62,8 +67,8 @@ function openLibrarySelector() {
       <Library class="size-4" />
     </IconTooltipButton>
 
-    <div class="space-y-3 group-data-[collapsible=icon]:hidden">
-      <p class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active library</p>
+    <div class="sidebar-header-content space-y-3 group-data-[collapsible=icon]:hidden">
+      <p class="sidebar-section-label">Active library</p>
       <Skeleton v-if="librariesQuery.isPending.value" class="h-9 w-full" />
       <div v-else-if="librariesQuery.isError.value" class="space-y-2">
         <p class="text-xs text-destructive">Could not load libraries.</p>
@@ -79,14 +84,17 @@ function openLibrarySelector() {
       <template v-else-if="isMobile">
         <button
           type="button"
-          class="flex w-full items-center gap-2 rounded-lg bg-sidebar-accent/45 p-3 text-left shadow-sm ring-1 ring-sidebar-border/55 transition-colors hover:bg-sidebar-accent/70"
+          class="library-selector-btn"
           @click="openLibrarySelector"
         >
-          <FolderOpen class="size-4 shrink-0 text-primary" />
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm font-medium">{{ activeLibrary?.name ?? "Select a library" }}</span>
-            <span class="block truncate font-mono text-[11px] text-muted-foreground">{{ activeImportPath?.path }}</span>
+          <span class="library-icon-badge">
+            <FolderOpen class="size-4" />
           </span>
+          <span class="min-w-0 flex-1">
+            <span class="library-name">{{ activeLibrary?.name ?? "Select a library" }}</span>
+            <span class="library-path">{{ activeImportPath?.path }}</span>
+          </span>
+          <ChevronRight class="library-chevron" />
         </button>
       </template>
       <template v-else>
@@ -127,7 +135,7 @@ function openLibrarySelector() {
         to="/admin/libraries"
         variant="outline"
         size="sm"
-        class="w-full border-sidebar-border bg-sidebar hover:bg-sidebar-accent/70"
+        class="manage-libraries-btn w-full"
       >
         <Settings2 class="size-4" /> Manage Libraries
       </ButtonLink>
@@ -137,12 +145,120 @@ function openLibrarySelector() {
 </template>
 
 <style scoped>
+.sidebar-header-root {
+  padding: 16px 16px 14px;
+}
+
+.drag-handle-bar {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 12px;
+}
+
+.drag-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sidebar-foreground) 15%, transparent);
+  transition: background 200ms ease;
+}
+
+.sidebar-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.sidebar-header-content {
+  /* inherits space-y-3 from class */
+}
+
+.library-selector-btn {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--gallery-radius-lg);
+  background: color-mix(in srgb, var(--sidebar-accent) 50%, transparent);
+  text-align: left;
+  border: 1px solid color-mix(in srgb, var(--sidebar-border) 50%, transparent);
+  transition: background 180ms ease, border-color 180ms ease, transform 120ms ease;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.library-selector-btn:active {
+  transform: scale(0.98);
+  background: color-mix(in srgb, var(--sidebar-accent) 80%, transparent);
+}
+
+.library-icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--gallery-radius-md);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.library-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--sidebar-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-path {
+  display: block;
+  font-family: var(--gallery-font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+.library-chevron {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+}
+
+.manage-libraries-btn {
+  border-color: color-mix(in srgb, var(--sidebar-border) 60%, transparent);
+  background: var(--sidebar);
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.manage-libraries-btn:hover {
+  background: color-mix(in srgb, var(--sidebar-accent) 70%, transparent);
+}
+
 @media (max-width: 1023px) {
   .sidebar-close-trigger {
     width: 44px;
     height: 44px;
     min-width: 44px;
     min-height: 44px;
+  }
+
+  .library-selector-btn {
+    min-height: 56px;
   }
 }
 </style>

@@ -159,12 +159,12 @@ const onItemSelect = (event: CustomEvent<{ value?: FolderTreeDisplayItem }>) => 
 
 <template>
   <div class="flex min-h-0 flex-col gap-2 group-data-[collapsible=icon]:hidden">
-    <div class="flex items-center gap-2 px-1">
+    <div class="tree-actions-bar flex items-center gap-1.5 px-1">
       <Button
         size="sm"
         variant="outline"
         type="button"
-        class="h-7 gap-1.5 border-sidebar-border bg-sidebar px-2 text-xs text-sidebar-foreground shadow-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground disabled:opacity-40"
+        class="tree-action-btn"
         :disabled="!hasExpandableItems"
         @click="expandAll"
       >
@@ -175,7 +175,7 @@ const onItemSelect = (event: CustomEvent<{ value?: FolderTreeDisplayItem }>) => 
         size="sm"
         variant="outline"
         type="button"
-        class="h-7 gap-1.5 border-sidebar-border bg-sidebar px-2 text-xs text-sidebar-foreground shadow-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground disabled:opacity-40"
+        class="tree-action-btn"
         :disabled="!expandedItems.length"
         @click="collapseAll"
       >
@@ -213,3 +213,34 @@ const onItemSelect = (event: CustomEvent<{ value?: FolderTreeDisplayItem }>) => 
     </Tree>
   </div>
 </template>
+
+<style scoped>
+.tree-action-btn {
+  height: 28px;
+  gap: 5px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--sidebar-border) 60%, transparent);
+  background: var(--sidebar);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--sidebar-foreground);
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.tree-action-btn:hover {
+  background: color-mix(in srgb, var(--sidebar-accent) 70%, transparent);
+}
+
+.tree-action-btn:disabled {
+  opacity: 0.35;
+}
+
+@media (max-width: 1023px) {
+  .tree-action-btn {
+    height: 34px;
+    padding-inline: 12px;
+    font-size: 12px;
+  }
+}
+</style>

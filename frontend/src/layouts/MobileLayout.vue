@@ -38,7 +38,7 @@ const emit = defineEmits<{
 <template>
   <SidebarProvider :open="true" :open-mobile="isSidebarOpen" @update:open-mobile="emit('update:sidebarOpen', $event)">
     <Sidebar side="left" variant="sidebar" collapsible="offcanvas">
-      <div class="gallery-sidebar-surface flex h-full w-full flex-col">
+      <div class="gallery-sidebar-surface flex h-full w-full flex-col" style="padding-top: env(safe-area-inset-top)">
         <GallerySidebarContent
           :tree="tree"
           :is-loading="isLoading"
@@ -87,10 +87,12 @@ const emit = defineEmits<{
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--foreground) 2%, transparent),
-      color-mix(in srgb, var(--foreground) 4%, transparent)
+      color-mix(in srgb, var(--primary) 3%, transparent) 0%,
+      color-mix(in srgb, var(--foreground) 2%, transparent) 40%,
+      color-mix(in srgb, var(--foreground) 4%, transparent) 100%
     ),
-    var(--card);
+    var(--sidebar);
+  border-right: 1px solid color-mix(in srgb, var(--sidebar-border) 40%, transparent);
 }
 
 .content {
