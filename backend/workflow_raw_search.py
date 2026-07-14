@@ -131,6 +131,27 @@ def persist_raw_workflow(conn: sqlite3.Connection, asset: dict[str, Any], payloa
     )
 
 
+def invalidate_raw_workflow_conn(conn: sqlite3.Connection, asset_id: int, library_id: int) -> None:
+    """Remove stale canonical raw JSON and mark initialized coverage incomplete."""
+    extraction = conn.execute(
+        "SELECT status FROM asset_search_extractions WHERE asset_id = ? AND index_name = 'workflow_raw'",
+        (asset_id,),
+    ).fetchone()
+    conn.execute("DELETE FROM workflow_raw_documents WHERE asset_id = ?", (asset_id,))
+    conn.execute(
+        "DELETE FROM asset_search_extractions WHERE asset_id = ? AND index_name = 'workflow_raw'",
+        (asset_id,),
+    )
+    from .metadata_store.search_index_store import mark_search_index_asset_stale_conn
+
+    mark_search_index_asset_stale_conn(
+        conn,
+        "workflow_raw",
+        library_id,
+        str(extraction["status"]) if extraction is not None else None,
+    )
+
+
 def _request_fingerprint(
     query: str,
     scope: str,

@@ -661,7 +661,7 @@ Header search or AdvancedSearchDrawer
   catalog folder/active descendants returns `404`; invalid/missing scope values
   are `422`.
 - `/api/search/query` is the active frontend contract. It accepts schema version
-  1, lexical/workflow/raw modes, a discriminated folder/library/all scope, and
+  1, lexical/workflow modes, a discriminated folder/library/all scope, and
   never accepts an absolute client path. Persisted/URL forms omit cursor and
   limit; query keys omit only cursor. Legacy `GET /api/search` authorizes its
   absolute-path inputs and adapts them into the same lexical executor.
@@ -678,9 +678,11 @@ Header search or AdvancedSearchDrawer
   carry worker ID, opaque token, and lease; completion is fenced. Workers read
   active assets by `asset_id` keyset in batches of at most 200, extract outside
   write transactions, and atomically persist one asset's derived rows plus its
-  fingerprint/status. Startup converts stale running jobs to `interrupted` so
-  the next claim resumes its cursor. Optional index failure never disables
-  lexical search.
+  fingerprint/status. Metadata changes atomically invalidate initialized
+  prompt/workflow/raw rows and coalesce a durable missing rebuild; indexes that
+  have never been initialized remain opt-in. Expired claims are recovered in
+  the next claim transaction, while startup recovery remains the process-crash
+  safety net. Optional index failure never disables lexical search.
 - Capabilities distinguish disabled features (`409 FEATURE_DISABLED`) from an
   enabled but unusable required index (`503 SEARCH_INDEX_NOT_READY` with
   `Retry-After`). Index status exposes `state` separately from `usable`; an old

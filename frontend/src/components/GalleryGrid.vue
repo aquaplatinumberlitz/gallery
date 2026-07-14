@@ -28,7 +28,7 @@ import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { buildSearchRequestV1, buildSearchScopeV1 } from "@/utils/searchRequest";
 import { chunkGridRows, useVirtualGridRows } from "../composables/useVirtualGridRows";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
-import type { ErrorType } from "../services/api";
+import { GalleryAPIError, type ErrorType } from "../services/api";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
 import { shouldLoadMoreImages } from "../utils/gallery";
 import {
@@ -165,6 +165,17 @@ const hasStructuredSearch = computed(
     Boolean(canonicalSearchRequest.value?.filters.workflow_groups.length),
 );
 const unifiedSearchQuery = useUnifiedSearchQuery(canonicalSearchRequest);
+watch(
+  [() => unifiedSearchQuery.error.value, () => unifiedSearchQuery.isSuccess.value],
+  ([error, isSuccess]) => {
+    if (error instanceof GalleryAPIError && Object.keys(error.fieldErrors).length) {
+      galleryStore.setSearchFieldErrors(error.fieldErrors);
+    } else if (isSuccess) {
+      galleryStore.clearSearchFieldErrors();
+    }
+  },
+  { immediate: true },
+);
 const settledSearchQuery = computed(() => unifiedSearchQuery.debouncedQuery.value);
 const hasSearchQuery = computed(
   () =>

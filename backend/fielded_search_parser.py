@@ -527,7 +527,11 @@ def _handle_model(builder: _ConditionBuilder, ft: FieldToken) -> None:
         normalized_name = " ".join(unicodedata.normalize("NFKC", value).strip().split()).casefold()
         normalized_name_param = builder.next_param(normalized_name)
         alias_hashes = (
-            f"SELECT normalized_hash FROM model_identity_aliases WHERE normalized_name = {normalized_name_param}"
+            "SELECT DISTINCT identity.normalized_hash "
+            "FROM asset_model_identity_values AS identity "
+            "JOIN assets AS identity_asset ON identity_asset.id = identity.asset_id "
+            f"WHERE identity.normalized_name = {normalized_name_param} "
+            "AND identity_asset.offline = 0 AND identity_asset.deleted_at IS NULL"
         )
         alias = "lower(coalesce(m.model_hash, '')) IN (" + alias_hashes + ")"
         trigram_rowids = _trigram_field_rowids(builder, "model", value)

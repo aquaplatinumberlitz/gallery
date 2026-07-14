@@ -96,7 +96,7 @@ export const buildSearchRequestV1 = (options: BuildSearchRequestOptions): Search
 export const parseSearchRequestV1 = (value: unknown): SearchQueryRequestV1 | null => {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
-  if (record.schema_version !== 1 || !["lexical", "workflow", "raw"].includes(String(record.mode))) return null;
+  if (record.schema_version !== 1 || !["lexical", "workflow"].includes(String(record.mode))) return null;
   if (typeof record.text !== "string" || record.text.length > 512) return null;
   if (!record.scope || typeof record.scope !== "object") return null;
   const scope = record.scope as Record<string, unknown>;

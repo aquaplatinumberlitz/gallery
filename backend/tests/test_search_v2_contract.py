@@ -93,6 +93,14 @@ def test_search_v2_scope_and_request_bounds(
         response = isolated_app.post("/api/search/query", json={**base, field: value})
         assert response.status_code == 422
 
+    extra = isolated_app.post("/api/search/query", json={**base, "ignored_padding": "x" * 100_000})
+    assert extra.status_code == 422
+    extra_scope = isolated_app.post(
+        "/api/search/query",
+        json={**base, "scope": {"kind": "all", "library_id": 999, "absolute_path": "/tmp/leak"}},
+    )
+    assert extra_scope.status_code == 422
+
     decimal_cursor = isolated_app.post("/api/search/query", json={**base, "cursor": "12"})
     assert decimal_cursor.status_code == 422
 
@@ -152,9 +160,8 @@ def test_search_v2_scope_and_request_bounds(
     )
     assert missing_folder.status_code == 404
 
-    disabled = isolated_app.post("/api/search/query", json={**base, "mode": "raw"})
-    assert disabled.status_code == 409
-    assert disabled.json()["detail"]["error"] == "feature_disabled"
+    dedicated_only = isolated_app.post("/api/search/query", json={**base, "mode": "raw"})
+    assert dedicated_only.status_code == 422
 
     schema = isolated_app.get("/openapi.json").json()
     operation = schema["paths"]["/api/search/query"]["post"]

@@ -78,6 +78,14 @@ const fieldedSearch = useFieldedSearch(rawSearchQuery);
 const isAdvancedSearchOpen = shallowRef(false);
 const advancedSearchInitialFilters = shallowRef<FieldFilter[]>([]);
 
+watch(
+  () => galleryStore.searchFieldErrors,
+  (errors) => {
+    if (Object.keys(errors).length) isAdvancedSearchOpen.value = true;
+  },
+  { deep: true },
+);
+
 function handleSearchQueryUpdate(value: string) {
   galleryStore.setSearchQuery(value);
 }

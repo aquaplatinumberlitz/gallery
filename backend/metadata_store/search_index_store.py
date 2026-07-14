@@ -133,6 +133,42 @@ def list_search_index_states(*, library_id: int | None = None) -> list[dict[str,
         return result
 
 
+def mark_search_index_asset_stale_conn(
+    conn: sqlite3.Connection,
+    index_name: str,
+    library_id: int,
+    previous_status: str | None,
+) -> None:
+    """Refresh one initialized index state after an asset extraction is invalidated."""
+    indexed_delta = int(previous_status in {"ready", "not_applicable", "skipped"})
+    failed_delta = int(previous_status == "failed")
+    skipped_delta = int(previous_status == "skipped")
+    conn.execute(
+        """
+        UPDATE search_index_states
+        SET state = CASE
+              WHEN active_job_id IS NOT NULL THEN 'building'
+              WHEN max(indexed_count - ?, 0) > 0 THEN 'degraded'
+              ELSE 'pending'
+            END,
+            indexed_count = max(indexed_count - ?, 0),
+            failed_count = max(failed_count - ?, 0),
+            skipped_count = max(skipped_count - ?, 0),
+            updated_at = ?, error_code = NULL, error_summary = NULL
+        WHERE index_name = ? AND library_id = ?
+        """,
+        (
+            indexed_delta,
+            indexed_delta,
+            failed_delta,
+            skipped_delta,
+            time.time(),
+            index_name,
+            library_id,
+        ),
+    )
+
+
 def get_search_index_job(job_id: int) -> dict[str, Any] | None:
     """Return one public durable search-index job."""
     initialize_database()
@@ -230,6 +266,53 @@ def claim_next_search_index_job(
     with _DB_LOCK, _connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
+            expired = conn.execute(
+                """
+                SELECT * FROM search_index_jobs
+                WHERE state IN ('running', 'cancel_requested')
+                  AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+                ORDER BY id
+                """,
+                (now,),
+            ).fetchall()
+            for stale in expired:
+                next_state = "cancelled" if stale["state"] == "cancel_requested" else "interrupted"
+                conn.execute(
+                    """
+                    UPDATE search_index_jobs
+                    SET state = ?, claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL,
+                        finished_at = CASE WHEN ? = 'cancelled' THEN ? ELSE finished_at END,
+                        error_code = CASE WHEN ? = 'interrupted' THEN 'lease_expired' ELSE error_code END,
+                        error_summary = CASE WHEN ? = 'interrupted' THEN 'Search index lease expired' ELSE error_summary END
+                    WHERE id = ? AND state = ? AND claim_token IS ?
+                    """,
+                    (
+                        next_state,
+                        next_state,
+                        now,
+                        next_state,
+                        next_state,
+                        int(stale["id"]),
+                        stale["state"],
+                        stale["claim_token"],
+                    ),
+                )
+                if next_state == "cancelled":
+                    conn.execute(
+                        "UPDATE search_index_states SET active_job_id = NULL, updated_at = ? WHERE active_job_id = ?",
+                        (now, int(stale["id"])),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        UPDATE search_index_states
+                        SET state = CASE WHEN indexed_count > 0 THEN 'degraded' ELSE 'pending' END,
+                            updated_at = ?, error_code = 'lease_expired',
+                            error_summary = 'Search index lease expired'
+                        WHERE active_job_id = ?
+                        """,
+                        (now, int(stale["id"])),
+                    )
             running = conn.execute(
                 "SELECT 1 FROM search_index_jobs WHERE state IN ('running', 'cancel_requested') LIMIT 1"
             ).fetchone()

@@ -174,15 +174,18 @@ export class GalleryAPIError extends Error {
             .filter((item): item is { loc: Array<string | number>; msg: string } =>
               Boolean(item && typeof item === "object" && Array.isArray(item.loc) && typeof item.msg === "string"),
             )
-            .map((item) => [
-              item.loc
+            .map((item) => {
+              const workflowPath = item.msg.match(
+                /workflow_groups\[\d+\]\.predicates\[\d+\]\.(?:property|op|value)/,
+              )?.[0];
+              const locationPath = item.loc
                 .slice(item.loc[0] === "body" ? 1 : 0)
                 .reduce(
                   (path, part) => (typeof part === "number" ? `${path}[${part}]` : `${path ? `${path}.` : ""}${part}`),
                   "",
-                ),
-              item.msg,
-            ]),
+                );
+              return [workflowPath ? `filters.${workflowPath}` : locationPath, item.msg];
+            }),
         );
         parsed = { error: "bad_request", message: "One or more search fields are invalid." };
       } else if (maybeDetail && typeof maybeDetail === "object") {

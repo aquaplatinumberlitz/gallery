@@ -409,7 +409,8 @@ class TestBuildFieldedSearchSql:
         parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="model", value="foo")])
         sql, params = build_fielded_search_sql(parsed, limit=10)
         assert "m.model LIKE" in sql or "m.model =" in sql
-        assert "model_identity_aliases" in sql
+        assert "asset_model_identity_values" in sql
+        assert "identity_asset.offline = 0" in sql
         assert "m.model_hash" in sql
         assert "foo" in str(params)
 

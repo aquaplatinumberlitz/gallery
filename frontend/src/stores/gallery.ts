@@ -258,6 +258,7 @@ export const useGalleryStore = defineStore("gallery", {
       searchScope: "current" as SearchScope,
       searchMode: "lexical" as SearchMode,
       searchFilters: { prompt_groups: [], workflow_groups: [] } as SearchFiltersV1,
+      searchFieldErrors: {} as Record<string, string>,
       searchNavigationVersion: 0,
       searchLoading: false,
       sortField: storedSort.field as SortField,
@@ -282,6 +283,7 @@ export const useGalleryStore = defineStore("gallery", {
     },
 
     setSearchQuery(query: string) {
+      this.clearSearchFieldErrors();
       this.searchQuery = query;
       if (query.trim() !== this.submittedSearchQuery) {
         this.submittedSearchQuery = "";
@@ -289,6 +291,7 @@ export const useGalleryStore = defineStore("gallery", {
     },
 
     clearSearch() {
+      this.clearSearchFieldErrors();
       this.searchQuery = "";
       this.submittedSearchQuery = "";
     },
@@ -300,17 +303,20 @@ export const useGalleryStore = defineStore("gallery", {
 
     setSearchScope(scope: SearchScope, navigate = true) {
       if (this.searchScope === scope) return;
+      this.clearSearchFieldErrors();
       this.searchScope = scope;
       if (navigate) this.searchNavigationVersion += 1;
     },
 
     setSearchMode(mode: SearchMode, navigate = true) {
       if (this.searchMode === mode) return;
+      this.clearSearchFieldErrors();
       this.searchMode = mode;
       if (navigate) this.searchNavigationVersion += 1;
     },
 
     setSearchFilters(filters: SearchFiltersV1, navigate = true) {
+      this.clearSearchFieldErrors();
       this.searchFilters = {
         prompt_groups: [...filters.prompt_groups],
         workflow_groups: filters.workflow_groups.map((group) => ({
@@ -319,6 +325,14 @@ export const useGalleryStore = defineStore("gallery", {
         })),
       };
       if (navigate) this.searchNavigationVersion += 1;
+    },
+
+    setSearchFieldErrors(errors: Record<string, string>) {
+      this.searchFieldErrors = { ...errors };
+    },
+
+    clearSearchFieldErrors() {
+      this.searchFieldErrors = {};
     },
 
     setSearchLoading(loading: boolean) {

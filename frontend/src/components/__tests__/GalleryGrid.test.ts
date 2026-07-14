@@ -5,6 +5,7 @@ import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { ref } from "vue";
 import { fuzzySearchFileNodes } from "@/utils/fuzzySearch";
+import { GalleryAPIError } from "@/services/api";
 
 let mockIsLoading = ref(false);
 let mockIsFetching = ref(false);
@@ -12,7 +13,7 @@ let mockIsSuccess = ref(true);
 let mockIsPending = ref(false);
 let mockHasNextPage = ref(false);
 let mockIsFetchingNextPage = ref(false);
-let mockError = ref(null);
+let mockError = ref<Error | null>(null);
 let mockFolders: any = ref([]);
 let mockMedia: any = ref([]);
 let mockActiveFolderPath: any = ref(null);
@@ -51,9 +52,9 @@ mockUseUnifiedSearchQuery.mockImplementation(() => ({
   isError: { value: false },
   isRefetchError: { value: false },
   isFetchNextPageError: { value: false },
-  error: { value: null },
+  error: mockError,
   isPending: { value: false },
-  isSuccess: { value: true },
+  isSuccess: mockIsSuccess,
   hasNextPage: { value: false },
   fetchNextPage: vi.fn(),
   debouncedQuery: { value: "" },
@@ -122,6 +123,7 @@ const mockStore: Record<string, any> = {
   searchScope: "current",
   searchMode: "lexical",
   searchFilters: { prompt_groups: [], workflow_groups: [] },
+  searchFieldErrors: {},
   sortField: "date",
   sortOrder: "desc",
   isLoading: false,
@@ -142,6 +144,8 @@ const mockStore: Record<string, any> = {
   setSortField: vi.fn(),
   setSortOrder: vi.fn(),
   setSearchLoading: vi.fn(),
+  setSearchFieldErrors: vi.fn(),
+  clearSearchFieldErrors: vi.fn(),
   selectFolder: vi.fn(),
   clearSearch: vi.fn(),
   clearError: vi.fn(),
@@ -175,6 +179,7 @@ function defaultStoreValues() {
     searchScope: "current",
     searchMode: "lexical",
     searchFilters: { prompt_groups: [], workflow_groups: [] },
+    searchFieldErrors: {},
   };
 }
 
@@ -256,6 +261,19 @@ describe("GalleryGrid", () => {
   it("shows error banner when error message exists", async () => {
     const wrapper = await mountSubject({ store: { errorMessage: "Failed to load" } });
     expect(wrapper.find("[role='alert']").exists()).toBe(true);
+  });
+
+  it("publishes exact workflow field errors from the search query", async () => {
+    mockError = ref(
+      new GalleryAPIError("bad_request", "Invalid request", "Check fields", false, {
+        "filters.workflow_groups[0].predicates[0].value": "Invalid integer",
+      }),
+    );
+    mockIsSuccess = ref(false);
+    await mountSubject({ store: { searchQuery: "workflow", submittedSearchQuery: "workflow" } });
+    expect(mockStore.setSearchFieldErrors).toHaveBeenCalledWith({
+      "filters.workflow_groups[0].predicates[0].value": "Invalid integer",
+    });
   });
 
   it("renders breadcrumb on desktop", async () => {

@@ -121,8 +121,7 @@ def api_search_capabilities() -> SearchCapabilitiesResponse:
     enabled_modes = ["lexical"]
     if any(item.enabled and item.required_mode == "workflow" for item in definitions):
         enabled_modes.append("workflow")
-    if any(item.enabled and item.required_mode == "raw" for item in definitions):
-        enabled_modes.append("raw")
+    raw_enabled = any(item.enabled and item.required_mode == "raw" for item in definitions)
     return SearchCapabilitiesResponse.model_validate(
         {
             "schema_version": 1,
@@ -139,7 +138,7 @@ def api_search_capabilities() -> SearchCapabilitiesResponse:
             },
             "workflow_registry": workflow_registry_capability(),
             "raw_search": {
-                "enabled": "raw" in enabled_modes,
+                "enabled": raw_enabled,
                 "query_min_chars": 3,
                 "query_max_chars": 128,
                 "limit_max": 50,

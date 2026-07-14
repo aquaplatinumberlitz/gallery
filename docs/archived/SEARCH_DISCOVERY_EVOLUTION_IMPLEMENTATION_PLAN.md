@@ -1,6 +1,6 @@
 # Search Discovery Evolution Implementation Plan for OpenCode
 
-Status: Active
+Status: Complete
 
 Last reviewed: 2026-07-13
 
@@ -95,7 +95,8 @@ Add `POST /api/search/query` with a regular Pydantic request model:
 ### Contract rules
 
 - [x] `schema_version` is exactly `1`.
-- [x] Initial modes are `lexical`, `workflow`, and `raw`.
+- [x] Canonical Search V2 modes are `lexical` and `workflow`; bounded raw
+      workflow search uses its dedicated D4 endpoint.
 - [x] Scope is a discriminated union:
   - `folder`: requires library, import path, and case-preserved relative path;
   - `library`: requires library only;
@@ -122,7 +123,7 @@ Use Vue Router query parameters on the existing gallery route:
 | `library` | Registered library ID |
 | `import` | Registered import-path ID |
 | `path` | Case-preserved relative folder path |
-| `mode=lexical\|workflow\|raw` | Search mode |
+| `mode=lexical\|workflow` | Canonical Search V2 mode |
 | `pg` | Bounded base64url JSON prompt-group filters |
 | `wf` | Bounded base64url JSON workflow groups |
 

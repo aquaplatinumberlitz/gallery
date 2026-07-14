@@ -41,7 +41,7 @@ const stubLibrary = {
 
 const capabilities = {
   schema_version: 1,
-  enabled_modes: ["lexical", "workflow", "raw"],
+  enabled_modes: ["lexical", "workflow"],
   supported_scopes: ["folder", "library", "all"],
   field_limits: {
     text_max_chars: 512,

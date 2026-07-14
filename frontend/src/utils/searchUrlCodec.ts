@@ -58,7 +58,7 @@ export const decodeSearchUrlQuery = (query: LocationQuery): DecodedSearchUrl => 
   try {
     if (scalar(query.search_v) !== "1") return { request: null, invalid: true };
     const mode = (scalar(query.mode) ?? "lexical") as SearchMode;
-    if (!["lexical", "workflow", "raw"].includes(mode)) return { request: null, invalid: true };
+    if (!["lexical", "workflow"].includes(mode)) return { request: null, invalid: true };
     const kind = scalar(query.scope);
     const libraryId = positiveId(scalar(query.library));
     const importPathId = positiveId(scalar(query.import));

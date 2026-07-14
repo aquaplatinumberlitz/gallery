@@ -34,6 +34,25 @@ describe("WorkflowFilterBuilder", () => {
     expect(apply!.attributes("disabled")).toBeDefined();
   });
 
+  it("rejects fractional integer and overflowing uint64 drafts before emit", async () => {
+    const integerWrapper = mount(WorkflowFilterBuilder, { props: { registry, initialGroups: [] } });
+    await integerWrapper.get("button").trigger("click");
+    await integerWrapper.get('input[aria-label="Value for group 1, row 1"]').setValue("1.5");
+    expect(integerWrapper.text()).toContain("Enter a whole number");
+    expect(integerWrapper.emitted("apply")).toBeUndefined();
+
+    const uintWrapper = mount(WorkflowFilterBuilder, {
+      props: {
+        registry: { KSampler: { seed: { type: "uint64_token", operators: ["eq"] } } },
+        initialGroups: [],
+      },
+    });
+    await uintWrapper.get("button").trigger("click");
+    await uintWrapper.get('input[aria-label="Value for group 1, row 1"]').setValue("18446744073709551616");
+    expect(uintWrapper.text()).toContain("Value exceeds uint64");
+    expect(uintWrapper.emitted("apply")).toBeUndefined();
+  });
+
   it("maps backend 422 paths to the exact predicate row", () => {
     const wrapper = mount(WorkflowFilterBuilder, {
       props: {

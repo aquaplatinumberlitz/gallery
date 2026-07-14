@@ -38,12 +38,27 @@ def _sanitize_metadata_for_json(metadata: dict[str, Any]) -> Any:
     return sanitize_metadata_for_json(metadata)
 
 
-def _schedule_relation_backfills(library_id: int) -> None:
-    """Coalesce metadata and visual relation refreshes after metadata commits."""
+def _schedule_derived_search_backfills(library_id: int) -> None:
+    """Coalesce initialized discovery and relation refreshes after metadata commits."""
+    from ..search_indexer import schedule_search_index_backfill
     from ..visual_fingerprints import schedule_visual_fingerprint_backfill
 
     schedule_generation_signature_backfill(library_id)
     schedule_visual_fingerprint_backfill(library_id)
+    for index_name in ("prompt_values", "workflow_properties", "workflow_raw"):
+        schedule_search_index_backfill(index_name, library_id, initialized_only=True)
+
+
+def _invalidate_derived_search_asset_conn(conn: sqlite3.Connection, asset_id: int, library_id: int) -> None:
+    """Invalidate metadata-derived rows inside the caller's write transaction."""
+    from ..prompt_discovery import invalidate_prompt_discovery_conn
+    from ..workflow_discovery import invalidate_workflow_properties_conn
+    from ..workflow_raw_search import invalidate_raw_workflow_conn
+
+    invalidate_generation_signature_conn(conn, asset_id)
+    invalidate_prompt_discovery_conn(conn, asset_id, library_id)
+    invalidate_workflow_properties_conn(conn, asset_id, library_id)
+    invalidate_raw_workflow_conn(conn, asset_id, library_id)
 
 
 def _needs_reindex(conn: sqlite3.Connection, path: Path, mtime: float, mtime_ns: int, size: int) -> bool:
@@ -188,8 +203,10 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
         expected_size=metadata.size,
     )
     _replace_image_resources_conn(conn, metadata.path, metadata.metadata_json, metadata.lora_text, metadata.indexed_at)
-    invalidate_generation_signature_conn(conn, int(owner["id"]))
-    return int(owner["library_id"])
+    asset_id = int(owner["id"])
+    library_id = int(owner["library_id"])
+    _invalidate_derived_search_asset_conn(conn, asset_id, library_id)
+    return library_id
 
 
 def _sync_dimensions_to_file_index(
@@ -242,7 +259,7 @@ def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: boo
             job = _metadata_job_from_path(metadata.path)
             if job is not None and job.mtime == metadata.mtime and job.size == metadata.size:
                 _mark_current_metadata_done(conn, job, metadata.indexed_at)
-    _schedule_relation_backfills(library_id)
+    _schedule_derived_search_backfills(library_id)
     return True
 
 
@@ -261,7 +278,7 @@ def upsert_metadata_batch(metadata_items: Iterable[ExtractedMetadata]) -> int:
                 persisted += 1
                 library_ids.add(library_id)
     for library_id in sorted(library_ids):
-        _schedule_relation_backfills(library_id)
+        _schedule_derived_search_backfills(library_id)
     return persisted
 
 
@@ -285,7 +302,7 @@ def index_image(path: Path) -> bool:
             return False
         library_id = _upsert_extracted_metadata_conn(conn, metadata)
     if library_id is not None:
-        _schedule_relation_backfills(library_id)
+        _schedule_derived_search_backfills(library_id)
     return library_id is not None
 
 
@@ -632,7 +649,7 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
             owner = conn.execute("SELECT library_id FROM assets WHERE id = ?", (asset_id,)).fetchone()
             if owner is not None:
                 library_id = int(owner["library_id"])
-                invalidate_generation_signature_conn(conn, asset_id)
+                _invalidate_derived_search_asset_conn(conn, asset_id, library_id)
     if library_id is not None:
-        _schedule_relation_backfills(library_id)
+        _schedule_derived_search_backfills(library_id)
     return True

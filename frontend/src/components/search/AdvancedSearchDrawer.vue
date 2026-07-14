@@ -416,6 +416,7 @@ watch(
                 <WorkflowFilterBuilder
                   :registry="workflowRegistry"
                   :initial-groups="galleryStore.searchFilters.workflow_groups"
+                  :server-field-errors="galleryStore.searchFieldErrors"
                   @apply="applyWorkflowGroups"
                   @keydown.stop
                 />

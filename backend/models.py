@@ -4,7 +4,13 @@ import json
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class StrictSearchModel(BaseModel):
+    """Forbid unknown fields on canonical search request contracts."""
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class FileNode(BaseModel):
@@ -114,7 +120,7 @@ class SearchResponse(BaseModel):
     limit: int
 
 
-class SearchFolderScopeV1(BaseModel):
+class SearchFolderScopeV1(StrictSearchModel):
     """ID-based folder scope that never accepts an absolute client path."""
 
     kind: Literal["folder"]
@@ -134,14 +140,14 @@ class SearchFolderScopeV1(BaseModel):
         return normalized.strip("/")
 
 
-class SearchLibraryScopeV1(BaseModel):
+class SearchLibraryScopeV1(StrictSearchModel):
     """One registered library search scope."""
 
     kind: Literal["library"]
     library_id: int = Field(ge=1)
 
 
-class SearchAllScopeV1(BaseModel):
+class SearchAllScopeV1(StrictSearchModel):
     """All registered libraries search scope."""
 
     kind: Literal["all"]
@@ -153,14 +159,14 @@ SearchScopeV1 = Annotated[
 ]
 
 
-class SearchPromptGroupV1(BaseModel):
+class SearchPromptGroupV1(StrictSearchModel):
     """Stable prompt-group identity used by the D2 index."""
 
     kind: Literal["positive", "negative"]
     value_id: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]+$")
 
 
-class PromptUsageQueryRequestV1(BaseModel):
+class PromptUsageQueryRequestV1(StrictSearchModel):
     """Canonical normalized prompt-usage request."""
 
     polarity: Literal["positive", "negative"]
@@ -207,7 +213,7 @@ class PromptUsageResponseV1(BaseModel):
     returned: int
 
 
-class RawWorkflowSearchRequestV1(BaseModel):
+class RawWorkflowSearchRequestV1(StrictSearchModel):
     """Bounded opt-in raw workflow literal-search request."""
 
     query: str = Field(min_length=3, max_length=128)
@@ -239,7 +245,7 @@ class RawWorkflowSearchResponseV1(BaseModel):
     capability: dict[str, int]
 
 
-class SearchWorkflowPredicateV1(BaseModel):
+class SearchWorkflowPredicateV1(StrictSearchModel):
     """Typed workflow predicate shape validated against the D3 registry later."""
 
     property: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -255,7 +261,7 @@ class SearchWorkflowPredicateV1(BaseModel):
         return value
 
 
-class SearchWorkflowGroupV1(BaseModel):
+class SearchWorkflowGroupV1(StrictSearchModel):
     """Same-node workflow predicate group."""
 
     node_type: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -270,18 +276,18 @@ class SearchWorkflowGroupV1(BaseModel):
         return self
 
 
-class SearchFiltersV1(BaseModel):
+class SearchFiltersV1(StrictSearchModel):
     """Structured discovery filters carried by the canonical request."""
 
     prompt_groups: list[SearchPromptGroupV1] = Field(default_factory=list, max_length=8)
     workflow_groups: list[SearchWorkflowGroupV1] = Field(default_factory=list, max_length=4)
 
 
-class SearchQueryRequestV1(BaseModel):
+class SearchQueryRequestV1(StrictSearchModel):
     """Canonical Search V2 request shared by API, URLs, and saved searches."""
 
     schema_version: Literal[1] = 1
-    mode: Literal["lexical", "workflow", "raw"] = "lexical"
+    mode: Literal["lexical", "workflow"] = "lexical"
     text: str = Field(default="", max_length=512)
     scope: SearchScopeV1
     filters: SearchFiltersV1 = Field(default_factory=SearchFiltersV1)

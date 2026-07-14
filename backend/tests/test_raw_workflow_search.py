@@ -34,7 +34,11 @@ import backend.search_indexer as indexer_module
 import backend.workflow_raw_search as raw_module
 from backend.metadata_store import index_directory_tree, register_library
 from backend.metadata_store._db import _connect
-from backend.metadata_store.search_index_store import create_search_index_job, get_search_index_job
+from backend.metadata_store.search_index_store import (
+    create_search_index_job,
+    get_search_index_job,
+    list_search_index_states,
+)
 from backend.search_indexer import run_search_index_once
 from backend.workflow_raw_search import RawWorkflowTimeout, query_raw_workflows
 
@@ -78,10 +82,48 @@ def _seed_raw_assets(root: Path, documents: list[dict]) -> tuple[dict, list[int]
 
 def _run_raw_index(library_id: int) -> dict:
     job = create_search_index_job("workflow_raw", library_id, mode="full", schema_version=1, extractor_version=1)
-    assert run_search_index_once(worker_id="raw-workflow-test") is True
+    for _ in range(20):
+        if get_search_index_job(int(job["id"]))["state"] in {"succeeded", "failed", "cancelled"}:
+            break
+        assert run_search_index_once(worker_id="raw-workflow-test") is True
     finished = get_search_index_job(int(job["id"]))
     assert finished is not None
     return finished
+
+
+def test_metadata_change_invalidates_initialized_raw_document_and_queues_repair(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_raw(monkeypatch)
+    library, asset_ids = _seed_raw_assets(
+        isolated_gallery_root,
+        [{"1": {"class_type": "SaveImage", "inputs": {"filename_prefix": "stale"}}}],
+    )
+    assert _run_raw_index(int(library["id"]))["state"] == "succeeded"
+    Image.new("RGB", (9, 9), (90, 40, 20)).save(isolated_gallery_root / "raw-0.png", format="PNG")
+    index_directory_tree(isolated_gallery_root, include_metadata=True)
+
+    with _connect() as conn:
+        assert (
+            conn.execute("SELECT count(*) FROM workflow_raw_documents WHERE asset_id = ?", (asset_ids[0],)).fetchone()[
+                0
+            ]
+            == 0
+        )
+        queued = conn.execute(
+            """
+            SELECT id FROM search_index_jobs
+            WHERE index_name = 'workflow_raw' AND library_id = ?
+              AND state IN ('queued', 'running', 'cancel_requested', 'interrupted')
+            """,
+            (library["id"],),
+        ).fetchone()
+    assert queued is not None
+    state = next(
+        item for item in list_search_index_states(library_id=int(library["id"])) if item["index_name"] == "workflow_raw"
+    )
+    assert state["state"] == "pending"
 
 
 def test_raw_workflow_document_detection_handles_wrappers_and_invalid_payloads() -> None:
@@ -163,6 +205,9 @@ def test_canonical_fts_api_scope_cursor_warning_and_json_key_grammar(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _enable_raw(monkeypatch)
+    capabilities = isolated_app.get("/api/search/capabilities").json()
+    assert capabilities["raw_search"]["enabled"] is True
+    assert capabilities["enabled_modes"] == ["lexical", "workflow"]
     library, asset_ids = _seed_raw_assets(
         isolated_gallery_root,
         [

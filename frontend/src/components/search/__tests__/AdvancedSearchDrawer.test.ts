@@ -79,6 +79,15 @@ describe("AdvancedSearchDrawer", () => {
     facetRequest.context = null;
   });
 
+  it("passes production search field errors to the workflow builder", async () => {
+    const fieldErrors = {
+      "filters.workflow_groups[0].predicates[0].value": "Invalid integer",
+    };
+    const wrapper = createWrapper([], { searchFieldErrors: fieldErrors });
+    await openGroup(wrapper, "Workflow properties");
+    expect(wrapper.getComponent({ name: "WorkflowFilterBuilder" }).props("serverFieldErrors")).toEqual(fieldErrors);
+  });
+
   it("opens Content and files by default and collapses advanced groups", () => {
     const wrapper = createWrapper();
     expect(button(wrapper, /^Content and files/)?.attributes("aria-expanded")).toBe("true");

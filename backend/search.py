@@ -241,10 +241,6 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
         require_search_index_mode("prompt_groups", library_id=context.library_id)
     if request.mode == "workflow" or request.filters.workflow_groups:
         require_search_index_mode("workflow", library_id=context.library_id)
-    if request.mode == "raw":
-        require_search_index_mode("raw", library_id=context.library_id)
-    if request.mode == "raw":
-        raise APIError(409, ErrorType.FEATURE_DISABLED, f"Search mode '{request.mode}' is not enabled")
     if not request.text.strip() and not request.filters.prompt_groups and not request.filters.workflow_groups:
         return SearchResponse.model_validate(
             {

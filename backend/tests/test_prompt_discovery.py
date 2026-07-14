@@ -28,9 +28,15 @@ from fastapi.testclient import TestClient
 import backend.metadata_store._schema as schema_module
 from backend.metadata_store import index_directory_tree, list_libraries
 from backend.metadata_store._db import _connect
-from backend.metadata_store.search_index_store import create_search_index_job
+from backend.metadata_store.search_index_store import (
+    create_search_index_job,
+    get_search_index_job,
+    list_search_index_states,
+)
 from backend.prompt_discovery import normalize_discovery_text, prompt_value_hash, query_prompt_usage
 from backend.search_indexer import run_search_index_once
+
+from .conftest import create_test_png_with_metadata
 
 
 def _drop_v6_tables(conn: sqlite3.Connection) -> None:
@@ -51,8 +57,59 @@ def _build_prompt_index(root: Path) -> dict:
         schema_version=1,
         extractor_version=1,
     )
-    assert run_search_index_once(worker_id="prompt-discovery-test") is True
+    for _ in range(20):
+        if get_search_index_job(int(job["id"]))["state"] in {"succeeded", "failed", "cancelled"}:
+            break
+        assert run_search_index_once(worker_id="prompt-discovery-test") is True
+    assert get_search_index_job(int(job["id"]))["state"] == "succeeded"
     return {"library": library, "job": job}
+
+
+def test_metadata_update_invalidates_ready_prompt_coverage_and_coalesces_rebuild(
+    temp_gallery_with_metadata: Path,
+) -> None:
+    built = _build_prompt_index(temp_gallery_with_metadata)
+    library_id = int(built["library"]["id"])
+    create_test_png_with_metadata(
+        temp_gallery_with_metadata / "mika_album" / "new-discovery.png",
+        prompt="brand new discovery prompt",
+        model="Discovery Model",
+        seed="777",
+    )
+    index_directory_tree(temp_gallery_with_metadata, include_metadata=True)
+
+    state = next(
+        item for item in list_search_index_states(library_id=library_id) if item["index_name"] == "prompt_values"
+    )
+    assert state["state"] == "degraded"
+    assert state["active_job_id"] is not None
+    with _connect() as conn:
+        queued = conn.execute(
+            """
+            SELECT id FROM search_index_jobs
+            WHERE index_name = 'prompt_values' AND library_id = ?
+              AND state IN ('queued', 'running', 'cancel_requested', 'interrupted')
+            """,
+            (library_id,),
+        ).fetchone()
+    assert queued is not None
+    for _ in range(20):
+        if get_search_index_job(int(queued["id"]))["state"] in {"succeeded", "failed", "cancelled"}:
+            break
+        assert run_search_index_once(worker_id="prompt-refresh-test") is True
+    assert get_search_index_job(int(queued["id"]))["state"] == "succeeded"
+    result = query_prompt_usage(
+        polarity="positive",
+        scope="library",
+        root_path=None,
+        library_id=library_id,
+        prefix=None,
+        text_query="brand new discovery prompt",
+        sort="usage",
+        cursor=None,
+        limit=10,
+    )
+    assert result["returned"] == 1
 
 
 def test_v6_migration_is_additive_and_has_no_inline_backfill(
@@ -187,7 +244,11 @@ def test_missing_metadata_is_not_applicable_and_backfill_never_opens_media(
     job = create_search_index_job(
         "prompt_values", int(library["id"]), mode="full", schema_version=1, extractor_version=1
     )
-    assert run_search_index_once(worker_id="db-only-prompt-test") is True
+    for _ in range(20):
+        if get_search_index_job(int(job["id"]))["state"] in {"succeeded", "failed", "cancelled"}:
+            break
+        assert run_search_index_once(worker_id="db-only-prompt-test") is True
+    assert get_search_index_job(int(job["id"]))["state"] == "succeeded"
     with _connect() as conn:
         row = conn.execute(
             "SELECT status FROM asset_search_extractions WHERE asset_id = ? AND index_name = 'prompt_values'",

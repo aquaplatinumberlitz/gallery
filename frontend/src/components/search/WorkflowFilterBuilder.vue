@@ -99,10 +99,13 @@ function rowError(group: DraftGroup, predicate: DraftPredicate, groupIndex: numb
   if (!definition) return "Unsupported property";
   if (!definition.operators.includes(predicate.op)) return "Unsupported operator";
   if (!predicate.value.trim()) return "Enter a value";
-  if (["integer", "real"].includes(definition.type) && !Number.isFinite(Number(predicate.value)))
-    return "Enter a number";
-  if (definition.type === "uint64_token" && !/^(?:0|[1-9][0-9]*)$/.test(predicate.value))
-    return "Enter an unsigned integer";
+  const numericValue = Number(predicate.value);
+  if (definition.type === "real" && !Number.isFinite(numericValue)) return "Enter a number";
+  if (definition.type === "integer" && !Number.isSafeInteger(numericValue)) return "Enter a whole number";
+  if (definition.type === "uint64_token") {
+    if (!/^(?:0|[1-9][0-9]*)$/.test(predicate.value)) return "Enter an unsigned integer";
+    if (BigInt(predicate.value) > 18_446_744_073_709_551_615n) return "Value exceeds uint64";
+  }
   return "";
 }
 

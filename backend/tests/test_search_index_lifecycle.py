@@ -250,6 +250,33 @@ def test_interrupted_job_resumes_and_old_claim_cannot_complete_new_claim(
         )
 
 
+def test_expired_claim_is_recovered_and_reclaimed_without_restart(
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    definition = _enabled_definition("test_expired_reclaim")
+    monkeypatch.setitem(indexer_module._DEFINITIONS, definition.name, definition)
+    library, _asset_ids = _seed_assets(isolated_gallery_root, 1)
+    job = create_search_index_job(
+        definition.name,
+        library["id"],
+        mode="full",
+        schema_version=1,
+        extractor_version=1,
+    )
+    first = claim_next_search_index_job("expired-worker", lease_seconds=300)
+    assert first is not None
+    with _connect() as conn:
+        conn.execute("UPDATE search_index_jobs SET lease_expires_at = 0 WHERE id = ?", (int(job["id"]),))
+
+    reclaimed = claim_next_search_index_job("replacement-worker", lease_seconds=300)
+    assert reclaimed is not None
+    assert reclaimed["id"] == job["id"]
+    assert reclaimed["claim_token"] != first["claim_token"]
+    assert finish_search_index_job(int(job["id"]), str(first["claim_token"]), "succeeded") is None
+    assert finish_search_index_job(int(job["id"]), str(reclaimed["claim_token"]), "succeeded") is not None
+
+
 def test_duplicate_and_cancel_are_idempotent_and_state_never_becomes_ready(
     isolated_gallery_root: Path,
 ) -> None:

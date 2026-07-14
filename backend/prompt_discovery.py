@@ -245,6 +245,37 @@ def persist_prompt_discovery(conn: sqlite3.Connection, asset: dict[str, Any], pa
         _refresh_model_alias(conn, normalized_name, normalized_hash)
 
 
+def invalidate_prompt_discovery_conn(conn: sqlite3.Connection, asset_id: int, library_id: int) -> None:
+    """Remove stale prompt/model rows and mark initialized coverage incomplete."""
+    old_pairs = {
+        (str(row["normalized_name"]), str(row["normalized_hash"]))
+        for row in conn.execute(
+            "SELECT normalized_name, normalized_hash FROM asset_model_identity_values WHERE asset_id = ?",
+            (asset_id,),
+        )
+    }
+    conn.execute("DELETE FROM asset_prompt_values WHERE asset_id = ?", (asset_id,))
+    conn.execute("DELETE FROM asset_model_identity_values WHERE asset_id = ?", (asset_id,))
+    extraction = conn.execute(
+        "SELECT status FROM asset_search_extractions WHERE asset_id = ? AND index_name = 'prompt_values'",
+        (asset_id,),
+    ).fetchone()
+    conn.execute(
+        "DELETE FROM asset_search_extractions WHERE asset_id = ? AND index_name = 'prompt_values'",
+        (asset_id,),
+    )
+    for normalized_name, normalized_hash in sorted(old_pairs):
+        _refresh_model_alias(conn, normalized_name, normalized_hash)
+    from .metadata_store.search_index_store import mark_search_index_asset_stale_conn
+
+    mark_search_index_asset_stale_conn(
+        conn,
+        "prompt_values",
+        library_id,
+        str(extraction["status"]) if extraction is not None else None,
+    )
+
+
 def _prompt_usage_fingerprint(
     *,
     polarity: str,

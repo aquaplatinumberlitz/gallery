@@ -127,6 +127,25 @@ describe("GalleryAPIError", () => {
     });
   });
 
+  it("extracts an exact workflow row from group-level Pydantic validation messages", () => {
+    const err = {
+      response: {
+        data: {
+          detail: [
+            {
+              loc: ["body", "filters", "workflow_groups", 0],
+              msg: "Value error, workflow_groups[0].predicates[0].value is invalid for integer",
+            },
+          ],
+        },
+      },
+    } as unknown as AxiosError;
+    expect(GalleryAPIError.fromAxiosError(err).fieldErrors).toEqual({
+      "filters.workflow_groups[0].predicates[0].value":
+        "Value error, workflow_groups[0].predicates[0].value is invalid for integer",
+    });
+  });
+
   it("handles data without detail wrapper", () => {
     const err = { response: { data: { error: "not_found", message: "gone" } } } as unknown as AxiosError;
     expect(GalleryAPIError.fromAxiosError(err).type).toBe("not_found");

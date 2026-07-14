@@ -81,11 +81,23 @@ describe("initial state", () => {
 describe("search and sort", () => {
   it("setSearchQuery and clearSearch", () => {
     const store = useGalleryStore();
+    store.setSearchFieldErrors({ "filters.workflow_groups[0].predicates[0].value": "Invalid" });
     store.setSearchQuery("cat");
     expect(store.searchQuery).toBe("cat");
+    expect(store.searchFieldErrors).toEqual({});
     store.clearSearch();
     expect(store.searchQuery).toBe("");
     expect(store.submittedSearchQuery).toBe("");
+  });
+
+  it("stores typed workflow field errors until search state changes", () => {
+    const store = useGalleryStore();
+    store.setSearchFieldErrors({ "filters.workflow_groups[0].predicates[0].value": "Invalid" });
+    expect(store.searchFieldErrors).toEqual({
+      "filters.workflow_groups[0].predicates[0].value": "Invalid",
+    });
+    store.clearSearchFieldErrors();
+    expect(store.searchFieldErrors).toEqual({});
   });
 
   it("submits and resets explicit short search queries", () => {

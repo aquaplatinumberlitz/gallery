@@ -123,7 +123,7 @@ export type FolderChildrenResponse = FolderTreeNode[];
 
 export type SearchScope = "current" | "library" | "all";
 export type CanonicalSearchScope = "folder" | "library" | "all";
-export type SearchMode = "lexical" | "workflow" | "raw";
+export type SearchMode = "lexical" | "workflow";
 
 export interface SearchFolderScopeV1 {
   kind: "folder";

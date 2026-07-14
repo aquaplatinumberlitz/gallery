@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -138,6 +139,29 @@ def get_search_index_definition(index_name: str) -> SearchIndexDefinition | None
 def list_search_index_definitions() -> list[SearchIndexDefinition]:
     """Return definitions in stable name order."""
     return [_DEFINITIONS[name] for name in sorted(_DEFINITIONS)]
+
+
+def schedule_search_index_backfill(index_name: str, library_id: int, *, initialized_only: bool = False) -> bool:
+    """Coalesce one missing rebuild for an enabled derived index."""
+    definition = get_search_index_definition(index_name)
+    if definition is None or not definition.enabled:
+        return False
+    if initialized_only and not any(
+        item["index_name"] == index_name for item in list_search_index_states(library_id=library_id)
+    ):
+        return False
+    from .metadata_store.search_index_store import SearchIndexJobConflict, create_search_index_job
+
+    with suppress(SearchIndexJobConflict):
+        create_search_index_job(
+            index_name,
+            library_id,
+            mode="missing",
+            schema_version=definition.schema_version,
+            extractor_version=definition.extractor_version,
+        )
+    search_index_worker.wake()
+    return True
 
 
 def require_search_index_mode(required_mode: str, *, library_id: int | None) -> None:
