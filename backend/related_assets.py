@@ -58,10 +58,84 @@ def _component_status(
     )
 
 
-def _related_status(reference_asset_id: int) -> RelatedSearchStatusV1:
+def _aggregate_component_status(
+    index_name: str,
+    *,
+    rows: dict[int, sqlite3.Row],
+    library_ids: list[int],
+    reference_library_id: int,
+    reference_ready: bool,
+    extractor_version: int,
+    target_counts: dict[int, int],
+) -> RelatedIndexComponentStatusV1:
+    indexed_count = sum(int(row["indexed_count"] or 0) for row in rows.values())
+    target_count = sum(target_counts.get(library_id, 0) for library_id in library_ids)
+    reference_state = rows.get(reference_library_id)
+    if reference_state is None:
+        return _component_status(
+            index_name,
+            ready=False,
+            indexed_count=indexed_count,
+            target_count=target_count,
+        )
+
+    def row_usable(row: sqlite3.Row) -> bool:
+        state = str(row["state"])
+        current = int(row["schema_version"]) == 1 and int(row["extractor_version"]) == extractor_version
+        return current and (
+            state == "ready"
+            or (
+                state in {"building", "degraded"}
+                and (int(row["indexed_count"] or 0) > 0 or int(row["target_count"] or 0) == 0)
+            )
+        )
+
+    reference_state_name = str(reference_state["state"])
+    reference_usable = row_usable(reference_state) and reference_ready
+    if not reference_usable:
+        return RelatedIndexComponentStatusV1(
+            index_name=index_name,
+            state="not_ready" if reference_state_name == "pending" or not reference_ready else reference_state_name,
+            usable=False,
+            indexed_count=indexed_count,
+            target_count=target_count,
+        )
+
+    all_usable = all(library_id in rows and row_usable(rows[library_id]) for library_id in library_ids)
+    if not all_usable:
+        state = "degraded"
+    else:
+        states = {str(rows[library_id]["state"]) for library_id in library_ids}
+        state = "building" if "building" in states else "degraded" if "degraded" in states else "ready"
+    return RelatedIndexComponentStatusV1(
+        index_name=index_name,
+        state=state,
+        usable=True,
+        indexed_count=indexed_count,
+        target_count=target_count,
+    )
+
+
+def _related_status(reference_asset_id: int, context: SearchScopeContext) -> RelatedSearchStatusV1:
     """Report only persisted readiness; never decode or derive media here."""
     with _DB_LOCK, _connect() as conn:
         asset = conn.execute("SELECT library_id FROM assets WHERE id = ?", (reference_asset_id,)).fetchone()
+        reference_library_id = int(asset["library_id"]) if asset is not None else 0
+        if context.kind == "all":
+            library_ids = [int(row["id"]) for row in conn.execute("SELECT id FROM libraries ORDER BY id")]
+        else:
+            library_ids = [reference_library_id] if reference_library_id else []
+        target_counts = {
+            int(row["library_id"]): int(row["target_count"])
+            for row in conn.execute(
+                """
+                SELECT library_id, count(*) AS target_count
+                FROM assets
+                WHERE offline = 0 AND deleted_at IS NULL AND type IN ('image', 'video')
+                GROUP BY library_id
+                """
+            )
+        }
         metadata_reference_ready = _table_exists(conn, "asset_generation_signatures") and bool(
             conn.execute(
                 """
@@ -77,18 +151,17 @@ def _related_status(reference_asset_id: int) -> RelatedSearchStatusV1:
                 (reference_asset_id, PROMPT_NORMALIZER_VERSION, GENERATION_SIGNATURE_EXTRACTOR_VERSION),
             ).fetchone()
         )
-        metadata_state = (
-            conn.execute(
+        metadata_states = {
+            int(row["library_id"]): row
+            for row in conn.execute(
                 """
-                SELECT state, schema_version, extractor_version, indexed_count, target_count
+                SELECT library_id, state, schema_version, extractor_version, indexed_count, target_count
                 FROM search_index_states
-                WHERE index_name = 'generation_signatures' AND library_id = ?
+                WHERE index_name = 'generation_signatures'
                 """,
-                (int(asset["library_id"]),),
-            ).fetchone()
-            if asset is not None
-            else None
-        )
+            )
+            if int(row["library_id"]) in library_ids
+        }
         visual_ready = _table_exists(conn, "asset_visual_fingerprints") and bool(
             conn.execute(
                 """
@@ -104,71 +177,41 @@ def _related_status(reference_asset_id: int) -> RelatedSearchStatusV1:
                 (reference_asset_id, VISUAL_DERIVATIVE_VERSION, VISUAL_FINGERPRINT_ALGORITHM_VERSION),
             ).fetchone()
         )
-        visual_state = (
-            conn.execute(
+        visual_states = {
+            int(row["library_id"]): row
+            for row in conn.execute(
                 """
-                SELECT state, schema_version, extractor_version, indexed_count, target_count
+                SELECT library_id, state, schema_version, extractor_version, indexed_count, target_count
                 FROM search_index_states
-                WHERE index_name = 'visual_fingerprints' AND library_id = ?
+                WHERE index_name = 'visual_fingerprints'
                 """,
-                (int(asset["library_id"]),),
-            ).fetchone()
-            if asset is not None
-            else None
-        )
-    if metadata_state is None:
-        metadata = _component_status("generation_signatures", ready=False)
-    else:
-        state = str(metadata_state["state"])
-        indexed_count = int(metadata_state["indexed_count"] or 0)
-        target_count = int(metadata_state["target_count"] or 0)
-        usable = state == "ready" or (state in {"building", "degraded"} and (indexed_count > 0 or target_count == 0))
-        usable = (
-            usable
-            and int(metadata_state["schema_version"]) == 1
-            and int(metadata_state["extractor_version"]) == GENERATION_SIGNATURE_EXTRACTOR_VERSION
-        )
-        if state == "pending":
-            state = "not_ready"
-        if usable and not metadata_reference_ready:
-            state = "not_ready"
-            usable = False
-        metadata = RelatedIndexComponentStatusV1(
-            index_name="generation_signatures",
-            state=state,
-            usable=usable,
-            indexed_count=indexed_count,
-            target_count=target_count,
-        )
+            )
+            if int(row["library_id"]) in library_ids
+        }
+    metadata = _aggregate_component_status(
+        "generation_signatures",
+        rows=metadata_states,
+        library_ids=library_ids,
+        reference_library_id=reference_library_id,
+        reference_ready=metadata_reference_ready,
+        extractor_version=GENERATION_SIGNATURE_EXTRACTOR_VERSION,
+        target_counts=target_counts,
+    )
     if not GALLERY_RELATED_VISUAL_ENABLED:
         visual = RelatedIndexComponentStatusV1(
             index_name="visual_fingerprints",
             state="disabled",
             usable=False,
         )
-    elif visual_state is None:
-        visual = _component_status("visual_fingerprints", ready=False)
     else:
-        state = str(visual_state["state"])
-        indexed_count = int(visual_state["indexed_count"] or 0)
-        target_count = int(visual_state["target_count"] or 0)
-        usable = state == "ready" or (state in {"building", "degraded"} and (indexed_count > 0 or target_count == 0))
-        usable = (
-            usable
-            and int(visual_state["schema_version"]) == 1
-            and int(visual_state["extractor_version"]) == VISUAL_FINGERPRINT_EXTRACTOR_VERSION
-        )
-        if state == "pending":
-            state = "not_ready"
-        if usable and not visual_ready:
-            state = "not_ready"
-            usable = False
-        visual = RelatedIndexComponentStatusV1(
-            index_name="visual_fingerprints",
-            state=state,
-            usable=usable,
-            indexed_count=indexed_count,
-            target_count=target_count,
+        visual = _aggregate_component_status(
+            "visual_fingerprints",
+            rows=visual_states,
+            library_ids=library_ids,
+            reference_library_id=reference_library_id,
+            reference_ready=visual_ready,
+            extractor_version=VISUAL_FINGERPRINT_EXTRACTOR_VERSION,
+            target_counts=target_counts,
         )
     return RelatedSearchStatusV1(
         metadata=metadata,
@@ -274,7 +317,7 @@ def api_search_related(request: RelatedSearchRequestV1) -> RelatedSearchResponse
     context = resolve_search_v2_scope(request.scope)
     try:
         reference = _reference_asset(request.reference_asset_id, context)
-        status = _related_status(int(reference["id"]))
+        status = _related_status(int(reference["id"]), context)
         required = _required_component(request, status)
         if request.profile == "visual" and required.state == "disabled":
             raise APIError(

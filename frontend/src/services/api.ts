@@ -33,6 +33,7 @@ import type {
   RawWorkflowSearchResponseV1,
   RelatedSearchRequestV1,
   RelatedSearchResponseV1,
+  RelatedSearchStatusV1,
   SearchCapabilitiesV1,
   SearchIndexJobV1,
   SearchIndexStateV1,
@@ -114,6 +115,7 @@ export type ErrorType =
 export interface APIErrorResponse {
   error: ErrorType;
   message: string;
+  status?: RelatedSearchStatusV1;
 }
 
 const isLibraryError = (errorType: string): errorType is LibraryErrorType => errorType in LIBRARY_ERRORS;
@@ -124,6 +126,7 @@ export class GalleryAPIError extends Error {
   readonly suggestion: string;
   readonly canRetry: boolean;
   readonly fieldErrors: Record<string, string>;
+  readonly relatedStatus: RelatedSearchStatusV1 | null;
 
   constructor(
     type: ErrorType,
@@ -131,6 +134,7 @@ export class GalleryAPIError extends Error {
     suggestion: string,
     canRetry: boolean = false,
     fieldErrors: Record<string, string> = {},
+    relatedStatus: RelatedSearchStatusV1 | null = null,
   ) {
     super(userMessage);
     this.name = "GalleryAPIError";
@@ -139,6 +143,7 @@ export class GalleryAPIError extends Error {
     this.suggestion = suggestion;
     this.canRetry = canRetry;
     this.fieldErrors = fieldErrors;
+    this.relatedStatus = relatedStatus;
   }
 
   static fromAxiosError(error: AxiosError): GalleryAPIError {
@@ -261,6 +266,8 @@ export class GalleryAPIError extends Error {
           "Feature unavailable",
           parsed?.message || "This search feature is disabled.",
           false,
+          {},
+          parsed?.status ?? null,
         );
 
       case "search_index_not_ready":
@@ -277,6 +284,8 @@ export class GalleryAPIError extends Error {
           "Related assets are still indexing",
           parsed?.message || "Wait for relation coverage to become usable, then try again.",
           true,
+          {},
+          parsed?.status ?? null,
         );
 
       case "reference_not_indexed":
@@ -285,6 +294,8 @@ export class GalleryAPIError extends Error {
           "Visual coverage is not ready",
           parsed?.message || "Build visual fingerprints for this image, then try again.",
           true,
+          {},
+          parsed?.status ?? null,
         );
 
       default:
@@ -293,6 +304,8 @@ export class GalleryAPIError extends Error {
           "Something went wrong",
           "An unexpected error occurred. Please try again.",
           true,
+          {},
+          parsed?.status ?? null,
         );
     }
   }

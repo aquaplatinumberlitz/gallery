@@ -37,6 +37,7 @@ RELATION_TABLES = (
     "asset_generation_signatures",
     "asset_visual_fingerprints",
     "asset_visual_hash_bands",
+    "asset_search_extractions",
 )
 
 
@@ -137,6 +138,38 @@ def bench_visual_candidates(
     }
 
 
+def bench_metadata_candidates(
+    reference_asset_id: int,
+    library_id: int,
+    *,
+    iterations: int,
+) -> dict:
+    """Benchmark metadata relation ranking without visual work or HTTP overhead."""
+    from backend.related_ranking import rank_related_metadata
+    from backend.search_scope import SearchScopeContext
+
+    context = SearchScopeContext(kind="library", library_id=library_id, library_name="Related perf fixture")
+    for _ in range(2):
+        rank_related_metadata(reference_asset_id, context, profile="related", limit=60)
+    durations: list[float] = []
+    last_items = []
+    for _ in range(max(1, iterations)):
+        started = time.perf_counter()
+        last_items = rank_related_metadata(reference_asset_id, context, profile="related", limit=60)
+        durations.append((time.perf_counter() - started) * 1000)
+    stats = summarize_samples(durations)
+    return {
+        "profile": "metadata-candidates",
+        "requests": int(stats["count"]),
+        "min_ms": stats["min_ms"],
+        "p50_ms": stats["p50_ms"],
+        "p95_ms": stats["p95_ms"],
+        "max_ms": stats["max_ms"],
+        "returned": len(last_items),
+        "asset_ids": [item.asset_id for item in last_items],
+    }
+
+
 def _lexical_samples(base_url: str, iterations: int) -> dict[str, float]:
     for _ in range(3):
         _get_json(base_url, "/api/search", {"q": "search_asset_000", "scope": "all", "limit": "50"})
@@ -147,7 +180,7 @@ def _lexical_samples(base_url: str, iterations: int) -> dict[str, float]:
     return summarize_samples(durations)
 
 
-def _backfill_writer(db_path: Path, stop: threading.Event) -> None:
+def _backfill_writer(db_path: Path, stop: threading.Event, stats: dict[str, int]) -> None:
     connection = sqlite3.connect(db_path, timeout=30)
     try:
         row = connection.execute("SELECT min(asset_id), max(asset_id) FROM asset_generation_signatures").fetchone()
@@ -163,7 +196,34 @@ def _backfill_writer(db_path: Path, stop: threading.Event) -> None:
                 """,
                 (cursor, min(cursor + 199, upper)),
             )
+            connection.execute(
+                """
+                UPDATE asset_visual_fingerprints
+                SET indexed_at = indexed_at + 0.000001
+                WHERE asset_id BETWEEN ? AND ?
+                """,
+                (cursor, min(cursor + 199, upper)),
+            )
+            connection.execute(
+                """
+                UPDATE asset_visual_hash_bands
+                SET band_value = band_value
+                WHERE asset_id BETWEEN ? AND ?
+                """,
+                (cursor, min(cursor + 199, upper)),
+            )
+            connection.execute(
+                """
+                UPDATE asset_search_extractions
+                SET indexed_at = indexed_at + 0.000001
+                WHERE asset_id BETWEEN ? AND ?
+                  AND index_name IN ('generation_signatures', 'visual_fingerprints')
+                """,
+                (cursor, min(cursor + 199, upper)),
+            )
             connection.commit()
+            stats["batches"] = stats.get("batches", 0) + 1
+            stats["assets"] = stats.get("assets", 0) + min(200, upper - cursor + 1)
             cursor += 200
             time.sleep(0.004)
     finally:
@@ -174,7 +234,8 @@ def bench_lexical_backfill(base_url: str, db_path: Path, *, iterations: int) -> 
     """Compare lexical p95 before/during/after bounded relation writes."""
     before = _lexical_samples(base_url, iterations)
     stop = threading.Event()
-    writer = threading.Thread(target=_backfill_writer, args=(db_path, stop), daemon=True)
+    writer_stats: dict[str, int] = {}
+    writer = threading.Thread(target=_backfill_writer, args=(db_path, stop, writer_stats), daemon=True)
     writer.start()
     during = _lexical_samples(base_url, iterations)
     stop.set()
@@ -189,6 +250,7 @@ def bench_lexical_backfill(base_url: str, db_path: Path, *, iterations: int) -> 
         "baseline_p95_ms": round(baseline_p95, 2),
         "during_p95_ms": during["p95_ms"],
         "regression_pct": round(regression_pct, 2),
+        "writer": writer_stats,
     }
 
 
@@ -197,13 +259,14 @@ def relation_storage_mib(db_path: Path) -> float:
     connection = sqlite3.connect(db_path)
     try:
         connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        table_placeholders = ",".join("?" for _ in RELATION_TABLES)
         names = {
             str(row[0])
             for row in connection.execute(
-                """
+                f"""
                 SELECT name FROM sqlite_master
                 WHERE type IN ('table', 'index')
-                  AND (tbl_name IN (?, ?, ?) OR name IN (?, ?, ?))
+                  AND (tbl_name IN ({table_placeholders}) OR name IN ({table_placeholders}))
                 """,
                 (*RELATION_TABLES, *RELATION_TABLES),
             )
@@ -216,6 +279,78 @@ def relation_storage_mib(db_path: Path) -> float:
     finally:
         connection.close()
     return round(int(total or 0) / (1024 * 1024), 2)
+
+
+def validate_fixture_contract(db_path: Path, reference_asset_id: int) -> dict[str, int]:
+    """Fail closed unless all persisted relation-owned rows exist at matching scale."""
+    connection = sqlite3.connect(db_path)
+    try:
+        reference_path = Path(
+            str(connection.execute("SELECT path FROM assets WHERE id = ?", (reference_asset_id,)).fetchone()[0])
+        )
+        synthetic_root = reference_path.parents[1]
+        fixture_prefix = f"{synthetic_root}{os.sep}%"
+        signatures = int(
+            connection.execute(
+                """
+                SELECT count(*) FROM asset_generation_signatures AS signature
+                JOIN assets AS asset ON asset.id = signature.asset_id
+                WHERE asset.path LIKE ?
+                """,
+                (fixture_prefix,),
+            ).fetchone()[0]
+        )
+        fingerprints = int(
+            connection.execute(
+                """
+                SELECT count(*) FROM asset_visual_fingerprints AS fingerprint
+                JOIN assets AS asset ON asset.id = fingerprint.asset_id
+                WHERE asset.path LIKE ?
+                """,
+                (fixture_prefix,),
+            ).fetchone()[0]
+        )
+        bands = int(
+            connection.execute(
+                """
+                SELECT count(*) FROM asset_visual_hash_bands AS band
+                JOIN assets AS asset ON asset.id = band.asset_id
+                WHERE asset.path LIKE ?
+                """,
+                (fixture_prefix,),
+            ).fetchone()[0]
+        )
+        extractions = int(
+            connection.execute(
+                """
+                SELECT count(*) FROM asset_search_extractions AS extraction
+                JOIN assets AS asset ON asset.id = extraction.asset_id
+                WHERE extraction.index_name IN ('generation_signatures', 'visual_fingerprints')
+                  AND asset.path LIKE ?
+                """,
+                (fixture_prefix,),
+            ).fetchone()[0]
+        )
+        reference_rows = int(
+            connection.execute(
+                """
+                SELECT
+                  EXISTS(SELECT 1 FROM asset_generation_signatures WHERE asset_id = ?)
+                  + EXISTS(SELECT 1 FROM asset_visual_fingerprints WHERE asset_id = ?)
+                """,
+                (reference_asset_id, reference_asset_id),
+            ).fetchone()[0]
+        )
+    finally:
+        connection.close()
+    return {
+        "rows": min(signatures, fingerprints),
+        "generation_signatures": signatures,
+        "visual_fingerprints": fingerprints,
+        "visual_hash_bands": bands,
+        "search_extractions": extractions,
+        "reference_components": reference_rows,
+    }
 
 
 def visual_worker_rss_delta_mib(image_path: Path) -> float:
@@ -259,12 +394,14 @@ def main() -> int:
     """Run all Related Assets performance budgets and emit one report."""
     base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:4701")
     db_path = Path(os.environ["GALLERY_METADATA_DB"])
-    fixture_rows = int(os.getenv("GALLERY_PERF_RELATED_ROWS", "0"))
+    configured_fixture_rows = int(os.getenv("GALLERY_PERF_RELATED_ROWS", "0"))
     configured_reference = int(os.getenv("GALLERY_PERF_RELATED_REFERENCE_ASSET_ID", "0"))
     iterations = int(os.getenv("GALLERY_PERF_RELATED_ITERATIONS", "12"))
     reference_asset_id, library_id, same_model_unrelated_id = _reference_ids(db_path, configured_reference)
+    fixture_contract = validate_fixture_contract(db_path, reference_asset_id)
+    fixture_rows = int(fixture_contract["rows"])
 
-    metadata = bench_related_profile(base_url, reference_asset_id, library_id, "recipe", iterations=iterations)
+    metadata = bench_metadata_candidates(reference_asset_id, library_id, iterations=iterations)
     visual = bench_visual_candidates(reference_asset_id, library_id, iterations=iterations)
     combined = bench_related_profile(base_url, reference_asset_id, library_id, "related", iterations=iterations)
     lexical = bench_lexical_backfill(base_url, db_path, iterations=iterations)
@@ -276,6 +413,8 @@ def main() -> int:
     budgets = budget_for("related_assets")
     report = {
         "fixture_rows": fixture_rows,
+        "configured_fixture_rows": configured_fixture_rows,
+        "fixture_contract": fixture_contract,
         "reference_asset_id": reference_asset_id,
         "metadata": metadata,
         "visual": visual,
@@ -291,6 +430,14 @@ def main() -> int:
     failures: list[str] = []
     if fixture_rows < int(budgets["rows"]):
         failures.append(f"fixture rows {fixture_rows} < {int(budgets['rows'])}")
+    if configured_fixture_rows != fixture_rows:
+        failures.append(f"configured fixture rows {configured_fixture_rows} != persisted rows {fixture_rows}")
+    if fixture_contract["visual_hash_bands"] != fixture_rows * 8:
+        failures.append("visual hash-band fixture is incomplete")
+    if fixture_contract["search_extractions"] != fixture_rows * 2:
+        failures.append("search extraction fixture is incomplete")
+    if fixture_contract["reference_components"] != 2:
+        failures.append("reference asset is missing a persisted relation component")
     for label, value, budget_key in (
         ("metadata related p95", metadata["p95_ms"], "metadata_p95_ms"),
         ("visual candidate p95", visual["p95_ms"], "visual_p95_ms"),
@@ -303,6 +450,8 @@ def main() -> int:
         failures.append(
             f"lexical backfill regression {lexical['regression_pct']}% >= {budgets['backfill_regression_pct']}%"
         )
+    if int(lexical["writer"].get("batches", 0)) == 0:
+        failures.append("relation backfill writer performed no batches")
     if rss_mib >= float(budgets["visual_worker_rss_mib"]):
         failures.append(f"visual worker RSS {rss_mib}MiB >= {budgets['visual_worker_rss_mib']}MiB")
     if storage_mib >= float(budgets["storage_mib"]):

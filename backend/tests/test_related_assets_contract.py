@@ -174,12 +174,12 @@ def test_related_reference_scope_type_readiness_and_response_contract(
         assert conflict.status_code == 409
         assert conflict.json()["detail"]["message"] == "Reference must be an active image"
 
-    monkeypatch.setattr(related_module, "_related_status", lambda _asset_id: _status("failed"))
+    monkeypatch.setattr(related_module, "_related_status", lambda *_args: _status("failed"))
     unusable = isolated_app.post("/api/search/related", json=request)
     assert unusable.status_code == 503
     assert unusable.json()["detail"]["status"]["metadata"]["state"] == "failed"
 
-    monkeypatch.setattr(related_module, "_related_status", lambda _asset_id: _status("ready", "ready"))
+    monkeypatch.setattr(related_module, "_related_status", lambda *_args: _status("ready", "ready"))
     ready = isolated_app.post("/api/search/related", json=request)
     assert ready.status_code == 200
     assert ready.json() == {
@@ -206,6 +206,54 @@ def test_related_reference_scope_type_readiness_and_response_contract(
     assert failed.json()["detail"] == {"error": "server_error", "message": "Internal server error"}
     assert "private prompt" not in caplog.text
     assert "/local/path" not in caplog.text
+
+
+def test_all_scope_reports_partial_library_readiness_as_degraded(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary, _secondary, ids = _seed_references(isolated_gallery_root)
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO asset_generation_signatures (
+              asset_id, library_id, prompt_hash, normalizer_version, extractor_version,
+              source_mtime_ns, source_size, indexed_at
+            ) VALUES (?, ?, X'01', 1, 1, 1000, 100, 1)
+            """,
+            (ids["active"], primary["id"]),
+        )
+        conn.execute(
+            """
+            INSERT INTO search_index_states (
+              index_name, library_id, state, schema_version, extractor_version,
+              indexed_count, target_count, failed_count, skipped_count, updated_at
+            ) VALUES ('generation_signatures', ?, 'ready', 1, 1, 1, 2, 0, 0, 1)
+            """,
+            (primary["id"],),
+        )
+    monkeypatch.setattr(related_module, "rank_related_metadata", lambda *_args, **_kwargs: [])
+
+    response = isolated_app.post(
+        "/api/search/related",
+        json={
+            "schema_version": 1,
+            "reference_asset_id": ids["active"],
+            "profile": "related",
+            "scope": {"kind": "all"},
+        },
+    )
+
+    assert response.status_code == 200
+    metadata = response.json()["status"]["metadata"]
+    assert metadata == {
+        "index_name": "generation_signatures",
+        "state": "degraded",
+        "usable": True,
+        "indexed_count": 1,
+        "target_count": 3,
+    }
 
 
 def test_related_openapi_documents_request_result_status_and_errors(isolated_app: TestClient) -> None:
@@ -297,7 +345,7 @@ def test_combined_profile_keeps_metadata_when_reference_visual_coverage_is_missi
         relation_reasons=["same_recipe", "same_generation_family"],
         metadata_score=1.0,
     )
-    monkeypatch.setattr(related_module, "_related_status", lambda _asset_id: _status("ready", "not_ready"))
+    monkeypatch.setattr(related_module, "_related_status", lambda *_args: _status("ready", "not_ready"))
     monkeypatch.setattr(related_module, "rank_related_metadata", lambda *_args, **_kwargs: [item])
     monkeypatch.setattr(
         related_module,

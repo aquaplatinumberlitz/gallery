@@ -244,32 +244,72 @@ def _typed_workflow_values(metadata_json: str | None) -> tuple[list[dict[str, An
     return sorted(recipe, key=sort_key), sorted(exact, key=sort_key)
 
 
+def _signature_source_revision(metadata: dict[str, Any], resources: list[dict[str, Any]]) -> bytes:
+    """Hash only persisted inputs that can change a generation signature."""
+    return _digest(
+        {
+            "metadata": {
+                key: metadata.get(key)
+                for key in (
+                    "prompt",
+                    "negative_prompt",
+                    "model",
+                    "model_hash",
+                    "sampler",
+                    "scheduler",
+                    "seed",
+                    "steps",
+                    "cfg_scale",
+                    "width",
+                    "height",
+                    "denoising_strength",
+                    "hires_upscale",
+                    "hires_steps",
+                    "vae",
+                    "metadata_json",
+                )
+            },
+            "resources": resources,
+        }
+    )
+
+
+def _metadata_source_conn(conn: sqlite3.Connection, asset: dict[str, Any]) -> dict[str, Any] | None:
+    row = conn.execute(
+        """
+        SELECT prompt, negative_prompt, model, sampler, seed, steps, cfg_scale,
+               scheduler, model_hash, hires_upscale, hires_steps,
+               denoising_strength, vae, width, height, metadata_json
+        FROM image_metadata
+        WHERE path = ? AND mtime_ns = ? AND size = ?
+        """,
+        (str(asset["path"]), int(asset.get("mtime_ns") or 0), int(asset.get("size") or 0)),
+    ).fetchone()
+    resource_rows = conn.execute(
+        """
+        SELECT kind, name, hash, resource_hash, weight, strength
+        FROM image_resources WHERE path = ? ORDER BY id
+        """,
+        (str(asset["path"]),),
+    ).fetchall()
+    if row is None:
+        return None
+    metadata = dict(row)
+    resources = [dict(item) for item in resource_rows]
+    return {
+        "metadata": metadata,
+        "resources": resources,
+        "source_revision": _signature_source_revision(metadata, resources),
+    }
+
+
 def _metadata_source(asset: dict[str, Any]) -> dict[str, Any] | None:
     from .metadata_store._db import _DB_LOCK, _connect
     from .metadata_store._schema import initialize_database
 
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        row = conn.execute(
-            """
-            SELECT prompt, negative_prompt, model, sampler, seed, steps, cfg_scale,
-                   scheduler, model_hash, hires_upscale, hires_steps,
-                   denoising_strength, vae, width, height, metadata_json
-            FROM image_metadata
-            WHERE path = ? AND mtime_ns = ? AND size = ?
-            """,
-            (str(asset["path"]), int(asset.get("mtime_ns") or 0), int(asset.get("size") or 0)),
-        ).fetchone()
-        resources = conn.execute(
-            """
-            SELECT kind, name, hash, resource_hash, weight, strength
-            FROM image_resources WHERE path = ? ORDER BY id
-            """,
-            (str(asset["path"]),),
-        ).fetchall()
-    if row is None:
-        return None
-    return {"metadata": dict(row), "resources": [dict(item) for item in resources]}
+        return _metadata_source_conn(conn, asset)
 
 
 def _resource_inputs(resources: list[dict[str, Any]]) -> tuple[list[dict[str, str]], list[dict[str, str | None]]]:
@@ -287,9 +327,12 @@ def _resource_inputs(resources: list[dict[str, Any]]) -> tuple[list[dict[str, st
             continue
         identity_key = (identity["kind"], identity["identity_type"], identity["identity"])
         identities[identity_key] = identity
+        recorded_weight = resource.get("weight")
+        if recorded_weight is None:
+            recorded_weight = resource.get("strength")
         recipe[identity_key] = {
             **identity,
-            "weight": canonical_number(resource.get("weight") or resource.get("strength")),
+            "weight": canonical_number(recorded_weight),
         }
     return [identities[key] for key in sorted(identities)], [recipe[key] for key in sorted(recipe)]
 
@@ -353,6 +396,7 @@ def build_generation_signature_payload(asset: dict[str, Any], source: dict[str, 
         "extractor_version": GENERATION_SIGNATURE_EXTRACTOR_VERSION,
         "source_mtime_ns": int(asset.get("mtime_ns") or 0),
         "source_size": int(asset.get("size") or 0),
+        "source_revision": source.get("source_revision"),
     }
 
 
@@ -374,7 +418,13 @@ def persist_generation_signature(
     conn: sqlite3.Connection, asset: dict[str, Any], payload: dict[str, Any] | None
 ) -> None:
     """Atomically replace one active asset's current signature row."""
+    from .metadata_store.search_index_store import SearchExtractionStale
+
     asset_id = int(asset["id"])
+    if payload is not None and payload.get("source_revision") is not None:
+        current_source = _metadata_source_conn(conn, asset)
+        if current_source is None or current_source["source_revision"] != payload["source_revision"]:
+            raise SearchExtractionStale(asset_id)
     conn.execute("DELETE FROM asset_generation_signatures WHERE asset_id = ?", (asset_id,))
     if payload is None:
         return

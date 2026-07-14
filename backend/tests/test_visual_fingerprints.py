@@ -273,6 +273,75 @@ def test_durable_visual_backfill_is_atomic_and_idempotent(
     assert get_search_index_job(int(missing["id"]))["processed_count"] == 0
 
 
+def test_visual_backfill_repairs_derivative_that_becomes_ready_while_job_is_running(
+    isolated_gallery_root: Path,
+    isolated_metadata_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _variants(isolated_gallery_root)
+    library = register_library(isolated_gallery_root, name="Visual derivative race")
+    source = paths["reference"]
+    derivative = paths["resize"]
+    stat = source.stat()
+    with _connect() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO assets (
+              library_id, path, parent_path, name, type, mtime_ns, size,
+              width, height, indexed_at, metadata_state, offline, deleted_at
+            ) VALUES (?, ?, ?, ?, 'image', ?, ?, 320, 240, 1, 'done', 0, NULL)
+            """,
+            (library["id"], str(source), str(source.parent), source.name, stat.st_mtime_ns, stat.st_size),
+        )
+        asset_id = int(cursor.lastrowid)
+
+    def make_derivative_ready(queued_asset_id: int) -> None:
+        assert queued_asset_id == asset_id
+        with _connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO asset_derivatives (
+                  asset_id, kind, variant, source_mtime_ns, source_size, format,
+                  quality, max_long_edge, status, cache_path
+                ) VALUES (?, 'thumbnail', 'thumb_512', ?, ?, 'webp', 78, 512, 'ready', ?)
+                """,
+                (asset_id, stat.st_mtime_ns, stat.st_size, str(derivative)),
+            )
+        visual_module.notify_derivative_ready(asset_id)
+
+    monkeypatch.setattr(visual_module, "_queue_default_derivative", make_derivative_ready)
+    job = create_search_index_job(
+        "visual_fingerprints",
+        library["id"],
+        mode="full",
+        schema_version=1,
+        extractor_version=VISUAL_FINGERPRINT_EXTRACTOR_VERSION,
+    )
+
+    assert run_search_index_once(worker_id="visual-race-test") is True
+    assert get_search_index_job(int(job["id"]))["state"] == "succeeded"
+    with _connect() as conn:
+        assert (
+            conn.execute("SELECT count(*) FROM asset_visual_fingerprints WHERE asset_id = ?", (asset_id,)).fetchone()[0]
+            == 1
+        )
+        extraction = conn.execute(
+            """
+            SELECT status, error_code FROM asset_search_extractions
+            WHERE asset_id = ? AND index_name = 'visual_fingerprints'
+            """,
+            (asset_id,),
+        ).fetchone()
+        active_jobs = conn.execute(
+            """
+            SELECT count(*) FROM search_index_jobs
+            WHERE index_name = 'visual_fingerprints' AND state IN ('queued', 'running')
+            """
+        ).fetchone()[0]
+    assert dict(extraction) == {"status": "ready", "error_code": None}
+    assert active_jobs == 0
+
+
 def test_v11_migration_is_transactional_and_has_no_inline_decode(
     isolated_metadata_db: Path,
 ) -> None:
@@ -319,6 +388,125 @@ def test_v11_migration_failure_rolls_back_and_keeps_backup(
             == 0
         )
     assert isolated_metadata_db.with_suffix(f"{isolated_metadata_db.suffix}.v10.bak").exists()
+
+
+def _downgrade_visual_bands_to_v11(conn: sqlite3.Connection) -> None:
+    conn.execute("DROP INDEX IF EXISTS idx_visual_hash_bands_lookup")
+    conn.execute("ALTER TABLE asset_visual_hash_bands RENAME TO asset_visual_hash_bands_v12")
+    conn.execute(
+        """
+        CREATE TABLE asset_visual_hash_bands (
+          asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+          library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+          hash_kind INTEGER NOT NULL CHECK(hash_kind IN (0, 1)),
+          band_no INTEGER NOT NULL CHECK(band_no BETWEEN 0 AND 3),
+          band_value INTEGER NOT NULL CHECK(band_value BETWEEN 0 AND 65535),
+          PRIMARY KEY(asset_id, hash_kind, band_no)
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO asset_visual_hash_bands
+        SELECT * FROM asset_visual_hash_bands_v12
+        """
+    )
+    conn.execute("DROP TABLE asset_visual_hash_bands_v12")
+    conn.execute(
+        """
+        CREATE INDEX idx_visual_hash_bands_lookup
+          ON asset_visual_hash_bands(hash_kind, band_no, band_value, library_id, asset_id)
+        """
+    )
+    conn.execute("ALTER TABLE asset_search_extractions RENAME TO asset_search_extractions_v12")
+    conn.execute(
+        """
+        CREATE TABLE asset_search_extractions (
+          asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+          index_name TEXT NOT NULL,
+          source_fingerprint TEXT NOT NULL,
+          extractor_version INTEGER NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('ready', 'not_applicable', 'skipped', 'failed')),
+          error_code TEXT,
+          indexed_at REAL NOT NULL,
+          PRIMARY KEY(asset_id, index_name)
+        )
+        """
+    )
+    conn.execute("INSERT INTO asset_search_extractions SELECT * FROM asset_search_extractions_v12")
+    conn.execute("DROP TABLE asset_search_extractions_v12")
+    conn.execute("PRAGMA user_version = 11")
+    conn.commit()
+
+
+def test_v12_migration_compacts_visual_bands_and_preserves_rows(
+    isolated_gallery_root: Path,
+    isolated_metadata_db: Path,
+) -> None:
+    paths = _variants(isolated_gallery_root)
+    _library, ids = _seed_visual_assets(isolated_gallery_root, {"reference": paths["reference"]})
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO asset_search_extractions (
+              asset_id, index_name, source_fingerprint, extractor_version, status, indexed_at
+            ) VALUES (?, 'visual_fingerprints', '1:1', 1, 'ready', 1)
+            """,
+            (ids["reference"],),
+        )
+        _downgrade_visual_bands_to_v11(conn)
+        schema_module._migrate_v11_to_v12(conn)
+        table_sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'asset_visual_hash_bands'"
+        ).fetchone()[0]
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+        assert "WITHOUT ROWID" in table_sql.upper()
+        extraction_sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'asset_search_extractions'"
+        ).fetchone()[0]
+        assert "WITHOUT ROWID" in extraction_sql.upper()
+        assert (
+            conn.execute(
+                "SELECT count(*) FROM asset_visual_hash_bands WHERE asset_id = ?", (ids["reference"],)
+            ).fetchone()[0]
+            == 8
+        )
+        assert (
+            conn.execute(
+                "SELECT count(*) FROM asset_search_extractions WHERE asset_id = ?", (ids["reference"],)
+            ).fetchone()[0]
+            == 1
+        )
+        assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+    assert isolated_metadata_db.with_suffix(f"{isolated_metadata_db.suffix}.v11.bak").exists()
+
+
+def test_v12_migration_failure_rolls_back_and_keeps_backup(
+    isolated_metadata_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _connect() as conn:
+        _downgrade_visual_bands_to_v11(conn)
+    original = schema_module._execute_v12_migration_statement
+    calls = 0
+
+    def fail_second(conn: sqlite3.Connection, statement: str) -> None:
+        nonlocal calls
+        calls += 1
+        original(conn, statement)
+        if calls == 2:
+            raise RuntimeError("v12 injected failure")
+
+    monkeypatch.setattr(schema_module, "_execute_v12_migration_statement", fail_second)
+    with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
+        schema_module._migrate_v11_to_v12(conn)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
+        table_sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'asset_visual_hash_bands'"
+        ).fetchone()[0]
+        assert "WITHOUT ROWID" not in table_sql.upper()
+    assert isolated_metadata_db.with_suffix(f"{isolated_metadata_db.suffix}.v11.bak").exists()
 
 
 def test_visual_http_reads_persisted_rows_without_decoding(

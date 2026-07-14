@@ -24,6 +24,7 @@ from .generation_signatures import (
 )
 from .metadata_store.library_store import list_libraries
 from .metadata_store.search_index_store import (
+    SearchExtractionStale,
     SearchIndexClaimLost,
     claim_next_search_index_job,
     finish_search_index_job,
@@ -274,6 +275,19 @@ def run_search_index_once(*, worker_id: str | None = None) -> bool:
                     )
                 except SearchIndexClaimLost:
                     raise
+                except SearchExtractionStale:
+                    record_search_index_extraction(
+                        job_id,
+                        claim_token,
+                        asset,
+                        index_name=definition.name,
+                        extractor_version=definition.extractor_version,
+                        status="failed",
+                        error_code="source_changed",
+                        payload=None,
+                        persist=_noop_persist,
+                        lease_seconds=GALLERY_SEARCH_INDEX_JOB_LEASE_SECONDS,
+                    )
                 except Exception:  # noqa: BLE001
                     LOGGER.exception(
                         "Search index persistence failed for index=%s asset_id=%s", definition.name, asset["id"]

@@ -356,7 +356,10 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
-- Catalog schema version 11 additively creates
+- Catalog schema version 12 rebuilds `asset_visual_hash_bands` and
+  `asset_search_extractions` as `WITHOUT ROWID` tables through a rollback-safe
+  `.v11.bak` migration, reducing the storage cost of their composite primary
+  keys. Version 11 creates
   `asset_visual_fingerprints`, eight per-asset `asset_visual_hash_bands`, and
   the `(hash_kind, band_no, band_value, library_id, asset_id)` candidate index.
   Its `.v10.bak` migration creates storage only and never decodes or backfills

@@ -23,12 +23,18 @@ from pathlib import Path
 import pytest
 
 import backend.metadata_store._schema as schema_module
+import backend.search_indexer as search_indexer_module
 from backend.generation_signatures import (
+    GENERATION_SIGNATURE_EXTRACTOR_VERSION,
     MAX_FTS_PROMPT_ATOMS,
     MAX_PROMPT_ATOMS,
     build_generation_signature_payload,
     canonical_number,
+    extract_generation_signature,
+    invalidate_generation_signature_conn,
     normalize_prompt_atoms,
+    persist_generation_signature,
+    schedule_generation_signature_backfill,
     select_prompt_atoms_for_fts,
 )
 from backend.metadata_extract import ExtractedMetadata
@@ -40,7 +46,7 @@ from backend.metadata_store.search_index_store import (
     get_search_index_job,
     list_search_index_states,
 )
-from backend.search_indexer import run_search_index_once
+from backend.search_indexer import SearchIndexDefinition, run_search_index_once
 
 
 def _source(**overrides) -> dict:  # noqa: ANN003
@@ -172,6 +178,19 @@ def test_resource_identity_prefers_hash_and_lora_changes_family() -> None:
     assert changed_payload["family_hash"] != baseline["family_hash"]
     assert changed_payload["recipe_hash"] != baseline["recipe_hash"]
     assert changed_payload["exact_hash"] != baseline["exact_hash"]
+
+
+def test_explicit_zero_resource_weight_is_not_treated_as_missing() -> None:
+    zero = _source()
+    zero["resources"] = [{"kind": "lora", "name": "Style", "resource_hash": "HASH-A", "weight": 0}]
+    missing = _source()
+    missing["resources"] = [{"kind": "lora", "name": "Style", "resource_hash": "HASH-A"}]
+
+    zero_payload = build_generation_signature_payload(_asset(), zero)
+    missing_payload = build_generation_signature_payload(_asset(), missing)
+
+    assert zero_payload["recipe_hash"] != missing_payload["recipe_hash"]
+    assert zero_payload["exact_hash"] != missing_payload["exact_hash"]
 
 
 def test_missing_prompt_never_creates_a_strong_family_from_defaults() -> None:
@@ -314,6 +333,82 @@ def test_durable_backfill_is_active_only_and_idempotent(
     )
     assert state["state"] == "ready"
     assert state["indexed_count"] == state["target_count"] == 1
+
+
+def test_generation_backfill_retries_when_metadata_changes_between_extract_and_persist(
+    isolated_gallery_root: Path,
+    isolated_metadata_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    library, asset_id = _seed_asset(isolated_gallery_root)
+    actual_definition = search_indexer_module.get_search_index_definition("generation_signatures")
+    assert actual_definition is not None
+    extraction_count = 0
+
+    def extract_with_concurrent_metadata_update(asset: dict):
+        nonlocal extraction_count
+        extraction_count += 1
+        result = extract_generation_signature(asset)
+        if extraction_count == 1:
+            with _connect() as conn:
+                conn.execute(
+                    "UPDATE image_metadata SET prompt = 'portrait, new light' WHERE path = ?",
+                    (asset["path"],),
+                )
+                invalidate_generation_signature_conn(conn, int(asset["id"]))
+            schedule_generation_signature_backfill(int(asset["library_id"]))
+        return result
+
+    monkeypatch.setitem(
+        search_indexer_module._DEFINITIONS,
+        "generation_signatures",
+        SearchIndexDefinition(
+            name="generation_signatures",
+            schema_version=1,
+            extractor_version=GENERATION_SIGNATURE_EXTRACTOR_VERSION,
+            enabled=True,
+            required_mode="related",
+            extractor=extract_with_concurrent_metadata_update,
+            persist=persist_generation_signature,
+        ),
+    )
+    job = create_search_index_job(
+        "generation_signatures",
+        library["id"],
+        mode="full",
+        schema_version=1,
+        extractor_version=GENERATION_SIGNATURE_EXTRACTOR_VERSION,
+    )
+
+    assert run_search_index_once(worker_id="generation-race-test") is True
+    assert get_search_index_job(int(job["id"]))["state"] == "succeeded"
+    assert extraction_count == 2
+    expected = build_generation_signature_payload(
+        _asset(asset_id, library_id=library["id"]), _source(prompt="portrait, new light")
+    )
+    with _connect() as conn:
+        signature = conn.execute(
+            "SELECT prompt_hash FROM asset_generation_signatures WHERE asset_id = ?",
+            (asset_id,),
+        ).fetchone()
+        extraction = conn.execute(
+            """
+            SELECT status, error_code FROM asset_search_extractions
+            WHERE asset_id = ? AND index_name = 'generation_signatures'
+            """,
+            (asset_id,),
+        ).fetchone()
+        active_jobs = conn.execute(
+            """
+            SELECT count(*) FROM search_index_jobs
+            WHERE index_name = 'generation_signatures' AND state IN ('queued', 'running')
+            """
+        ).fetchone()[0]
+    assert signature is not None and signature["prompt_hash"] == expected["prompt_hash"]
+    assert dict(extraction) == {"status": "ready", "error_code": None}
+    assert active_jobs == 0
+
+    monkeypatch.setitem(search_indexer_module._DEFINITIONS, "generation_signatures", actual_definition)
 
 
 def test_metadata_persist_invalidates_signature_and_queues_missing_repair(

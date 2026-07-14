@@ -19,6 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from backend.metadata_store import _connect
+from scripts.bench_related_assets import RELATION_TABLES, relation_storage_mib, validate_fixture_contract
 from scripts.create_perf_fixture import _seed_metadata, _synthetic_search_values, _visual_bytes, _write_png
 from scripts.perf_lib import budget_for
 
@@ -99,3 +100,34 @@ def test_perf_fixture_indexes_real_images_for_inspector(
         ).fetchone()
     assert row is not None
     assert tuple(row) == (stat.st_mtime_ns, stat.st_mtime_ns, stat.st_size)
+
+
+def test_related_perf_fixture_and_storage_include_lifecycle_rows(
+    isolated_gallery_root: Path,
+    isolated_metadata_db: Path,
+) -> None:
+    album = isolated_gallery_root / "perf_album"
+    album.mkdir()
+    _write_png(album / "perf_0000.png", 0)
+
+    _indexed, synthetic, related = _seed_metadata(
+        isolated_gallery_root,
+        album,
+        isolated_metadata_db,
+        12,
+        search_cohort_rows=12,
+        related_assets=True,
+    )
+    contract = validate_fixture_contract(isolated_metadata_db, related["reference_asset_id"])
+
+    assert synthetic == related["rows"] == 12
+    assert contract == {
+        "rows": 12,
+        "generation_signatures": 12,
+        "visual_fingerprints": 12,
+        "visual_hash_bands": 96,
+        "search_extractions": 24,
+        "reference_components": 2,
+    }
+    assert "asset_search_extractions" in RELATION_TABLES
+    assert relation_storage_mib(isolated_metadata_db) > 0

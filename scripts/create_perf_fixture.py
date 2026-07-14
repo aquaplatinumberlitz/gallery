@@ -328,6 +328,7 @@ def _seed_synthetic_related_indexes(
         model_identity_rows: list[tuple[object, ...]] = []
         fingerprint_rows: list[tuple[object, ...]] = []
         band_rows: list[tuple[int, int, int, int, int]] = []
+        extraction_rows: list[tuple[object, ...]] = []
 
         def flush() -> None:
             if not signature_rows:
@@ -369,10 +370,20 @@ def _seed_synthetic_related_indexes(
                 """,
                 band_rows,
             )
+            connection.executemany(
+                """
+                INSERT OR REPLACE INTO asset_search_extractions (
+                  asset_id, index_name, source_fingerprint, extractor_version,
+                  status, error_code, indexed_at
+                ) VALUES (?, ?, ?, ?, 'ready', NULL, ?)
+                """,
+                extraction_rows,
+            )
             signature_rows.clear()
             model_identity_rows.clear()
             fingerprint_rows.clear()
             band_rows.clear()
+            extraction_rows.clear()
 
         for index, asset in enumerate(assets):
             if index >= row_count:
@@ -425,6 +436,20 @@ def _seed_synthetic_related_indexes(
                     vertical,
                     _color_grid(index),
                     now,
+                )
+            )
+            source_fingerprint = f"{int(asset['mtime_ns'])}:{int(asset['size'])}"
+            extraction_rows.extend(
+                (
+                    asset_id,
+                    index_name,
+                    source_fingerprint,
+                    extractor_version,
+                    now,
+                )
+                for index_name, extractor_version in (
+                    ("generation_signatures", GENERATION_SIGNATURE_EXTRACTOR_VERSION),
+                    ("visual_fingerprints", VISUAL_FINGERPRINT_EXTRACTOR_VERSION),
                 )
             )
             for hash_kind, value in ((0, horizontal), (1, vertical)):

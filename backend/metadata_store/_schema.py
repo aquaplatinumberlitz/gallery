@@ -23,7 +23,7 @@ def _gallery_metadata_db() -> Path:
     return _gallery_metadata_db_path()
 
 
-CATALOG_SCHEMA_VERSION = 11
+CATALOG_SCHEMA_VERSION = 12
 
 
 def _ensure_generation_signature_schema(
@@ -100,7 +100,7 @@ def _ensure_visual_fingerprint_schema(
           band_no INTEGER NOT NULL CHECK(band_no BETWEEN 0 AND 3),
           band_value INTEGER NOT NULL CHECK(band_value BETWEEN 0 AND 65535),
           PRIMARY KEY(asset_id, hash_kind, band_no)
-        )
+        ) WITHOUT ROWID
         """,
         """
         CREATE INDEX IF NOT EXISTS idx_visual_hash_bands_lookup
@@ -471,7 +471,7 @@ def _ensure_search_index_schema(
           error_code TEXT,
           indexed_at REAL NOT NULL,
           PRIMARY KEY(asset_id, index_name)
-        )
+        ) WITHOUT ROWID
         """,
         """
         CREATE INDEX IF NOT EXISTS idx_search_index_jobs_pick
@@ -1106,6 +1106,85 @@ def _migrate_v10_to_v11(conn: sqlite3.Connection) -> None:
         raise
 
 
+def _execute_v12_migration_statement(conn: sqlite3.Connection, statement: str) -> None:
+    """Execute one v11-to-v12 migration statement (test injection seam)."""
+    conn.execute(statement)
+
+
+def _backup_v11_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v12 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v11.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v11_to_v12(conn: sqlite3.Connection) -> None:
+    """Rebuild composite-key relation tables as compact WITHOUT ROWID tables."""
+    conn.commit()
+    _backup_v11_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        for statement in (
+            "DROP INDEX IF EXISTS idx_visual_hash_bands_lookup",
+            "ALTER TABLE asset_visual_hash_bands RENAME TO asset_visual_hash_bands_v11",
+            """
+            CREATE TABLE asset_visual_hash_bands (
+              asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+              library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+              hash_kind INTEGER NOT NULL CHECK(hash_kind IN (0, 1)),
+              band_no INTEGER NOT NULL CHECK(band_no BETWEEN 0 AND 3),
+              band_value INTEGER NOT NULL CHECK(band_value BETWEEN 0 AND 65535),
+              PRIMARY KEY(asset_id, hash_kind, band_no)
+            ) WITHOUT ROWID
+            """,
+            """
+            INSERT INTO asset_visual_hash_bands (asset_id, library_id, hash_kind, band_no, band_value)
+            SELECT asset_id, library_id, hash_kind, band_no, band_value
+            FROM asset_visual_hash_bands_v11
+            """,
+            "DROP TABLE asset_visual_hash_bands_v11",
+            """
+            CREATE INDEX idx_visual_hash_bands_lookup
+              ON asset_visual_hash_bands(hash_kind, band_no, band_value, library_id, asset_id)
+            """,
+            "ALTER TABLE asset_search_extractions RENAME TO asset_search_extractions_v11",
+            """
+            CREATE TABLE asset_search_extractions (
+              asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+              index_name TEXT NOT NULL,
+              source_fingerprint TEXT NOT NULL,
+              extractor_version INTEGER NOT NULL,
+              status TEXT NOT NULL CHECK (status IN ('ready', 'not_applicable', 'skipped', 'failed')),
+              error_code TEXT,
+              indexed_at REAL NOT NULL,
+              PRIMARY KEY(asset_id, index_name)
+            ) WITHOUT ROWID
+            """,
+            """
+            INSERT INTO asset_search_extractions (
+              asset_id, index_name, source_fingerprint, extractor_version,
+              status, error_code, indexed_at
+            )
+            SELECT asset_id, index_name, source_fingerprint, extractor_version,
+                   status, error_code, indexed_at
+            FROM asset_search_extractions_v11
+            """,
+            "DROP TABLE asset_search_extractions_v11",
+        ):
+            _execute_v12_migration_statement(conn, statement)
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v12 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 12")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     current_version = conn.execute("PRAGMA user_version").fetchone()[0]
     has_application_tables = _database_has_application_tables(conn)
@@ -1151,6 +1230,10 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         current_version = 11
 
     if current_version == 11:
+        _migrate_v11_to_v12(conn)
+        current_version = 12
+
+    if current_version == 12:
         _cleanup_ignored_index_conn(conn)
         _ensure_post_v1_additive_columns(conn)
         _ensure_v3_schema(conn)
@@ -1167,7 +1250,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         raise RuntimeError("Catalog database has application tables but no schema version; delete it and start fresh")
 
     if current_version != 0:
-        raise RuntimeError(f"Catalog database must be fresh (v0-v11); found v{current_version}")
+        raise RuntimeError(f"Catalog database must be fresh (v0-v12); found v{current_version}")
 
     conn.executescript(
         """

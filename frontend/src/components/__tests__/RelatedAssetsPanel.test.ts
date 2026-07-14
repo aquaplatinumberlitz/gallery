@@ -7,6 +7,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { mount } from "@vue/test-utils";
 import { ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GalleryAPIError } from "@/services/api";
 import type { RelatedSearchResponseV1 } from "@/types";
 import { useLightboxStore } from "@/stores/lightbox";
 import { useRelatedAssetsStore } from "@/stores/relatedAssets";
@@ -122,5 +123,51 @@ describe("RelatedAssetsPanel", () => {
     await wrapper.get(".new-reference").trigger("click");
     expect(store.reference).toMatchObject({ assetId: 2, path: "/library/candidate.png" });
     expect(store.profile).toBe("related");
+  });
+
+  it("labels visual-only evidence without presenting it as a generation family", async () => {
+    const visualResponse: RelatedSearchResponseV1 = {
+      ...response,
+      profile: "visual",
+      items: [
+        {
+          ...response.items[0]!,
+          match_type: "visual_variant",
+          relation_tier: 80,
+          relation_reasons: ["visual_variant"],
+          visual_distance: 2,
+          metadata_score: null,
+        },
+      ],
+    };
+    queryState.data.value = visualResponse;
+    const store = useRelatedAssetsStore();
+    store.open({ assetId: 1, path: "/library/reference.png", name: "reference.png" }, response.scope);
+    store.setProfile("visual");
+    const Panel = (await import("../RelatedAssetsPanel.vue")).default;
+    const wrapper = mount(Panel, { global: { stubs } });
+
+    expect(wrapper.text()).toContain("Visual variant");
+    expect(wrapper.text()).not.toContain("Same family");
+  });
+
+  it("renders persisted coverage from a typed readiness error", async () => {
+    queryState.data.value = null;
+    queryState.error.value = new GalleryAPIError(
+      "relation_index_not_ready",
+      "Related assets are still indexing",
+      "Retry later",
+      true,
+      {},
+      response.status,
+    );
+    const store = useRelatedAssetsStore();
+    store.open({ assetId: 1, path: "/library/reference.png", name: "reference.png" }, response.scope);
+    const Panel = (await import("../RelatedAssetsPanel.vue")).default;
+    const wrapper = mount(Panel, { global: { stubs } });
+
+    expect(wrapper.text()).toContain("Metadata: ready");
+    expect(wrapper.text()).toContain("Visual: building");
+    expect(wrapper.text()).toContain("Related assets are still indexing");
   });
 });

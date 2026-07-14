@@ -91,7 +91,9 @@ resets interrupted `running` jobs, fails exhausted attempts, and repairs
 historical rows where a done job/current metadata row exists but the asset state
 was not materialized.
 
-The shared catalog database is schema version 11. Version 11 creates visual
+The shared catalog database is schema version 12. Version 12 compacts visual
+hash bands and search-extraction lifecycle rows into `WITHOUT ROWID` tables
+through `.v11.bak`, preserving all rows transactionally. Version 11 creates visual
 fingerprint/band storage through `.v10.bak` without inline image decoding or
 backfill. Version 10 creates
 `asset_generation_signatures` through a consistent `.v8.bak`, one
@@ -101,6 +103,11 @@ sentinel, so maintained schema evolution advances directly from 8 to 10.
 Earlier migrations retain their documented backups and ownership rules.
 Metadata and catalog rows remain in the same single-process SQLite database;
 migrations do not introduce a second store or modify source media.
+
+Generation-signature persistence also verifies a revision hash of every
+signature-affecting metadata/resource input inside the write transaction. If
+metadata changes after extraction, the stale payload is rejected and repaired
+by the job's missing pass rather than being published as current.
 
 ## Stored database fields
 

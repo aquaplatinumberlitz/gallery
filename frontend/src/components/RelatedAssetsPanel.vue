@@ -13,7 +13,13 @@ import { useRelatedAssetsQuery } from "@/composables/useRelatedAssetsQuery";
 import { GalleryAPIError } from "@/services/api";
 import { useLightboxStore } from "@/stores/lightbox";
 import { useRelatedAssetsStore } from "@/stores/relatedAssets";
-import type { FileNode, RelatedProfileV1, RelatedSearchRequestV1, RelatedSearchResultV1 } from "@/types";
+import type {
+  FileNode,
+  RelatedProfileV1,
+  RelatedSearchRequestV1,
+  RelatedSearchResultV1,
+  RelatedSearchStatusV1,
+} from "@/types";
 
 const relatedStore = useRelatedAssetsStore();
 const lightboxStore = useLightboxStore();
@@ -41,15 +47,23 @@ const candidateMetadataQuery = usePhotoMetadataQuery(isOpen, candidatePath);
 
 const error = computed(() => (relatedQuery.error.value instanceof GalleryAPIError ? relatedQuery.error.value : null));
 const hasStaleError = computed(() => Boolean(error.value && response.value));
-const tierLabel = (tier: RelatedSearchResultV1["relation_tier"]) =>
-  ({
+const displayStatus = computed<RelatedSearchStatusV1 | null>(
+  () => response.value?.status ?? error.value?.relatedStatus ?? null,
+);
+const tierLabel = (item: RelatedSearchResultV1) => {
+  if (item.relation_reasons.includes("same_exact_signature")) return "Exact settings";
+  if (item.relation_reasons.includes("same_recipe")) return "Same recipe";
+  if (item.relation_reasons.includes("same_generation_family")) return "Same family";
+  if (item.relation_reasons.includes("visual_variant")) return "Visual variant";
+  return {
     100: "Exact settings",
     90: "Same recipe",
     80: "Same family",
     70: "Same prompt",
     60: "Strong relation",
     40: "Related",
-  })[tier];
+  }[item.relation_tier];
+};
 const stateLabel = (state: string) => state.replace(/_/g, " ");
 
 const resultNodes = computed<FileNode[]>(() =>
@@ -120,13 +134,11 @@ function useAsReference(item: RelatedSearchResultV1) {
         </div>
 
         <TabsContent :value="profile" class="mt-0 min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          <div v-if="response" class="coverage-row" aria-label="Related Assets index coverage">
-            <span :data-state="response.status.metadata.state">
-              Metadata: {{ stateLabel(response.status.metadata.state) }}
+          <div v-if="displayStatus" class="coverage-row" aria-label="Related Assets index coverage">
+            <span :data-state="displayStatus.metadata.state">
+              Metadata: {{ stateLabel(displayStatus.metadata.state) }}
             </span>
-            <span :data-state="response.status.visual.state">
-              Visual: {{ stateLabel(response.status.visual.state) }}
-            </span>
+            <span :data-state="displayStatus.visual.state"> Visual: {{ stateLabel(displayStatus.visual.state) }} </span>
           </div>
 
           <div v-if="hasStaleError" class="state-banner state-banner-warning" role="alert">
@@ -178,7 +190,7 @@ function useAsReference(item: RelatedSearchResultV1) {
                     @click="openResult(item)"
                     @find-related="useAsReference(item)"
                   />
-                  <span class="tier-label">{{ tierLabel(item.relation_tier) }}</span>
+                  <span class="tier-label">{{ tierLabel(item) }}</span>
                 </div>
                 <button type="button" class="result-title" @click="openResult(item)">{{ item.name }}</button>
                 <RelationReasonList :reasons="item.relation_reasons" />

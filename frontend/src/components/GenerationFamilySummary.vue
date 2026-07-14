@@ -11,9 +11,15 @@ const props = defineProps<{
   candidateName?: string;
 }>();
 
-const exactCount = computed(() => props.results.filter((item) => item.relation_tier === 100).length);
-const recipeCount = computed(() => props.results.filter((item) => item.relation_tier >= 90).length);
-const familyCount = computed(() => props.results.filter((item) => item.relation_tier >= 80).length);
+const exactCount = computed(
+  () => props.results.filter((item) => item.relation_reasons.includes("same_exact_signature")).length,
+);
+const recipeCount = computed(
+  () => props.results.filter((item) => item.relation_reasons.includes("same_recipe")).length,
+);
+const familyCount = computed(
+  () => props.results.filter((item) => item.relation_reasons.includes("same_generation_family")).length,
+);
 const { comparisons, changed } = useGenerationComparison(
   () => props.referenceMetadata,
   () => props.candidateMetadata,

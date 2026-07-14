@@ -60,11 +60,12 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
   reasons, scope/activity/source filtering, recipe-profile behavior, bounded
   candidate loading, and optional-workflow degradation.
 - Visual fingerprint tests: `backend/tests/test_visual_fingerprints.py` cover
-  fixed-size Pillow hashes/color grids, v11 migration rollback, atomic bands,
+  fixed-size Pillow hashes/color grids, v11/v12 migration rollback, compact
+  `WITHOUT ROWID` bands, atomic bands,
   durable derivative-backed extraction, indexed near-duplicate lookup,
   resize/re-encode/light-change fixtures, crop/mirror/rotation limits, typed
   reference coverage, disabled isolation, and the no-HTTP-decode guarantee.
-- Performance contract tests: backend pytest hot-path tests such as `backend/tests/test_browse_api.py`, `backend/tests/test_search_ranked_pagination.py`, `backend/tests/test_related_assets_perf_tooling.py`, and `backend/tests/test_warm_folder_listing.py` prevent known slow-path regressions and lock the deterministic 100,000-row relation fixture/budget registry.
+- Performance contract tests: backend pytest hot-path tests such as `backend/tests/test_browse_api.py`, `backend/tests/test_search_ranked_pagination.py`, `backend/tests/test_related_assets_perf_tooling.py`, and `backend/tests/test_warm_folder_listing.py` prevent known slow-path regressions and lock the deterministic 100,000-row relation fixture, including both lifecycle extraction rows per asset, and budget registry.
 - Performance diagnostics: `frontend/tests/e2e/metadata-performance.spec.ts`, `frontend/tests/e2e/perf/album-open.perf.spec.ts`, `frontend/tests/e2e/perf/lightbox.perf.spec.ts`, `scripts/bench_search.py`, `scripts/bench_related_assets.py`, `scripts/perf_library_inspector.py`, and `scripts/perf_warm_listing.py` emit compact timing reports.
 - Album-open performance reports the first thumbnail iteration as cold-cache diagnostics and gates `thumbnail_p95_ms` on later warm-cache iterations.
 - Gated performance smoke tests: `./test.sh perf-smoke` runs backend Library Inspector p95, warm listing, album-open, and lightbox budgets against a running app/backend.

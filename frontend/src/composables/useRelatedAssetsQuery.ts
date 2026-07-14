@@ -19,6 +19,6 @@ export function useRelatedAssetsQuery(request: MaybeRefOrGetter<RelatedSearchReq
     enabled: computed(() => resolvedRequest.value !== null),
     staleTime: 30_000,
     gcTime: 10 * 60_000,
-    retry: (failureCount, error) => error instanceof GalleryAPIError && error.canRetry && failureCount < 2,
+    retry: (failureCount, error) => error instanceof GalleryAPIError && error.canRetry && failureCount < 1,
   });
 }

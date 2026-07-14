@@ -107,6 +107,32 @@ describe("GalleryAPIError", () => {
     expect(GalleryAPIError.fromAxiosError(err).type).toBe("bad_request");
   });
 
+  it("retains typed Related Assets readiness status", () => {
+    const status = {
+      metadata: {
+        index_name: "generation_signatures" as const,
+        state: "ready" as const,
+        usable: true,
+        indexed_count: 1,
+        target_count: 1,
+      },
+      visual: {
+        index_name: "visual_fingerprints" as const,
+        state: "not_ready" as const,
+        usable: false,
+        indexed_count: 0,
+        target_count: 1,
+      },
+    };
+    const err = {
+      response: {
+        data: { detail: { error: "relation_index_not_ready", message: "building", status } },
+      },
+    } as unknown as AxiosError;
+
+    expect(GalleryAPIError.fromAxiosError(err).relatedStatus).toEqual(status);
+  });
+
   it("maps FastAPI 422 details to exact workflow predicate rows", () => {
     const err = {
       response: {

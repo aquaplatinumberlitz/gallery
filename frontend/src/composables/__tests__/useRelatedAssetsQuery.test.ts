@@ -115,6 +115,14 @@ describe("useRelatedAssetsQuery", () => {
     expect(fetchRelatedAssets).toHaveBeenCalledTimes(1);
   });
 
+  it("stops after the documented single retry", async () => {
+    vi.mocked(fetchRelatedAssets).mockRejectedValue(new GalleryAPIError("server_error", "Failed", "Retry", true));
+    const retryable = setup(request(10));
+
+    await vi.waitFor(() => expect(retryable.result.isError.value).toBe(true), { timeout: 3_000 });
+    expect(fetchRelatedAssets).toHaveBeenCalledTimes(2);
+  });
+
   it("retains successful data when a background refetch fails", async () => {
     const { result } = setup(request(10));
     await vi.waitFor(() => expect(result.data.value?.reference_asset_id).toBe(10));

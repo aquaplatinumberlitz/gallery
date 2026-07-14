@@ -25,6 +25,10 @@ class SearchIndexClaimLost(RuntimeError):
     """Raised when a worker attempts a write after its fenced claim expired."""
 
 
+class SearchExtractionStale(RuntimeError):
+    """Raised when extracted data no longer matches the persisted source snapshot."""
+
+
 def source_fingerprint(asset: dict[str, Any]) -> str:
     """Return the stable catalog source fingerprint used by missing rebuilds."""
     return f"{int(asset.get('mtime_ns') or 0)}:{int(asset.get('size') or 0)}"
@@ -395,9 +399,10 @@ def list_search_index_asset_batch(
             OR extraction.source_fingerprint != printf('%d:%d', COALESCE(asset.mtime_ns, 0), COALESCE(asset.size, 0))
             OR extraction.extractor_version != ?
             OR extraction.status = 'failed'
+            OR (? = 'visual_fingerprints' AND extraction.status = 'skipped')
           )
         """
-        params.append(extractor_version)
+        params.extend((extractor_version, str(job["index_name"])))
     params.append(batch_limit)
     with _DB_LOCK, _connect() as conn:
         rows = conn.execute(

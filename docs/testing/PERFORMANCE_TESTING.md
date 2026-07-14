@@ -190,11 +190,14 @@ The same managed database contains deterministic exact, recipe, family,
 distinctive-prompt, same-model-unrelated, visual-exact, one-bit, eight-bit, and
 unrelated groups with precomputed signatures, observed model identities,
 fingerprints, and hash bands. The benchmark measures warm metadata API,
-combined API, direct visual candidate retrieval, lexical search before/during/
-after bounded relation writes, relation-table SQLite growth, and incremental
+combined API, direct metadata and visual candidate retrieval, lexical search
+before/during/after bounded writes across signatures, fingerprints, bands, and
+extraction lifecycle rows, relation-owned SQLite growth, and incremental
 Pillow fingerprint-worker RSS. It fails closed against the 150/75/200/300 ms,
 10%, 100 MiB, and 64 MiB budgets and verifies that the controlled same-model
-unrelated asset is excluded. Its report is
+unrelated asset is excluded. Fixture validation derives row count from SQLite,
+requires eight bands and two lifecycle extraction rows per asset, and rejects
+environment counts that disagree with persisted data. Its report is
 `frontend/test-results/perf/related-assets-benchmark-report.json`.
 
 ### Thumbnail Cold/Warm Bench
