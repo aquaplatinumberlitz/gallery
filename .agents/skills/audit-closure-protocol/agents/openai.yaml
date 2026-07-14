@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit Closure Protocol"
+  short_description: "Evidence-based bounded audit and closure"
+  default_prompt: "Use $audit-closure-protocol to audit this change and close only evidence-backed findings."

@@ -35,6 +35,9 @@ contributors. Read it before planning or editing.
 
 - Never revert user changes or unrelated local work. If a file is already dirty,
   inspect it and preserve changes outside your task.
+- For every audit, re-audit, audit-and-fix, or audit-closure request, load and
+  follow `.agents/skills/audit-closure-protocol/SKILL.md`. Treat audit-only
+  requests as read-only unless the user explicitly authorizes fixes.
 - Keep edits scoped to the requested behavior. Do not refactor unrelated modules
   or churn generated reports unless the task requires it.
 - Use `rg`/`rg --files` for search. Read the relevant code before changing it.
