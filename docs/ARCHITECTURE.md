@@ -401,11 +401,14 @@ Backend modules are mostly flat, with selected domain packages.
   durable missing backfill; active assets are processed in the existing
   200-row single-writer batches and failures degrade only this optional index.
 - Related metadata requests collect at most 600 distinct candidates from
-  bounded signature, model, resource, optional typed-workflow, and prompt-FTS
-  branches. Prompt FTS uses at most 16 versioned distinctive atoms and
-  deprioritizes common boilerplate. Every branch starts from the same active,
-  current-source, authorized `eligible` CTE, and FTS candidates are capped
-  before metadata rows are loaded. The SQLite read closes before deterministic
+  bounded signature, observed-model-identity, resource, optional
+  typed-workflow, and prompt-FTS branches. Each branch performs its own direct
+  indexed active/current-source/scope join and applies its cap before candidate
+  IDs are united; the request does not materialize a catalog-wide eligibility
+  CTE. Prompt FTS uses at most 16 versioned distinctive atoms and excludes
+  common boilerplate from candidate lookup. The `recipe` profile executes only
+  exact/recipe signature branches. Metadata rows are loaded only for the
+  bounded union, and the SQLite read closes before deterministic
   weighted prompt/resource/workflow/settings scoring. Fixed tiers 100/90/80/
   70/60/40 and stable evidence codes determine ordering before mtime and
   `asset_id` tie-breakers. Same model, sampler, seed, folder, orientation, or
@@ -428,6 +431,10 @@ Backend modules are mostly flat, with selected domain packages.
   result carries `visual_variant`. Large crops, mirrors, rotations, and
   generative composition changes are documented limitations; a visual match
   does not prove prompt, recipe, lineage, or common source.
+- A relation index in `building` state remains queryable when its persisted
+  coverage is marked usable; unusable building coverage returns the typed
+  retryable readiness error. Combined requests keep available metadata results
+  when visual coverage is missing, building, degraded, failed, or disabled.
 - The enabled `workflow_properties` index accepts only the code-owned ComfyUI
   registry advertised by search capabilities. API prompt graphs provide named
   inputs; supported UI graph widgets use a versioned positional map. Search
@@ -683,9 +690,13 @@ Header search or AdvancedSearchDrawer
   deduplicate by `(library_id, asset_id)` and use the exact case-preserved path
   only for compatibility rows that lack IDs; legacy arrays are consumed only
   when canonical `media` is absent.
-- One candidate CTE combines exact/prefix/FTS/substring filename matches,
-  positive-prompt phrases/FTS, negative prompts, and structured-filter-only
-  rows. It deduplicates by stable asset ID and orders by relevance tier, a
+- Ranked search selects bounded filename token-prefix and metadata FTS
+  candidates first. LIKE substring branches are added only when the raw FTS
+  indexes have no coverage for the requested lexical source, preserving CJK
+  and compatibility substring behavior without scanning the active catalog on
+  ordinary indexed queries. The candidate union also includes positive-prompt
+  phrase tiers, negative prompts, and structured-filter-only rows. It
+  deduplicates by stable asset ID and orders by relevance tier, a
   bounded/rounded FTS rank, source `mtime_ns`, then `asset_id`.
 - Active pagination is keyset-only. The versioned base64url JSON cursor is bound
   to the canonical query/scope/root fingerprint and stores the complete final

@@ -72,6 +72,10 @@ BUDGET_CONSUMERS: dict[str, tuple[list[str], list[str]]] = {
         ["scripts/bench_search.py"],
         ["GALLERY_PERF_SEARCH_P95_BUDGET_MS", 'budget_for("search"'],
     ),
+    "related_assets": (
+        ["scripts/bench_related_assets.py"],
+        ["GALLERY_PERF_RELATED_ROWS", 'budget_for("related_assets"'],
+    ),
     "inspector_metadata": (
         ["scripts/bench_search.py"],
         ["GALLERY_PERF_INSPECTOR_METADATA_P95_BUDGET_MS", 'budget_for("inspector_metadata"'],

@@ -264,6 +264,7 @@ def test_ranked_candidate_plan_uses_fts_and_catalog_ownership_indexes(
         "filename_like": "%needle%",
         "filename_match": '"needle"',
         "filename_prefix": "needle%",
+        "metadata_match": '(model : ("needle")) OR (sampler : ("needle"))',
         "negative_match": 'negative_prompt : ("needle")',
         "page_limit": 51,
         "positive_match": 'prompt : ("needle")',

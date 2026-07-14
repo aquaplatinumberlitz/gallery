@@ -157,10 +157,12 @@ lexical search.
 
 Related metadata ranking uses the same prompt atoms. Candidate lookup selects
 at most 16 distinct atoms by parsed weight, phrase length, first occurrence,
-and a version-1 common-boilerplate policy (`masterpiece`, quality/resolution
-boilerplate, and similar fixed terms sort behind distinctive phrases). A
-bounded union of signature, model, resource, optional typed-workflow, and FTS
-sources is capped at 600 assets before rows are loaded. Weighted prompt Jaccard
+and the version-2 common-boilerplate policy. Fixed common atoms include
+`masterpiece`, quality/resolution boilerplate, `low quality`, `watermark`, and
+`blurry`; they sort behind distinctive phrases and are excluded from prompt
+FTS candidate lookup. A bounded union of signature, observed-model-identity,
+resource, optional typed-workflow, and FTS sources is capped at 600 assets
+before rows are loaded. Weighted prompt Jaccard
 downweights boilerplate, then resource overlap, model/workflow compatibility,
 recorded-setting proximity, mtime, and asset ID produce deterministic ordering
 inside fixed relation tiers. Stable reason codes describe recorded evidence;

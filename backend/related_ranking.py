@@ -229,39 +229,137 @@ def _load_workflow(conn: sqlite3.Connection, asset_ids: list[int]) -> dict[int, 
     return result
 
 
-def _bounded_branch(predicate: str, priority: int) -> str:
-    return (
-        "SELECT asset_id, "
-        f"{priority} AS priority FROM eligible "
-        f"WHERE asset_id != :reference_asset_id AND ({predicate}) "
-        f"ORDER BY asset_id LIMIT {CANDIDATE_BRANCH_LIMIT}"
-    )
-
-
 def _candidate_ids(
     conn: sqlite3.Connection,
     reference: dict[str, Any],
     context: SearchScopeContext,
     reference_resources: list[dict[str, Any]],
     reference_workflow: set[tuple[str, str, str, str]],
+    *,
+    profile: str,
 ) -> list[int]:
-    cte, params = _eligible_cte(context)
-    params["reference_asset_id"] = int(reference["asset_id"])
-    branches: list[str] = []
-    for priority, field in enumerate(("exact_hash", "recipe_hash", "family_hash", "prompt_hash"), start=1):
+    scope_sql, scope_params = _scope_predicate(context)
+    params: dict[str, Any] = {
+        **scope_params,
+        "reference_asset_id": int(reference["asset_id"]),
+        "normalizer_version": PROMPT_NORMALIZER_VERSION,
+        "signature_extractor_version": GENERATION_SIGNATURE_EXTRACTOR_VERSION,
+    }
+    candidate_ids: list[int] = []
+    seen: set[int] = set()
+
+    def extend(rows) -> None:  # noqa: ANN001
+        for row in rows:
+            asset_id = int(row["asset_id"])
+            if asset_id in seen:
+                continue
+            seen.add(asset_id)
+            candidate_ids.append(asset_id)
+            if len(candidate_ids) >= MAX_METADATA_CANDIDATES:
+                return
+
+    hash_fields = (
+        ("exact_hash", "recipe_hash")
+        if profile == "recipe"
+        else (
+            "exact_hash",
+            "recipe_hash",
+            "family_hash",
+            "prompt_hash",
+        )
+    )
+    for field in hash_fields:
         value = reference.get(field)
-        if value is not None:
-            params[f"reference_{field}"] = value
-            branches.append(_bounded_branch(f"{field} = :reference_{field}", priority))
+        if value is None:
+            continue
+        rows = conn.execute(
+            f"""
+            SELECT signature.asset_id
+            FROM asset_generation_signatures AS signature
+            JOIN assets AS asset ON asset.id = signature.asset_id
+            WHERE signature.library_id = asset.library_id
+              AND signature.{field} = :reference_hash
+              AND signature.asset_id != :reference_asset_id
+              AND signature.source_mtime_ns = asset.mtime_ns
+              AND signature.source_size = asset.size
+              AND signature.normalizer_version = :normalizer_version
+              AND signature.extractor_version = :signature_extractor_version
+              AND asset.type = 'image' AND asset.offline = 0 AND asset.deleted_at IS NULL
+              {scope_sql}
+            ORDER BY signature.asset_id
+            LIMIT {CANDIDATE_BRANCH_LIMIT}
+            """,
+            {**params, "reference_hash": value},
+        ).fetchall()
+        extend(rows)
+        if len(candidate_ids) >= MAX_METADATA_CANDIDATES:
+            return candidate_ids
+
+    if profile == "recipe":
+        return candidate_ids
 
     model_hash = _clean_identity(reference.get("model_hash"))
     model_name = _clean_identity(reference.get("model"))
     if model_hash:
-        params["reference_model_hash"] = model_hash
-        branches.append(_bounded_branch("lower(trim(model_hash)) = :reference_model_hash", 5))
+        model_predicate = "lower(trim(metadata.model_hash)) = :reference_model"
+        model_value = model_hash
     elif model_name:
-        params["reference_model_name"] = model_name
-        branches.append(_bounded_branch("lower(trim(model)) = :reference_model_name", 6))
+        model_predicate = "lower(trim(metadata.model)) = :reference_model"
+        model_value = model_name
+    else:
+        model_predicate = ""
+        model_value = None
+    if model_value is not None:
+        rows = []
+        if _table_exists(conn, "asset_model_identity_values"):
+            identity_predicate = (
+                "identity.normalized_hash = :reference_model"
+                if model_hash
+                else "identity.normalized_name = :reference_model"
+            )
+            rows = conn.execute(
+                f"""
+                SELECT asset.id AS asset_id
+                FROM asset_model_identity_values AS identity
+                JOIN assets AS asset ON asset.id = identity.asset_id
+                JOIN asset_generation_signatures AS signature ON signature.asset_id = asset.id
+                WHERE {identity_predicate}
+                  AND asset.id != :reference_asset_id
+                  AND asset.type = 'image' AND asset.offline = 0 AND asset.deleted_at IS NULL
+                  AND signature.source_mtime_ns = asset.mtime_ns
+                  AND signature.source_size = asset.size
+                  AND signature.normalizer_version = :normalizer_version
+                  AND signature.extractor_version = :signature_extractor_version
+                  {scope_sql}
+                ORDER BY asset.id
+                LIMIT {CANDIDATE_BRANCH_LIMIT}
+                """,
+                {**params, "reference_model": model_value},
+            ).fetchall()
+        if not rows:
+            rows = conn.execute(
+                f"""
+            SELECT asset.id AS asset_id
+            FROM image_metadata AS metadata
+            JOIN assets AS asset
+              ON asset.path = metadata.path
+             AND asset.mtime_ns = metadata.mtime_ns
+             AND asset.size = metadata.size
+            JOIN asset_generation_signatures AS signature ON signature.asset_id = asset.id
+            WHERE {model_predicate}
+              AND asset.id != :reference_asset_id
+              AND asset.type = 'image' AND asset.offline = 0 AND asset.deleted_at IS NULL
+              AND signature.source_mtime_ns = asset.mtime_ns
+              AND signature.source_size = asset.size
+              AND signature.normalizer_version = :normalizer_version
+              AND signature.extractor_version = :signature_extractor_version
+              {scope_sql}
+            ORDER BY asset.id
+            LIMIT {CANDIDATE_BRANCH_LIMIT}
+            """,
+                {**params, "reference_model": model_value},
+            ).fetchall()
+        extend(rows)
 
     identities = {_resource_identity(resource) for resource in reference_resources}
     resource_hashes = sorted(identity[2] for identity in identities if identity is not None and identity[1] == "hash")[
@@ -270,44 +368,60 @@ def _candidate_ids(
     resource_names = sorted(identity[2] for identity in identities if identity is not None and identity[1] == "name")[
         :8
     ]
-    for index, value in enumerate(resource_hashes):
-        key = f"reference_resource_hash_{index}"
-        params[key] = value
-        branches.append(
-            "SELECT eligible.asset_id, 7 AS priority FROM eligible "
-            "JOIN image_resources AS resource ON resource.path = eligible.path "
-            f"WHERE eligible.asset_id != :reference_asset_id AND lower(trim(coalesce(resource.resource_hash, resource.hash))) = :{key} "
-            f"ORDER BY eligible.asset_id LIMIT {CANDIDATE_BRANCH_LIMIT}"
-        )
-    for index, value in enumerate(resource_names):
-        key = f"reference_resource_name_{index}"
-        params[key] = value
-        branches.append(
-            "SELECT eligible.asset_id, 8 AS priority FROM eligible "
-            "JOIN image_resources AS resource ON resource.path = eligible.path "
-            f"WHERE eligible.asset_id != :reference_asset_id AND lower(trim(resource.name)) = :{key} "
-            f"ORDER BY eligible.asset_id LIMIT {CANDIDATE_BRANCH_LIMIT}"
-        )
+    for _index, value in enumerate(resource_hashes):
+        rows = conn.execute(
+            f"""
+            SELECT asset.id AS asset_id
+            FROM image_resources AS resource
+            JOIN assets AS asset ON asset.path = resource.path
+            JOIN asset_generation_signatures AS signature ON signature.asset_id = asset.id
+            WHERE lower(trim(coalesce(resource.resource_hash, resource.hash))) = :resource_value
+              AND asset.id != :reference_asset_id
+              AND asset.type = 'image' AND asset.offline = 0 AND asset.deleted_at IS NULL
+              AND signature.source_mtime_ns = asset.mtime_ns
+              AND signature.source_size = asset.size
+              AND signature.normalizer_version = :normalizer_version
+              AND signature.extractor_version = :signature_extractor_version
+              {scope_sql}
+            ORDER BY asset.id
+            LIMIT {CANDIDATE_BRANCH_LIMIT}
+            """,
+            {**params, "resource_value": value},
+        ).fetchall()
+        extend(rows)
+    for _index, value in enumerate(resource_names):
+        rows = conn.execute(
+            f"""
+            SELECT asset.id AS asset_id
+            FROM image_resources AS resource
+            JOIN assets AS asset ON asset.path = resource.path
+            JOIN asset_generation_signatures AS signature ON signature.asset_id = asset.id
+            WHERE lower(trim(resource.name)) = :resource_value
+              AND asset.id != :reference_asset_id
+              AND asset.type = 'image' AND asset.offline = 0 AND asset.deleted_at IS NULL
+              AND signature.source_mtime_ns = asset.mtime_ns
+              AND signature.source_size = asset.size
+              AND signature.normalizer_version = :normalizer_version
+              AND signature.extractor_version = :signature_extractor_version
+              {scope_sql}
+            ORDER BY asset.id
+            LIMIT {CANDIDATE_BRANCH_LIMIT}
+            """,
+            {**params, "resource_value": value},
+        ).fetchall()
+        extend(rows)
 
-    for index, (node_type, property_key, value_type, value) in enumerate(
+    for _index, (node_type, property_key, value_type, value) in enumerate(
         sorted(reference_workflow)[:MAX_WORKFLOW_CANDIDATE_PROPERTIES]
     ):
-        prefix = f"workflow_{index}"
-        params.update(
-            {
-                f"{prefix}_node": node_type,
-                f"{prefix}_property": property_key,
-                f"{prefix}_type": value_type,
-                f"{prefix}_value": (
-                    int(value)
-                    if value_type == "integer"
-                    else float(value)
-                    if value_type == "real"
-                    else int(value == "true")
-                    if value_type == "boolean"
-                    else value
-                ),
-            }
+        typed_value = (
+            int(value)
+            if value_type == "integer"
+            else float(value)
+            if value_type == "real"
+            else int(value == "true")
+            if value_type == "boolean"
+            else value
         )
         column = {
             "text": "value.value_text_folded",
@@ -316,49 +430,66 @@ def _candidate_ids(
             "boolean": "value.value_boolean",
             "uint64_token": "value.value_text",
         }[value_type]
-        branches.append(
-            "SELECT eligible.asset_id, 9 AS priority FROM eligible "
-            "JOIN workflow_nodes AS node ON node.asset_id = eligible.asset_id "
-            "JOIN workflow_property_values AS value ON value.node_id = node.id "
-            "WHERE eligible.asset_id != :reference_asset_id "
-            f"AND node.node_type = :{prefix}_node AND value.property_key = :{prefix}_property "
-            f"AND value.value_type = :{prefix}_type AND {column} = :{prefix}_value "
-            f"ORDER BY eligible.asset_id LIMIT {CANDIDATE_BRANCH_LIMIT}"
-        )
-
-    candidate_ids: list[int] = []
-    if branches:
-        union_sql = " UNION ALL ".join(f"SELECT * FROM ({branch})" for branch in branches)
         rows = conn.execute(
-            cte
-            + f"""
-            , candidate_union AS ({union_sql})
-            SELECT asset_id, min(priority) AS priority FROM candidate_union
-            GROUP BY asset_id ORDER BY priority, asset_id
-            LIMIT {MAX_METADATA_CANDIDATES}
+            f"""
+            SELECT asset.id AS asset_id
+            FROM workflow_nodes AS node
+            JOIN workflow_property_values AS value ON value.node_id = node.id
+            JOIN assets AS asset ON asset.id = node.asset_id
+            JOIN asset_generation_signatures AS signature ON signature.asset_id = asset.id
+            WHERE node.node_type = :workflow_node
+              AND value.property_key = :workflow_property
+              AND value.value_type = :workflow_type
+              AND {column} = :workflow_value
+              AND asset.id != :reference_asset_id
+              AND asset.type = 'image' AND asset.offline = 0 AND asset.deleted_at IS NULL
+              AND signature.source_mtime_ns = asset.mtime_ns
+              AND signature.source_size = asset.size
+              AND signature.normalizer_version = :normalizer_version
+              AND signature.extractor_version = :signature_extractor_version
+              {scope_sql}
+            ORDER BY asset.id
+            LIMIT {CANDIDATE_BRANCH_LIMIT}
             """,
-            params,
+            {
+                **params,
+                "workflow_node": node_type,
+                "workflow_property": property_key,
+                "workflow_type": value_type,
+                "workflow_value": typed_value,
+            },
         ).fetchall()
-        candidate_ids.extend(int(row["asset_id"]) for row in rows)
+        extend(rows)
 
     atoms = normalize_prompt_atoms(reference.get("prompt")) + normalize_prompt_atoms(reference.get("negative_prompt"))
-    selected = select_prompt_atoms_for_fts(atoms)
-    if selected:
+    selected = [atom for atom in select_prompt_atoms_for_fts(atoms) if not is_common_prompt_atom(atom.identity)]
+    if selected and len(candidate_ids) < MAX_METADATA_CANDIDATES:
         fts_query = " OR ".join(f'"{atom.identity.replace(chr(34), chr(34) * 2)}"' for atom in selected)
-        fts_rows = conn.execute(
-            cte
-            + f"""
-            SELECT eligible.asset_id FROM image_metadata_fts AS fts
-            JOIN eligible ON eligible.metadata_id = fts.rowid
+        rows = conn.execute(
+            f"""
+            SELECT asset.id AS asset_id
+            FROM image_metadata_fts AS fts
+            JOIN image_metadata AS metadata ON metadata.id = fts.rowid
+            JOIN assets AS asset
+              ON asset.path = metadata.path
+             AND asset.mtime_ns = metadata.mtime_ns
+             AND asset.size = metadata.size
+            JOIN asset_generation_signatures AS signature ON signature.asset_id = asset.id
             WHERE image_metadata_fts MATCH :prompt_fts_query
-              AND eligible.asset_id != :reference_asset_id
-            ORDER BY bm25(image_metadata_fts), eligible.asset_id
+              AND asset.id != :reference_asset_id
+              AND asset.type = 'image' AND asset.offline = 0 AND asset.deleted_at IS NULL
+              AND signature.source_mtime_ns = asset.mtime_ns
+              AND signature.source_size = asset.size
+              AND signature.normalizer_version = :normalizer_version
+              AND signature.extractor_version = :signature_extractor_version
+              {scope_sql}
+            ORDER BY bm25(image_metadata_fts), asset.id
             LIMIT {CANDIDATE_BRANCH_LIMIT}
             """,
             {**params, "prompt_fts_query": fts_query},
         ).fetchall()
-        candidate_ids.extend(int(row["asset_id"]) for row in fts_rows)
-    return list(dict.fromkeys(candidate_ids))[:MAX_METADATA_CANDIDATES]
+        extend(rows)
+    return candidate_ids
 
 
 def _candidate_rows(
@@ -565,6 +696,7 @@ def rank_related_metadata(
             context,
             reference_resources.get(reference_asset_id, []),
             reference_workflow.get(reference_asset_id, set()),
+            profile=profile,
         )
         candidates = _candidate_rows(conn, candidate_ids, context)
         all_rows = [reference, *candidates]

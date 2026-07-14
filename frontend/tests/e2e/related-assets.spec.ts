@@ -6,6 +6,7 @@
  * * card and lightbox overflow actions open the correct reference/scope
  * * Related, Same recipe, and Visual variants send explicit non-persisted profiles
  * * evidence copy is transparent and result selection reuses the existing lightbox
+ * * changed-seed, visual-variant, exclusion, and missing-coverage cases stay explicit
  * * the same action/panel semantics remain usable on mobile
  *
  * Run when:
@@ -19,6 +20,8 @@ const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-related-assets-test";
 const referencePath = `${rootPath}/reference.png`;
 const candidatePath = `${rootPath}/candidate.png`;
+const visualPath = `${rootPath}/resized-reencoded.png`;
+const metadataOnlyPath = `${rootPath}/metadata-only.png`;
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
   "base64",
@@ -45,7 +48,7 @@ async function installFixture(page: Page) {
           state: "ready",
           watch_enabled: 1,
           warm_enabled: 1,
-          asset_count: 2,
+          asset_count: 3,
           created_at: 1,
           updated_at: 1,
           last_scan_at: 1,
@@ -86,6 +89,18 @@ async function installFixture(page: Page) {
               width: 1024,
               height: 1024,
             },
+            {
+              asset_id: 3,
+              name: "metadata-only.png",
+              path: metadataOnlyPath,
+              type: "image",
+              has_children: false,
+              cover_images: [],
+              mtime: 1003,
+              image_count: 0,
+              width: 1024,
+              height: 1024,
+            },
           ],
         }),
       );
@@ -95,7 +110,15 @@ async function installFixture(page: Page) {
         tool: "ComfyUI",
         prompt: "cinematic fox",
         negative_prompt: "",
-        params: { Seed: url.searchParams.get("path") === referencePath ? "101" : "202", Model: "forest-xl" },
+        params: {
+          Seed:
+            url.searchParams.get("path") === referencePath
+              ? "101"
+              : url.searchParams.get("path") === candidatePath
+                ? "202"
+                : "303",
+          Model: "forest-xl",
+        },
         width: 1024,
         height: 1024,
         name: url.searchParams.get("path")?.split("/").pop() ?? "image.png",
@@ -105,6 +128,9 @@ async function installFixture(page: Page) {
       const payload = request.postDataJSON() as CapturedRelated & { limit: number };
       relatedRequests.push(payload);
       const visual = payload.profile === "visual";
+      const metadataOnly = payload.reference_asset_id === 3;
+      const resultName = visual ? "resized-reencoded.png" : "candidate.png";
+      const resultPath = visual ? visualPath : candidatePath;
       return fulfill({
         schema_version: 1,
         reference_asset_id: payload.reference_asset_id,
@@ -115,8 +141,8 @@ async function installFixture(page: Page) {
             asset_id: 2,
             library_id: 1,
             library_name: "Related Library",
-            name: "candidate.png",
-            path: candidatePath,
+            name: resultName,
+            path: resultPath,
             type: "image",
             parent_path: rootPath,
             relative_path: "",
@@ -148,10 +174,10 @@ async function installFixture(page: Page) {
           },
           visual: {
             index_name: "visual_fingerprints",
-            state: "degraded",
-            usable: true,
-            indexed_count: 2,
-            target_count: 2,
+            state: metadataOnly ? "not_ready" : "degraded",
+            usable: !metadataOnly,
+            indexed_count: metadataOnly ? 2 : 3,
+            target_count: 3,
           },
         },
       });
@@ -184,11 +210,16 @@ test("card profiles expose evidence and result selection reuses lightbox", async
 
   const referenceCard = page.getByRole("button", { name: "Open reference.png" });
   await referenceCard.hover();
-  await page.getByLabel("Image actions for reference.png").click();
+  await page.getByLabel("Image actions for reference.png").focus();
+  await page.getByLabel("Image actions for reference.png").press("Enter");
   await page.getByRole("menuitem", { name: "Find related" }).click();
   await expect(page.getByRole("heading", { name: "Related Assets" })).toBeVisible();
+  const panel = page.getByTestId("related-assets-panel");
   await expect(page.getByText("Same recorded recipe")).toBeVisible();
   await expect(page.getByText("Same generation family")).toBeVisible();
+  await expect(panel.getByText("unrelated-same-model.png")).toHaveCount(0);
+  await expect(panel.getByText("inactive-match.png")).toHaveCount(0);
+  await expect(panel.getByText("cross-library-match.png")).toHaveCount(0);
   expect(requests[0]).toMatchObject({
     reference_asset_id: 1,
     profile: "related",
@@ -197,11 +228,15 @@ test("card profiles expose evidence and result selection reuses lightbox", async
 
   await page.getByRole("tab", { name: "Same recipe" }).click();
   await expect.poll(() => requests.at(-1)?.profile).toBe("recipe");
+  await expect(panel.getByText("Seed")).toBeVisible();
+  await expect(panel.getByText("101")).toBeVisible();
+  await expect(panel.getByText("202")).toBeVisible();
   await page.getByRole("tab", { name: "Visual variants" }).click();
   await expect.poll(() => requests.at(-1)?.profile).toBe("visual");
   await expect(page.getByText("Visual near-duplicate")).toBeVisible();
+  await expect(panel.getByRole("button", { name: "resized-reencoded.png", exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "candidate.png", exact: true }).click();
+  await panel.getByRole("button", { name: "resized-reencoded.png", exact: true }).click();
   await expect(page.getByTestId("lightbox")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Related Assets" })).not.toBeVisible();
 });
@@ -217,4 +252,18 @@ test("lightbox and mobile overflow actions open the current reference", async ({
   await expect(page.getByRole("heading", { name: "Related Assets" })).toBeVisible();
   await expect.poll(() => requests.at(-1)?.reference_asset_id).toBe(1);
   await expect(page.getByRole("tab", { name: "Visual variants" })).toBeVisible();
+});
+
+test("missing visual coverage keeps metadata relations available", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  const requests = await installFixture(page);
+  await openGallery(page);
+  await page.getByLabel("Image actions for metadata-only.png").click();
+  await page.getByRole("menuitem", { name: "Find related" }).click();
+
+  const panel = page.getByTestId("related-assets-panel");
+  await expect.poll(() => requests.at(-1)?.reference_asset_id).toBe(3);
+  await expect(panel.getByText("Visual: not ready")).toBeVisible();
+  await expect(panel.getByText("Showing metadata relations. Visual coverage is not ready.")).toBeVisible();
+  await expect(panel.getByRole("button", { name: "candidate.png", exact: true })).toBeVisible();
 });

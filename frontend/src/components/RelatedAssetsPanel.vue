@@ -91,7 +91,11 @@ function useAsReference(item: RelatedSearchResultV1) {
 
 <template>
   <Sheet :open="isOpen" @update:open="!$event && relatedStore.close()">
-    <SheetContent side="right" class="related-sheet w-full gap-0 p-0 sm:max-w-[760px]">
+    <SheetContent
+      side="right"
+      class="related-sheet w-full gap-0 p-0 sm:max-w-[760px]"
+      data-testid="related-assets-panel"
+    >
       <SheetHeader class="border-b border-border px-5 py-4 pr-14 text-left">
         <div class="flex items-start gap-3">
           <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">

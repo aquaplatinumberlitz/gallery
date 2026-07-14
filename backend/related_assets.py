@@ -294,7 +294,7 @@ def api_search_related(request: RelatedSearchRequestV1) -> RelatedSearchResponse
                 "Reference asset does not have a current visual fingerprint",
                 extra={"status": status.model_dump(mode="json")},
             )
-        if required.state in {"not_ready", "building", "disabled"}:
+        if required.state in {"not_ready", "disabled"} or (required.state == "building" and not required.usable):
             raise APIError(
                 409,
                 ErrorType.RELATION_INDEX_NOT_READY,

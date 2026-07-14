@@ -45,6 +45,14 @@ def _unicode_match_query(query: str) -> str:
     return " AND ".join(_escape_fts_token(token) for token in tokens)
 
 
+def _unicode_prefix_match_query(query: str) -> str:
+    """Return a bounded token-prefix query for filename discovery."""
+    tokens = re.findall(r"[\w.-]+", query, flags=re.UNICODE)
+    if not tokens:
+        return _escape_fts_token(query)
+    return " AND ".join(f"{_escape_fts_token(token)}*" for token in tokens)
+
+
 def _trigram_match_query(query: str) -> str:
     return _escape_fts_token(query.strip())
 
@@ -157,7 +165,7 @@ def _filename_candidate_select(
     metadata_where = ""
     metadata_values = "'' AS model, '' AS sampler, '' AS seed"
     if field_where:
-        metadata_join = f"JOIN image_metadata m ON m.path = fi.path AND {_CURRENT_METADATA_IDENTITY_SQL}"
+        metadata_join = f"CROSS JOIN image_metadata m ON m.path = fi.path AND {_CURRENT_METADATA_IDENTITY_SQL}"
         metadata_where = f"AND {field_where}"
         metadata_values = (
             "coalesce(m.model, '') AS model, coalesce(m.sampler, '') AS sampler, coalesce(m.seed, '') AS seed"
@@ -165,7 +173,7 @@ def _filename_candidate_select(
     if query_kind == "fts":
         source = f"""
           FROM file_index_fts
-          JOIN file_index fi ON fi.path = file_index_fts.path
+          CROSS JOIN file_index fi ON fi.path = file_index_fts.path
           {_active_asset_join_sql()}
           {metadata_join}
           WHERE file_index_fts MATCH :filename_match
@@ -231,7 +239,7 @@ def _metadata_candidate_select(
           WHERE m.prompt LIKE :text_like ESCAPE '\\'
             AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
         """
-        tier, rank, match_type, snippet = 80, "0.0", "prompt_phrase", "m.prompt"
+        tier, rank, match_type_sql, snippet = 80, "0.0", "'prompt_phrase'", "m.prompt"
     elif source_kind == "negative_phrase":
         source = f"""
           FROM image_metadata m
@@ -240,7 +248,7 @@ def _metadata_candidate_select(
           WHERE m.negative_prompt LIKE :text_like ESCAPE '\\'
             AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
         """
-        tier, rank, match_type, snippet = 40, "0.0", "negative_prompt", "m.negative_prompt"
+        tier, rank, match_type_sql, snippet = 40, "0.0", "'negative_prompt'", "m.negative_prompt"
     elif source_kind == "metadata_like":
         source = f"""
           FROM image_metadata m
@@ -249,7 +257,7 @@ def _metadata_candidate_select(
           WHERE (m.model LIKE :text_like ESCAPE '\\' OR m.sampler LIKE :text_like ESCAPE '\\')
             AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
         """
-        tier, rank, match_type, snippet = 65, "0.0", "metadata", "coalesce(m.model, m.sampler, '')"
+        tier, rank, match_type_sql, snippet = 65, "0.0", "'metadata'", "coalesce(m.model, m.sampler, '')"
     elif source_kind == "field_only":
         source = f"""
           FROM image_metadata m
@@ -257,21 +265,34 @@ def _metadata_candidate_select(
           {_active_asset_join_sql()}
           WHERE {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
         """
-        tier, rank, match_type, snippet = 30, "0.0", "filters", "coalesce(m.prompt, m.name, '')"
+        tier, rank, match_type_sql, snippet = 30, "0.0", "'filters'", "coalesce(m.prompt, m.name, '')"
     else:
-        match_param = "positive_match" if source_kind == "positive_fts" else "negative_match"
+        match_param = {
+            "positive_fts": "positive_match",
+            "negative_fts": "negative_match",
+            "metadata_fts": "metadata_match",
+        }[source_kind]
         source = f"""
           FROM {fts_table}
-          JOIN image_metadata m ON m.id = {fts_table}.rowid
-          JOIN file_index fi ON fi.path = m.path
+          CROSS JOIN image_metadata m ON m.id = {fts_table}.rowid
+          CROSS JOIN file_index fi ON fi.path = m.path
           {_active_asset_join_sql()}
           WHERE {fts_table} MATCH :{match_param}
             AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
         """
-        tier = 65 if source_kind == "positive_fts" else 40
+        if source_kind == "positive_fts":
+            tier = "CASE WHEN m.prompt LIKE :text_like ESCAPE '\\' THEN 80 ELSE 65 END"
+            match_type_sql = "CASE WHEN m.prompt LIKE :text_like ESCAPE '\\' THEN 'prompt_phrase' ELSE 'prompt' END"
+            snippet = "m.prompt"
+        elif source_kind == "negative_fts":
+            tier = 40
+            match_type_sql = "'negative_prompt'"
+            snippet = "m.negative_prompt"
+        else:
+            tier = 65
+            match_type_sql = "'metadata'"
+            snippet = "coalesce(m.model, m.sampler, '')"
         rank = f"round(bm25({fts_table}), 6)"
-        match_type = "prompt" if source_kind == "positive_fts" else "negative_prompt"
-        snippet = "m.prompt" if source_kind == "positive_fts" else "m.negative_prompt"
     return f"""
       SELECT m.path, m.name, fi.type, fi.parent_path, m.mtime,
              catalog_asset.mtime_ns, m.width, m.height,
@@ -281,7 +302,7 @@ def _metadata_candidate_select(
              catalog_library.name AS library_name,
              {tier} AS relevance_tier,
              {rank} AS rank,
-             '{match_type}' AS match_type,
+             {match_type_sql} AS match_type,
              substr(trim(coalesce({snippet}, '')), 1, 240) AS prompt_snippet,
              coalesce(m.model, '') AS model,
              coalesce(m.sampler, '') AS sampler,
@@ -309,68 +330,72 @@ def _candidate_selects(
             )
         ]
 
-    selects = [
-        _filename_candidate_select(
-            file_type="image",
-            query_kind="like",
-            scope_sql=scope_sql,
-            field_where=field_where,
-        ),
-        _metadata_candidate_select(
-            source_kind="positive_phrase",
-            scope_sql=scope_sql,
-            field_where=field_where,
-            fts_table="image_metadata_fts",
-        ),
-        _metadata_candidate_select(
-            source_kind="negative_phrase",
-            scope_sql=scope_sql,
-            field_where=field_where,
-            fts_table="image_metadata_fts",
-        ),
-        _metadata_candidate_select(
-            source_kind="metadata_like",
-            scope_sql=scope_sql,
-            field_where=field_where,
-            fts_table="image_metadata_fts",
-        ),
-    ]
-    if include_videos:
-        selects.append(
+    if not include_fts:
+        selects = [
             _filename_candidate_select(
-                file_type="video",
+                file_type="image",
                 query_kind="like",
                 scope_sql=scope_sql,
-                field_where="",
+                field_where=field_where,
+            ),
+            _metadata_candidate_select(
+                source_kind="positive_phrase",
+                scope_sql=scope_sql,
+                field_where=field_where,
+                fts_table="image_metadata_fts",
+            ),
+            _metadata_candidate_select(
+                source_kind="negative_phrase",
+                scope_sql=scope_sql,
+                field_where=field_where,
+                fts_table="image_metadata_fts",
+            ),
+            _metadata_candidate_select(
+                source_kind="metadata_like",
+                scope_sql=scope_sql,
+                field_where=field_where,
+                fts_table="image_metadata_fts",
+            ),
+        ]
+        if include_videos:
+            selects.append(
+                _filename_candidate_select(
+                    file_type="video",
+                    query_kind="like",
+                    scope_sql=scope_sql,
+                    field_where="",
+                )
             )
-        )
-    if not include_fts:
         return selects
 
     trigram = contains_cjk(query) and len(query) >= 3
     metadata_table = "image_metadata_fts_trigram" if trigram else "image_metadata_fts"
-    selects.extend(
-        [
-            _filename_candidate_select(
-                file_type="image",
-                query_kind="fts",
-                scope_sql=scope_sql,
-                field_where=field_where,
-            ),
-            _metadata_candidate_select(
-                source_kind="positive_fts",
-                scope_sql=scope_sql,
-                field_where=field_where,
-                fts_table=metadata_table,
-            ),
-            _metadata_candidate_select(
-                source_kind="negative_fts",
-                scope_sql=scope_sql,
-                field_where=field_where,
-                fts_table=metadata_table,
-            ),
-        ]
-    )
+    selects = [
+        _filename_candidate_select(
+            file_type="image",
+            query_kind="fts",
+            scope_sql=scope_sql,
+            field_where=field_where,
+        ),
+        _metadata_candidate_select(
+            source_kind="positive_fts",
+            scope_sql=scope_sql,
+            field_where=field_where,
+            fts_table=metadata_table,
+        ),
+        _metadata_candidate_select(
+            source_kind="negative_fts",
+            scope_sql=scope_sql,
+            field_where=field_where,
+            fts_table=metadata_table,
+        ),
+        _metadata_candidate_select(
+            source_kind="metadata_fts",
+            scope_sql=scope_sql,
+            field_where=field_where,
+            fts_table=metadata_table,
+        ),
+    ]
     if include_videos:
         selects.append(
             _filename_candidate_select(
@@ -381,6 +406,25 @@ def _candidate_selects(
             )
         )
     return selects
+
+
+def _has_any_fts_match(conn: sqlite3.Connection, params: dict[str, Any], *, trigram: bool) -> bool:
+    """Detect raw FTS coverage before considering the slower substring fallback."""
+    metadata_table = "image_metadata_fts_trigram" if trigram else "image_metadata_fts"
+    row = conn.execute(
+        f"""
+        SELECT 1 FROM file_index_fts WHERE file_index_fts MATCH :filename_match
+        UNION ALL
+        SELECT 1 FROM {metadata_table} WHERE {metadata_table} MATCH :positive_match
+        UNION ALL
+        SELECT 1 FROM {metadata_table} WHERE {metadata_table} MATCH :negative_match
+        UNION ALL
+        SELECT 1 FROM {metadata_table} WHERE {metadata_table} MATCH :metadata_match
+        LIMIT 1
+        """,
+        params,
+    ).fetchone()
+    return row is not None
 
 
 def build_candidate_page_query(
@@ -484,9 +528,13 @@ def search_ranked_media_page(
     trigram = contains_cjk(residual) and len(residual) >= 3
     params: dict[str, Any] = {
         "filename_like": _like_pattern(residual),
-        "filename_match": _unicode_match_query(residual),
+        "filename_match": _unicode_prefix_match_query(residual),
         "filename_prefix": f"{_like_escape(residual)}%",
         "negative_match": _column_fts_query("negative_prompt", residual, trigram=trigram),
+        "metadata_match": (
+            f"({_column_fts_query('model', residual, trigram=trigram)}) OR "
+            f"({_column_fts_query('sampler', residual, trigram=trigram)})"
+        ),
         "page_limit": limit + 1,
         "positive_match": _column_fts_query("prompt", residual, trigram=trigram),
         "query": residual,
@@ -527,6 +575,23 @@ def search_ranked_media_page(
                 params,
             )
         )
+        if not rows and not field_only and not _has_any_fts_match(conn, params, trigram=trigram):
+            rows = list(
+                conn.execute(
+                    build_candidate_page_query(
+                        _candidate_selects(
+                            residual,
+                            scope_sql,
+                            include_fts=False,
+                            field_where=field_where,
+                            include_videos=include_videos,
+                        ),
+                        has_cursor=cursor_position is not None,
+                        legacy_offset=legacy_offset is not None,
+                    ),
+                    params,
+                )
+            )
     except sqlite3.OperationalError:
         if field_only:
             raise

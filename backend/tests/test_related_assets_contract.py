@@ -272,3 +272,56 @@ def test_combined_profile_merges_metadata_and_visual_evidence_deterministically(
     ]
     assert merged[0].metadata_score == 0.7
     assert merged[0].visual_distance == 2
+
+
+def test_combined_profile_keeps_metadata_when_reference_visual_coverage_is_missing(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary, _secondary, ids = _seed_references(isolated_gallery_root)
+    item = RelatedSearchResultV1(
+        asset_id=999,
+        library_id=primary["id"],
+        library_name=primary["name"],
+        name="metadata-related.png",
+        path=str(isolated_gallery_root / "primary" / "metadata-related.png"),
+        type="image",
+        parent_path=str(isolated_gallery_root / "primary"),
+        relative_path="",
+        mtime=2,
+        width=512,
+        height=512,
+        match_type="related",
+        relation_tier=90,
+        relation_reasons=["same_recipe", "same_generation_family"],
+        metadata_score=1.0,
+    )
+    monkeypatch.setattr(related_module, "_related_status", lambda _asset_id: _status("ready", "not_ready"))
+    monkeypatch.setattr(related_module, "rank_related_metadata", lambda *_args, **_kwargs: [item])
+    monkeypatch.setattr(
+        related_module,
+        "query_visual_variants",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("visual lookup should be skipped")),
+    )
+
+    response = isolated_app.post(
+        "/api/search/related",
+        json={
+            "schema_version": 1,
+            "reference_asset_id": ids["active"],
+            "profile": "related",
+            "scope": {"kind": "library", "library_id": primary["id"]},
+            "limit": 60,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["asset_id"] == 999
+    assert response.json()["status"]["visual"] == {
+        "index_name": "visual_fingerprints",
+        "state": "not_ready",
+        "usable": False,
+        "indexed_count": 0,
+        "target_count": 0,
+    }

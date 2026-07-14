@@ -82,6 +82,39 @@ describe("useRelatedAssetsQuery", () => {
     await vi.waitFor(() => expect(result.data.value?.reference_asset_id).toBe(20));
   });
 
+  it("cancels the prior request when the reference changes", async () => {
+    let firstSignal: AbortSignal | undefined;
+    vi.mocked(fetchRelatedAssets)
+      .mockImplementationOnce(
+        (_value, signal) =>
+          new Promise((_resolve, reject) => {
+            firstSignal = signal;
+            signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+          }),
+      )
+      .mockImplementationOnce(async (value) => response(value.reference_asset_id));
+    const { result, source } = setup(request(10));
+    await vi.waitFor(() => expect(firstSignal).toBeInstanceOf(AbortSignal));
+    source.value = request(20);
+    await vi.waitFor(() => expect(firstSignal?.aborted).toBe(true));
+    await vi.waitFor(() => expect(result.data.value?.reference_asset_id).toBe(20));
+  });
+
+  it("retries one typed retryable failure and not an untyped failure", async () => {
+    vi.mocked(fetchRelatedAssets)
+      .mockRejectedValueOnce(new GalleryAPIError("server_error", "Failed", "Retry", true))
+      .mockImplementationOnce(async (value) => response(value.reference_asset_id));
+    const retryable = setup(request(10));
+    await vi.waitFor(() => expect(retryable.result.data.value?.reference_asset_id).toBe(10), { timeout: 3_000 });
+    expect(fetchRelatedAssets).toHaveBeenCalledTimes(2);
+
+    vi.clearAllMocks();
+    vi.mocked(fetchRelatedAssets).mockRejectedValue(new Error("untyped"));
+    const nonRetryable = setup(request(20));
+    await vi.waitFor(() => expect(nonRetryable.result.isError.value).toBe(true));
+    expect(fetchRelatedAssets).toHaveBeenCalledTimes(1);
+  });
+
   it("retains successful data when a background refetch fails", async () => {
     const { result } = setup(request(10));
     await vi.waitFor(() => expect(result.data.value?.reference_asset_id).toBe(10));

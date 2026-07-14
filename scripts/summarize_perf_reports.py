@@ -117,6 +117,34 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
                 _check("rendered rows", report.get("renderedRows"), budgets.get("renderedRowsMax"), "rows"),
             ]
         )
+    elif all(key in data for key in ("metadata", "visual", "combined", "lexical_backfill")):
+        budgets = data.get("budgets", {})
+        checks.extend(
+            [
+                _check("metadata related p95", data["metadata"].get("p95_ms"), budgets.get("metadata_p95_ms")),
+                _check("visual candidate p95", data["visual"].get("p95_ms"), budgets.get("visual_p95_ms")),
+                _check("combined related p95", data["combined"].get("p95_ms"), budgets.get("combined_p95_ms")),
+                _check(
+                    "lexical during backfill p95",
+                    data["lexical_backfill"].get("during_p95_ms"),
+                    budgets.get("lexical_p95_ms"),
+                ),
+                _check(
+                    "lexical backfill regression",
+                    data["lexical_backfill"].get("regression_pct"),
+                    budgets.get("backfill_regression_pct"),
+                    "%",
+                ),
+                _check(
+                    "visual worker RSS",
+                    data.get("visual_worker_rss_delta_mib"),
+                    budgets.get("visual_worker_rss_mib"),
+                    "MiB",
+                ),
+                _check("relation storage", data.get("storage_mib"), budgets.get("storage_mib"), "MiB"),
+                _check("fixture rows", data.get("fixture_rows"), budgets.get("rows"), "rows", lower_is_better=False),
+            ]
+        )
     elif "search_classes" in data:
         budgets = data.get("budgets", {})
         for report in data.get("search_classes", []):

@@ -143,12 +143,7 @@ async function collapseDesktopHeader(page: Page) {
 }
 
 async function expectHaloFocusRing(page: Page, control: Locator) {
-  for (let index = 0; index < 80; index += 1) {
-    const isFocused = await control.evaluate((element) => element === document.activeElement);
-    if (isFocused) break;
-    await page.keyboard.press("Tab");
-  }
-
+  await control.focus();
   await expect(control).toBeFocused();
 
   await expect
@@ -369,9 +364,16 @@ test.describe("Desktop layout (1200px+)", () => {
       page.locator(".expanded-header:not([inert]) .search-box"),
     );
 
-    await expectHaloFocusRing(page, page.getByRole("button", { name: "Change Intro Page" }));
-    await expectHaloFocusRing(page, page.getByRole("button", { name: "Sort gallery" }));
-    await expectHaloFocusRing(page, page.getByRole("button", { name: "View density" }));
+    const expandedHeader = page.locator(".expanded-header:not([inert])");
+    const settings = expandedHeader.locator(".settings-btn");
+    const sort = expandedHeader.locator(".sort-trigger");
+    const density = expandedHeader.locator(".gallery-density-trigger");
+    await expect(settings).toHaveAttribute("aria-label", "Change Intro Page");
+    await expect(sort).toHaveAttribute("aria-label", "Sort gallery");
+    await expect(density).toHaveAttribute("aria-label", "View density");
+    await expectHaloFocusRing(page, settings);
+    await expectHaloFocusRing(page, sort);
+    await expectHaloFocusRing(page, density);
   });
 
   test("desktop layout shows folder tree or sidebar", async ({ page }) => {

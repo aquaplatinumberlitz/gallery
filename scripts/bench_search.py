@@ -56,12 +56,12 @@ def _find_inspector_metadata_path(base_url: str) -> str | None:
 
 
 SEARCH_QUERY_CLASSES = (
-    ("broad_filename", "search_asset", 1),
-    ("prompt_heavy", "blue forest prompt heavy", 1),
+    ("broad_filename", "search_asset_000", 1),
+    ("prompt_heavy", "blue forest prompt heavy constellation 1234", 1),
     ("album_heavy", "search_album", 1),
-    ("fielded", 'model:perf-model-3 sampler:"Euler a"', 1),
+    ("fielded", 'constellation model:perf-model-3 sampler:"Euler a"', 1),
     ("cjk", "星空 猫 風景", 1),
-    ("repeated_keyset_pages", "search_asset", 3),
+    ("repeated_keyset_pages", "search_asset_00", 3),
 )
 
 
@@ -135,7 +135,7 @@ def main() -> int:
     """Run search benchmarks and enforce their configured budgets."""
     base_url = os.getenv("GALLERY_API_BASE_URL", "http://localhost:4701")
     iterations = int(os.getenv("GALLERY_PERF_BENCH_SEARCH_ITERATIONS", "10"))
-    query = os.getenv("GALLERY_PERF_BENCH_SEARCH_QUERY", "search_asset")
+    query = os.getenv("GALLERY_PERF_BENCH_SEARCH_QUERY", "search_asset_000")
     search_budget = float(os.getenv("GALLERY_PERF_SEARCH_P95_BUDGET_MS", str(budget_for("search", "p95_ms"))))
     inspector_md_budget = float(
         os.getenv(

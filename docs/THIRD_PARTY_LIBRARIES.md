@@ -311,6 +311,10 @@ The relation feature adds no image or ML dependency. Pillow, already used by
 the backend image pipeline, computes persisted fingerprints in bounded
 background work; Vue, Pinia, Axios, and TanStack Query provide the UI and
 request lifecycle without a model runtime, vector extension, or sidecar.
+The deterministic 100,000-asset relation fixture stores synthetic catalog,
+signature, and fingerprint rows directly in the existing SQLite database and
+uses only a small real-image set for extraction/RSS checks; it does not require
+100,000 image files or another benchmark dependency.
 
 Vue Router owns the shareable Search V2 URL codec. Pinia owns the active search
 session, while versioned saved/recent searches remain bounded in browser

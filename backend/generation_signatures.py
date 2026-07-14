@@ -18,7 +18,7 @@ GENERATION_SIGNATURE_EXTRACTOR_VERSION = 1
 MAX_PROMPT_ATOMS = 64
 MAX_PROMPT_ATOM_CHARS = 160
 MAX_FTS_PROMPT_ATOMS = 16
-PROMPT_BOILERPLATE_POLICY_VERSION = 1
+PROMPT_BOILERPLATE_POLICY_VERSION = 2
 MIN_EMPHASIS_WEIGHT = Decimal("0.1")
 MAX_EMPHASIS_WEIGHT = Decimal("2")
 
@@ -30,8 +30,11 @@ _COMMON_PROMPT_ATOMS_V1 = frozenset(
         "best quality",
         "high quality",
         "highres",
+        "low quality",
         "masterpiece",
         "ultra detailed",
+        "watermark",
+        "blurry",
     }
 )
 _RECIPE_WORKFLOW_PROPERTIES = {

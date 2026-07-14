@@ -14,6 +14,7 @@ is the canonical source for all numeric budgets consumed by:
 - `scripts/perf_library_inspector.py` — `[inspector]`
 - `scripts/perf_warm_listing.py` — `[warm_listing]`
 - `scripts/bench_search.py` — `[search]` + `[inspector_metadata]`
+- `scripts/bench_related_assets.py` — `[related_assets]`
 - `scripts/bench_thumbnail.py` — `[thumbnail]`
 - `frontend/tests/e2e/perf/album-open.perf.spec.ts` — `[album_open]`
 - `frontend/tests/e2e/perf/lightbox.perf.spec.ts` — `[lightbox]`
@@ -39,7 +40,7 @@ sections. The Python scripts read the TOML directly via `scripts/perf_lib.py`.
 
 ```bash
 python3 scripts/check_perf_budgets.py
-# perf budget coverage OK: 8 sections, 3 mirrored into perf-budgets.json
+# perf budget coverage OK: 9 sections, 3 mirrored into perf-budgets.json
 ```
 
 The validator checks that:
@@ -155,8 +156,9 @@ python3 scripts/bench_search.py
 
 The managed fixture creates only the small set of real PNGs needed by browser
 tests, then inserts active synthetic catalog/file-index/metadata rows directly
-into SQLite. The CI profile is 5,000 searchable assets; the opt-in scheduled or
-local profile is 25,000:
+into SQLite. Its relation corpus is always 100,000 active assets. Within that
+corpus, the CI lexical cohort is 5,000 rows and the opt-in scheduled/local
+cohort is 25,000 rows:
 
 ```bash
 ./test.sh perf
@@ -168,6 +170,24 @@ filename, prompt-heavy, album-heavy, fielded, CJK, and repeated opaque-keyset
 page classes. Every class retains the 300 ms lexical p95 budget. Its JSON is
 written to `frontend/test-results/perf/search-benchmark-report.json` and is
 understood by `scripts/summarize_perf_reports.py`.
+
+### Related Assets Bench
+
+```bash
+python3 scripts/bench_related_assets.py
+# budgets: scripts/perf_budgets.toml[related_assets]
+```
+
+The same managed database contains deterministic exact, recipe, family,
+distinctive-prompt, same-model-unrelated, visual-exact, one-bit, eight-bit, and
+unrelated groups with precomputed signatures, observed model identities,
+fingerprints, and hash bands. The benchmark measures warm metadata API,
+combined API, direct visual candidate retrieval, lexical search before/during/
+after bounded relation writes, relation-table SQLite growth, and incremental
+Pillow fingerprint-worker RSS. It fails closed against the 150/75/200/300 ms,
+10%, 100 MiB, and 64 MiB budgets and verifies that the controlled same-model
+unrelated asset is excluded. Its report is
+`frontend/test-results/perf/related-assets-benchmark-report.json`.
 
 ### Thumbnail Cold/Warm Bench
 
@@ -185,9 +205,12 @@ For the deterministic CI-equivalent browser perf suite, run from the repository 
 ./test.sh perf
 ```
 
-This command creates a temporary fixture, starts FastAPI on a free port, waits
-for health, runs the six-class search benchmark, starts the managed Vite flow,
-runs all `frontend/tests/e2e/perf/` specs with one worker, and cleans up. Use the
+This command creates a temporary 100,000-asset SQLite fixture, starts FastAPI on
+a free port, waits for health, runs the six-class search and Related Assets
+benchmarks, starts the managed Vite flow, runs all `frontend/tests/e2e/perf/`
+specs with one worker, and cleans up. Managed perf disables catalog, metadata,
+derived-search, derivative-reconcile, watcher, and integrity background writers
+so benchmark writes are the only intentional concurrent mutation. Use the
 lower-level commands below only when profiling an already-running app or custom
 real dataset.
 
@@ -337,6 +360,8 @@ corepack pnpm run perf:lightbox
 | `GALLERY_PERF_SEARCH_P95_BUDGET_MS`             | `[search].p95_ms` (`300`)                             | p95 budget for `/api/search` in `bench_search.py`                         |
 | `GALLERY_PERF_SEARCH_PROFILE`                   | `ci`                                                  | `ci` seeds 5,000 synthetic search rows; `scheduled` seeds 25,000          |
 | `GALLERY_PERF_SEARCH_ROWS`                      | profile-derived                                       | Explicit synthetic search-row override for managed fixture runs           |
+| `GALLERY_PERF_RELATED_ROWS`                     | `[related_assets].rows` (`100000`)                    | Synthetic active relation-corpus size; release evidence uses exactly 100,000 |
+| `GALLERY_PERF_RELATED_ITERATIONS`               | `12`                                                  | Iterations for each Related Assets latency sample class                    |
 | `GALLERY_PERF_INSPECTOR_METADATA_P95_BUDGET_MS` | `[inspector_metadata].p95_ms` (`200`)                 | p95 budget for `/api/library/inspector/metadata`                          |
 | `GALLERY_PERF_BENCH_THUMBNAIL_COLD_P95_MS`      | `[thumbnail].cold_p95_ms` (`1000`)                    | Cold thumbnail p95 budget                                                 |
 | `GALLERY_PERF_BENCH_THUMBNAIL_WARM_P95_MS`      | `[thumbnail].warm_p95_ms` (`50`)                      | Warm thumbnail p95 budget                                                 |

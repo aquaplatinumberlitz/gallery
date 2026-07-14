@@ -43,7 +43,8 @@ if [[ "${GALLERY_PERF_USE_FIXTURE:-0}" == "1" ]]; then
     if [[ "${GALLERY_PERF_SEARCH_PROFILE:-ci}" == "scheduled" ]]; then
         SEARCH_ROWS="${GALLERY_PERF_SEARCH_ROWS:-25000}"
     fi
-    FIXTURE_ARGS+=(--search-rows "$SEARCH_ROWS")
+    RELATED_ROWS="${GALLERY_PERF_RELATED_ROWS:-100000}"
+    FIXTURE_ARGS+=(--search-rows "$RELATED_ROWS" --search-cohort-rows "$SEARCH_ROWS" --related-assets)
     "$PERF_PYTHON" "$SCRIPT_DIR/create_perf_fixture.py" \
         "${FIXTURE_ARGS[@]}" \
         ${GALLERY_PERF_FIXTURE_CLEAN:+--clean}
@@ -53,6 +54,7 @@ if [[ "${GALLERY_PERF_USE_FIXTURE:-0}" == "1" ]]; then
     export GALLERY_PERF_ALBUM_NAME GALLERY_PERF_ALBUM_PATH GALLERY_PERF_SCAN_PATH
     export GALLERY_PERF_INSPECTOR_SCOPE
     export GALLERY_PERF_SEARCH_ROWS="$SEARCH_ROWS"
+    export GALLERY_PERF_RELATED_ROWS="$RELATED_ROWS"
 fi
 
 BACKEND_PID=""
@@ -83,6 +85,12 @@ if [[ "${GALLERY_PERF_START_BACKEND:-0}" == "1" ]]; then
             GALLERY_METADATA_DB="${GALLERY_METADATA_DB:-}" \
             GALLERY_THUMBNAIL_CACHE_DIR="${GALLERY_THUMBNAIL_CACHE_DIR:-}" \
             GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED=false \
+            GALLERY_SEARCH_INDEXER_ENABLED="${GALLERY_SEARCH_INDEXER_ENABLED:-false}" \
+            GALLERY_METADATA_INDEXER_ENABLED="${GALLERY_METADATA_INDEXER_ENABLED:-false}" \
+            GALLERY_DERIVATIVE_RECONCILE_ENABLED="${GALLERY_DERIVATIVE_RECONCILE_ENABLED:-false}" \
+            GALLERY_CATALOG_SERVICE_ENABLED="${GALLERY_CATALOG_SERVICE_ENABLED:-false}" \
+            GALLERY_CATALOG_RECONCILE_ENABLED="${GALLERY_CATALOG_RECONCILE_ENABLED:-false}" \
+            GALLERY_CATALOG_WATCHER_ENABLED="${GALLERY_CATALOG_WATCHER_ENABLED:-false}" \
             ENABLE_WARM_INDEXED_LISTING="${ENABLE_WARM_INDEXED_LISTING:-true}" \
             GALLERY_METADATA_INDEXER_ENABLED="${GALLERY_METADATA_INDEXER_ENABLED:-true}" \
             ENABLE_METRICS="${ENABLE_METRICS:-false}" \
@@ -104,6 +112,10 @@ if [[ "${GALLERY_PERF_SKIP_BACKEND:-0}" != "1" ]]; then
     echo ""
     echo ">>> Running managed search class benchmarks..."
     "$PERF_PYTHON" "$SCRIPT_DIR/bench_search.py" | tee "$RESULTS_DIR/search-benchmark-report.json"
+
+    echo ""
+    echo ">>> Running managed Related Assets benchmarks..."
+    "$PERF_PYTHON" "$SCRIPT_DIR/bench_related_assets.py" | tee "$RESULTS_DIR/related-assets-benchmark-report.json"
 
     echo ""
     echo ">>> Running backend Library Inspector p95 perf test..."

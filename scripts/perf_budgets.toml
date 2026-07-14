@@ -50,6 +50,17 @@ ci_rows = 5000
 scheduled_rows = 25000
 description = "/api/search lexical P95 latency and managed fixture profiles"
 
+[related_assets]
+rows = 100000
+metadata_p95_ms = 150
+visual_p95_ms = 75
+combined_p95_ms = 200
+lexical_p95_ms = 300
+backfill_regression_pct = 10
+visual_worker_rss_mib = 64
+storage_mib = 100
+description = "100k Related Assets latency, lexical isolation, worker RSS, and SQLite growth"
+
 [inspector_metadata]
 p95_ms = 200
 description = "/api/library/inspector/metadata P95 latency"

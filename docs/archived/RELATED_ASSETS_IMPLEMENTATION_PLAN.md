@@ -1,6 +1,6 @@
 # Related Assets and Generation Discovery Implementation Plan for OpenCode
 
-Status: Proposed
+Status: Complete
 
 Last reviewed: 2026-07-13
 
@@ -636,3 +636,4 @@ When complete, move this file to `docs/archived/` and update
 | 2026-07-13 | R2 | Complete | Bounded signature/model/resource/workflow/16-atom FTS candidates feed scoring outside SQLite writes; fixed explainable tiers/reasons and recipe filtering pass the golden fixture; stale, inactive, cross-scope, seed-only, model-only, LoRA-only, and boilerplate-only leakage is rejected. |
 | 2026-07-13 | R3 | Complete | Schema v11 adds fixed Pillow-only dHash/color fingerprints and eight indexed bands without inline decode; derivative-backed durable extraction, 500-row exact/one-bit band candidates, bit-count/color/aspect ranking, typed coverage, disable isolation, and honest transform limits pass focused tests. |
 | 2026-07-13 | R4 | Complete | Global card/lightbox `Find related` actions open one responsive combined/recipe/visual sheet; Query-owned keyed results preserve stale successes but isolate reference changes; stable tiers/reasons, metadata-only coverage, recorded-setting comparison, smart-collection descriptors, and existing-lightbox handoff pass focused units and managed E2E. |
+| 2026-07-13 | R5 | Complete | Cancellation and typed one-retry behavior, usable-building coverage, metadata-only combined fallback, expanded managed E2E, direct bounded relation branches, and FTS-first lexical candidates pass focused coverage. The deterministic 100,000-active-asset fixture measured metadata 62.31 ms p95, visual candidates 10.40 ms p95, combined 107.90 ms p95, lexical-under-backfill 52.14 ms p95 with 1.86% regression, 90.84 MiB relation storage, and 0.0 MiB incremental worker RSS, all within the locked budgets. |

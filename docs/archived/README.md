@@ -45,6 +45,10 @@ Notable groups include:
   shareable and browser-local saved/recent state, durable prompt/model/workflow
   indexes, typed same-node ComfyUI filters, bounded opt-in raw workflow search,
   explicit index lifecycle UI, and managed responsive discovery contracts.
+- Completed Related Assets and Generation Discovery plan — versioned prompt
+  atoms and generation signatures, deterministic explainable metadata ranking,
+  Pillow-only visual fingerprints, responsive card/lightbox discovery UX, and
+  locked 100,000-asset latency, storage, RSS, and lexical-isolation budgets.
 - Gallery Browse Lifecycle Manager — deferred frontend browse-lifecycle
   refactor criteria retained as historical tech-debt context.
 - Derivative Lifecycle Full Convergence Plan — 7-phase end-to-end

@@ -39,8 +39,10 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
   and desktop/tablet/mobile parity.
 - Related Assets frontend tests: `frontend/tests/e2e/related-assets.spec.ts`
   covers card/lightbox entry points, explicit combined/recipe/visual profiles,
-  stable evidence copy, canonical scope, existing-lightbox handoff, and mobile
-  overflow behavior. Component/composable/store units cover stale-data retry,
+  stable evidence copy, canonical scope, changed-seed comparison,
+  resized/re-encoded variants, unrelated/inactive/cross-library exclusion,
+  missing-visual fallback, existing-lightbox handoff, and mobile overflow.
+  Component/composable/store units cover cancellation, typed one-retry policy,
   reference isolation, recorded-setting comparisons, smart-collection request
   descriptors, metadata-only coverage, keyboard semantics, and no saved-search
   persistence.
@@ -62,8 +64,8 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
   durable derivative-backed extraction, indexed near-duplicate lookup,
   resize/re-encode/light-change fixtures, crop/mirror/rotation limits, typed
   reference coverage, disabled isolation, and the no-HTTP-decode guarantee.
-- Performance contract tests: backend pytest hot-path tests such as `backend/tests/test_browse_api.py`, `backend/tests/test_search_ranked_pagination.py`, and `backend/tests/test_warm_folder_listing.py` prevent known slow-path regressions with query-plan/SQL-shape assertions rather than wall-clock unit assertions.
-- Performance diagnostics: `frontend/tests/e2e/metadata-performance.spec.ts`, `frontend/tests/e2e/perf/album-open.perf.spec.ts`, `frontend/tests/e2e/perf/lightbox.perf.spec.ts`, `scripts/bench_search.py`, `scripts/perf_library_inspector.py`, and `scripts/perf_warm_listing.py` emit compact timing reports.
+- Performance contract tests: backend pytest hot-path tests such as `backend/tests/test_browse_api.py`, `backend/tests/test_search_ranked_pagination.py`, `backend/tests/test_related_assets_perf_tooling.py`, and `backend/tests/test_warm_folder_listing.py` prevent known slow-path regressions and lock the deterministic 100,000-row relation fixture/budget registry.
+- Performance diagnostics: `frontend/tests/e2e/metadata-performance.spec.ts`, `frontend/tests/e2e/perf/album-open.perf.spec.ts`, `frontend/tests/e2e/perf/lightbox.perf.spec.ts`, `scripts/bench_search.py`, `scripts/bench_related_assets.py`, `scripts/perf_library_inspector.py`, and `scripts/perf_warm_listing.py` emit compact timing reports.
 - Album-open performance reports the first thumbnail iteration as cold-cache diagnostics and gates `thumbnail_p95_ms` on later warm-cache iterations.
 - Gated performance smoke tests: `./test.sh perf-smoke` runs backend Library Inspector p95, warm listing, album-open, and lightbox budgets against a running app/backend.
 - Debug/diagnostic scripts: `frontend/src/debug/`, `scripts/debug_*`, perf fixture helpers, and perf scripts under `scripts/` and `frontend/tests/e2e/perf/`.
@@ -164,10 +166,11 @@ Use the deterministic fixture when comparing perf over time or before release:
 
 `backend/.venv_linux/bin/python scripts/create_perf_fixture.py --clean --env-file /tmp/gallery_perf_fixture.env`
 
-Add `--search-rows 5000` for the CI-equivalent search profile or
-`--search-rows 25000` for the opt-in scheduled/local profile. These rows are
-seeded directly into the active SQLite catalog and metadata indexes, so the
-fixture does not create thousands of image files.
+Add `--search-rows 100000 --related-assets --search-cohort-rows 5000` for the
+CI-equivalent profile or use `--search-cohort-rows 25000` for the opt-in
+scheduled/local lexical cohort. All 100,000 active rows are seeded directly
+into the SQLite catalog and relation indexes, so the fixture creates only the
+small real-image set required by browser and extraction tests.
 
 The generated env file contains `PATH_SAFETY_ROOT`, `GALLERY_METADATA_DB`, `GALLERY_THUMBNAIL_CACHE_DIR`, `GALLERY_PERF_ALBUM_NAME`, `GALLERY_PERF_ALBUM_PATH`, and catalog/inspector defaults. Source it before starting the backend, or let the perf smoke runner do both:
 
@@ -180,6 +183,7 @@ Useful runner controls:
 - `GALLERY_PERF_FIXTURE_IMAGES=<count>` changes deterministic fixture size.
 - `GALLERY_PERF_SEARCH_PROFILE=scheduled` selects the 25,000-row search profile; the default `ci` profile uses 5,000.
 - `GALLERY_PERF_SEARCH_ROWS=<count>` overrides the selected synthetic search-row profile.
+- `GALLERY_PERF_RELATED_ROWS=<count>` overrides the relation corpus size; release validation uses 100,000.
 - `GALLERY_PERF_WARM_LISTING_IMAGES=<count>` changes the local warm-listing benchmark size.
 - `GALLERY_PERF_PYTHON=<python>` overrides the interpreter; by default the runner uses `backend/.venv_linux/bin/python` when available.
 - `GALLERY_PERF_SKIP_FRONTEND=1` runs only backend inspector and warm-listing gates.
@@ -189,6 +193,7 @@ The perf smoke runner writes individual JSON reports plus aggregate summaries to
 - `library-inspector-report.json`
 - `warm-listing-report.json`
 - `search-benchmark-report.json`
+- `related-assets-benchmark-report.json`
 - `album-open-report.json`
 - `lightbox-open-report.json`
 - `lightbox-transition-report.json`
