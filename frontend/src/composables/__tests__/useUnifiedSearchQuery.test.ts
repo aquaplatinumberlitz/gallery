@@ -132,6 +132,16 @@ describe("useUnifiedSearchQuery", () => {
     );
   });
 
+  it("does not merge fallback paths that differ only by whitespace", async () => {
+    const first = makeSearchResult("same.png");
+    const second = { ...makeSearchResult("same-copy.png"), path: `${first.path} ` };
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults({ media: [first, second], returned: 2 }));
+    const { result } = setup("cat", "all", "");
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
+
+    await vi.waitFor(() => expect(result.results.value.media).toEqual([first, second]));
+  });
+
   it("does not fetch when query is empty", () => {
     setup("", "all", "");
     expect(unifiedSearchV2).not.toHaveBeenCalled();

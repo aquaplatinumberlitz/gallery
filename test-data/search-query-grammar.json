@@ -133,10 +133,140 @@
           "value": "/Archive/A"
         }
       ],
-      "frontend_pass_through_tokens": [
-        "tool:ComfyUI",
-        "custom:keep"
-      ]
+      "frontend_pass_through_tokens": ["tool:ComfyUI", "custom:keep"]
+    },
+    {
+      "name": "unicode word boundary does not split a field",
+      "query": "猫model:pony",
+      "residual_text": "猫model:pony",
+      "backend_fields": [],
+      "frontend_managed_filters": [],
+      "frontend_pass_through_tokens": []
+    },
+    {
+      "name": "astral unicode word boundary does not split a field",
+      "query": "𐐀model:pony",
+      "residual_text": "𐐀model:pony",
+      "backend_fields": [],
+      "frontend_managed_filters": [],
+      "frontend_pass_through_tokens": []
+    },
+    {
+      "name": "unquoted value stops before adjacent quote",
+      "query": "model:pony\"foo\"",
+      "residual_text": "\"foo\"",
+      "backend_fields": [
+        {
+          "field": "model",
+          "value": "pony",
+          "operator": "=",
+          "quote_char": "",
+          "key": null
+        }
+      ],
+      "frontend_managed_filters": [
+        {
+          "field": "model",
+          "value": "pony"
+        }
+      ],
+      "frontend_pass_through_tokens": []
+    },
+    {
+      "name": "unquoted value stops before adjacent supported field",
+      "query": "model:ponyseed:7",
+      "residual_text": "",
+      "backend_fields": [
+        {
+          "field": "model",
+          "value": "pony",
+          "operator": "=",
+          "quote_char": "",
+          "key": null
+        },
+        {
+          "field": "seed",
+          "value": "7",
+          "operator": "=",
+          "quote_char": "",
+          "key": null
+        }
+      ],
+      "frontend_managed_filters": [
+        {
+          "field": "model",
+          "value": "pony"
+        },
+        {
+          "field": "seed",
+          "value": "7"
+        }
+      ],
+      "frontend_pass_through_tokens": []
+    },
+    {
+      "name": "quoted windows-style backslashes are preserved",
+      "query": "model:\"C:\\models\\pony\"",
+      "residual_text": "",
+      "backend_fields": [
+        {
+          "field": "model",
+          "value": "C:\\models\\pony",
+          "operator": "=",
+          "quote_char": "\"",
+          "key": null
+        }
+      ],
+      "frontend_managed_filters": [
+        {
+          "field": "model",
+          "value": "C:\\models\\pony"
+        }
+      ],
+      "frontend_pass_through_tokens": []
+    },
+    {
+      "name": "drawer aliases match backend aliases",
+      "query": "checkpoint:pony location:/Archive resource:detailer",
+      "residual_text": "",
+      "backend_fields": [
+        {
+          "field": "model",
+          "value": "pony",
+          "operator": "=",
+          "quote_char": "",
+          "key": null
+        },
+        {
+          "field": "path",
+          "value": "/Archive",
+          "operator": "=",
+          "quote_char": "",
+          "key": null
+        },
+        {
+          "field": "lora",
+          "value": "detailer",
+          "operator": "=",
+          "quote_char": "",
+          "key": null
+        }
+      ],
+      "frontend_managed_filters": [
+        {
+          "field": "model",
+          "value": "pony"
+        },
+        {
+          "field": "folder",
+          "value": "/Archive"
+        },
+        {
+          "field": "lora",
+          "value": "detailer"
+        }
+      ],
+      "frontend_pass_through_tokens": []
     }
   ]
 }

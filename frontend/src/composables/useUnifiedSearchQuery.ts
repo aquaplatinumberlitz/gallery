@@ -20,7 +20,7 @@ const EMPTY_SEARCH_RESULTS: UnifiedSearchResults = {
 const canonicalResultKey = (result: UnifiedSearchResult) =>
   typeof result.library_id === "number" && typeof result.asset_id === "number"
     ? `asset:${result.library_id}:${result.asset_id}`
-    : `path:${result.path.trim()}`;
+    : `path:${result.path}`;
 
 const dedupeCanonicalResults = (results: UnifiedSearchResult[]) => {
   const seen = new Set<string>();

@@ -37,6 +37,28 @@ MTIME_SEC_TOLERANCE = 1e-3
 _NANOS_PER_SEC: float = 1_000_000_000.0
 
 
+def _windows_drive_root_sql(path_sql: str) -> str:
+    r"""Return a SQL predicate recognizing a normalized `C:\` drive root."""
+    return f"(length({path_sql}) = 3 AND substr({path_sql}, 1, 1) GLOB '[A-Za-z]' AND substr({path_sql}, 2, 2) = ':\\')"
+
+
+def _windows_unc_root_sql(path_sql: str) -> str:
+    r"""Return a SQL predicate recognizing `\\server\share` with optional trailing slash."""
+    separator = "\\"
+    double_separator = separator * 2
+    tail = f"substr({path_sql}, 3)"
+    share = f"substr({tail}, instr({tail}, '{separator}') + 1)"
+    return (
+        f"(substr({path_sql}, 1, 2) = '{double_separator}' "
+        f"AND instr({tail}, '{separator}') > 1 "
+        f"AND {share} != '' AND ("
+        f"instr({share}, '{separator}') = 0 OR ("
+        f"substr({share}, -1, 1) = '{separator}' "
+        f"AND length({share}) > 1 "
+        f"AND instr(substr({share}, 1, length({share}) - 1), '{separator}') = 0)))"
+    )
+
+
 def asset_matches_image_metadata_sql(*, asset_alias: str = "a", im_alias: str = "im") -> str:
     """Return SQL fragment matching an asset row to an image_metadata row.
 
@@ -142,9 +164,15 @@ def file_index_matches_image_metadata_sql(*, fi_alias: str = "fi", im_alias: str
 
 def asset_owns_file_index_sql(*, asset_alias: str = "a", fi_alias: str = "fi") -> str:
     """Return the active registered-asset ownership predicate for a file row."""
+    direct_child = catalog_direct_child_sql(
+        parent_path_sql=f"{fi_alias}.parent_path",
+        path_sql=f"{fi_alias}.path",
+    )
     return (
         f"({asset_alias}.library_id = {fi_alias}.library_id "
         f"AND {asset_alias}.path = {fi_alias}.path "
+        f"AND {asset_alias}.parent_path = {fi_alias}.parent_path "
+        f"AND {direct_child} "
         f"AND {asset_alias}.offline = 0 AND {asset_alias}.deleted_at IS NULL "
         f"AND {asset_alias}.mtime_ns IS NOT NULL AND ("
         f"({fi_alias}.mtime_ns IS NOT NULL AND {asset_alias}.mtime_ns = {fi_alias}.mtime_ns) "
@@ -172,29 +200,141 @@ def catalog_import_path_owns_sql(*, library_id_sql: str, path_sql: str) -> str:
     Catalog writes normalize import paths and asset paths before persistence.
     """
     separator = os.sep.replace("'", "''")
+    canonical_path = catalog_path_is_canonical_sql(path_sql=path_sql)
+    canonical_root = catalog_path_is_canonical_sql(path_sql="catalog_import_path.path")
+    windows_root_owns = ""
+    if os.sep == "\\":
+        trailing_root = (
+            f"({_windows_drive_root_sql('catalog_import_path.path')} OR "
+            f"({_windows_unc_root_sql('catalog_import_path.path')} "
+            "AND substr(catalog_import_path.path, -1, 1) = '\\'))"
+        )
+        windows_root_owns = (
+            f"({trailing_root} "
+            f"AND substr({path_sql}, 1, length(catalog_import_path.path)) = catalog_import_path.path) "
+            "OR "
+        )
     return (
         "EXISTS (SELECT 1 FROM library_import_paths AS catalog_import_path "
-        f"WHERE catalog_import_path.library_id = {library_id_sql} AND ("
+        f"WHERE catalog_import_path.library_id = {library_id_sql} "
+        f"AND {canonical_path} AND {canonical_root} AND ("
         f"{path_sql} = catalog_import_path.path OR "
         f"(catalog_import_path.path = '{separator}' AND substr({path_sql}, 1, 1) = '{separator}') OR "
+        f"{windows_root_owns}"
         f"substr({path_sql}, 1, length(catalog_import_path.path) + 1) = "
         f"catalog_import_path.path || '{separator}'))"
+    )
+
+
+def catalog_path_is_canonical_sql(*, path_sql: str) -> str:
+    """Reject persisted paths containing lexical traversal or duplicate separators."""
+    separator = os.sep.replace("'", "''")
+    if os.sep == "\\":
+        double_separator = separator * 2
+        drive_root = _windows_drive_root_sql(path_sql)
+        unc_root = _windows_unc_root_sql(path_sql)
+        drive_absolute = (
+            f"(length({path_sql}) >= 3 "
+            f"AND substr({path_sql}, 1, 1) GLOB '[A-Za-z]' "
+            f"AND substr({path_sql}, 2, 2) = ':\\')"
+        )
+        unc_tail = f"substr({path_sql}, 3)"
+        unc_path = (
+            f"(substr({path_sql}, 1, 2) = '{double_separator}' "
+            f"AND substr({path_sql}, 3, 1) != '{separator}' "
+            f"AND instr({unc_tail}, '{separator}') > 1 "
+            f"AND length({unc_tail}) > instr({unc_tail}, '{separator}'))"
+        )
+        duplicate_check_path = (
+            f"(CASE WHEN substr({path_sql}, 1, 2) = '{double_separator}' "
+            f"THEN substr({path_sql}, 3) ELSE {path_sql} END)"
+        )
+        return (
+            f"({path_sql} IS NOT NULL AND {path_sql} != '' "
+            f"AND ({drive_absolute} OR {unc_path}) "
+            f"AND ({drive_root} OR {unc_root} OR substr({path_sql}, -1, 1) != '{separator}') "
+            f"AND instr({duplicate_check_path}, '{double_separator}') = 0 "
+            f"AND instr({path_sql}, '{separator}.{separator}') = 0 "
+            f"AND instr({path_sql}, '{separator}..{separator}') = 0 "
+            f"AND substr({path_sql}, -2) != '{separator}.' "
+            f"AND substr({path_sql}, -3) != '{separator}..' "
+            f"AND instr({path_sql}, '/') = 0)"
+        )
+    conditions = (
+        f"({path_sql} IS NOT NULL AND {path_sql} != '' "
+        f"AND substr({path_sql}, 1, 1) = '{separator}' "
+        f"AND ({path_sql} = '{separator}' OR substr({path_sql}, -1, 1) != '{separator}') "
+        f"AND instr({path_sql}, '{separator}{separator}') = 0 "
+        f"AND instr({path_sql}, '{separator}.{separator}') = 0 "
+        f"AND instr({path_sql}, '{separator}..{separator}') = 0 "
+        f"AND substr({path_sql}, -2) != '{separator}.' "
+        f"AND substr({path_sql}, -3) != '{separator}..')"
+    )
+    return conditions
+
+
+def catalog_direct_child_sql(*, parent_path_sql: str, path_sql: str) -> str:
+    """Require `path_sql` to be a canonical direct child of `parent_path_sql`."""
+    separator = os.sep.replace("'", "''")
+    canonical_path = catalog_path_is_canonical_sql(path_sql=path_sql)
+    canonical_parent = catalog_path_is_canonical_sql(path_sql=parent_path_sql)
+    windows_root_child = ""
+    if os.sep == "\\":
+        trailing_root = (
+            f"({_windows_drive_root_sql(parent_path_sql)} OR "
+            f"({_windows_unc_root_sql(parent_path_sql)} AND substr({parent_path_sql}, -1, 1) = '{separator}'))"
+        )
+        windows_root_child = (
+            f"({trailing_root} "
+            f"AND substr({path_sql}, 1, length({parent_path_sql})) = {parent_path_sql} "
+            f"AND instr(substr({path_sql}, length({parent_path_sql}) + 1), '{separator}') = 0) OR "
+        )
+    return (
+        f"({canonical_path} AND {canonical_parent} AND {path_sql} != {parent_path_sql} AND ("
+        f"{windows_root_child}"
+        f"({parent_path_sql} = '{separator}' "
+        f"AND substr({path_sql}, 1, 1) = '{separator}' "
+        f"AND instr(substr({path_sql}, 2), '{separator}') = 0) OR "
+        f"(substr({path_sql}, 1, length({parent_path_sql}) + 1) = "
+        f"{parent_path_sql} || '{separator}' "
+        f"AND instr(substr({path_sql}, length({parent_path_sql}) + 2), '{separator}') = 0)))"
     )
 
 
 def catalog_folder_has_active_asset_sql(*, fi_alias: str = "fi") -> str:
     """Require a registered folder row that contains at least one active asset."""
     separator = os.sep.replace("'", "''")
+    folder_import_ownership = catalog_import_path_owns_sql(
+        library_id_sql=f"{fi_alias}.library_id",
+        path_sql=f"{fi_alias}.path",
+    )
+    asset_import_ownership = catalog_import_path_owns_sql(
+        library_id_sql="folder_asset.library_id",
+        path_sql="folder_asset.path",
+    )
+    windows_root_descendant = ""
+    if os.sep == "\\":
+        trailing_root = (
+            f"({_windows_drive_root_sql(f'{fi_alias}.path')} OR "
+            f"({_windows_unc_root_sql(f'{fi_alias}.path')} "
+            f"AND substr({fi_alias}.path, -1, 1) = '{separator}'))"
+        )
+        windows_root_descendant = (
+            f"({trailing_root} AND substr(folder_asset.path, 1, length({fi_alias}.path)) = {fi_alias}.path) OR "
+        )
     return (
         f"({fi_alias}.library_id IS NOT NULL "
         f"AND EXISTS (SELECT 1 FROM libraries AS folder_library "
         f"WHERE folder_library.id = {fi_alias}.library_id) "
+        f"AND {folder_import_ownership} "
         f"AND EXISTS (SELECT 1 FROM assets AS folder_asset "
         f"JOIN libraries AS folder_asset_library ON folder_asset_library.id = folder_asset.library_id "
         f"WHERE folder_asset.library_id = {fi_alias}.library_id "
         f"AND folder_asset.offline = 0 AND folder_asset.deleted_at IS NULL "
-        f"AND ({fi_alias}.path = '{separator}' OR folder_asset.parent_path = {fi_alias}.path "
-        f"OR substr(folder_asset.path, 1, length({fi_alias}.path) + 1) = "
+        f"AND {asset_import_ownership} "
+        f"AND ({fi_alias}.path = '{separator}' OR "
+        f"{windows_root_descendant}"
+        f"substr(folder_asset.path, 1, length({fi_alias}.path) + 1) = "
         f"{fi_alias}.path || '{separator}')))"
     )
 
@@ -202,4 +342,8 @@ def catalog_folder_has_active_asset_sql(*, fi_alias: str = "fi") -> str:
 def current_file_metadata_sql(*, fi_alias: str = "fi", im_alias: str = "im") -> str:
     """Return a predicate excluding stale metadata and inactive catalog assets."""
     identity = file_index_matches_image_metadata_sql(fi_alias=fi_alias, im_alias=im_alias)
-    return f"({identity} AND {active_catalog_file_sql(fi_alias=fi_alias)})"
+    import_ownership = catalog_import_path_owns_sql(
+        library_id_sql=f"{fi_alias}.library_id",
+        path_sql=f"{fi_alias}.path",
+    )
+    return f"({identity} AND {active_catalog_file_sql(fi_alias=fi_alias)} AND {import_ownership})"

@@ -278,7 +278,7 @@ def _format_media_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, An
             {
                 "name": row["name"],
                 "path": row["path"],
-                "type": row["type"],
+                "type": "image" if row["type"] in {"image", "photo", "file"} else "video",
                 "parent_path": row["parent_path"],
                 "relative_path": _folder_relative_path(row["parent_path"], root),
                 "mtime": row["mtime"],
@@ -785,25 +785,28 @@ def search_metadata(query: str, limit: int = 100, offset: int = 0) -> dict[str, 
         rows: list[sqlite3.Row] = []
         total = 0
         try:
-            if contains_cjk(trimmed):
-                if len(trimmed) >= 3:
-                    match_query = _trigram_match_query(trimmed)
+            if contains_cjk(trimmed) and len(trimmed) >= 3:
+                match_query = _trigram_match_query(trimmed)
+                total = _count_fts(conn, "image_metadata_fts_trigram", match_query)
+                if total:
                     rows = _search_fts(
                         conn, "image_metadata_fts_trigram", "image_metadata_fts_trigram", match_query, limit, offset
                     )
-                    total = _count_fts(conn, "image_metadata_fts_trigram", match_query)
-                if not rows:
+                else:
                     rows = _search_like(conn, trimmed, limit, offset)
                     total = _count_like(conn, trimmed)
+            elif contains_cjk(trimmed):
+                rows = _search_like(conn, trimmed, limit, offset)
+                total = _count_like(conn, trimmed)
             else:
                 match_query = _unicode_match_query(trimmed)
-                rows = _search_fts(conn, "image_metadata_fts", "image_metadata_fts", match_query, limit, offset)
                 total = _count_fts(conn, "image_metadata_fts", match_query)
+                if total:
+                    rows = _search_fts(conn, "image_metadata_fts", "image_metadata_fts", match_query, limit, offset)
+                else:
+                    rows = _search_like(conn, trimmed, limit, offset)
+                    total = _count_like(conn, trimmed)
         except sqlite3.OperationalError:
-            rows = _search_like(conn, trimmed, limit, offset)
-            total = _count_like(conn, trimmed)
-
-        if not rows and not contains_cjk(trimmed):
             rows = _search_like(conn, trimmed, limit, offset)
             total = _count_like(conn, trimmed)
 

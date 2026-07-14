@@ -13,7 +13,10 @@ Run when:
 
 import json
 
+import pytest
+
 from backend.fielded_search_parser import (
+    FieldedSearchValidationError,
     FieldToken,
     ParsedQuery,
     build_fielded_search_sql,
@@ -333,6 +336,40 @@ class TestBuildFieldedSearchSql:
         sql, params = build_fielded_search_sql(parsed, limit=10)
         assert "m.steps" in sql
         assert ">=" in sql
+
+    def test_nonfinite_and_out_of_range_numeric_comparisons_are_rejected(self):
+        for value in ("nan", "inf", "1e309", str(2**63)):
+            parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="steps", value=value, operator=">")])
+            with pytest.raises(FieldedSearchValidationError):
+                build_fielded_search_sql(parsed, limit=10)
+
+    def test_nonfinite_and_out_of_range_numeric_equalities_are_rejected(self):
+        cases = (
+            ("steps", "nan"),
+            ("steps", "inf"),
+            ("steps", "1e20"),
+            ("width", str(2**63)),
+            ("cfg_scale", "1e309"),
+        )
+        for field, value in cases:
+            parsed = ParsedQuery(residual_text="", fields=[FieldToken(field=field, value=value)])
+            with pytest.raises(FieldedSearchValidationError):
+                build_fielded_search_sql(parsed, limit=10)
+
+    def test_numeric_equalities_bind_validated_numbers(self):
+        parsed = ParsedQuery(
+            residual_text="",
+            fields=[FieldToken(field="steps", value="30"), FieldToken(field="cfg_scale", value="7.5")],
+        )
+        _sql, params = build_fielded_search_sql(parsed, limit=10)
+        assert 30 in params.values()
+        assert 7.5 in params.values()
+
+    def test_out_of_range_dimensions_are_rejected(self):
+        for value in (f"{2**63}x1024", f"{'9' * 5000}x1"):
+            parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="size", value=value)])
+            with pytest.raises(FieldedSearchValidationError):
+                build_fielded_search_sql(parsed, limit=10)
 
     def test_wildcard_model_sql(self):
         parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="model", value="realistic*")])

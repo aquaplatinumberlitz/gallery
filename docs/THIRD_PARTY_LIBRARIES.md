@@ -117,6 +117,7 @@ Important tables:
 
 - `file_index`: indexed folders/photos, parent path, type, mtime, size, dimensions.
 - `file_index_fts`: FTS5 folder/photo filename search for Albums and Photos results.
+- `file_index_fts_trigram`: trigger-maintained FTS5 substring search for indexed media filenames.
 - `image_metadata`: normalized metadata, dimensions, prompts, model/sampler/seed/steps/cfg/raw text.
 - `image_metadata_fts`: unicode61 FTS5 metadata search.
 - `image_metadata_fts_trigram`: trigram FTS5 for substring/CJK-oriented metadata search.

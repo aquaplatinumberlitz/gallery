@@ -21,6 +21,7 @@ const EXPECTED_ISSUE_KEYS: (keyof FileHealthIssues)[] = [
   "generated_image_missing",
   "generated_image_abandoned",
   "metadata_mismatch",
+  "file_index_ownership_mismatch",
   "orphaned_work_item",
   "generated_image_job_mismatch",
 ];

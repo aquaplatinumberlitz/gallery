@@ -78,10 +78,16 @@ def test_openapi_documents_typed_search_and_error_contracts(isolated_app: TestCl
     assert paths["/api/facets"]["get"]["responses"]["200"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/FacetResponse"
     }
-    for status in ("400", "404", "503", "500"):
+    for status in ("400", "404", "409", "503", "500"):
         assert paths["/api/search"]["get"]["responses"][status]["content"]["application/json"]["schema"] == {
             "$ref": "#/components/schemas/APIErrorResponse"
         }
+    assert paths["/api/search"]["get"]["responses"]["422"]["content"]["application/json"]["schema"] == {
+        "oneOf": [
+            {"$ref": "#/components/schemas/APIErrorResponse"},
+            {"$ref": "#/components/schemas/HTTPValidationError"},
+        ]
+    }
 
 
 def test_search_and_facets_share_folder_library_all_scope_semantics(
@@ -136,6 +142,12 @@ def test_search_and_facets_share_folder_library_all_scope_semantics(
     ).json()
     assert folder_facets["model"] == [{"value": "Model Nested", "count": 1}]
 
+    all_facets_with_ignored_path = isolated_app.get(
+        "/api/facets",
+        params={"scope": "all", "path": str(nested)},
+    ).json()
+    assert all_facets_with_ignored_path == all_facets
+
 
 def test_scope_validation_status_policy(isolated_app: TestClient, isolated_gallery_root: Path) -> None:
     first, second, _nested = _seed_two_library_scope(isolated_gallery_root)
@@ -163,6 +175,24 @@ def test_scope_validation_status_policy(isolated_app: TestClient, isolated_galle
         params={"q": "scope_needle", "scope": "nearby"},
     )
     assert invalid_scope.status_code == 422
+
+    file_path = Path(first["root_path"]) / "scope_needle_first.png"
+    file_scope = isolated_app.get(
+        "/api/search",
+        params={"q": "scope_needle", "scope": "folder", "library_id": first["id"], "path": str(file_path)},
+    )
+    assert file_scope.status_code == 404
+
+    nonexistent_scope = isolated_app.get(
+        "/api/search",
+        params={
+            "q": "scope_needle",
+            "scope": "folder",
+            "library_id": first["id"],
+            "path": str(Path(first["root_path"]) / "missing"),
+        },
+    )
+    assert nonexistent_scope.status_code == 404
 
 
 def test_folder_scope_default_and_validation_branches(

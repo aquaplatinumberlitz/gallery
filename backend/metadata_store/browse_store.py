@@ -8,6 +8,7 @@ from typing import Any
 
 from ..models import FileNode, VideoFileNode
 from ._db import _DB_LOCK, _active_asset_where, _connect
+from .identity import catalog_direct_child_sql, catalog_import_path_owns_sql
 from .library_store import _find_library_for_path_conn
 from .path_utils import canonicalize_catalog_path, catalog_path_contains
 from .types import CatalogBrowseScopeError
@@ -85,25 +86,30 @@ def _browse_folder_counts_conn(
     *,
     include_offline: bool,
 ) -> tuple[bool, int, list[str]]:
-    visibility_sql = _browse_visibility_sql(None, include_offline=include_offline)
+    visibility_sql = _browse_visibility_sql("a", include_offline=include_offline)
+    direct_child_sql = catalog_direct_child_sql(parent_path_sql=":folder_path", path_sql="a.path")
+    import_ownership_sql = catalog_import_path_owns_sql(library_id_sql="a.library_id", path_sql="a.path")
     counts = conn.execute(
         f"""
         SELECT count(*) AS children,
-               sum(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS images
-        FROM assets
-        WHERE library_id = ? AND parent_path = ? AND {visibility_sql}
+               sum(CASE WHEN a.type IN ('image', 'photo') THEN 1 ELSE 0 END) AS images
+        FROM assets AS a
+        WHERE a.library_id = :library_id AND a.parent_path = :folder_path
+          AND {direct_child_sql} AND {import_ownership_sql} AND {visibility_sql}
         """,
-        (library_id, folder_path),
+        {"library_id": library_id, "folder_path": folder_path},
     ).fetchone()
     covers = [
         str(row["path"])
         for row in conn.execute(
             f"""
-            SELECT path FROM assets
-            WHERE library_id = ? AND parent_path = ? AND type = 'image' AND {visibility_sql}
+            SELECT a.path FROM assets AS a
+            WHERE a.library_id = :library_id AND a.parent_path = :folder_path
+              AND a.type IN ('image', 'photo') AND {direct_child_sql}
+              AND {import_ownership_sql} AND {visibility_sql}
             ORDER BY mtime_ns DESC LIMIT 3
             """,
-            (library_id, folder_path),
+            {"library_id": library_id, "folder_path": folder_path},
         )
     ]
     return bool(counts["children"]), int(counts["images"] or 0), covers
@@ -118,17 +124,20 @@ def _browse_folder_counts_batch_conn(
 ) -> dict[str, tuple[bool, int, list[str]]]:
     if not folder_paths:
         return {}
-    visibility_sql = _browse_visibility_sql(None, include_offline=include_offline)
+    visibility_sql = _browse_visibility_sql("a", include_offline=include_offline)
+    direct_child_sql = catalog_direct_child_sql(parent_path_sql="a.parent_path", path_sql="a.path")
+    import_ownership_sql = catalog_import_path_owns_sql(library_id_sql="a.library_id", path_sql="a.path")
     placeholders = ", ".join("?" for _ in folder_paths)
     counts = {folder_path: (False, 0, []) for folder_path in folder_paths}
     count_rows = conn.execute(
         f"""
-        SELECT parent_path,
+        SELECT a.parent_path,
                count(*) AS children,
-               sum(CASE WHEN type IN ('image', 'photo') THEN 1 ELSE 0 END) AS images
-        FROM assets
-        WHERE library_id = ? AND parent_path IN ({placeholders}) AND {visibility_sql}
-        GROUP BY parent_path
+               sum(CASE WHEN a.type IN ('image', 'photo') THEN 1 ELSE 0 END) AS images
+        FROM assets AS a
+        WHERE a.library_id = ? AND a.parent_path IN ({placeholders})
+          AND {direct_child_sql} AND {import_ownership_sql} AND {visibility_sql}
+        GROUP BY a.parent_path
         """,
         (library_id, *folder_paths),
     ).fetchall()
@@ -139,12 +148,14 @@ def _browse_folder_counts_batch_conn(
         f"""
         SELECT parent_path, path
         FROM (
-          SELECT parent_path, path,
-                 row_number() OVER (PARTITION BY parent_path ORDER BY mtime_ns DESC, path ASC) AS cover_rank
-          FROM assets
-          WHERE library_id = ?
-            AND parent_path IN ({placeholders})
-            AND type IN ('image', 'photo')
+          SELECT a.parent_path, a.path,
+                 row_number() OVER (PARTITION BY a.parent_path ORDER BY a.mtime_ns DESC, a.path ASC) AS cover_rank
+          FROM assets AS a
+          WHERE a.library_id = ?
+            AND a.parent_path IN ({placeholders})
+            AND a.type IN ('image', 'photo')
+            AND {direct_child_sql}
+            AND {import_ownership_sql}
             AND {visibility_sql}
         )
         WHERE cover_rank <= 3
@@ -250,6 +261,8 @@ def _catalog_browse_path_conn(
     include_offline: bool,
 ) -> dict[str, Any]:
     visibility_sql = _browse_visibility_sql("a", include_offline=include_offline)
+    direct_child_sql = catalog_direct_child_sql(parent_path_sql=":scope_path", path_sql="a.path")
+    import_ownership_sql = catalog_import_path_owns_sql(library_id_sql="a.library_id", path_sql="a.path")
     rows = conn.execute(
         f"""
         SELECT id, path, parent_path, name, type, mtime_ns, size,
@@ -272,12 +285,13 @@ def _catalog_browse_path_conn(
               AND im.mtime_ns IS NOT NULL
               AND a.mtime_ns IS NOT NULL
               AND im.mtime_ns = a.mtime_ns
-            WHERE a.library_id = ? AND a.parent_path = ?
+            WHERE a.library_id = :library_id AND a.parent_path = :scope_path
+              AND {direct_child_sql} AND {import_ownership_sql}
               AND {visibility_sql}
         )
         WHERE rn = 1
         """,
-        (int(library["id"]), scope_path),
+        {"library_id": int(library["id"]), "scope_path": scope_path},
     ).fetchall()
     from ..files import natural_sort_key
 

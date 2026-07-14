@@ -11,7 +11,12 @@ from fastapi import APIRouter, Query
 
 from .errors import APIError, ErrorType
 from .metadata_store import _DB_LOCK, _connect, initialize_database
-from .metadata_store.identity import active_catalog_file_sql, current_file_metadata_sql
+from .metadata_store.identity import (
+    active_catalog_file_sql,
+    catalog_import_path_owns_sql,
+    current_file_metadata_sql,
+    file_index_matches_image_metadata_sql,
+)
 from .metadata_store.path_utils import named_path_scope_sql
 from .models import APIErrorResponse, FacetResponse
 from .scan import require_registered_path_allowed
@@ -46,6 +51,10 @@ else:
 FACET_DEFAULT_LIMIT = 50
 _CURRENT_METADATA_SQL = current_file_metadata_sql(fi_alias="fi", im_alias="m")
 _ACTIVE_FILE_SQL = active_catalog_file_sql(fi_alias="fi")
+_IMPORT_OWNERSHIP_SQL = catalog_import_path_owns_sql(library_id_sql="fi.library_id", path_sql="fi.path")
+_AUTHORIZED_CURRENT_METADATA_SQL = _CURRENT_METADATA_SQL
+_AUTHORIZED_ACTIVE_FILE_SQL = f"({_ACTIVE_FILE_SQL} AND {_IMPORT_OWNERSHIP_SQL})"
+_FILE_METADATA_PARAMS_SQL = file_index_matches_image_metadata_sql(fi_alias="fi", im_alias="m")
 
 
 def _build_facet_query(field: str, value_expr: str, max_values: int, scope_where: str, scope_params: dict) -> str:
@@ -53,7 +62,7 @@ def _build_facet_query(field: str, value_expr: str, max_values: int, scope_where
         SELECT {value_expr} AS value, count(*) AS count
         FROM image_metadata m
         JOIN file_index fi ON fi.path = m.path
-        WHERE {value_expr} != '' AND {_CURRENT_METADATA_SQL} {scope_where}
+        WHERE {value_expr} != '' AND {_AUTHORIZED_CURRENT_METADATA_SQL} {scope_where}
         GROUP BY {value_expr}
         ORDER BY count DESC, {value_expr} ASC
         LIMIT :limit
@@ -66,6 +75,8 @@ def _build_scope(
     scope: str = "all",
     library_id: int | None = None,
 ) -> tuple[str, dict]:
+    # Preserve the low-level helper's historical `folder_path` shorthand.
+    # The public API resolves scope first, so `scope=all&path=...` still ignores path.
     if folder_path and scope == "all":
         scope = "folder"
     if scope == "library":
@@ -98,7 +109,7 @@ def _get_folder_list(scope_where: str, scope_params: dict, max_folders: int) -> 
             f"""
             SELECT fi.parent_path AS value, count(*) AS count
             FROM file_index fi
-            WHERE fi.type IN ('image', 'photo') AND {_ACTIVE_FILE_SQL} {scope_where}
+            WHERE fi.type IN ('image', 'photo') AND {_AUTHORIZED_ACTIVE_FILE_SQL} {scope_where}
             GROUP BY fi.parent_path
             ORDER BY count DESC, fi.parent_path ASC
             LIMIT :limit
@@ -126,7 +137,7 @@ def _get_image_size_facets(scope_where: str, scope_params: dict, max_values: int
                 count(*) AS count
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
-            WHERE m.width IS NOT NULL AND {_CURRENT_METADATA_SQL} {scope_where}
+            WHERE m.width IS NOT NULL AND {_AUTHORIZED_CURRENT_METADATA_SQL} {scope_where}
             GROUP BY value
             ORDER BY count DESC, value ASC
             LIMIT :limit
@@ -148,7 +159,7 @@ def _get_seed_availability(scope_where: str, scope_params: dict) -> list[dict]:
             SELECT count(*) AS total
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
-            WHERE m.seed IS NOT NULL AND m.seed != '' AND {_CURRENT_METADATA_SQL} {scope_where}
+            WHERE m.seed IS NOT NULL AND m.seed != '' AND {_AUTHORIZED_CURRENT_METADATA_SQL} {scope_where}
             """,
             scope_params,
         ).fetchone()["total"]
@@ -156,7 +167,7 @@ def _get_seed_availability(scope_where: str, scope_params: dict) -> list[dict]:
             f"""
             SELECT count(*) AS total
             FROM file_index fi
-            WHERE fi.type IN ('image', 'photo') AND {_ACTIVE_FILE_SQL} {scope_where}
+            WHERE fi.type IN ('image', 'photo') AND {_AUTHORIZED_ACTIVE_FILE_SQL} {scope_where}
             """,
             scope_params,
         ).fetchone()["total"]
@@ -174,7 +185,7 @@ def _get_metadata_availability(scope_where: str, scope_params: dict) -> list[dic
             SELECT count(*) AS total
             FROM image_metadata m
             JOIN file_index fi ON fi.path = m.path
-            WHERE m.metadata_json IS NOT NULL AND {_CURRENT_METADATA_SQL} {scope_where}
+            WHERE m.metadata_json IS NOT NULL AND {_AUTHORIZED_CURRENT_METADATA_SQL} {scope_where}
             """,
             scope_params,
         ).fetchone()["total"]
@@ -182,7 +193,7 @@ def _get_metadata_availability(scope_where: str, scope_params: dict) -> list[dic
             f"""
             SELECT count(*) AS total
             FROM file_index fi
-            WHERE fi.type IN ('image', 'photo') AND {_ACTIVE_FILE_SQL} {scope_where}
+            WHERE fi.type IN ('image', 'photo') AND {_AUTHORIZED_ACTIVE_FILE_SQL} {scope_where}
             """,
             scope_params,
         ).fetchone()["total"]
@@ -203,7 +214,7 @@ def _get_lora_facet(scope_where: str, scope_params: dict, max_values: int) -> li
                 FROM image_resources ir
                 JOIN image_metadata m ON m.path = ir.path
                 JOIN file_index fi ON fi.path = ir.path
-                WHERE ir.kind = 'lora' AND ir.name != '' AND {_CURRENT_METADATA_SQL} {scope_where}
+                WHERE ir.kind = 'lora' AND ir.name != '' AND {_AUTHORIZED_CURRENT_METADATA_SQL} {scope_where}
                 GROUP BY ir.name
                 ORDER BY count DESC, ir.name COLLATE NOCASE ASC
                 LIMIT :max_values
@@ -230,22 +241,96 @@ def build_facets(
 
     initialize_database()
     with _DB_LOCK, _connect() as conn:
-        for field, (value_expr, _) in FACET_FIELDS.items():
+        conn.execute(
+            f"""
+            CREATE TEMP TABLE facet_rows AS
+            SELECT fi.path, fi.parent_path, m.path AS metadata_path,
+                   m.tool, m.model, m.sampler, m.scheduler,
+                   m.width, m.height, m.seed, m.metadata_json
+            FROM file_index fi
+            LEFT JOIN image_metadata m
+              ON m.path = fi.path AND {_FILE_METADATA_PARAMS_SQL}
+            WHERE fi.type IN ('image', 'photo')
+              AND {_AUTHORIZED_ACTIVE_FILE_SQL} {scope_where}
+            """,
+            scope_params,
+        )
+        conn.execute("CREATE UNIQUE INDEX facet_rows_path ON facet_rows(path)")
+
+        for field in FACET_FIELDS:
             rows = conn.execute(
-                _build_facet_query(field, value_expr, max_values, scope_where, {**scope_params}),
-                {**scope_params},
+                f"""
+                SELECT COALESCE({field}, '') AS value, count(*) AS count
+                FROM facet_rows
+                WHERE COALESCE({field}, '') != ''
+                GROUP BY COALESCE({field}, '')
+                ORDER BY count DESC, value ASC
+                LIMIT :limit
+                """,
+                scope_params,
             ).fetchall()
             result[field] = [{"value": r["value"], "count": int(r["count"])} for r in rows]
+        folder_rows = conn.execute(
+            """
+            SELECT parent_path AS value, count(*) AS count
+            FROM facet_rows
+            GROUP BY parent_path
+            ORDER BY count DESC, parent_path ASC
+            LIMIT :limit
+            """,
+            scope_params,
+        ).fetchall()
+        result["folders"] = [{"value": row["value"], "count": int(row["count"])} for row in folder_rows]
 
-    result["folders"] = _get_folder_list(scope_where, scope_params, max_values)
+        orientation_rows = conn.execute(
+            """
+            SELECT CASE
+                     WHEN width > height THEN 'landscape'
+                     WHEN width < height THEN 'portrait'
+                     ELSE 'square'
+                   END AS value,
+                   count(*) AS count
+            FROM facet_rows
+            WHERE width IS NOT NULL AND height IS NOT NULL
+            GROUP BY value
+            ORDER BY count DESC, value ASC
+            LIMIT :limit
+            """,
+            scope_params,
+        ).fetchall()
+        result["orientation"] = [{"value": row["value"], "count": int(row["count"])} for row in orientation_rows]
 
-    size_facets = _get_image_size_facets(scope_where, scope_params, max_values)
-    result.update(size_facets)
-
-    result["seed_availability"] = _get_seed_availability(scope_where, scope_params)
-    result["metadata_availability"] = _get_metadata_availability(scope_where, scope_params)
-
-    result["lora"] = _get_lora_facet(scope_where, scope_params, max_values)
+        active_total = int(conn.execute("SELECT count(*) AS total FROM facet_rows").fetchone()["total"])
+        seed_total = int(
+            conn.execute("SELECT count(*) AS total FROM facet_rows WHERE seed IS NOT NULL AND seed != ''").fetchone()[
+                "total"
+            ]
+        )
+        metadata_total = int(
+            conn.execute("SELECT count(*) AS total FROM facet_rows WHERE metadata_json IS NOT NULL").fetchone()["total"]
+        )
+        result["seed_availability"] = [
+            {"value": "available", "count": seed_total},
+            {"value": "missing", "count": max(0, active_total - seed_total)},
+        ]
+        result["metadata_availability"] = [
+            {"value": "available", "count": metadata_total},
+            {"value": "missing", "count": max(0, active_total - metadata_total)},
+        ]
+        lora_rows = conn.execute(
+            """
+            SELECT ir.name, count(DISTINCT ir.path) AS count
+            FROM image_resources ir
+            JOIN facet_rows current ON current.path = ir.path
+            WHERE current.metadata_path IS NOT NULL
+              AND ir.kind = 'lora' AND ir.name != ''
+            GROUP BY ir.name
+            ORDER BY count DESC, ir.name COLLATE NOCASE ASC
+            LIMIT :limit
+            """,
+            scope_params,
+        ).fetchall()
+        result["lora"] = [{"value": row["name"], "count": int(row["count"])} for row in lora_rows]
 
     duration = time.perf_counter() - start
     if _facets_query_duration is not None:
@@ -259,6 +344,19 @@ _FACET_ERROR_RESPONSES = {
     404: {"model": APIErrorResponse, "description": "Library or folder scope not found"},
     503: {"model": APIErrorResponse, "description": "Required facet index unavailable"},
     500: {"model": APIErrorResponse, "description": "Sanitized internal failure"},
+    422: {
+        "description": "Invalid request validation or canonical facet scope",
+        "content": {
+            "application/json": {
+                "schema": {
+                    "oneOf": [
+                        {"$ref": "#/components/schemas/APIErrorResponse"},
+                        {"$ref": "#/components/schemas/HTTPValidationError"},
+                    ]
+                }
+            }
+        },
+    },
 }
 
 
@@ -273,8 +371,7 @@ def api_facets(
     max_values: Annotated[int, Query(ge=1, le=200, description="Maximum facet values per field")] = FACET_DEFAULT_LIMIT,
 ) -> FacetResponse:
     """Return metadata facet counts for the requested folder scope."""
-    effective_scope: SearchScopeInput = "current" if scope == "all" and path else scope
-    context = resolve_search_scope(effective_scope, library_id=library_id, path=path)
+    context = resolve_search_scope(scope, library_id=library_id, path=path)
 
     try:
         facets = build_facets(

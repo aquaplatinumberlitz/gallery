@@ -11,6 +11,7 @@ Run when:
 * touching LibraryInspector.vue contracts or inspector query keys
 """
 
+import base64
 import json
 import os
 from pathlib import Path
@@ -435,6 +436,45 @@ def test_library_inspector_invalid_cursor_returns_bad_request(isolated_app: Test
     }
 
 
+def test_library_inspector_rejects_nonfinite_typed_and_overflow_cursors(isolated_app: TestClient):
+    payloads = (
+        {"mtime": True, "name": "a", "path": "/a"},
+        {"mtime": float("inf"), "name": "a", "path": "/a"},
+        {"mtime": 10**100, "name": "a", "path": "/a"},
+        {"mtime": 1.0, "name": [], "path": {}},
+    )
+    for payload in payloads:
+        cursor = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+        response = isolated_app.get(
+            "/api/library/inspector",
+            params={"q": "", "scope": "all", "cursor": cursor},
+        )
+        assert response.status_code == 400
+
+
+def test_library_inspector_missing_fts_returns_service_unavailable(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+) -> None:
+    from backend.metadata_store import _connect, index_directory_tree, register_library
+
+    from .conftest import create_test_png_with_metadata
+
+    path = isolated_gallery_root / "missing_fts.png"
+    create_test_png_with_metadata(path, prompt="missing fts needle", seed="1")
+    register_library(isolated_gallery_root)
+    index_directory_tree(isolated_gallery_root, include_metadata=True)
+    with _connect() as conn:
+        conn.execute("DROP TABLE image_metadata_fts")
+
+    response = isolated_app.get(
+        "/api/library/inspector",
+        params={"q": "needle", "scope": "all"},
+    )
+
+    assert response.status_code == 503
+
+
 def test_library_inspector_excludes_app_build_assets_but_keeps_gallery_dist_folder(
     isolated_app: TestClient,
     isolated_gallery_root: Path,
@@ -503,6 +543,21 @@ def test_library_inspector_reuses_fielded_prompt_and_seed_semantics(
     assert seed_resp.status_code == 200
     assert [row["name"] for row in prompt_resp.json()["rows"]] == ["mika_portrait.png"]
     assert [row["name"] for row in seed_resp.json()["rows"]] == ["mika_portrait.png"]
+
+
+def test_library_inspector_returns_422_for_invalid_field_values(isolated_app: TestClient) -> None:
+    for query in (
+        "steps:nan",
+        "width:nan",
+        "cfg:1e309",
+        "steps:>nan",
+        "steps:>999999999999999999999999",
+        "size:999999999999999999999x1",
+        f"size:{'9' * 5000}x1",
+    ):
+        response = isolated_app.get("/api/library/inspector", params={"q": query, "scope": "all"})
+        assert response.status_code == 422
+        assert response.json()["detail"]["error"] == "bad_request"
 
 
 def test_library_inspector_reuses_negative_lora_resource_and_scope_fields(

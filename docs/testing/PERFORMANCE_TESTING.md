@@ -11,7 +11,8 @@ This document describes how to measure and profile Gallery API performance.
 Every perf budget in the repo lives in **`scripts/perf_budgets.toml`**. That file
 is the canonical source for all numeric budgets consumed by:
 
-- `scripts/perf_library_inspector.py` — `[inspector]`
+- `scripts/perf_library_inspector.py` + `scripts/perf_inspector_store.py` — `[inspector]`
+- `scripts/perf_facets.py` — `[facets]`
 - `scripts/perf_warm_listing.py` — `[warm_listing]`
 - `scripts/bench_search.py` — `[search]` + `[inspector_metadata]`
 - `scripts/bench_related_assets.py` — `[related_assets]`
@@ -166,10 +167,17 @@ GALLERY_PERF_SEARCH_PROFILE=scheduled ./test.sh perf
 ```
 
 `bench_search.py` runs after the managed backend health check and reports broad
-filename, prompt-heavy, album-heavy, fielded, CJK, and repeated opaque-keyset
-page classes. Every class retains the 300 ms lexical p95 budget. Its JSON is
+filename, prompt-heavy, album-heavy, combined fielded, model-only,
+sampler-only, mixed-short-token, CJK, and repeated opaque-keyset page classes.
+Every class requires non-empty fixture matches and retains the 300 ms lexical p95 budget. Its JSON is
 written to `frontend/test-results/perf/search-benchmark-report.json` and is
 understood by `scripts/summarize_perf_reports.py`.
+
+The same managed flow runs the API Inspector benchmark against a real fixture
+PNG, the DB-only Inspector store benchmark over all 100,000 catalog rows, and
+the all-library facets benchmark. This prevents synthetic missing files from
+silently skipping Inspector coverage or turning filesystem cleanup into the
+database latency measurement.
 
 ### Related Assets Bench
 

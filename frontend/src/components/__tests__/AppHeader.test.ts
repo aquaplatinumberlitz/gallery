@@ -23,6 +23,8 @@ const browseIsFetchingRef = ref(false);
 const browseIsFetchingNextPageRef = ref(false);
 let galleryHistoryIndex = 0;
 let galleryHistory = [""];
+let submittedSearchQuery = "";
+let gallerySearchFilters = { prompt_groups: [] as unknown[], workflow_groups: [] as unknown[] };
 
 function routeMetaForPath(path: string) {
   if (path === "/metadata") {
@@ -100,6 +102,8 @@ vi.mock("@/stores/gallery", () => ({
     history: galleryHistory,
     sortField: "date",
     sortOrder: "desc",
+    submittedSearchQuery,
+    searchFilters: gallerySearchFilters,
     metadataInspector: {
       scope: "current",
       query: "",
@@ -211,6 +215,8 @@ describe("AppHeader", () => {
     browseIsFetchingNextPageRef.value = false;
     galleryHistoryIndex = 0;
     galleryHistory = [""];
+    submittedSearchQuery = "";
+    gallerySearchFilters = { prompt_groups: [], workflow_groups: [] };
   });
 
   it("renders the brand hero on non-metadata routes", () => {
@@ -337,6 +343,22 @@ describe("AppHeader", () => {
     const wrapper = createWrapper();
 
     expect(wrapper.text()).toContain("Loading");
+  });
+
+  it("replaces desktop sort controls with relevance while search is active", () => {
+    const active = createWrapper({ searchQuery: "cat" });
+    expect(active.findAll('[aria-label="Search results sorted by relevance"]')).toHaveLength(2);
+    expect(active.findAll('[aria-label="Sort gallery"]')).toHaveLength(0);
+
+    const inactive = createWrapper({ searchQuery: "c" });
+    expect(inactive.findAll('[aria-label="Search results sorted by relevance"]')).toHaveLength(0);
+    expect(inactive.findAll('[aria-label="Sort gallery"]')).toHaveLength(2);
+  });
+
+  it("shows relevance for a filter-only structured search", () => {
+    gallerySearchFilters = { prompt_groups: [{ kind: "positive" }], workflow_groups: [] };
+    const wrapper = createWrapper({ searchQuery: "" });
+    expect(wrapper.findAll('[aria-label="Search results sorted by relevance"]')).toHaveLength(2);
   });
 
   it("hides brand hero and search on metadata route", () => {

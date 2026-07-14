@@ -148,12 +148,21 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
     elif "search_classes" in data:
         budgets = data.get("budgets", {})
         for report in data.get("search_classes", []):
-            checks.append(
-                _check(
-                    f"search {report.get('class', 'unknown')} p95",
-                    report.get("p95_ms"),
-                    budgets.get("search_p95_ms"),
-                )
+            checks.extend(
+                [
+                    _check(
+                        f"search {report.get('class', 'unknown')} p95",
+                        report.get("p95_ms"),
+                        budgets.get("search_p95_ms"),
+                    ),
+                    _check(
+                        f"search {report.get('class', 'unknown')} workload contract",
+                        1 if report.get("contract_ok") is True else 0,
+                        1,
+                        "boolean",
+                        lower_is_better=False,
+                    ),
+                ]
             )
         inspector = data.get("inspector_metadata") or {}
         if "p95_ms" in inspector:

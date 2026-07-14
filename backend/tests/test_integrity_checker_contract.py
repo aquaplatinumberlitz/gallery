@@ -56,6 +56,7 @@ FILE_HEALTH_ISSUES = {
     "generated_image_missing",
     "generated_image_abandoned",
     "metadata_mismatch",
+    "file_index_ownership_mismatch",
     "orphaned_work_item",
     "generated_image_job_mismatch",
     "generated_image_expected_row_missing",
@@ -527,10 +528,21 @@ class TestAbandonedDerivativeRecovery:
 
 
 class TestRunAllChecks:
+    def test_counts_ownerless_media_file_index_rows(self) -> None:
+        with _DB_LOCK, _connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO file_index(path, name, parent_path, type, mtime, mtime_ns, size, library_id)
+                VALUES ('/tmp/ownerless.png', 'ownerless.png', '/tmp', 'image', 1.0, 1000000000, 8, NULL)
+                """
+            )
+            assert integrity_checker._check_file_index_ownership_mismatch(conn) == 1
+
     def test_returns_all_twenty_keys_with_int_values(self) -> None:
         results = integrity_checker.run_all_checks()
         expected_keys = {
             "asset_done_but_no_metadata",
+            "file_index_ownership_mismatch",
             "job_done_asset_not_done",
             "job_active_no_asset",
             "derivative_ready_no_file",

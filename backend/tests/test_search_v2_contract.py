@@ -93,6 +93,9 @@ def test_search_v2_scope_and_request_bounds(
         response = isolated_app.post("/api/search/query", json={**base, field: value})
         assert response.status_code == 422
 
+    decimal_cursor = isolated_app.post("/api/search/query", json={**base, "cursor": "12"})
+    assert decimal_cursor.status_code == 422
+
     absolute = isolated_app.post(
         "/api/search/query",
         json={
@@ -135,6 +138,20 @@ def test_search_v2_scope_and_request_bounds(
     )
     assert wrong_import.status_code == 404
 
+    missing_folder = isolated_app.post(
+        "/api/search/query",
+        json={
+            **base,
+            "scope": {
+                "kind": "folder",
+                "library_id": library["id"],
+                "import_path_id": import_path["id"],
+                "relative_path": "missing/folder",
+            },
+        },
+    )
+    assert missing_folder.status_code == 404
+
     disabled = isolated_app.post("/api/search/query", json={**base, "mode": "raw"})
     assert disabled.status_code == 409
     assert disabled.json()["detail"]["error"] == "feature_disabled"
@@ -147,6 +164,29 @@ def test_search_v2_scope_and_request_bounds(
     assert operation["responses"]["200"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/SearchResponse"
     }
+    assert operation["responses"]["409"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/APIErrorResponse"
+    }
+    raw_operation = schema["paths"]["/api/search/workflow/raw"]["post"]
+    assert raw_operation["responses"]["504"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/APIErrorResponse"
+    }
+
+
+def test_invalid_fielded_values_return_422_instead_of_unfiltered_results(isolated_app: TestClient) -> None:
+    for query in (
+        "steps:>abc",
+        "steps:>nan",
+        "steps:>inf",
+        "steps:>1e309",
+        f"steps:>{2**63}",
+        "size:not-a-size",
+        f"size:{2**63}x1024",
+        f"size:{'9' * 5000}x1",
+    ):
+        response = isolated_app.get("/api/search", params={"q": query, "scope": "all"})
+        assert response.status_code == 422
+        assert response.json()["detail"]["error"] == "bad_request"
 
 
 def test_search_v2_decoded_body_limit_and_persistable_shape(isolated_app: TestClient) -> None:

@@ -49,6 +49,9 @@ const MANAGED_FIELD_ALIASES: Record<string, string> = {
   aspect_ratio: "ratio",
   denoising: "denoising_strength",
   path: "folder",
+  checkpoint: "model",
+  location: "folder",
+  resource: "lora",
 };
 
 const MANAGED_FIELDS = new Set([
@@ -84,6 +87,8 @@ interface QueryToken {
   raw: string;
   filter: FieldFilter | null;
   managed: boolean;
+  start: number;
+  end: number;
 }
 
 export interface ParsedSearchQuery {
@@ -93,24 +98,31 @@ export interface ParsedSearchQuery {
 }
 
 function isWordCharacter(value: string): boolean {
-  return /[A-Za-z0-9_]/.test(value);
+  return /[\p{L}\p{N}_]/u.test(value);
 }
 
-function unescapeValue(value: string): string {
-  let result = "";
-  for (let index = 0; index < value.length; index += 1) {
-    if (value[index] === "\\" && index + 1 < value.length) {
-      result += value[index + 1];
-      index += 1;
-    } else {
-      result += value[index];
-    }
+function previousCodePoint(raw: string, start: number): string {
+  if (start <= 0) return "";
+  const previousUnit = raw.charCodeAt(start - 1);
+  if (previousUnit >= 0xdc00 && previousUnit <= 0xdfff && start >= 2) {
+    const leadingUnit = raw.charCodeAt(start - 2);
+    if (leadingUnit >= 0xd800 && leadingUnit <= 0xdbff) return raw.slice(start - 2, start);
   }
-  return result;
+  return raw[start - 1] ?? "";
 }
 
-function readToken(raw: string, start: number): { token: QueryToken; end: number } | null {
-  if (start > 0 && isWordCharacter(raw[start - 1] ?? "")) return null;
+function startsSupportedField(raw: string, start: number): boolean {
+  let cursor = start;
+  if (!/[A-Za-z_]/.test(raw[cursor] ?? "")) return false;
+  cursor += 1;
+  while (isWordCharacter(raw[cursor] ?? "")) cursor += 1;
+  const field = raw.slice(start, cursor).toLowerCase();
+  while (/\s/.test(raw[cursor] ?? "")) cursor += 1;
+  return SUPPORTED_FIELDS.has(field) && raw[cursor] === ":";
+}
+
+function readToken(raw: string, start: number, allowAdjacentField = false): { token: QueryToken; end: number } | null {
+  if (!allowAdjacentField && isWordCharacter(previousCodePoint(raw, start))) return null;
 
   let cursor = start;
   if (!/[A-Za-z_]/.test(raw[cursor] ?? "")) return null;
@@ -119,6 +131,7 @@ function readToken(raw: string, start: number): { token: QueryToken; end: number
 
   const fieldStart = start;
   const field = raw.slice(fieldStart, cursor).toLowerCase();
+  const supportedField = SUPPORTED_FIELDS.has(field);
   while (/\s/.test(raw[cursor] ?? "")) cursor += 1;
   if (raw[cursor] !== ":") return null;
   cursor += 1;
@@ -138,26 +151,35 @@ function readToken(raw: string, start: number): { token: QueryToken; end: number
   let value: string;
   if (quote) {
     cursor += 1;
-    const valueStart = cursor;
-    let escaped = false;
+    const valueParts: string[] = [];
     while (cursor < raw.length) {
       const character = raw[cursor] ?? "";
-      if (!escaped && character === quote) break;
-      escaped = !escaped && character === "\\";
-      if (character !== "\\") escaped = false;
+      if (character === quote) break;
+      if (character === "\\" && cursor + 1 < raw.length) {
+        const nextCharacter = raw[cursor + 1] ?? "";
+        if (nextCharacter === quote || nextCharacter === "\\") {
+          valueParts.push(nextCharacter);
+          cursor += 2;
+          continue;
+        }
+      }
+      valueParts.push(character);
       cursor += 1;
     }
-    value = unescapeValue(raw.slice(valueStart, cursor));
+    value = valueParts.join("");
     if (raw[cursor] === quote) cursor += 1;
   } else {
     const valueStart = cursor;
-    while (cursor < raw.length && !/\s/.test(raw[cursor] ?? "")) cursor += 1;
-    value = unescapeValue(raw.slice(valueStart, cursor));
+    while (cursor < raw.length && !/[\s"']/.test(raw[cursor] ?? "")) {
+      if (supportedField && startsSupportedField(raw, cursor)) break;
+      cursor += 1;
+    }
+    value = raw.slice(valueStart, cursor);
   }
 
-  if (!SUPPORTED_FIELDS.has(field)) {
+  if (!supportedField) {
     return {
-      token: { raw: raw.slice(start, cursor), filter: null, managed: false },
+      token: { raw: raw.slice(start, cursor), filter: null, managed: false, start, end: cursor },
       end: cursor,
     };
   }
@@ -169,6 +191,8 @@ function readToken(raw: string, start: number): { token: QueryToken; end: number
       raw: raw.slice(start, cursor),
       filter: { field: managedField, operator: operator || undefined, value },
       managed,
+      start,
+      end: cursor,
     },
     end: cursor,
   };
@@ -179,10 +203,12 @@ function tokenize(raw: string): { tokens: QueryToken[]; residualParts: string[] 
   const residualParts: string[] = [];
   let residualStart = 0;
   let cursor = 0;
+  let allowAdjacentField = false;
 
   while (cursor < raw.length) {
-    const parsed = readToken(raw, cursor);
+    const parsed = readToken(raw, cursor, allowAdjacentField);
     if (!parsed) {
+      allowAdjacentField = false;
       cursor += 1;
       continue;
     }
@@ -191,6 +217,7 @@ function tokenize(raw: string): { tokens: QueryToken[]; residualParts: string[] 
     tokens.push(parsed.token);
     cursor = parsed.end;
     residualStart = cursor;
+    allowAdjacentField = parsed.token.filter !== null;
   }
 
   const tail = raw.slice(residualStart).trim();
@@ -233,11 +260,22 @@ export function serializeManagedFilters(filters: FieldFilter[]): string {
 }
 
 export function replaceManagedFilters(raw: string, filters: FieldFilter[]): string {
-  const parsed = parseSearchQuery(raw);
-  return [parsed.residualText, ...parsed.passThroughTokens, serializeManagedFilters(filters)]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const { tokens } = tokenize(raw);
+  const managedTokens = tokens.filter((token) => token.managed);
+  const replacement = serializeManagedFilters(filters);
+  if (!managedTokens.length) return [raw.trim(), replacement].filter(Boolean).join(" ");
+
+  const parts: string[] = [];
+  let previousEnd = 0;
+  managedTokens.forEach((token, index) => {
+    const prefix = raw.slice(previousEnd, token.start).trim();
+    if (prefix) parts.push(prefix);
+    if (index === 0 && replacement) parts.push(replacement);
+    previousEnd = token.end;
+  });
+  const tail = raw.slice(previousEnd).trim();
+  if (tail) parts.push(tail);
+  return parts.join(" ");
 }
 
 export function filterToDisplayString(filter: FieldFilter): string {

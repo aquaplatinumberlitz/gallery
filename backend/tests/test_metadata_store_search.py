@@ -34,9 +34,10 @@ from backend.metadata_store import (
 )
 
 
-def _seed_image_with_prompt(tmp_path: Path, filename: str, prompt: str) -> Path:
+def _seed_image_with_prompt(tmp_path: Path, filename: str, prompt: str, *, register: bool = True) -> Path:
     """Create a fake image file and upsert metadata with the given prompt."""
-    register_library(tmp_path)
+    if register:
+        register_library(tmp_path)
     image = tmp_path / filename
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
     stat = image.stat()
@@ -117,6 +118,21 @@ def test_search_metadata_fts_match_returns_rows(isolated_metadata_db: Path, tmp_
     assert any(r["path"].endswith("happy.png") for r in result["results"])
     # The prompt snippet should contain the matched text
     assert "masterpiece" in result["results"][0]["prompt_snippet"]
+
+
+def test_search_metadata_does_not_switch_to_like_after_fts_page_is_exhausted(
+    isolated_metadata_db: Path,
+    tmp_path: Path,
+):
+    _seed_image_with_prompt(tmp_path, "cat.png", "cat")
+    _seed_image_with_prompt(tmp_path, "bobcat.png", "bobcat", register=False)
+
+    first = search_metadata("cat", limit=1, offset=0)
+    exhausted = search_metadata("cat", limit=1, offset=1)
+
+    assert first["total"] == exhausted["total"] == 1
+    assert [row["name"] for row in first["results"]] == ["cat.png"]
+    assert exhausted["results"] == []
 
 
 # ---------------------------------------------------------------------------

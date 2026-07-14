@@ -17,6 +17,7 @@ const mockRun = {
     generated_image_missing: 2,
     generated_image_abandoned: 1,
     metadata_mismatch: 1,
+    file_index_ownership_mismatch: 1,
     orphaned_work_item: 0,
     generated_image_job_mismatch: 3,
   },

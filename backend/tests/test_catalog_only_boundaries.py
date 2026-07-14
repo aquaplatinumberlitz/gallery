@@ -19,7 +19,14 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from backend.metadata_store import _DB_LOCK, _connect, index_file, register_library, upsert_metadata_result
+from backend.metadata_store import (
+    _DB_LOCK,
+    _connect,
+    get_catalog_browse_listing,
+    index_file,
+    register_library,
+    upsert_metadata_result,
+)
 from backend.metadata_store.identity import active_catalog_file_sql
 
 from .conftest import create_test_png
@@ -150,3 +157,102 @@ def test_catalog_ownership_predicate_uses_library_path_index(isolated_gallery_ro
     assert catalog_steps
     assert all("SCAN catalog_asset" not in detail for detail in catalog_steps)
     assert any("library_id" in detail and "path" in detail for detail in catalog_steps)
+
+
+def test_corrupt_parent_and_outside_import_paths_are_hidden_from_catalog_readers(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+) -> None:
+    library_root = isolated_gallery_root / "registered-parent-boundary"
+    library_root.mkdir()
+    library = register_library(library_root, name="Parent boundary")
+
+    owned = library_root / "parentboundaryneedle.png"
+    create_test_png(owned)
+    stat = owned.stat()
+    assert index_file(owned, owned.name, owned.parent, "image", stat.st_mtime, stat.st_size, 64, 64)
+    assert upsert_metadata_result(owned, {"prompt": "parentboundaryneedle", "params": {"Model": "ParentModel"}})
+
+    outside = isolated_gallery_root / "outside-parent-leak.png"
+    create_test_png(outside)
+    outside_stat = outside.stat()
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO assets(
+              library_id, path, parent_path, name, type, mtime_ns, size,
+              indexed_at, metadata_state, offline
+            ) VALUES (?, ?, ?, ?, 'image', ?, ?, ?, 'done', 0)
+            """,
+            (
+                int(library["id"]),
+                str(outside.resolve()),
+                str(isolated_gallery_root.resolve()),
+                outside.name,
+                outside_stat.st_mtime_ns,
+                outside_stat.st_size,
+                now,
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO file_index(
+              path, name, parent_path, type, mtime, mtime_ns, size, indexed_at, library_id
+            ) VALUES (?, ?, ?, 'image', ?, ?, ?, ?, ?)
+            """,
+            (
+                str(outside.resolve()),
+                outside.name,
+                str(isolated_gallery_root.resolve()),
+                outside_stat.st_mtime,
+                outside_stat.st_mtime_ns,
+                outside_stat.st_size,
+                now,
+                int(library["id"]),
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO image_metadata(
+              path, name, mtime, mtime_ns, size, prompt, updated_at, indexed_at
+            ) VALUES (?, ?, ?, ?, ?, 'outside parent leak secret', ?, ?)
+            """,
+            (
+                str(outside.resolve()),
+                outside.name,
+                outside_stat.st_mtime,
+                outside_stat.st_mtime_ns,
+                outside_stat.st_size,
+                now,
+                now,
+            ),
+        )
+        conn.execute(
+            "UPDATE file_index SET parent_path = ? WHERE path = ?",
+            (str(isolated_gallery_root / "secret"), str(owned.resolve())),
+        )
+
+    browse = get_catalog_browse_listing(int(library["id"]), path=library_root)
+    assert all(node.path != str(outside) for node in browse["media"])
+
+    search = isolated_app.get("/api/search", params={"q": "parentboundaryneedle", "scope": "all"})
+    assert search.status_code == 200
+    assert search.json()["media"] == []
+
+    facets = isolated_app.get("/api/facets")
+    assert facets.status_code == 200
+    assert str(isolated_gallery_root / "secret") not in {row["value"] for row in facets.json()["folders"]}
+
+    inspector = isolated_app.get(
+        "/api/library/inspector",
+        params={"q": "outside parent leak", "scope": "all"},
+    )
+    assert inspector.status_code == 200
+    assert inspector.json()["rows"] == []
+
+    detail = isolated_app.get(
+        "/api/library/inspector/metadata",
+        params={"path": str(outside.resolve())},
+    )
+    assert detail.status_code == 404

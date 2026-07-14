@@ -49,7 +49,44 @@ describe("searchQueryGrammar", () => {
 
   it("replaces only managed filters and preserves search meaning", () => {
     expect(replaceManagedFilters("cat model:pony tool:ComfyUI", [{ field: "seed", value: "7" }])).toBe(
-      "cat tool:ComfyUI seed:7",
+      "cat seed:7 tool:ComfyUI",
+    );
+    expect(replaceManagedFilters("tool:ComfyUI cat model:pony custom:keep", [{ field: "seed", value: "7" }])).toBe(
+      "tool:ComfyUI cat seed:7 custom:keep",
+    );
+  });
+
+  it("matches backend Unicode boundaries, backslash escaping, and drawer aliases", () => {
+    expect(parseSearchQuery("猫model:pony")).toEqual({
+      residualText: "猫model:pony",
+      managedFilters: [],
+      passThroughTokens: [],
+    });
+    expect(parseSearchQuery('model:"C:\\models\\pony"').managedFilters).toEqual([
+      { field: "model", value: "C:\\models\\pony", operator: undefined },
+    ]);
+    expect(parseSearchQuery("checkpoint:pony location:/art resource:detailer").managedFilters).toEqual([
+      { field: "model", value: "pony", operator: undefined },
+      { field: "folder", value: "/art", operator: undefined },
+      { field: "lora", value: "detailer", operator: undefined },
+    ]);
+    expect(parseSearchQuery("𐐀model:pony")).toEqual({
+      residualText: "𐐀model:pony",
+      managedFilters: [],
+      passThroughTokens: [],
+    });
+    expect(replaceManagedFilters('model:pony"foo"', [{ field: "seed", value: "7" }])).toBe('seed:7 "foo"');
+    expect(parseSearchQuery("model:ponyseed:7").managedFilters).toEqual([
+      { field: "model", value: "pony", operator: undefined },
+      { field: "seed", value: "7", operator: undefined },
+    ]);
+    expect(parseSearchQuery("unknown:fooseed:7")).toEqual({
+      residualText: "",
+      managedFilters: [],
+      passThroughTokens: ["unknown:fooseed:7"],
+    });
+    expect(replaceManagedFilters("unknown:fooseed:7", [{ field: "seed", value: "8" }])).toBe(
+      "unknown:fooseed:7 seed:8",
     );
   });
 

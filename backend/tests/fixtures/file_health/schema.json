@@ -38,6 +38,7 @@
         "generated_image_missing",
         "generated_image_abandoned",
         "metadata_mismatch",
+        "file_index_ownership_mismatch",
         "orphaned_work_item",
         "generated_image_job_mismatch"
       ],
@@ -46,6 +47,7 @@
         "generated_image_missing": { "type": "integer", "minimum": 0 },
         "generated_image_abandoned": { "type": "integer", "minimum": 0 },
         "metadata_mismatch": { "type": "integer", "minimum": 0 },
+        "file_index_ownership_mismatch": { "type": "integer", "minimum": 0 },
         "orphaned_work_item": { "type": "integer", "minimum": 0 },
         "generated_image_job_mismatch": { "type": "integer", "minimum": 0 }
       },

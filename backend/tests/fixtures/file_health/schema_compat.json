@@ -11,6 +11,7 @@
       "generated_image_missing": 0,
       "generated_image_abandoned": 0,
       "metadata_mismatch": 0,
+      "file_index_ownership_mismatch": 0,
       "orphaned_work_item": 0,
       "generated_image_job_mismatch": 0
     },

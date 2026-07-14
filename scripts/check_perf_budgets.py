@@ -36,8 +36,12 @@ from perf_lib import load_budgets  # noqa: E402
 # uses a different legacy env-var scheme).
 BUDGET_CONSUMERS: dict[str, tuple[list[str], list[str]]] = {
     "inspector": (
-        ["scripts/perf_library_inspector.py"],
+        ["scripts/perf_library_inspector.py", "scripts/perf_inspector_store.py"],
         ["GALLERY_PERF_INSPECTOR_P95_BUDGET_MS", 'budget_for("inspector"'],
+    ),
+    "facets": (
+        ["scripts/perf_facets.py"],
+        ["GALLERY_PERF_FACETS_P95_BUDGET_MS", 'budget_for("facets"'],
     ),
     "warm_listing": (
         ["scripts/perf_warm_listing.py"],

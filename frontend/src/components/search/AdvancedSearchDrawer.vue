@@ -59,9 +59,10 @@ const emit = defineEmits<{
 const galleryStore = useGalleryStore();
 const { activeImportRootPath } = useActiveLibrarySelection();
 const facetContext = computed(() => ({
-  scope: galleryStore.searchScope === "all" ? ("all" as const) : ("folder" as const),
+  scope: galleryStore.searchScope === "current" ? ("folder" as const) : galleryStore.searchScope,
   libraryId: galleryStore.activeLibraryId,
-  path: galleryStore.currentBrowsePath || activeImportRootPath.value,
+  path:
+    galleryStore.searchScope === "current" ? galleryStore.currentBrowsePath || activeImportRootPath.value : undefined,
 }));
 const facetsQuery = useFacetsQuery(
   facetContext,

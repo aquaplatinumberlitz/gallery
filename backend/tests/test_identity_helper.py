@@ -15,6 +15,10 @@ match assets, image metadata, and metadata jobs.
 
 from __future__ import annotations
 
+import ntpath
+import sqlite3
+
+from backend.metadata_store import identity, path_utils
 from backend.metadata_store.identity import (
     _NANOS_PER_SEC,
     MTIME_NS_TOLERANCE,
@@ -30,6 +34,87 @@ from backend.metadata_store.identity import (
 def test_constants_are_exported() -> None:
     assert MTIME_NS_TOLERANCE == 0
     assert MTIME_SEC_TOLERANCE == 1e-3
+
+
+def test_windows_canonical_path_rejects_mixed_separator_traversal(monkeypatch) -> None:
+    monkeypatch.setattr(identity.os, "sep", "\\")
+    predicate = identity.catalog_path_is_canonical_sql(path_sql=":path")
+    with sqlite3.connect(":memory:") as conn:
+        valid = conn.execute(f"SELECT {predicate}", {"path": r"C:\root\safe\image.png"}).fetchone()[0]
+        traversal = conn.execute(
+            f"SELECT {predicate}",
+            {"path": r"C:\root\safe/../secret.png"},
+        ).fetchone()[0]
+
+    assert valid == 1
+    assert traversal == 0
+
+
+def test_windows_drive_and_unc_roots_are_canonical_and_own_children(monkeypatch) -> None:
+    monkeypatch.setattr(identity.os, "sep", "\\")
+    canonical = identity.catalog_path_is_canonical_sql(path_sql=":path")
+    direct = identity.catalog_direct_child_sql(parent_path_sql=":parent", path_sql=":path")
+    ownership = identity.catalog_import_path_owns_sql(library_id_sql=":library_id", path_sql=":path")
+
+    with sqlite3.connect(":memory:") as conn:
+        conn.execute("CREATE TABLE library_import_paths(library_id INTEGER, path TEXT)")
+        for root, child in (
+            ("C:\\", "C:\\image.png"),
+            ("C:\\root", "C:\\root\\image.png"),
+            ("\\\\server\\share", "\\\\server\\share\\image.png"),
+            ("\\\\server\\share\\", "\\\\server\\share\\image.png"),
+        ):
+            assert conn.execute(f"SELECT {canonical}", {"path": root}).fetchone()[0] == 1
+            assert conn.execute(f"SELECT {canonical}", {"path": child}).fetchone()[0] == 1
+            assert conn.execute(f"SELECT {direct}", {"parent": root, "path": child}).fetchone()[0] == 1
+            conn.execute("DELETE FROM library_import_paths")
+            conn.execute("INSERT INTO library_import_paths VALUES (1, ?)", (root,))
+            assert (
+                conn.execute(
+                    f"SELECT {ownership}",
+                    {"library_id": 1, "path": child},
+                ).fetchone()[0]
+                == 1
+            )
+
+        assert conn.execute(f"SELECT {canonical}", {"path": "\\"}).fetchone()[0] == 0
+        conn.execute("DELETE FROM library_import_paths")
+        conn.execute("INSERT INTO library_import_paths VALUES (1, ?)", ("\\",))
+        assert (
+            conn.execute(
+                f"SELECT {ownership}",
+                {"library_id": 1, "path": "\\\\server\\share\\image.png"},
+            ).fetchone()[0]
+            == 0
+        )
+
+
+def test_posix_canonical_paths_require_absolute_roots() -> None:
+    canonical = identity.catalog_path_is_canonical_sql(path_sql=":path")
+    ownership = identity.catalog_import_path_owns_sql(library_id_sql=":library_id", path_sql=":path")
+
+    with sqlite3.connect(":memory:") as conn:
+        conn.execute("CREATE TABLE library_import_paths(library_id INTEGER, path TEXT)")
+        conn.execute("INSERT INTO library_import_paths VALUES (1, 'relative/root')")
+
+        assert conn.execute(f"SELECT {canonical}", {"path": "relative/root/image.png"}).fetchone()[0] == 0
+        assert (
+            conn.execute(
+                f"SELECT {ownership}",
+                {"library_id": 1, "path": "relative/root/image.png"},
+            ).fetchone()[0]
+            == 0
+        )
+
+
+def test_windows_catalog_normalization_preserves_drive_and_unc_roots(monkeypatch) -> None:
+    monkeypatch.setattr(path_utils.os, "name", "nt")
+    monkeypatch.setattr(path_utils.os, "sep", "\\")
+    monkeypatch.setattr(path_utils.os, "path", ntpath)
+
+    assert path_utils.canonicalize_catalog_path("C:\\") == "c:\\"
+    assert path_utils.canonicalize_catalog_path("\\\\Server\\Share") == "\\\\server\\share"
+    assert path_utils.canonicalize_catalog_path("\\\\Server\\Share\\") == "\\\\server\\share\\"
 
 
 # ── SQL fragment structure ─────────────────────────────────────────────

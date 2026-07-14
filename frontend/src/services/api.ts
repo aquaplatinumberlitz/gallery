@@ -44,6 +44,7 @@ export interface FileHealthIssues {
   generated_image_missing: number;
   generated_image_abandoned: number;
   metadata_mismatch: number;
+  file_index_ownership_mismatch: number;
   orphaned_work_item: number;
   generated_image_job_mismatch: number;
 }

@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 from .errors import APIError, ErrorType
 from .files import is_index_excluded_path
-from .metadata_store import list_libraries
+from .metadata_store import _DB_LOCK, _connect, initialize_database, list_libraries
+from .metadata_store.identity import active_catalog_file_sql, catalog_import_path_owns_sql
 from .metadata_store.path_utils import canonicalize_catalog_path, catalog_path_contains
 from .models import SearchAllScopeV1, SearchFolderScopeV1, SearchLibraryScopeV1, SearchScopeV1
 
@@ -46,6 +48,45 @@ def _import_path_records(library: dict) -> list[tuple[int, str]]:
 def _relative_catalog_path(import_root: str, folder_path: str) -> str:
     relative = Path(folder_path).relative_to(import_root)
     return "" if str(relative) == "." else relative.as_posix()
+
+
+def _require_catalog_folder(library_id: int, import_root: str, folder_path: str) -> None:
+    """Require a folder represented by an indexed folder row or active descendants."""
+    if folder_path == import_root:
+        return
+    initialize_database()
+    active_file = active_catalog_file_sql(fi_alias="descendant")
+    import_owned = catalog_import_path_owns_sql(
+        library_id_sql="descendant.library_id",
+        path_sql="descendant.path",
+    )
+    prefix = folder_path + os.sep
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute(
+            f"""
+            SELECT 1
+            FROM file_index AS folder
+            WHERE folder.library_id = :library_id
+              AND folder.path = :folder_path
+              AND folder.type = 'folder'
+            UNION ALL
+            SELECT 1
+            FROM file_index AS descendant
+            WHERE descendant.library_id = :library_id
+              AND substr(descendant.path, 1, :prefix_length) = :prefix
+              AND {active_file}
+              AND {import_owned}
+            LIMIT 1
+            """,
+            {
+                "library_id": library_id,
+                "folder_path": folder_path,
+                "prefix": prefix,
+                "prefix_length": len(prefix),
+            },
+        ).fetchone()
+    if row is None:
+        raise APIError(404, ErrorType.NOT_FOUND, "Folder not found in catalog")
 
 
 def resolve_search_scope(
@@ -108,6 +149,8 @@ def resolve_search_scope(
     if is_index_excluded_path(folder_path, import_root, selected_library.get("exclusion_patterns", [])):
         raise APIError(404, ErrorType.NOT_FOUND, "Folder is excluded from the selected library")
 
+    _require_catalog_folder(int(selected_library["id"]), import_root, folder_path)
+
     import_path_id = next(path_id for path_id, root in _import_path_records(selected_library) if root == import_root)
     return SearchScopeContext(
         kind="folder",
@@ -147,6 +190,7 @@ def resolve_search_v2_scope(scope: SearchScopeV1) -> SearchScopeContext:
         raise APIError(404, ErrorType.NOT_FOUND, "Folder is outside the selected import path")
     if is_index_excluded_path(folder_path, import_root, library.get("exclusion_patterns", [])):
         raise APIError(404, ErrorType.NOT_FOUND, "Folder is excluded from the selected library")
+    _require_catalog_folder(scope.library_id, import_root, folder_path)
     return SearchScopeContext(
         kind="folder",
         library_id=scope.library_id,

@@ -56,6 +56,7 @@ class FileHealthIssues(BaseModel):
     generated_image_missing: int
     generated_image_abandoned: int = 0
     metadata_mismatch: int
+    file_index_ownership_mismatch: int = 0
     orphaned_work_item: int
     generated_image_job_mismatch: int
     generated_image_expected_row_missing: int = 0

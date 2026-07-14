@@ -18,27 +18,77 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from scripts import bench_search
 from scripts.bench_search import SEARCH_QUERY_CLASSES
 from scripts.summarize_perf_reports import summarize
 
 
 def test_search_benchmark_covers_required_query_classes() -> None:
-    assert {name for name, _query, _pages in SEARCH_QUERY_CLASSES} == {
+    assert {name for name, _query, _pages, _min_matches in SEARCH_QUERY_CLASSES} == {
         "broad_filename",
         "prompt_heavy",
         "album_heavy",
         "fielded",
+        "fielded_model_only",
+        "fielded_sampler_only",
+        "mixed_short_token",
         "cjk",
         "repeated_keyset_pages",
     }
-    assert {name: pages for name, _query, pages in SEARCH_QUERY_CLASSES}["repeated_keyset_pages"] >= 2
+    cases = {name: (query, pages, min_matches) for name, query, pages, min_matches in SEARCH_QUERY_CLASSES}
+    assert cases["repeated_keyset_pages"][1] >= 2
+    assert cases["repeated_keyset_pages"][2] >= 100
+    assert cases["prompt_heavy"][0] == "blue forest prompt heavy constellation"
+    assert cases["fielded_model_only"] == ("model:perf-model-3", 1, 50)
+    assert cases["fielded_sampler_only"] == ('sampler:"Euler a"', 1, 50)
+    assert cases["mixed_short_token"] == ("Euler a", 1, 50)
+
+
+def test_mixed_short_workload_rejects_empty_responses(monkeypatch) -> None:
+    monkeypatch.setattr(
+        bench_search,
+        "_get_json",
+        lambda *_args, **_kwargs: (1.0, {"returned": 0, "albums": [], "next_cursor": None}),
+    )
+
+    result = bench_search.bench_search_case(
+        "http://example.test",
+        "mixed_short_token",
+        "Euler a",
+        iterations=1,
+        min_matches_per_iteration=50,
+    )
+
+    assert result["contract_ok"] is False
+
+
+def test_search_benchmark_fails_closed_on_short_cursor_chain(monkeypatch) -> None:
+    monkeypatch.setattr(
+        bench_search,
+        "_get_json",
+        lambda *_args, **_kwargs: (1.0, {"returned": 50, "albums": [], "next_cursor": None}),
+    )
+
+    result = bench_search.bench_search_case(
+        "http://example.test",
+        "repeated_keyset_pages",
+        "search_asset_00",
+        iterations=2,
+        pages=3,
+        min_matches_per_iteration=150,
+    )
+
+    assert result["requests"] == 2
+    assert result["expected_requests"] == 6
+    assert result["completed_page_chains"] == 0
+    assert result["contract_ok"] is False
 
 
 def test_perf_summary_checks_each_search_class(tmp_path: Path) -> None:
     report = {
         "search_classes": [
-            {"class": "broad_filename", "p95_ms": 125.0},
-            {"class": "cjk", "p95_ms": 301.0},
+            {"class": "broad_filename", "p95_ms": 125.0, "contract_ok": True},
+            {"class": "cjk", "p95_ms": 301.0, "contract_ok": False},
         ],
         "inspector_metadata": {"p95_ms": 20.0},
         "budgets": {"search_p95_ms": 300.0, "inspector_metadata_p95_ms": 200.0},
@@ -51,7 +101,9 @@ def test_perf_summary_checks_each_search_class(tmp_path: Path) -> None:
     checks = summary["reports"][0]["checks"]
     assert [(check["label"], check["status"]) for check in checks] == [
         ("search broad_filename p95", "pass"),
+        ("search broad_filename workload contract", "pass"),
         ("search cjk p95", "fail"),
+        ("search cjk workload contract", "fail"),
         ("inspector metadata p95", "pass"),
     ]
 

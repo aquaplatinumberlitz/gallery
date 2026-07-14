@@ -12,9 +12,13 @@ const facetState = vi.hoisted(() => ({
   isLoading: { value: false },
   isError: { value: false },
 }));
+const facetRequest = vi.hoisted(() => ({ context: null as { value: unknown } | null }));
 
 vi.mock("@/composables/useFacetsQuery", () => ({
-  useFacetsQuery: () => facetState,
+  useFacetsQuery: (context: { value: unknown }) => {
+    facetRequest.context = context;
+    return facetState;
+  },
 }));
 
 vi.mock("@/composables/useActiveLibrarySelection", () => ({
@@ -29,8 +33,9 @@ vi.mock("@/composables/useSearchCapabilitiesQuery", () => ({
   }),
 }));
 
-function createWrapper(initialFilters: FieldFilter[] = []) {
+function createWrapper(initialFilters: FieldFilter[] = [], storePatch: Record<string, unknown> = {}) {
   setActivePinia(createPinia());
+  Object.assign(useGalleryStore(), storePatch);
   const queryClient = createIsolatedQueryClient();
   return mount(AdvancedSearchDrawer, {
     props: { isOpen: true, initialFilters },
@@ -71,6 +76,7 @@ describe("AdvancedSearchDrawer", () => {
     facetState.data.value = { model: [], sampler: [], scheduler: [] };
     facetState.isLoading.value = false;
     facetState.isError.value = false;
+    facetRequest.context = null;
   });
 
   it("opens Content and files by default and collapses advanced groups", () => {
@@ -81,6 +87,20 @@ describe("AdvancedSearchDrawer", () => {
     expect(button(wrapper, /^Custom metadata/)?.attributes("aria-expanded")).toBe("false");
     expect(wrapper.get("#advanced-search-prompt").isVisible()).toBe(true);
     expect(button(wrapper, /^Raw workflow/)).toBeUndefined();
+  });
+
+  it("requests library-wide facets without leaking the current folder path", () => {
+    createWrapper([], {
+      searchScope: "library",
+      activeLibraryId: 7,
+      currentBrowsePath: "/photos/current",
+    });
+
+    expect(facetRequest.context?.value).toEqual({
+      scope: "library",
+      libraryId: 7,
+      path: undefined,
+    });
   });
 
   it("keeps the action footer outside the scrollable filter body", () => {

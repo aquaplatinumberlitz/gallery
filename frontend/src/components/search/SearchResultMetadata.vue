@@ -7,7 +7,7 @@ const props = defineProps<{ result: UnifiedSearchResult }>();
 
 const matchLabel = computed(() => {
   const labels: Record<string, string> = {
-    exact_filename: "Exact name",
+    filename_exact: "Exact name",
     filename_prefix: "Name prefix",
     filename: "File name",
     prompt: "Prompt",

@@ -37,6 +37,11 @@ const fileIssueKeys = [
     description: "Cataloged assets marked done but missing a matching extracted metadata row.",
   },
   {
+    key: "file_index_ownership_mismatch" as const,
+    label: "Search ownership mismatch",
+    description: "Indexed media rows that no longer map to one exact active asset in a registered library.",
+  },
+  {
     key: "orphaned_work_item" as const,
     label: "Orphaned work item",
     description: "Metadata jobs that no longer have a matching catalog asset.",

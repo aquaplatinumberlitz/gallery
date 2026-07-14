@@ -119,6 +119,8 @@ _INDEXES: tuple[str, ...] = (
     "idx_metadata_index_jobs_claim",
     "idx_metadata_index_jobs_library_state",
     "idx_image_metadata_mtime_size",
+    "idx_image_metadata_mtime_ns_name",
+    "idx_image_metadata_inspector_date",
     "idx_integrity_check_runs_finished",
     "idx_search_index_jobs_pick",
     "idx_search_index_jobs_one_active",

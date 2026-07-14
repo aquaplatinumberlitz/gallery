@@ -21,6 +21,10 @@
 p95_ms = 500
 description = "/api/library/inspector P95 latency"
 
+[facets]
+p95_ms = 3000
+description = "/api/facets P95 latency over the managed 100k catalog"
+
 [warm_listing]
 budget_ms = 500
 description = "Warm SQLite listing vs cold scan"

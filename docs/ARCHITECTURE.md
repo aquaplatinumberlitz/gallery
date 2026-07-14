@@ -92,9 +92,10 @@ included in the status API envelope as `metadata_lifecycle`.
 `GALLERY_INTEGRITY_CHECK_ENABLED` is true. It repairs, re-queues, or marks failed
 mismatches between `assets`, `image_metadata`, `metadata_index_jobs`,
 `asset_derivatives`, and `derivative_jobs`, including missing derivative cache
-files and active metadata jobs whose source file or asset row disappeared. Each
-daemon or manual run persists a summary into `integrity_check_runs`, which backs
-the Maintenance file-health API.
+files, active metadata jobs whose source file or asset row disappeared, and
+ownerless/mismatched media rows in `file_index` that search cannot safely
+authorize. Each daemon or manual run persists a summary into
+`integrity_check_runs`, which backs the Maintenance file-health API.
 
 Destructive imported-data maintenance holds a shared producer gate across the
 operation. Metadata dispatch, metadata workers, derivative scheduling and
@@ -656,7 +657,9 @@ Header search or AdvancedSearchDrawer
   `current` resolves through the same folder context and responses report the
   canonical `folder` value.
 - Search and facets share one registered-ID/path resolver. A folder outside the
-  selected library returns `404`; invalid/missing scope values are `422`.
+  selected library, a media-file path used as a folder, or a descendant with no
+  catalog folder/active descendants returns `404`; invalid/missing scope values
+  are `422`.
 - `/api/search/query` is the active frontend contract. It accepts schema version
   1, lexical/workflow/raw modes, a discriminated folder/library/all scope, and
   never accepts an absolute client path. Persisted/URL forms omit cursor and
@@ -690,12 +693,13 @@ Header search or AdvancedSearchDrawer
   deduplicate by `(library_id, asset_id)` and use the exact case-preserved path
   only for compatibility rows that lack IDs; legacy arrays are consumed only
   when canonical `media` is absent.
-- Ranked search selects bounded filename token-prefix and metadata FTS
-  candidates first. LIKE substring branches are added only when the raw FTS
-  indexes have no coverage for the requested lexical source, preserving CJK
-  and compatibility substring behavior without scanning the active catalog on
-  ordinary indexed queries. The candidate union also includes positive-prompt
-  phrase tiers, negative prompts, and structured-filter-only rows. It
+- Ranked search unions filename token-prefix candidates with trigger-maintained
+  trigram filename/metadata substring candidates. Short or mixed-length tokens
+  stay on Unicode FTS token/prefix semantics; full-table LIKE is reserved for
+  the FTS-unavailable degraded path. Metadata trigram queries retain AND-token
+  semantics, and unscoped FTS plus structured-filter-only sources use bounded,
+  cursor-aware preselection before strict catalog authorization. The candidate union also includes
+  positive-prompt phrase tiers, negative prompts, and structured-filter-only rows. It
   deduplicates by stable asset ID and orders by relevance tier, a
   bounded/rounded FTS rank, source `mtime_ns`, then `asset_id`.
 - Active pagination is keyset-only. The versioned base64url JSON cursor is bound
@@ -716,6 +720,15 @@ Header search or AdvancedSearchDrawer
   state. Search reflects the current catalog snapshot and never schedules
   cleanup from a response.
 - Fielded queries are parsed server-side, for example `prompt:"blue hair"`, `seed:12345`, `model:pony`, `steps:>25`, `width:>=1024`. A shared JSON grammar contract covers single/double quotes, escaping, operators, repeated fields, aliases, pass-through tokens, and Unicode in pytest and Vitest.
+- Recognized field filters fail closed: malformed numeric comparisons, numeric
+  equalities, or
+  dimensions return `422` rather than silently dropping the predicate.
+- Library Inspector cursors validate JSON types, finite values, and SQLite
+  integer bounds before binding. Its keyset uses nanosecond mtime ordering and
+  bounded DB preselection; the managed suite separately measures the API and
+  the 100k-row DB-only store path. Facets materialize authorized active/current
+  rows once per request instead of repeating the ownership predicate for every
+  aggregation.
 - Fielded search keeps metadata filters scoped to filterable image/prompt
   media; filename-only videos are not returned for fielded queries unless a
   future video metadata index supports the same predicates.
@@ -756,8 +769,11 @@ Header search or AdvancedSearchDrawer
 - Search, legacy metadata search, and facets use regular Pydantic response
   models and explicit synchronous FastAPI path operations. OpenAPI documents
   canonical media/album rows, legacy projections, facet values, opaque cursor
-  types, and sanitized 400/404/503/500 envelopes.
-- Desktop/tablet gallery sorting uses `SortSelect.vue`, a local shadcn-vue Select wrapper. `MobileHeader.vue` still uses `SortDropdown.vue`.
+  types, sanitized 400/404/503/500 envelopes, and the `422` union of public API
+  errors plus FastAPI validation errors.
+- Desktop search surfaces show a fixed Relevance indicator while lexical or
+  structured search is active; ordinary browsing uses `SortSelect.vue`.
+  `MobileHeader.vue` still uses `SortDropdown.vue` outside search.
 
 ### Library Inspector
 

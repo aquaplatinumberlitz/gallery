@@ -121,6 +121,16 @@ if [[ "${GALLERY_PERF_SKIP_BACKEND:-0}" != "1" ]]; then
     echo ">>> Running backend Library Inspector p95 perf test..."
     "$PERF_PYTHON" "$SCRIPT_DIR/perf_library_inspector.py" | tee "$RESULTS_DIR/library-inspector-report.json"
 
+    if [[ -n "${GALLERY_METADATA_DB:-}" ]]; then
+        echo ""
+        echo ">>> Running Library Inspector store p95 perf test..."
+        "$PERF_PYTHON" "$SCRIPT_DIR/perf_inspector_store.py" | tee "$RESULTS_DIR/inspector-store-report.json"
+    fi
+
+    echo ""
+    echo ">>> Running backend facets p95 perf test..."
+    "$PERF_PYTHON" "$SCRIPT_DIR/perf_facets.py" | tee "$RESULTS_DIR/facets-report.json"
+
     echo ""
     echo ">>> Running warm listing local perf test..."
     WARM_ARGS=(

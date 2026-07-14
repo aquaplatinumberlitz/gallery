@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import os
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -17,6 +19,19 @@ from .identity import current_file_metadata_sql
 from .search_store import _build_scope_named, _folder_relative_path
 
 _CURRENT_METADATA_SQL = current_file_metadata_sql(fi_alias="fi", im_alias="m")
+_INSPECTOR_MTIME_SQL = "COALESCE(m.mtime_ns, CAST(m.mtime * 1000000000 AS INTEGER))"
+_PRESELECT_ACTIVE_ASSET_SQL = """
+JOIN assets AS catalog_asset
+  ON catalog_asset.library_id = fi.library_id
+ AND catalog_asset.path = fi.path
+ AND catalog_asset.parent_path = fi.parent_path
+ AND catalog_asset.offline = 0
+ AND catalog_asset.deleted_at IS NULL
+ AND catalog_asset.mtime_ns IS NOT NULL
+ AND ((fi.mtime_ns IS NOT NULL AND catalog_asset.mtime_ns = fi.mtime_ns)
+      OR (fi.mtime_ns IS NULL AND ABS(catalog_asset.mtime_ns / 1000000000.0 - fi.mtime) < 0.001))
+ AND (catalog_asset.size = fi.size OR (catalog_asset.size IS NULL AND fi.size IS NULL))
+"""
 
 
 def _truncate_preview(text: str | None, limit: int = 140) -> str:
@@ -66,8 +81,11 @@ def _format_inspector_row(row: sqlite3.Row, root: Path) -> dict[str, Any]:
 
 
 def _encode_inspector_cursor(values: dict[str, Any] | sqlite3.Row) -> str:
+    keys = set(values.keys())
+    mtime_ns = values["mtime_ns"] if "mtime_ns" in keys else round(float(values["mtime"]) * 1_000_000_000)
     cursor_data = {
         "mtime": values["mtime"],
+        "mtime_ns": int(mtime_ns),
         "name": values["name"],
         "path": values["path"],
     }
@@ -79,17 +97,38 @@ def _build_library_inspector_keyset_where(sort: str, cursor_str: str | None) -> 
     if not cursor_str:
         return "", {}
 
+    if re.fullmatch(r"[A-Za-z0-9_-]+={0,2}", cursor_str) is None:
+        raise ValueError("Invalid pagination cursor")
     try:
-        cursor = json.loads(base64.urlsafe_b64decode(cursor_str.encode()))
-        cursor_mtime = cursor["mtime"]
+        cursor = json.loads(base64.b64decode(cursor_str.encode(), altchars=b"-_", validate=True))
+        if not isinstance(cursor, dict):
+            raise ValueError
+        cursor_mtime = cursor.get("mtime")
+        cursor_mtime_ns = cursor.get("mtime_ns")
         cursor_name = cursor["name"]
         cursor_path = cursor["path"]
     except Exception as exc:
         raise ValueError("Invalid pagination cursor") from exc
+    if not isinstance(cursor_name, str) or not isinstance(cursor_path, str):
+        raise ValueError("Invalid pagination cursor")
+    if cursor_mtime_ns is None:
+        if (
+            not isinstance(cursor_mtime, int | float)
+            or isinstance(cursor_mtime, bool)
+            or not math.isfinite(cursor_mtime)
+        ):
+            raise ValueError("Invalid pagination cursor")
+        cursor_mtime_ns = round(float(cursor_mtime) * 1_000_000_000)
+    if (
+        not isinstance(cursor_mtime_ns, int)
+        or isinstance(cursor_mtime_ns, bool)
+        or not -(2**63) <= cursor_mtime_ns <= 2**63 - 1
+    ):
+        raise ValueError("Invalid pagination cursor")
 
-    mtime_expr = "COALESCE(m.mtime, fi.mtime)"
+    mtime_expr = _INSPECTOR_MTIME_SQL
     params: dict[str, Any] = {
-        "ks_mtime": cursor_mtime,
+        "ks_mtime": cursor_mtime_ns,
         "ks_name": cursor_name,
         "ks_path": cursor_path,
     }
@@ -143,10 +182,10 @@ def list_library_inspector_rows(
     bounded_limit = max(1, min(limit, 1000))
     normalized_sort = sort if sort in {"name_asc", "name_desc", "date_asc", "date_desc"} else "date_desc"
     order_sql = {
-        "name_asc": "m.name COLLATE GALLERY_NATURAL ASC, COALESCE(m.mtime, fi.mtime) DESC, m.path ASC",
-        "name_desc": "m.name COLLATE GALLERY_NATURAL DESC, COALESCE(m.mtime, fi.mtime) DESC, m.path ASC",
-        "date_asc": "COALESCE(m.mtime, fi.mtime) ASC, m.name COLLATE GALLERY_NATURAL ASC, m.path ASC",
-        "date_desc": "COALESCE(m.mtime, fi.mtime) DESC, m.name COLLATE GALLERY_NATURAL ASC, m.path ASC",
+        "name_asc": f"m.name COLLATE GALLERY_NATURAL ASC, {_INSPECTOR_MTIME_SQL} DESC, m.path ASC",
+        "name_desc": f"m.name COLLATE GALLERY_NATURAL DESC, {_INSPECTOR_MTIME_SQL} DESC, m.path ASC",
+        "date_asc": f"{_INSPECTOR_MTIME_SQL} ASC, m.name COLLATE GALLERY_NATURAL ASC, m.path ASC",
+        "date_desc": f"{_INSPECTOR_MTIME_SQL} DESC, m.name COLLATE GALLERY_NATURAL ASC, m.path ASC",
     }[normalized_sort]
     root = Path(root_path).resolve() if normalized_scope == "current" and root_path else None
     if normalized_scope == "current" and root is None:
@@ -194,14 +233,65 @@ def list_library_inspector_rows(
         params.update(field_params)
         params.update(keyset_params)
         params["limit"] = bounded_limit + 1
+        params["candidate_limit"] = bounded_limit + 8
+        params["candidate_offset"] = bounded_limit + 7
+
+        use_date_index_preselection = (
+            normalized_scope == "all"
+            and normalized_sort in {"date_asc", "date_desc"}
+            and not trimmed
+            and not cursor
+            and not normalized_model_filter
+            and prompt_filter == "all"
+        )
+        metadata_source_sql = (
+            "image_metadata m INDEXED BY idx_image_metadata_inspector_date"
+            if use_date_index_preselection
+            else "image_metadata m"
+        )
+        file_index_join_sql = (
+            "CROSS JOIN file_index fi ON fi.path = m.path"
+            if use_date_index_preselection
+            else "JOIN file_index fi ON fi.path = m.path"
+        )
+        date_cutoff_cte_sql = ""
+        date_cutoff_condition = ""
+        if use_date_index_preselection:
+            cutoff_mtime_sql = _INSPECTOR_MTIME_SQL.replace("m.", "cutoff_m.")
+            direction = "ASC" if normalized_sort == "date_asc" else "DESC"
+            comparison = "<=" if normalized_sort == "date_asc" else ">="
+            fallback = "9223372036854775807" if normalized_sort == "date_asc" else "-9223372036854775808"
+            date_cutoff_cte_sql = f"""
+                date_cutoff AS MATERIALIZED (
+                  SELECT {cutoff_mtime_sql} AS cutoff_mtime
+                  FROM image_metadata cutoff_m INDEXED BY idx_image_metadata_inspector_date
+                  ORDER BY {cutoff_mtime_sql} {direction}
+                  LIMIT 1 OFFSET :candidate_offset
+                ),
+            """
+            date_cutoff_condition = (
+                f" AND {_INSPECTOR_MTIME_SQL} {comparison} COALESCE((SELECT cutoff_mtime FROM date_cutoff), {fallback})"
+            )
 
         fetched_rows = list(
             conn.execute(
                 f"""
+                WITH {date_cutoff_cte_sql} bounded_rows AS MATERIALIZED (
+                  SELECT m.id AS metadata_id
+                  FROM {metadata_source_sql}
+                  {file_index_join_sql}
+                  {_PRESELECT_ACTIVE_ASSET_SQL}
+                  WHERE {where_sql.replace(_CURRENT_METADATA_SQL, "1 = 1")}
+                  {date_cutoff_condition}
+                  {scope_cond}
+                  ORDER BY {order_sql}
+                  LIMIT :candidate_limit
+                )
                 SELECT
                   m.path,
                   m.name,
                   COALESCE(m.mtime, fi.mtime) AS mtime,
+                  {_INSPECTOR_MTIME_SQL} AS mtime_ns,
                   m.width,
                   m.height,
                   m.model,
@@ -218,16 +308,20 @@ def list_library_inspector_rows(
                   fi.type AS file_type,
                   COALESCE(fi.width, m.width) AS indexed_width,
                   COALESCE(fi.height, m.height) AS indexed_height
-                FROM image_metadata m
-                JOIN file_index fi ON fi.path = m.path
+                FROM bounded_rows bounded
+                CROSS JOIN image_metadata m ON m.id = bounded.metadata_id
+                CROSS JOIN file_index fi ON fi.path = m.path
                 LEFT JOIN (
                   SELECT path, count(*) AS lora_count, group_concat(name, ', ') AS lora_preview
                   FROM image_resources
-                  WHERE kind = 'lora'
+                  WHERE kind = 'lora' AND path IN (
+                    SELECT bounded_metadata.path
+                    FROM bounded_rows bounded_resource
+                    JOIN image_metadata bounded_metadata ON bounded_metadata.id = bounded_resource.metadata_id
+                  )
                   GROUP BY path
                 ) lr ON lr.path = m.path
-                WHERE {where_sql}
-                {scope_cond}
+                WHERE fi.type IN ('image', 'photo') AND {_CURRENT_METADATA_SQL}
                 ORDER BY {order_sql}
                 LIMIT :limit
                 """,
@@ -237,16 +331,15 @@ def list_library_inspector_rows(
         rows = fetched_rows[:bounded_limit]
         next_cursor = _encode_inspector_cursor(rows[-1]) if len(fetched_rows) > bounded_limit and rows else None
 
+        count_scope_cond, count_scope_params = _build_scope_named(normalized_scope, root, "m")
         total_row = conn.execute(
             f"""
             SELECT count(*) AS total
             FROM image_metadata m
-            JOIN file_index fi ON fi.path = m.path
-            WHERE fi.type IN ('image', 'photo')
-            AND {_CURRENT_METADATA_SQL}
-            {scope_cond}
+            WHERE 1 = 1
+            {count_scope_cond}
             """,
-            scope_params,
+            count_scope_params,
         ).fetchone()
 
     return {

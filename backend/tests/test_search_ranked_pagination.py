@@ -79,6 +79,37 @@ def test_strong_prompt_phrase_outranks_weak_filename_match(isolated_gallery_root
     assert result["media"][0]["match_type"] == "prompt_phrase"
 
 
+def test_trigram_metadata_candidates_preserve_noncontiguous_token_and_semantics(
+    isolated_gallery_root: Path,
+) -> None:
+    register_library(isolated_gallery_root, name="Token AND")
+    matched = _seed_search_image(
+        isolated_gallery_root,
+        "noncontiguous.png",
+        prompt="blue atmospheric forest with distant constellation",
+    )
+
+    result = search_index("blue constellation", "all", limit=10)
+
+    assert [row["asset_id"] for row in result["media"]] == [matched["asset_id"]]
+
+
+def test_mixed_length_cjk_tokens_preserve_noncontiguous_and_semantics(
+    isolated_gallery_root: Path,
+) -> None:
+    register_library(isolated_gallery_root, name="CJK Token AND")
+    separated = _seed_search_image(
+        isolated_gallery_root,
+        "separated.png",
+        prompt="星空 atmospheric 猫 distant 風景",
+    )
+    phrase = _seed_search_image(isolated_gallery_root, "phrase.png", prompt="星空 猫 風景")
+
+    result = search_index("星空 猫 風景", "all", limit=10)
+
+    assert {row["asset_id"] for row in result["media"]} == {separated["asset_id"], phrase["asset_id"]}
+
+
 def test_exact_filename_is_first_relevance_tier(isolated_gallery_root: Path) -> None:
     register_library(isolated_gallery_root, name="Exact")
     exact = _seed_search_image(isolated_gallery_root, "target.png")
@@ -87,6 +118,28 @@ def test_exact_filename_is_first_relevance_tier(isolated_gallery_root: Path) -> 
     result = search_index("target.png", "all", limit=10)
     assert result["media"][0]["asset_id"] == exact["asset_id"]
     assert result["media"][0]["match_type"] == "filename_exact"
+
+
+def test_fts_candidates_do_not_hide_filename_substring_matches(isolated_gallery_root: Path) -> None:
+    register_library(isolated_gallery_root, name="Substring union")
+    exact = _seed_search_image(isolated_gallery_root, "auditunionneedle.png")
+    substring = _seed_search_image(isolated_gallery_root, "xxauditunionneedle.png")
+
+    result = search_index("auditunionneedle", "all", limit=10)
+
+    assert [row["asset_id"] for row in result["media"]] == [exact["asset_id"], substring["asset_id"]]
+    assert result["media"][1]["match_type"] == "filename"
+
+
+def test_legacy_photo_file_index_type_is_normalized_in_response(isolated_gallery_root: Path) -> None:
+    register_library(isolated_gallery_root, name="Photo normalization")
+    seeded = _seed_search_image(isolated_gallery_root, "legacy_photo.png")
+    with _connect() as conn:
+        conn.execute("UPDATE file_index SET type = 'photo' WHERE path = ?", (seeded["path"],))
+
+    result = search_index("legacy_photo", "all", limit=10)
+
+    assert result["media"][0]["type"] == "image"
 
 
 def test_equal_score_rows_order_by_mtime_then_asset_id(isolated_gallery_root: Path) -> None:
@@ -196,6 +249,42 @@ def test_cursor_is_request_bound_and_malformed_values_return_400(
     assert response.status_code == 400
 
 
+def test_cursor_rejects_sqlite_overflow_and_json_type_coercion(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+) -> None:
+    register_library(isolated_gallery_root, name="Cursor ranges")
+    _seed_search_image(isolated_gallery_root, "cursor_range.png")
+
+    decimal_overflow = isolated_app.get(
+        "/api/search",
+        params={"q": "cursor_range", "scope": "all", "cursor": str(2**63)},
+    )
+    assert decimal_overflow.status_code == 400
+
+    fingerprint = request_fingerprint("cursor_range", "all", None, fielded=False)
+    for override in ({"asset_id": 10**100}, {"tier": "90"}, {"rank": "0.0"}, {"version": True}):
+        payload = {
+            "version": 1,
+            "fingerprint": fingerprint,
+            "tier": 90,
+            "rank": 0.0,
+            "mtime_ns": 1,
+            "asset_id": 1,
+            **override,
+        }
+        cursor = (
+            base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+            .decode("ascii")
+            .rstrip("=")
+        )
+        response = isolated_app.get(
+            "/api/search",
+            params={"q": "cursor_range", "scope": "all", "cursor": cursor},
+        )
+        assert response.status_code == 400
+
+
 def test_cursor_payload_contains_complete_ordering_tuple(isolated_gallery_root: Path) -> None:
     register_library(isolated_gallery_root, name="Payload")
     for index in range(3):
@@ -244,6 +333,38 @@ def test_active_keyset_query_contains_no_offset() -> None:
     assert "cursor_asset_id" in sql
 
 
+def test_normal_substring_queries_use_trigram_instead_of_full_like_scan() -> None:
+    sql = "\n".join(
+        _candidate_selects(
+            "needle",
+            "",
+            include_fts=True,
+            field_where="",
+            include_videos=True,
+        )
+    )
+    assert "file_index_fts_trigram MATCH :filename_substring_match" in sql
+    assert "image_metadata_fts_trigram MATCH :positive_substring_match" in sql
+    assert "fi.name LIKE :filename_like" not in sql
+    assert "WHERE m.prompt LIKE :text_like" not in sql
+
+
+def test_mixed_short_tokens_use_unicode_fts_without_full_like_scan() -> None:
+    sql = "\n".join(
+        _candidate_selects(
+            "Euler a",
+            "",
+            include_fts=True,
+            field_where="",
+            include_videos=True,
+        )
+    )
+    assert "image_metadata_fts MATCH :metadata_match" in sql
+    assert "file_index_fts_trigram" not in sql
+    assert "fi.name LIKE :filename_like" not in sql
+    assert "WHERE m.prompt LIKE :text_like" not in sql
+
+
 def test_ranked_candidate_plan_uses_fts_and_catalog_ownership_indexes(
     isolated_gallery_root: Path,
 ) -> None:
@@ -263,11 +384,15 @@ def test_ranked_candidate_plan_uses_fts_and_catalog_ownership_indexes(
     params = {
         "filename_like": "%needle%",
         "filename_match": '"needle"',
+        "filename_substring_match": '"needle"',
         "filename_prefix": "needle%",
         "metadata_match": '(model : ("needle")) OR (sampler : ("needle"))',
+        "metadata_substring_match": '(model : ("needle")) OR (sampler : ("needle"))',
         "negative_match": 'negative_prompt : ("needle")',
+        "negative_substring_match": 'negative_prompt : ("needle")',
         "page_limit": 51,
         "positive_match": 'prompt : ("needle")',
+        "positive_substring_match": 'prompt : ("needle")',
         "query": "needle",
         "text_like": "%needle%",
     }

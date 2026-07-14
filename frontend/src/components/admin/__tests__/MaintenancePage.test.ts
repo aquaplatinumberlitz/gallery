@@ -239,6 +239,7 @@ describe("MaintenancePage", () => {
           generated_image_missing: 1,
           generated_image_abandoned: 0,
           metadata_mismatch: 3,
+          file_index_ownership_mismatch: 1,
           orphaned_work_item: 0,
           generated_image_job_mismatch: 0,
         },

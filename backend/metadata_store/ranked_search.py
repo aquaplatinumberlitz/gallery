@@ -12,12 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
-from ..metadata_extract import contains_cjk
 from ..workflow_discovery import build_workflow_group_conditions
 from .identity import asset_owns_file_index_sql, catalog_import_path_owns_sql, file_index_matches_image_metadata_sql
 from .path_utils import canonicalize_catalog_path, named_path_scope_sql
 
 SEARCH_CURSOR_VERSION = 1
+SQLITE_INT_MIN = -(2**63)
+SQLITE_INT_MAX = 2**63 - 1
 _CURRENT_METADATA_IDENTITY_SQL = file_index_matches_image_metadata_sql(fi_alias="fi", im_alias="m")
 
 
@@ -32,6 +33,28 @@ def _active_asset_join_sql(*, fi_alias: str = "fi", asset_alias: str = "catalog_
         f"JOIN libraries AS catalog_library ON catalog_library.id = {asset_alias}.library_id "
         f"AND {import_ownership}"
     )
+
+
+def _simple_active_asset_join_sql(*, fi_alias: str, asset_alias: str) -> str:
+    """Join active assets for bounded preselection; strict ownership is applied outside."""
+    return (
+        f"JOIN assets AS {asset_alias} ON {asset_alias}.library_id = {fi_alias}.library_id "
+        f"AND {asset_alias}.path = {fi_alias}.path "
+        f"AND {asset_alias}.offline = 0 AND {asset_alias}.deleted_at IS NULL "
+        f"AND {asset_alias}.mtime_ns IS NOT NULL"
+    )
+
+
+def _candidate_cursor_sql(*, tier_sql: str, rank_sql: str, mtime_sql: str, asset_id_sql: str) -> str:
+    return f"""
+      AND (
+        {tier_sql} < :cursor_tier
+        OR ({tier_sql} = :cursor_tier AND {rank_sql} > :cursor_rank)
+        OR ({tier_sql} = :cursor_tier AND {rank_sql} = :cursor_rank AND {mtime_sql} < :cursor_mtime_ns)
+        OR ({tier_sql} = :cursor_tier AND {rank_sql} = :cursor_rank
+            AND {mtime_sql} = :cursor_mtime_ns AND {asset_id_sql} > :cursor_asset_id)
+      )
+    """
 
 
 def _escape_fts_token(token: str) -> str:
@@ -55,6 +78,22 @@ def _unicode_prefix_match_query(query: str) -> str:
 
 def _trigram_match_query(query: str) -> str:
     return _escape_fts_token(query.strip())
+
+
+def _trigram_token_match_query(query: str) -> str:
+    """Preserve AND-token semantics while using the trigram candidate table."""
+    tokens = re.findall(r"[\w.-]+", query, flags=re.UNICODE)
+    if not tokens:
+        return _trigram_match_query(query)
+    return " AND ".join(_escape_fts_token(token) for token in tokens)
+
+
+def _can_use_trigram_candidates(query: str) -> bool:
+    trimmed = query.strip()
+    if len(trimmed) < 3:
+        return False
+    tokens = re.findall(r"[\w.-]+", trimmed, flags=re.UNICODE)
+    return bool(tokens) and all(len(token) >= 3 for token in tokens)
 
 
 def _column_fts_query(column: str, query: str, *, trigram: bool) -> str:
@@ -117,17 +156,31 @@ def decode_search_cursor(cursor: str, fingerprint: str) -> dict[str, int | float
         payload = json.loads(base64.urlsafe_b64decode(cursor + padding).decode("utf-8"))
         if not isinstance(payload, dict):
             raise ValueError
-        version = int(payload["version"])
-        payload_fingerprint = str(payload["fingerprint"])
-        tier = int(payload["tier"])
-        rank = float(payload["rank"])
-        mtime_ns = int(payload["mtime_ns"])
-        asset_id = int(payload["asset_id"])
+        version = payload["version"]
+        payload_fingerprint = payload["fingerprint"]
+        tier = payload["tier"]
+        rank = payload["rank"]
+        mtime_ns = payload["mtime_ns"]
+        asset_id = payload["asset_id"]
     except (KeyError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("Invalid search cursor") from exc
-    if version != SEARCH_CURSOR_VERSION or payload_fingerprint != fingerprint or not math.isfinite(rank):
+    integer_values = (version, tier, mtime_ns, asset_id)
+    if any(not isinstance(value, int) or isinstance(value, bool) for value in integer_values):
         raise ValueError("Invalid search cursor")
-    return {"tier": tier, "rank": rank, "mtime_ns": mtime_ns, "asset_id": asset_id}
+    if not isinstance(payload_fingerprint, str):
+        raise ValueError("Invalid search cursor")
+    if not isinstance(rank, int | float) or isinstance(rank, bool):
+        raise ValueError("Invalid search cursor")
+    if (
+        version != SEARCH_CURSOR_VERSION
+        or payload_fingerprint != fingerprint
+        or not math.isfinite(rank)
+        or not 0 <= tier <= SQLITE_INT_MAX
+        or not SQLITE_INT_MIN <= mtime_ns <= SQLITE_INT_MAX
+        or not 1 <= asset_id <= SQLITE_INT_MAX
+    ):
+        raise ValueError("Invalid search cursor")
+    return {"tier": tier, "rank": float(rank), "mtime_ns": mtime_ns, "asset_id": asset_id}
 
 
 def _cursor_state(
@@ -137,9 +190,14 @@ def _cursor_state(
     if cursor is None:
         return None, None
     if isinstance(cursor, int):
-        return None, max(0, cursor)
+        if isinstance(cursor, bool) or not 0 <= cursor <= SQLITE_INT_MAX:
+            raise ValueError("Invalid search cursor")
+        return None, cursor
     if cursor.isdecimal():
-        return None, max(0, int(cursor))
+        legacy_offset = int(cursor)
+        if legacy_offset > SQLITE_INT_MAX:
+            raise ValueError("Invalid search cursor")
+        return None, legacy_offset
     return decode_search_cursor(cursor, fingerprint), None
 
 
@@ -170,19 +228,21 @@ def _filename_candidate_select(
         metadata_values = (
             "coalesce(m.model, '') AS model, coalesce(m.sampler, '') AS sampler, coalesce(m.seed, '') AS seed"
         )
-    if query_kind == "fts":
+    if query_kind in {"fts", "trigram"}:
+        fts_table = "file_index_fts_trigram" if query_kind == "trigram" else "file_index_fts"
+        match_param = "filename_substring_match" if query_kind == "trigram" else "filename_match"
         source = f"""
-          FROM file_index_fts
-          CROSS JOIN file_index fi ON fi.path = file_index_fts.path
+          FROM {fts_table}
+          CROSS JOIN file_index fi ON fi.rowid = {fts_table}.rowid
           {_active_asset_join_sql()}
           {metadata_join}
-          WHERE file_index_fts MATCH :filename_match
+          WHERE {fts_table} MATCH :{match_param}
             AND {type_sql}
             {scope_sql}
             {metadata_where}
         """
-        rank_sql = "round(bm25(file_index_fts), 6)"
-        fallback_tier = 70
+        rank_sql = f"round(bm25({fts_table}), 6)"
+        fallback_tier = 50 if query_kind == "trigram" else 70
     else:
         source = f"""
           FROM file_index fi
@@ -229,6 +289,9 @@ def _metadata_candidate_select(
     scope_sql: str,
     field_where: str,
     fts_table: str,
+    bounded_fts: bool = False,
+    bounded_field_only: bool = False,
+    has_cursor: bool = False,
 ) -> str:
     field_clause = f"AND {field_where}" if field_where else ""
     if source_kind == "positive_phrase":
@@ -259,40 +322,107 @@ def _metadata_candidate_select(
         """
         tier, rank, match_type_sql, snippet = 65, "0.0", "'metadata'", "coalesce(m.model, m.sampler, '')"
     elif source_kind == "field_only":
-        source = f"""
-          FROM image_metadata m
-          JOIN file_index fi ON fi.path = m.path
-          {_active_asset_join_sql()}
-          WHERE {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
-        """
+        if bounded_field_only:
+            pre_cursor = (
+                _candidate_cursor_sql(
+                    tier_sql="30",
+                    rank_sql="0.0",
+                    mtime_sql="catalog_asset.mtime_ns",
+                    asset_id_sql="catalog_asset.id",
+                )
+                if has_cursor
+                else ""
+            )
+            source = f"""
+              FROM (
+                SELECT m.id AS metadata_id
+                FROM image_metadata m
+                JOIN file_index fi ON fi.path = m.path
+                {_simple_active_asset_join_sql(fi_alias="fi", asset_alias="catalog_asset")}
+                WHERE 1 = 1 {scope_sql} {field_clause} {pre_cursor}
+                ORDER BY catalog_asset.mtime_ns DESC, catalog_asset.id ASC
+                LIMIT :field_candidate_limit
+              ) AS bounded_field_rows
+              CROSS JOIN image_metadata m ON m.id = bounded_field_rows.metadata_id
+              JOIN file_index fi ON fi.path = m.path
+              {_active_asset_join_sql()}
+              WHERE {_CURRENT_METADATA_IDENTITY_SQL}
+            """
+        else:
+            source = f"""
+              FROM image_metadata m
+              JOIN file_index fi ON fi.path = m.path
+              {_active_asset_join_sql()}
+              WHERE {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
+            """
         tier, rank, match_type_sql, snippet = 30, "0.0", "'filters'", "coalesce(m.prompt, m.name, '')"
     else:
         match_param = {
             "positive_fts": "positive_match",
             "negative_fts": "negative_match",
             "metadata_fts": "metadata_match",
+            "positive_trigram": "positive_substring_match",
+            "negative_trigram": "negative_substring_match",
+            "metadata_trigram": "metadata_substring_match",
         }[source_kind]
-        source = f"""
-          FROM {fts_table}
-          CROSS JOIN image_metadata m ON m.id = {fts_table}.rowid
-          CROSS JOIN file_index fi ON fi.path = m.path
-          {_active_asset_join_sql()}
-          WHERE {fts_table} MATCH :{match_param}
-            AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
-        """
-        if source_kind == "positive_fts":
+        if source_kind in {"positive_fts", "positive_trigram"}:
             tier = "CASE WHEN m.prompt LIKE :text_like ESCAPE '\\' THEN 80 ELSE 65 END"
             match_type_sql = "CASE WHEN m.prompt LIKE :text_like ESCAPE '\\' THEN 'prompt_phrase' ELSE 'prompt' END"
             snippet = "m.prompt"
-        elif source_kind == "negative_fts":
+            pre_tier = "CASE WHEN pre_m.prompt LIKE :text_like ESCAPE '\\' THEN 80 ELSE 65 END"
+        elif source_kind in {"negative_fts", "negative_trigram"}:
             tier = 40
             match_type_sql = "'negative_prompt'"
             snippet = "m.negative_prompt"
+            pre_tier = "40"
         else:
             tier = 65
             match_type_sql = "'metadata'"
             snippet = "coalesce(m.model, m.sampler, '')"
-        rank = f"round(bm25({fts_table}), 6)"
+            pre_tier = "65"
+        if bounded_fts:
+            pre_rank = f"round({fts_table}.rank, 6)"
+            if has_cursor:
+                pre_joins = "JOIN file_index AS pre_fi ON pre_fi.path = pre_m.path " + _simple_active_asset_join_sql(
+                    fi_alias="pre_fi", asset_alias="pre_asset"
+                )
+                pre_cursor = _candidate_cursor_sql(
+                    tier_sql=pre_tier,
+                    rank_sql=pre_rank,
+                    mtime_sql="pre_asset.mtime_ns",
+                    asset_id_sql="pre_asset.id",
+                )
+                pre_order = "pre_asset.mtime_ns DESC, pre_asset.id ASC"
+            else:
+                pre_joins = ""
+                pre_cursor = ""
+                pre_order = "COALESCE(pre_m.mtime_ns, CAST(pre_m.mtime * 1000000000 AS INTEGER)) DESC, pre_m.id ASC"
+            source = f"""
+              FROM (
+                SELECT {fts_table}.rowid AS metadata_id, {pre_tier} AS pre_tier, {pre_rank} AS pre_rank
+                FROM {fts_table}
+                JOIN image_metadata AS pre_m ON pre_m.id = {fts_table}.rowid
+                {pre_joins}
+                WHERE {fts_table} MATCH :{match_param} {pre_cursor}
+                ORDER BY pre_tier DESC, pre_rank ASC, {pre_order}
+                LIMIT :fts_candidate_limit
+              ) AS bounded_fts_rows
+              CROSS JOIN image_metadata m ON m.id = bounded_fts_rows.metadata_id
+              CROSS JOIN file_index fi ON fi.path = m.path
+              {_active_asset_join_sql()}
+              WHERE {_CURRENT_METADATA_IDENTITY_SQL}
+            """
+            rank = "bounded_fts_rows.pre_rank"
+        else:
+            source = f"""
+              FROM {fts_table}
+              CROSS JOIN image_metadata m ON m.id = {fts_table}.rowid
+              CROSS JOIN file_index fi ON fi.path = m.path
+              {_active_asset_join_sql()}
+              WHERE {fts_table} MATCH :{match_param}
+                AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
+            """
+            rank = f"round(bm25({fts_table}), 6)"
     return f"""
       SELECT m.path, m.name, fi.type, fi.parent_path, m.mtime,
              catalog_asset.mtime_ns, m.width, m.height,
@@ -319,6 +449,8 @@ def _candidate_selects(
     field_where: str = "",
     include_videos: bool = True,
     field_only: bool = False,
+    bounded_candidates: bool = False,
+    has_cursor: bool = False,
 ) -> list[str]:
     if field_only:
         return [
@@ -327,6 +459,8 @@ def _candidate_selects(
                 scope_sql=scope_sql,
                 field_where=field_where,
                 fts_table="image_metadata_fts",
+                bounded_field_only=bounded_candidates,
+                has_cursor=has_cursor,
             )
         ]
 
@@ -368,8 +502,12 @@ def _candidate_selects(
             )
         return selects
 
-    trigram = contains_cjk(query) and len(query) >= 3
-    metadata_table = "image_metadata_fts_trigram" if trigram else "image_metadata_fts"
+    use_trigram = _can_use_trigram_candidates(query)
+    metadata_table = "image_metadata_fts_trigram" if use_trigram else "image_metadata_fts"
+    positive_kind = "positive_trigram" if use_trigram else "positive_fts"
+    negative_kind = "negative_trigram" if use_trigram else "negative_fts"
+    metadata_kind = "metadata_trigram" if use_trigram else "metadata_fts"
+    bounded_metadata_fts = bounded_candidates and not scope_sql and not field_where
     selects = [
         _filename_candidate_select(
             file_type="image",
@@ -378,22 +516,28 @@ def _candidate_selects(
             field_where=field_where,
         ),
         _metadata_candidate_select(
-            source_kind="positive_fts",
+            source_kind=positive_kind,
             scope_sql=scope_sql,
             field_where=field_where,
             fts_table=metadata_table,
+            bounded_fts=bounded_metadata_fts,
+            has_cursor=has_cursor,
         ),
         _metadata_candidate_select(
-            source_kind="negative_fts",
+            source_kind=negative_kind,
             scope_sql=scope_sql,
             field_where=field_where,
             fts_table=metadata_table,
+            bounded_fts=bounded_metadata_fts,
+            has_cursor=has_cursor,
         ),
         _metadata_candidate_select(
-            source_kind="metadata_fts",
+            source_kind=metadata_kind,
             scope_sql=scope_sql,
             field_where=field_where,
             fts_table=metadata_table,
+            bounded_fts=bounded_metadata_fts,
+            has_cursor=has_cursor,
         ),
     ]
     if include_videos:
@@ -405,26 +549,25 @@ def _candidate_selects(
                 field_where="",
             )
         )
+    if use_trigram:
+        selects.append(
+            _filename_candidate_select(
+                file_type="image",
+                query_kind="trigram",
+                scope_sql=scope_sql,
+                field_where=field_where,
+            )
+        )
+        if include_videos:
+            selects.append(
+                _filename_candidate_select(
+                    file_type="video",
+                    query_kind="trigram",
+                    scope_sql=scope_sql,
+                    field_where="",
+                )
+            )
     return selects
-
-
-def _has_any_fts_match(conn: sqlite3.Connection, params: dict[str, Any], *, trigram: bool) -> bool:
-    """Detect raw FTS coverage before considering the slower substring fallback."""
-    metadata_table = "image_metadata_fts_trigram" if trigram else "image_metadata_fts"
-    row = conn.execute(
-        f"""
-        SELECT 1 FROM file_index_fts WHERE file_index_fts MATCH :filename_match
-        UNION ALL
-        SELECT 1 FROM {metadata_table} WHERE {metadata_table} MATCH :positive_match
-        UNION ALL
-        SELECT 1 FROM {metadata_table} WHERE {metadata_table} MATCH :negative_match
-        UNION ALL
-        SELECT 1 FROM {metadata_table} WHERE {metadata_table} MATCH :metadata_match
-        LIMIT 1
-        """,
-        params,
-    ).fetchone()
-    return row is not None
 
 
 def build_candidate_page_query(
@@ -447,6 +590,18 @@ def build_candidate_page_query(
           )
         """
     offset_sql = " OFFSET :legacy_offset" if legacy_offset else ""
+    if len(selects) == 1:
+        return f"""
+          WITH candidates AS (
+            {union_sql}
+          )
+          SELECT *
+          FROM candidates
+          WHERE 1 = 1
+          {cursor_where}
+          ORDER BY relevance_tier DESC, rank ASC, mtime_ns DESC, asset_id ASC
+          LIMIT :page_limit{offset_sql}
+        """
     return f"""
       WITH candidates AS (
         {union_sql}
@@ -525,18 +680,25 @@ def search_ranked_media_page(
         field_where = " AND ".join(conditions) if conditions else "1=1"
         field_where, field_params = _prefix_sql_params(field_where, raw_params, "field_")
 
-    trigram = contains_cjk(residual) and len(residual) >= 3
+    trigram = _can_use_trigram_candidates(residual)
+    metadata_substring_query = _trigram_token_match_query(residual) if trigram else _unicode_match_query(residual)
     params: dict[str, Any] = {
         "filename_like": _like_pattern(residual),
         "filename_match": _unicode_prefix_match_query(residual),
+        "filename_substring_match": _trigram_match_query(residual),
         "filename_prefix": f"{_like_escape(residual)}%",
-        "negative_match": _column_fts_query("negative_prompt", residual, trigram=trigram),
+        "negative_match": _column_fts_query("negative_prompt", residual, trigram=False),
+        "negative_substring_match": f"negative_prompt : ({metadata_substring_query})",
         "metadata_match": (
-            f"({_column_fts_query('model', residual, trigram=trigram)}) OR "
-            f"({_column_fts_query('sampler', residual, trigram=trigram)})"
+            f"({_column_fts_query('model', residual, trigram=False)}) OR "
+            f"({_column_fts_query('sampler', residual, trigram=False)})"
+        ),
+        "metadata_substring_match": (
+            f"(model : ({metadata_substring_query})) OR (sampler : ({metadata_substring_query}))"
         ),
         "page_limit": limit + 1,
-        "positive_match": _column_fts_query("prompt", residual, trigram=trigram),
+        "positive_match": _column_fts_query("prompt", residual, trigram=False),
+        "positive_substring_match": f"prompt : ({metadata_substring_query})",
         "query": residual,
         "text_like": _like_pattern(residual),
         **scope_params,
@@ -556,6 +718,7 @@ def search_ranked_media_page(
 
     field_only = parsed is not None and not residual
     include_videos = parsed is None
+    bounded_candidates = legacy_offset is None
     try:
         selects = _candidate_selects(
             residual,
@@ -564,7 +727,11 @@ def search_ranked_media_page(
             field_where=field_where,
             include_videos=include_videos,
             field_only=field_only,
+            bounded_candidates=bounded_candidates,
+            has_cursor=cursor_position is not None,
         )
+        params["fts_candidate_limit"] = max(256, (limit + 1) * 4)
+        params["field_candidate_limit"] = max(256, (limit + 1) * 4)
         rows = list(
             conn.execute(
                 build_candidate_page_query(
@@ -575,23 +742,6 @@ def search_ranked_media_page(
                 params,
             )
         )
-        if not rows and not field_only and not _has_any_fts_match(conn, params, trigram=trigram):
-            rows = list(
-                conn.execute(
-                    build_candidate_page_query(
-                        _candidate_selects(
-                            residual,
-                            scope_sql,
-                            include_fts=False,
-                            field_where=field_where,
-                            include_videos=include_videos,
-                        ),
-                        has_cursor=cursor_position is not None,
-                        legacy_offset=legacy_offset is not None,
-                    ),
-                    params,
-                )
-            )
     except sqlite3.OperationalError:
         if field_only:
             raise
@@ -601,6 +751,8 @@ def search_ranked_media_page(
             include_fts=False,
             field_where=field_where,
             include_videos=include_videos,
+            bounded_candidates=False,
+            has_cursor=cursor_position is not None,
         )
         rows = list(
             conn.execute(

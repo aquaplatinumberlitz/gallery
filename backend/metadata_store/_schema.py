@@ -174,6 +174,61 @@ def _ensure_raw_workflow_schema(
         execute(statement)
 
 
+def _ensure_file_index_trigram_schema(conn: sqlite3.Connection) -> None:
+    """Create and backfill the trigger-maintained filename substring index."""
+    existed = (
+        conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'file_index_fts_trigram'").fetchone()
+        is not None
+    )
+    conn.execute(
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS file_index_fts_trigram USING fts5(
+          name,
+          path UNINDEXED,
+          type UNINDEXED,
+          parent_path UNINDEXED,
+          content='file_index',
+          content_rowid='rowid',
+          tokenize='trigram'
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS file_index_trigram_ai
+        AFTER INSERT ON file_index BEGIN
+          INSERT INTO file_index_fts_trigram(rowid, name, path, type, parent_path)
+          VALUES (new.rowid, new.name, new.path, new.type, new.parent_path);
+        END
+        """
+    )
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS file_index_trigram_ad
+        AFTER DELETE ON file_index BEGIN
+          INSERT INTO file_index_fts_trigram(
+            file_index_fts_trigram, rowid, name, path, type, parent_path
+          ) VALUES ('delete', old.rowid, old.name, old.path, old.type, old.parent_path);
+        END
+        """
+    )
+    conn.execute("DROP TRIGGER IF EXISTS file_index_trigram_au")
+    conn.execute(
+        """
+        CREATE TRIGGER IF NOT EXISTS file_index_trigram_au
+        AFTER UPDATE OF name, path, type, parent_path ON file_index BEGIN
+          INSERT INTO file_index_fts_trigram(
+            file_index_fts_trigram, rowid, name, path, type, parent_path
+          ) VALUES ('delete', old.rowid, old.name, old.path, old.type, old.parent_path);
+          INSERT INTO file_index_fts_trigram(rowid, name, path, type, parent_path)
+          VALUES (new.rowid, new.name, new.path, new.type, new.parent_path);
+        END
+        """
+    )
+    if not existed:
+        conn.execute("INSERT INTO file_index_fts_trigram(file_index_fts_trigram) VALUES ('rebuild')")
+
+
 def _ensure_workflow_property_schema(
     conn: sqlite3.Connection,
     *,
@@ -577,6 +632,15 @@ def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "image_metadata", "source_mtime_ns", "INTEGER")
     _ensure_column(conn, "image_metadata", "source_size", "INTEGER")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_size  ON image_metadata(path, mtime, size)")
+    conn.execute("DROP INDEX IF EXISTS idx_image_metadata_mtime_ns_natural")
+    conn.execute("DROP INDEX IF EXISTS idx_image_metadata_name_natural_ns")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_ns_name ON image_metadata(mtime_ns DESC, name, path)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_image_metadata_inspector_date "
+        "ON image_metadata(COALESCE(mtime_ns, CAST(mtime * 1000000000 AS INTEGER)) DESC, name, path)"
+    )
     _ensure_column(conn, "metadata_index_jobs", "folder_path", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "metadata_index_jobs", "library_id", "INTEGER")
@@ -1094,6 +1158,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         _ensure_prompt_discovery_schema(conn)
         _ensure_workflow_property_schema(conn)
         _ensure_raw_workflow_schema(conn)
+        _ensure_file_index_trigram_schema(conn)
         _ensure_generation_signature_schema(conn)
         _ensure_visual_fingerprint_schema(conn)
         return
@@ -1133,6 +1198,10 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
 
             CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_name
               ON image_metadata(mtime DESC, name);
+            CREATE INDEX IF NOT EXISTS idx_image_metadata_mtime_ns_name
+              ON image_metadata(mtime_ns DESC, name, path);
+            CREATE INDEX IF NOT EXISTS idx_image_metadata_inspector_date
+              ON image_metadata(COALESCE(mtime_ns, CAST(mtime * 1000000000 AS INTEGER)) DESC, name, path);
 
             CREATE VIRTUAL TABLE IF NOT EXISTS image_metadata_fts USING fts5(
               name, prompt, negative_prompt, model, sampler, raw_metadata_text,
@@ -1445,6 +1514,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     _ensure_prompt_discovery_schema(conn)
     _ensure_workflow_property_schema(conn)
     _ensure_raw_workflow_schema(conn)
+    _ensure_file_index_trigram_schema(conn)
     _ensure_generation_signature_schema(conn)
     _ensure_visual_fingerprint_schema(conn)
 

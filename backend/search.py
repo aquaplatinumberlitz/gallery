@@ -13,7 +13,7 @@ from fastapi import APIRouter, Query, Response
 from fastapi.concurrency import run_in_threadpool
 
 from .errors import APIError, ErrorType
-from .fielded_search_parser import parse_fielded_query
+from .fielded_search_parser import FieldedSearchValidationError, parse_fielded_query
 from .metadata_store import (
     _encode_inspector_cursor,
     cleanup_stale_index,
@@ -143,6 +143,29 @@ _SEARCH_ERROR_RESPONSES = {
     404: {"model": APIErrorResponse, "description": "Library or folder scope not found"},
     503: {"model": APIErrorResponse, "description": "Required search index unavailable"},
     500: {"model": APIErrorResponse, "description": "Sanitized internal failure"},
+    422: {
+        "description": "Invalid request validation or canonical search scope",
+        "content": {
+            "application/json": {
+                "schema": {
+                    "oneOf": [
+                        {"$ref": "#/components/schemas/APIErrorResponse"},
+                        {"$ref": "#/components/schemas/HTTPValidationError"},
+                    ]
+                }
+            }
+        },
+    },
+}
+
+_MODE_SEARCH_ERROR_RESPONSES = {
+    **_SEARCH_ERROR_RESPONSES,
+    409: {"model": APIErrorResponse, "description": "Requested search mode is disabled"},
+}
+
+_RAW_WORKFLOW_ERROR_RESPONSES = {
+    **_MODE_SEARCH_ERROR_RESPONSES,
+    504: {"model": APIErrorResponse, "description": "Raw workflow search deadline exceeded"},
 }
 
 
@@ -169,7 +192,7 @@ def api_search_metadata(
     return MetadataSearchResponse.model_validate(data)
 
 
-@router.get("/api/search", responses=_SEARCH_ERROR_RESPONSES)
+@router.get("/api/search", responses=_MODE_SEARCH_ERROR_RESPONSES)
 def api_search(
     response: Response,
     q: Annotated[str, Query(description="Filename, album name, prompt, or metadata text to search")] = "",
@@ -283,6 +306,8 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
                 request.cursor,
                 library_id=context.library_id,
             )
+    except FieldedSearchValidationError as exc:
+        raise APIError(422, ErrorType.BAD_REQUEST, str(exc)) from exc
     except ValueError as exc:
         raise APIError(400, ErrorType.BAD_REQUEST, "Invalid search cursor") from exc
     except sqlite3.OperationalError as exc:
@@ -296,14 +321,14 @@ def _execute_search_query(request: SearchQueryRequestV1, context: SearchScopeCon
     return SearchResponse.model_validate(data)
 
 
-@router.post("/api/search/query", responses=_SEARCH_ERROR_RESPONSES)
+@router.post("/api/search/query", responses=_MODE_SEARCH_ERROR_RESPONSES)
 def api_search_query(request: SearchQueryRequestV1) -> SearchResponse:
     """Execute the canonical versioned Search V2 contract."""
     context = resolve_search_v2_scope(request.scope)
     return _execute_search_query(request, context)
 
 
-@router.post("/api/search/prompt-usage/query", responses=_SEARCH_ERROR_RESPONSES)
+@router.post("/api/search/prompt-usage/query", responses=_MODE_SEARCH_ERROR_RESPONSES)
 def api_prompt_usage_query(request: PromptUsageQueryRequestV1) -> PromptUsageResponseV1:
     """List normalized prompt values within one authorized canonical scope."""
     context = resolve_search_v2_scope(request.scope)
@@ -325,7 +350,7 @@ def api_prompt_usage_query(request: PromptUsageQueryRequestV1) -> PromptUsageRes
     return PromptUsageResponseV1.model_validate(data)
 
 
-@router.post("/api/search/workflow/raw", responses=_SEARCH_ERROR_RESPONSES)
+@router.post("/api/search/workflow/raw", responses=_RAW_WORKFLOW_ERROR_RESPONSES)
 def api_raw_workflow_search(request: RawWorkflowSearchRequestV1) -> RawWorkflowSearchResponseV1:
     """Run an opt-in literal trigram query over bounded canonical workflow JSON."""
     context = resolve_search_v2_scope(request.scope)
@@ -380,8 +405,12 @@ async def api_library_inspector(
             model,
             prompt,
         )
+    except FieldedSearchValidationError as exc:
+        raise APIError(422, ErrorType.BAD_REQUEST, str(exc)) from exc
     except ValueError as exc:
         raise APIError(400, ErrorType.BAD_REQUEST, "Invalid pagination cursor") from exc
+    except sqlite3.OperationalError as exc:
+        raise APIError(503, ErrorType.SERVER_ERROR, "Inspector search index temporarily unavailable") from exc
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Library inspector failed")
         raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
@@ -405,8 +434,12 @@ async def api_library_inspector(
                 model,
                 prompt,
             )
+        except FieldedSearchValidationError as exc:
+            raise APIError(422, ErrorType.BAD_REQUEST, str(exc)) from exc
         except ValueError as exc:
             raise APIError(400, ErrorType.BAD_REQUEST, "Invalid pagination cursor") from exc
+        except sqlite3.OperationalError as exc:
+            raise APIError(503, ErrorType.SERVER_ERROR, "Inspector search index temporarily unavailable") from exc
         except Exception as exc:  # noqa: BLE001
             LOGGER.exception("Library inspector pagination failed")
             raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc

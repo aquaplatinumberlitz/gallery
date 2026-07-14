@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import unicodedata
 from collections.abc import Callable
@@ -33,6 +34,12 @@ FIELD_PATTERN = re.compile(
 )
 
 COMP_OP_PATTERN = re.compile(r"^(>=?|<=?)\s*")
+SQLITE_INT_MIN = -(2**63)
+SQLITE_INT_MAX = 2**63 - 1
+
+
+class FieldedSearchValidationError(ValueError):
+    """Raised when a recognized field contains an invalid value."""
 
 
 def _normalize_field_name(field: str) -> str:
@@ -221,6 +228,22 @@ TEXT_LIKE_FIELDS: set[str] = {
     "generation_time",
 }
 
+INTEGER_NUMERIC_FIELDS: set[str] = {
+    "steps",
+    "width",
+    "height",
+    "clip_skip",
+    "hires_steps",
+    "ensd",
+}
+REAL_NUMERIC_FIELDS: set[str] = {
+    "cfg_scale",
+    "hires_upscale",
+    "denoising_strength",
+    "aesthetic_score",
+}
+NUMERIC_FIELDS = INTEGER_NUMERIC_FIELDS | REAL_NUMERIC_FIELDS
+
 OR_VALUE_FIELDS: set[str] = {"model", "sampler", "seed", "path"}
 
 COLUMN_MAP: dict[str, str] = {
@@ -260,6 +283,22 @@ def _unicode_match_query(query: str) -> str:
     if not tokens:
         return _escape_fts_token(query)
     return " AND ".join(_escape_fts_token(token) for token in tokens)
+
+
+def _trigram_field_rowids(builder: _ConditionBuilder, column: str, value: str) -> str | None:
+    """Return a selective trigram rowid query without changing LIKE semantics."""
+    if len(value.strip()) < 3 or "*" in value:
+        return None
+    match_query = f"{column} : ({_escape_fts_token(value.strip())})"
+    return (
+        "SELECT rowid FROM image_metadata_fts_trigram "
+        f"WHERE image_metadata_fts_trigram MATCH {builder.next_param(match_query)}"
+    )
+
+
+def _trigram_field_candidate(builder: _ConditionBuilder, column: str, value: str) -> str | None:
+    rowids = _trigram_field_rowids(builder, column, value)
+    return f"m.id IN ({rowids})" if rowids else None
 
 
 def _split_unquoted(value: str, delimiter: str) -> list[str]:
@@ -369,10 +408,16 @@ def _handle_model_or_hash(builder: _ConditionBuilder, ft: FieldToken) -> None:
 
 
 def _handle_size(builder: _ConditionBuilder, ft: FieldToken) -> None:
-    size_match = re.match(r"(\d+)\s*x\s*(\d+)", ft.value, re.IGNORECASE)
-    if size_match:
+    size_match = re.fullmatch(r"(\d+)\s*x\s*(\d+)", ft.value, re.IGNORECASE)
+    if size_match is None:
+        raise FieldedSearchValidationError("Invalid size filter; expected WIDTHxHEIGHT")
+    try:
         width, height = (int(size_match.group(index)) for index in (1, 2))
-        builder.conditions.append(f"m.width = {builder.next_param(width)} AND m.height = {builder.next_param(height)}")
+    except ValueError as exc:
+        raise FieldedSearchValidationError("Invalid size filter; dimensions exceed SQLite integer range") from exc
+    if width > SQLITE_INT_MAX or height > SQLITE_INT_MAX:
+        raise FieldedSearchValidationError("Invalid size filter; dimensions exceed SQLite integer range")
+    builder.conditions.append(f"m.width = {builder.next_param(width)} AND m.height = {builder.next_param(height)}")
 
 
 def _handle_path(builder: _ConditionBuilder, ft: FieldToken) -> None:
@@ -404,21 +449,35 @@ def _handle_lora(builder: _ConditionBuilder, ft: FieldToken) -> None:
 
 def _numeric_value(value: str) -> int | float | None:
     try:
-        return int(value)
+        integer = int(value)
+        return integer if SQLITE_INT_MIN <= integer <= SQLITE_INT_MAX else None
     except ValueError:
         with suppress(ValueError):
-            return float(value)
+            number = float(value)
+            return number if math.isfinite(number) else None
     return None
+
+
+def _numeric_field_value(field: str, value: str) -> int | float | None:
+    number = _numeric_value(value)
+    if number is None:
+        return None
+    if field not in INTEGER_NUMERIC_FIELDS:
+        return number
+    if isinstance(number, float):
+        if not number.is_integer() or not SQLITE_INT_MIN <= number <= SQLITE_INT_MAX:
+            return None
+        return int(number)
+    return number
 
 
 def _handle_standard_field(builder: _ConditionBuilder, ft: FieldToken) -> None:
     col = COLUMN_MAP.get(ft.field, "raw_metadata_text")
     if ft.operator in (">", ">=", "<", "<="):
-        numeric_value = _numeric_value(ft.value)
-        if numeric_value is not None:
-            builder.conditions.append(
-                f"m.{col} IS NOT NULL AND m.{col} {ft.operator} {builder.next_param(numeric_value)}"
-            )
+        numeric_value = _numeric_field_value(ft.field, ft.value)
+        if numeric_value is None:
+            raise FieldedSearchValidationError(f"Invalid numeric value for {ft.field} filter")
+        builder.conditions.append(f"m.{col} IS NOT NULL AND m.{col} {ft.operator} {builder.next_param(numeric_value)}")
         return
     if ft.field in TEXT_LIKE_FIELDS:
         values = (
@@ -427,10 +486,22 @@ def _handle_standard_field(builder: _ConditionBuilder, ft: FieldToken) -> None:
             else (_or_values(ft) or [ft.value])
         )
         joiner = " AND " if ft.quote_char and "," in ft.value else " OR "
-        likes = [
-            f"m.{col} LIKE {builder.next_param(f'%{_escape_like_literal(value)}%')} ESCAPE '\\'" for value in values
-        ]
+        likes: list[str] = []
+        for value in values:
+            like = f"m.{col} LIKE {builder.next_param(f'%{_escape_like_literal(value)}%')} ESCAPE '\\'"
+            trigram_candidate = (
+                _trigram_field_candidate(builder, col, value)
+                if ft.field in {"prompt", "negative", "name", "sampler"}
+                else None
+            )
+            likes.append(f"({trigram_candidate} AND {like})" if trigram_candidate else like)
         builder.conditions.append("(" + joiner.join(likes) + ")")
+        return
+    if ft.field in NUMERIC_FIELDS:
+        numeric_value = _numeric_field_value(ft.field, ft.value)
+        if numeric_value is None:
+            raise FieldedSearchValidationError(f"Invalid numeric value for {ft.field} filter")
+        builder.conditions.append(f"m.{col} = {builder.next_param(numeric_value)}")
         return
     if _like_value(ft.value) != ft.value or "*" in ft.value:
         builder.conditions.append(f"m.{col} LIKE {builder.next_param(_like_value(ft.value))} ESCAPE '\\'")
@@ -454,12 +525,20 @@ def _handle_model(builder: _ConditionBuilder, ft: FieldToken) -> None:
             candidates.append(direct)
             continue
         normalized_name = " ".join(unicodedata.normalize("NFKC", value).strip().split()).casefold()
-        alias = (
-            "lower(coalesce(m.model_hash, '')) IN ("
-            "SELECT normalized_hash FROM model_identity_aliases "
-            f"WHERE normalized_name = {builder.next_param(normalized_name)})"
+        normalized_name_param = builder.next_param(normalized_name)
+        alias_hashes = (
+            f"SELECT normalized_hash FROM model_identity_aliases WHERE normalized_name = {normalized_name_param}"
         )
-        candidates.append(f"({direct} OR {alias})")
+        alias = "lower(coalesce(m.model_hash, '')) IN (" + alias_hashes + ")"
+        trigram_rowids = _trigram_field_rowids(builder, "model", value)
+        if trigram_rowids:
+            candidate_rowids = (
+                f"{trigram_rowids} UNION SELECT alias_metadata.id FROM image_metadata AS alias_metadata "
+                f"WHERE lower(coalesce(alias_metadata.model_hash, '')) IN ({alias_hashes})"
+            )
+            candidates.append(f"(m.id IN ({candidate_rowids}) AND ({direct} OR {alias}))")
+        else:
+            candidates.append(f"({direct} OR {alias})")
     builder.conditions.append("(" + joiner.join(candidates) + ")")
 
 

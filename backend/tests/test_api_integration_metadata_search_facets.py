@@ -197,6 +197,12 @@ class TestSearchFieldedQueries:
             resp = isolated_app.get("/api/search", params={"q": q, "scope": "all"})
             assert resp.status_code == 200, f"Failed for q={q!r}"
 
+    def test_invalid_numeric_equalities_return_422(self, isolated_app: TestClient):
+        for query in ("steps:nan", "width:nan", "cfg:1e309", f"height:{2**63}"):
+            response = isolated_app.get("/api/search", params={"q": query, "scope": "all"})
+            assert response.status_code == 422
+            assert response.json()["detail"]["error"] == "bad_request"
+
 
 class TestFacetsEndpoint:
     def test_facets_returns_200(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
@@ -243,15 +249,24 @@ class TestFacetsEndpoint:
         assert isinstance(data, dict)
         assert "tool" in data
 
-    def test_facets_handles_nonexistent_folder(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
-        resp = isolated_app.get(
+    def test_facets_all_scope_ignores_path_and_folder_scope_rejects_missing_catalog_folder(
+        self,
+        isolated_app: TestClient,
+        temp_gallery_with_metadata: Path,
+    ):
+        all_facets = isolated_app.get("/api/facets", params={"scope": "all"})
+        with_ignored_path = isolated_app.get(
             "/api/facets",
-            params={"path": str(temp_gallery_with_metadata / "nonexistent")},
+            params={"scope": "all", "path": str(temp_gallery_with_metadata / "nonexistent")},
         )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["tool"] == []
-        assert data["folders"] == []
+        assert all_facets.status_code == with_ignored_path.status_code == 200
+        assert with_ignored_path.json() == all_facets.json()
+
+        missing_folder = isolated_app.get(
+            "/api/facets",
+            params={"scope": "folder", "path": str(temp_gallery_with_metadata / "nonexistent")},
+        )
+        assert missing_folder.status_code == 404
 
     def test_facets_handles_empty_db(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         # No seeding - should handle empty gracefully

@@ -45,8 +45,16 @@ def _get_json(base_url: str, path: str, params: dict[str, str]) -> tuple[float, 
 
 def _find_inspector_metadata_path(base_url: str) -> str | None:
     """Resolve a real indexed image path to feed `/api/library/inspector/metadata`."""
+    configured_path = os.getenv("GALLERY_PERF_INSPECTOR_PATH", "").strip()
+    if configured_path:
+        return configured_path
+    inspector_query = os.getenv("GALLERY_PERF_INSPECTOR_QUERY", "").strip()
     try:
-        _, payload = _get_json(base_url, "/api/library/inspector", {"q": "", "scope": "all", "limit": "1"})
+        _, payload = _get_json(
+            base_url,
+            "/api/library/inspector",
+            {"q": inspector_query, "scope": "all", "limit": "1"},
+        )
     except Exception:  # noqa: BLE001
         return None
     rows = payload.get("rows") if isinstance(payload, dict) else None
@@ -56,37 +64,73 @@ def _find_inspector_metadata_path(base_url: str) -> str | None:
 
 
 SEARCH_QUERY_CLASSES = (
-    ("broad_filename", "search_asset_000", 1),
-    ("prompt_heavy", "blue forest prompt heavy constellation 1234", 1),
-    ("album_heavy", "search_album", 1),
-    ("fielded", 'constellation model:perf-model-3 sampler:"Euler a"', 1),
-    ("cjk", "星空 猫 風景", 1),
-    ("repeated_keyset_pages", "search_asset_00", 3),
+    ("broad_filename", "search_asset_000", 1, 50),
+    ("prompt_heavy", "blue forest prompt heavy constellation", 1, 50),
+    ("album_heavy", "search_album", 1, 1),
+    ("fielded", 'constellation model:perf-model-3 sampler:"Euler a"', 1, 1),
+    ("fielded_model_only", "model:perf-model-3", 1, 50),
+    ("fielded_sampler_only", 'sampler:"Euler a"', 1, 50),
+    ("mixed_short_token", "Euler a", 1, 50),
+    ("cjk", "星空 猫 風景", 1, 50),
+    ("repeated_keyset_pages", "search_asset_00", 3, 150),
 )
 
 
-def bench_search_case(base_url: str, name: str, query: str, iterations: int, pages: int = 1) -> dict:
+def bench_search_case(
+    base_url: str,
+    name: str,
+    query: str,
+    iterations: int,
+    pages: int = 1,
+    min_matches_per_iteration: int = 1,
+) -> dict:
     """Benchmark one representative search class, including keyset pages."""
     durations: list[float] = []
     last_payload: dict = {}
+    completed_page_chains = 0
+    minimum_observed_matches: int | None = None
     for _ in range(max(1, iterations)):
         cursor = ""
-        for _page in range(max(1, pages)):
+        observed_matches = 0
+        requested_pages = max(1, pages)
+        completed_pages = 0
+        for page_index in range(requested_pages):
             params = {"q": query, "scope": "all", "limit": "50"}
             if cursor:
                 params["cursor"] = cursor
             duration, last_payload = _get_json(base_url, "/api/search", params)
             durations.append(duration)
+            observed_matches += int(last_payload.get("returned") or 0)
+            if page_index == 0:
+                observed_matches += len(last_payload.get("albums", []))
+            completed_pages += 1
             cursor = str(last_payload.get("next_cursor") or "")
-            if not cursor:
+            if page_index + 1 < requested_pages and not cursor:
                 break
+        if completed_pages == requested_pages:
+            completed_page_chains += 1
+        minimum_observed_matches = (
+            observed_matches if minimum_observed_matches is None else min(minimum_observed_matches, observed_matches)
+        )
     stats = summarize_samples(durations)
+    expected_requests = max(1, iterations) * max(1, pages)
+    observed_matches = minimum_observed_matches or 0
     return {
         "class": name,
         "endpoint": "/api/search",
         "query": query,
         "requests": int(stats["count"]),
+        "expected_requests": expected_requests,
         "pages_per_iteration": pages,
+        "completed_page_chains": completed_page_chains,
+        "expected_page_chains": max(1, iterations),
+        "minimum_observed_matches": observed_matches,
+        "minimum_required_matches": min_matches_per_iteration,
+        "contract_ok": (
+            int(stats["count"]) == expected_requests
+            and completed_page_chains == max(1, iterations)
+            and observed_matches >= min_matches_per_iteration
+        ),
         "min_ms": stats["min_ms"],
         "p50_ms": stats["p50_ms"],
         "p95_ms": stats["p95_ms"],
@@ -145,8 +189,8 @@ def main() -> int:
     )
 
     search_classes = [
-        bench_search_case(base_url, name, query_text, iterations, pages)
-        for name, query_text, pages in SEARCH_QUERY_CLASSES
+        bench_search_case(base_url, name, query_text, iterations, pages, min_matches)
+        for name, query_text, pages, min_matches in SEARCH_QUERY_CLASSES
     ]
     if query != SEARCH_QUERY_CLASSES[0][1]:
         search_classes.append(bench_search(base_url, query, iterations))
@@ -182,6 +226,15 @@ def main() -> int:
 
     failed = False
     for result in search_classes:
+        if not result["contract_ok"]:
+            print(
+                f"/api/search {result['class']} workload contract failed: "
+                f"requests={result['requests']}/{result['expected_requests']}, "
+                f"page_chains={result['completed_page_chains']}/{result['expected_page_chains']}, "
+                f"matches={result['minimum_observed_matches']}/{result['minimum_required_matches']}",
+                file=sys.stderr,
+            )
+            failed = True
         if result["p95_ms"] > search_budget:
             print(
                 f"/api/search {result['class']} p95 exceeded budget: {result['p95_ms']}ms > {search_budget}ms",
@@ -194,6 +247,9 @@ def main() -> int:
             f"{inspector_md_result['p95_ms']}ms > {inspector_md_budget}ms",
             file=sys.stderr,
         )
+        failed = True
+    if inspector_md_result is None or "error" in inspector_md_result:
+        print("/api/library/inspector/metadata workload contract failed: no usable fixture path", file=sys.stderr)
         failed = True
     return 1 if failed else 0
 

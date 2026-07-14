@@ -32,6 +32,7 @@ def main() -> int:
     iterations = int(os.getenv("GALLERY_PERF_INSPECTOR_ITERATIONS", "10"))
     p95_budget_ms = float(os.getenv("GALLERY_PERF_INSPECTOR_P95_BUDGET_MS", str(budget_for("inspector", "p95_ms"))))
     min_rows = int(os.getenv("GALLERY_PERF_INSPECTOR_MIN_ROWS", "1"))
+    min_total_indexed = int(os.getenv("GALLERY_PERF_INSPECTOR_MIN_TOTAL_INDEXED", "0"))
     params = {
         "q": os.getenv("GALLERY_PERF_INSPECTOR_QUERY", ""),
         "scope": os.getenv("GALLERY_PERF_INSPECTOR_SCOPE", "all"),
@@ -63,6 +64,7 @@ def main() -> int:
         "truncated": last_payload.get("truncated"),
         "budget_p95_ms": p95_budget_ms,
         "min_rows": min_rows,
+        "min_total_indexed": min_total_indexed,
         "budget_source": "scripts/perf_budgets.toml[inspector].p95_ms",
     }
     print(emit_report(report))
@@ -73,6 +75,10 @@ def main() -> int:
         failed = True
     if returned < min_rows:
         print(f"inspector returned too few rows: {returned} < {min_rows}", file=sys.stderr)
+        failed = True
+    total_indexed = int(last_payload.get("total_indexed") or 0)
+    if total_indexed < min_total_indexed:
+        print(f"inspector indexed corpus too small: {total_indexed} < {min_total_indexed}", file=sys.stderr)
         failed = True
     return 1 if failed else 0
 

@@ -178,3 +178,31 @@ def test_corrupted_asset_outside_registered_import_path_is_excluded(isolated_gal
 
     result = search_index("containmentneedle", "all")
     assert result["media"] == []
+
+
+def test_corrupted_traversal_asset_inside_raw_prefix_is_excluded(isolated_gallery_root: Path) -> None:
+    library = register_library(isolated_gallery_root, name="Traversal containment")
+    corrupt_path = f"{isolated_gallery_root.resolve()}{os.sep}safe{os.sep}..{os.sep}traversalneedle.png"
+    parent_path = str(Path(corrupt_path).parent)
+
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO assets(library_id, path, parent_path, name, type, mtime_ns, size, offline)
+            VALUES (?, ?, ?, 'traversalneedle.png', 'image', 1000000000, 8, 0)
+            """,
+            (library["id"], corrupt_path, parent_path),
+        )
+        conn.execute(
+            """
+            INSERT INTO file_index(path, name, parent_path, type, mtime, mtime_ns, size, library_id)
+            VALUES (?, 'traversalneedle.png', ?, 'image', 1.0, 1000000000, 8, ?)
+            """,
+            (corrupt_path, parent_path, library["id"]),
+        )
+        conn.execute(
+            "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, 'image', ?)",
+            ("traversalneedle.png", corrupt_path, parent_path),
+        )
+
+    assert search_index("traversalneedle", "all")["media"] == []

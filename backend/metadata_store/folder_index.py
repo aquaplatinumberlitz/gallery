@@ -13,6 +13,14 @@ from typing import Any
 from ..files import is_image_path
 from ..models import FileNode, VideoFileNode
 from ._db import _DB_LOCK, _connect
+from .identity import (
+    active_catalog_file_sql,
+    asset_owns_file_index_sql,
+    catalog_direct_child_sql,
+    catalog_import_path_owns_sql,
+    file_index_matches_image_metadata_sql,
+)
+from .library_store import _find_library_for_path_conn
 
 logger = logging.getLogger(__name__)
 
@@ -156,48 +164,71 @@ def get_warm_folder_listing(
 
     _initialize_database()
     with _DB_LOCK, _connect() as conn:
-        f"{resolved.rstrip(os.sep)}{os.sep}"
+        registered_library = _find_library_for_path_conn(conn, resolved)
+        direct_child = catalog_direct_child_sql(parent_path_sql=":folder_path", path_sql="fi.path")
+        import_owned = (
+            catalog_import_path_owns_sql(library_id_sql="fi.library_id", path_sql="fi.path")
+            if registered_library is not None
+            else "1=1"
+        )
+        active_file = active_catalog_file_sql(fi_alias="fi") if registered_library is not None else "1=1"
+        folder_library = (
+            "fi.library_id IS NOT NULL AND EXISTS (SELECT 1 FROM libraries AS l WHERE l.id = fi.library_id)"
+            if registered_library is not None
+            else "1=1"
+        )
+        current_metadata = file_index_matches_image_metadata_sql(fi_alias="fi", im_alias="im")
+        video_asset = asset_owns_file_index_sql(asset_alias="a", fi_alias="fi")
+        video_join = (
+            f"JOIN assets AS a ON {video_asset}" if registered_library is not None else "LEFT JOIN assets AS a ON 0"
+        )
 
         raw_folders = list(
             conn.execute(
-                """
-                SELECT path, name, mtime
-                FROM file_index
-                WHERE parent_path = ? AND type = 'folder'
+                f"""
+                SELECT fi.path, fi.name, fi.mtime
+                FROM file_index AS fi
+                WHERE fi.parent_path = :folder_path AND fi.type = 'folder'
+                  AND {folder_library}
+                  AND {direct_child} AND {import_owned}
                 """,
-                (resolved,),
+                {"folder_path": resolved},
             )
         )
 
         total_images_row = conn.execute(
-            "SELECT count(*) AS total FROM file_index WHERE parent_path = ? AND type IN ('image', 'photo')",
-            (resolved,),
+            f"""SELECT count(*) AS total FROM file_index AS fi
+                WHERE fi.parent_path = :folder_path AND fi.type IN ('image', 'photo')
+                  AND {direct_child} AND {import_owned} AND {active_file}""",
+            {"folder_path": resolved},
         ).fetchone()
         total_images = int(total_images_row["total"])
 
         raw_images = list(
             conn.execute(
-                """
+                f"""
                 SELECT fi.path, fi.name, fi.mtime, fi.size,
                        COALESCE(fi.width, im.width) AS width,
                        COALESCE(fi.height, im.height) AS height
                 FROM file_index AS fi
-                LEFT JOIN image_metadata AS im ON im.path = fi.path
-                WHERE fi.parent_path = ? AND fi.type IN ('image', 'photo')
+                LEFT JOIN image_metadata AS im ON im.path = fi.path AND {current_metadata}
+                WHERE fi.parent_path = :folder_path AND fi.type IN ('image', 'photo')
+                  AND {direct_child} AND {import_owned} AND {active_file}
                 """,
-                (resolved,),
+                {"folder_path": resolved},
             )
         )
         raw_videos = list(
             conn.execute(
-                """
+                f"""
                 SELECT fi.path, fi.name, fi.mtime, fi.width, fi.height,
                        a.duration_ms, a.mime_type
                 FROM file_index AS fi
-                LEFT JOIN assets AS a ON a.path = fi.path
-                WHERE fi.parent_path = ? AND fi.type = 'video'
+                {video_join}
+                WHERE fi.parent_path = :folder_path AND fi.type = 'video'
+                  AND {direct_child} AND {import_owned}
                 """,
-                (resolved,),
+                {"folder_path": resolved},
             )
         )
 
@@ -246,12 +277,20 @@ def get_warm_folder_listing(
         child_counts: dict[str, dict] = {}
         if child_paths:
             placeholders = ",".join("?" for _ in child_paths)
+            child_direct = catalog_direct_child_sql(parent_path_sql="fi.parent_path", path_sql="fi.path")
+            child_import_owned = (
+                catalog_import_path_owns_sql(library_id_sql="fi.library_id", path_sql="fi.path")
+                if registered_library is not None
+                else "1=1"
+            )
+            child_active = active_catalog_file_sql(fi_alias="fi") if registered_library is not None else "1=1"
             cover_rows = conn.execute(
                 f"""
-                SELECT parent_path, path
-                FROM file_index
-                WHERE parent_path IN ({placeholders}) AND type IN ('image', 'photo')
-                ORDER BY mtime DESC
+                SELECT fi.parent_path, fi.path
+                FROM file_index AS fi
+                WHERE fi.parent_path IN ({placeholders}) AND fi.type IN ('image', 'photo')
+                  AND {child_direct} AND {child_import_owned} AND {child_active}
+                ORDER BY fi.mtime DESC
                 """,
                 child_paths,
             ).fetchall()
@@ -264,13 +303,15 @@ def get_warm_folder_listing(
 
             count_rows = conn.execute(
                 f"""
-                SELECT parent_path,
+                SELECT fi.parent_path,
                        count(*) AS total,
-                       sum(CASE WHEN type = 'folder' THEN 1 ELSE 0 END) AS subfolder_count,
-                       sum(CASE WHEN type IN ('image', 'photo') THEN 1 ELSE 0 END) AS photo_count
-                FROM file_index
-                WHERE parent_path IN ({placeholders})
-                GROUP BY parent_path
+                       sum(CASE WHEN fi.type = 'folder' THEN 1 ELSE 0 END) AS subfolder_count,
+                       sum(CASE WHEN fi.type IN ('image', 'photo') THEN 1 ELSE 0 END) AS photo_count
+                FROM file_index AS fi
+                WHERE fi.parent_path IN ({placeholders})
+                  AND {child_direct} AND {child_import_owned}
+                  AND (fi.type = 'folder' OR {child_active})
+                GROUP BY fi.parent_path
                 """,
                 child_paths,
             ).fetchall()

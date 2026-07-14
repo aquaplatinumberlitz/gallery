@@ -141,7 +141,21 @@ if [[ "$SUITE" == "perf" ]]; then
     mkdir -p "$PERF_RESULTS_DIR"
     echo "==> Run managed search benchmark (${GALLERY_PERF_SEARCH_ROWS} rows)"
     GALLERY_API_BASE_URL="$BACKEND_URL" \
+        GALLERY_PERF_INSPECTOR_QUERY=perf_0000 \
         "$PYTHON" "$SCRIPTS_DIR/bench_search.py" | tee "$PERF_RESULTS_DIR/search-benchmark-report.json"
+    echo "==> Run managed Library Inspector benchmark (${GALLERY_PERF_RELATED_ROWS} rows)"
+    GALLERY_API_BASE_URL="$BACKEND_URL" \
+        GALLERY_PERF_INSPECTOR_QUERY=perf_0000 \
+        GALLERY_PERF_INSPECTOR_MIN_ROWS=1 \
+        GALLERY_PERF_INSPECTOR_MIN_TOTAL_INDEXED="$GALLERY_PERF_RELATED_ROWS" \
+        "$PYTHON" "$SCRIPTS_DIR/perf_library_inspector.py" | tee "$PERF_RESULTS_DIR/library-inspector-report.json"
+    echo "==> Run managed Library Inspector store benchmark (${GALLERY_PERF_RELATED_ROWS} rows)"
+    GALLERY_METADATA_DB="$METADATA_DB" \
+        GALLERY_PERF_INSPECTOR_MIN_TOTAL_INDEXED="$GALLERY_PERF_RELATED_ROWS" \
+        "$PYTHON" "$SCRIPTS_DIR/perf_inspector_store.py" | tee "$PERF_RESULTS_DIR/inspector-store-report.json"
+    echo "==> Run managed facets benchmark (${GALLERY_PERF_RELATED_ROWS} rows)"
+    GALLERY_API_BASE_URL="$BACKEND_URL" \
+        "$PYTHON" "$SCRIPTS_DIR/perf_facets.py" | tee "$PERF_RESULTS_DIR/facets-report.json"
     echo "==> Run managed Related Assets benchmark (${GALLERY_PERF_RELATED_ROWS} rows)"
     GALLERY_API_BASE_URL="$BACKEND_URL" \
         GALLERY_METADATA_DB="$METADATA_DB" \

@@ -15,6 +15,7 @@ from .config import DERIVATIVE_RECONCILE_BATCH_SIZE, DERIVATIVE_VARIANTS
 from .metadata_store import _DB_LOCK, _connect
 from .metadata_store.identity import (
     asset_matches_image_metadata_sql,
+    asset_owns_file_index_sql,
     job_matches_image_metadata_sql,
 )
 
@@ -96,6 +97,7 @@ class IntegrityChecker:
                 "generated_image_missing": results.get("derivative_ready_no_file", 0),
                 "generated_image_abandoned": results.get("derivative_abandoned_jobs", 0),
                 "metadata_mismatch": results.get("asset_done_but_no_metadata", 0),
+                "file_index_ownership_mismatch": results.get("file_index_ownership_mismatch", 0),
                 "orphaned_work_item": results.get("job_active_no_asset", 0),
                 "generated_image_job_mismatch": results.get("derivative_done_not_ready", 0),
                 "generated_image_expected_row_missing": results.get("derivative_expected_row_missing", 0),
@@ -150,6 +152,7 @@ class IntegrityChecker:
                 "generated_image_missing": 0,
                 "generated_image_abandoned": 0,
                 "metadata_mismatch": 0,
+                "file_index_ownership_mismatch": 0,
                 "orphaned_work_item": 0,
                 "generated_image_job_mismatch": 0,
                 "generated_image_expected_row_missing": 0,
@@ -196,6 +199,7 @@ class IntegrityChecker:
         # BEGIN IMMEDIATE transaction; calling it while this connection owns
         # pending writes self-deadlocks SQLite.
         with _DB_LOCK, _connect() as conn:
+            total["file_index_ownership_mismatch"] = self._check_file_index_ownership_mismatch(conn)
             total["asset_done_but_no_metadata"] = self._check_asset_done_no_metadata(conn)
             total["job_done_asset_not_done"] = self._check_job_done_asset_not_done(conn)
             total["job_active_no_asset"] = self._check_job_active_no_asset(conn)
@@ -304,6 +308,22 @@ class IntegrityChecker:
             (deferred_summary.created_jobs + deferred_summary.requeued_without_job) if deferred_summary else 0
         )
         return total
+
+    @staticmethod
+    def _check_file_index_ownership_mismatch(conn: sqlite3.Connection) -> int:
+        """Count media rows without one exact active catalog owner."""
+        ownership = asset_owns_file_index_sql(asset_alias="a", fi_alias="fi")
+        row = conn.execute(
+            f"""
+            SELECT count(*) AS total
+            FROM file_index AS fi
+            WHERE fi.type IN ('image', 'photo', 'video')
+              AND (fi.library_id IS NULL OR NOT EXISTS (
+                SELECT 1 FROM assets AS a WHERE {ownership}
+              ))
+            """
+        ).fetchone()
+        return int(row["total"] or 0)
 
     @staticmethod
     def _terminalize_unsupported_derivatives(conn: sqlite3.Connection) -> list[str]:

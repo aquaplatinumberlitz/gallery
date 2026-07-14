@@ -288,6 +288,14 @@ class SearchQueryRequestV1(BaseModel):
     cursor: str | None = Field(default=None, max_length=2048)
     limit: int = Field(default=60, ge=1, le=100)
 
+    @field_validator("cursor")
+    @classmethod
+    def validate_opaque_cursor(cls, value: str | None) -> str | None:
+        """Canonical POST requests only accept opaque keyset cursors."""
+        if value is not None and value.isdecimal():
+            raise ValueError("decimal search cursors are only supported by the legacy GET adapter")
+        return value
+
     @model_validator(mode="after")
     def validate_decoded_size(self) -> "SearchQueryRequestV1":
         """Reject canonical decoded requests larger than 32 KiB."""

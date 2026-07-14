@@ -47,6 +47,7 @@ import { galleryScrollContainerRefKey } from "@/injectionKeys";
 import { useCollapsibleHeader } from "@/composables/useCollapsibleHeader";
 import { useInfiniteBrowseQuery } from "@/composables/useInfiniteBrowseQuery";
 import { motion } from "motion-v";
+import { GALLERY_SEARCH_MIN_CHARS } from "@/constants";
 
 interface Props {
   isMobile: boolean;
@@ -75,6 +76,13 @@ const {
   clearAll,
 } = useFieldedSearch(() => props.searchQuery);
 const galleryStore = useGalleryStore();
+const isRelevanceSearchActive = computed(() => {
+  const trimmed = props.searchQuery.trim();
+  const submitted = galleryStore.submittedSearchQuery === trimmed && Boolean(trimmed);
+  const filters = galleryStore.searchFilters;
+  const structured = Boolean(filters?.prompt_groups?.length || filters?.workflow_groups?.length);
+  return structured || trimmed.length >= GALLERY_SEARCH_MIN_CHARS || submitted;
+});
 const { activeNav, isMetadataRoute, isAdminRoute, showBackToGallery } = useRouteChrome();
 const isLibrariesRoute = computed(() => activeNav.value === "libraries");
 const isMaintenanceRoute = computed(() => activeNav.value === "maintenance");
@@ -454,7 +462,16 @@ function handleClearAll() {
             </template>
           </Breadcrumb>
 
+          <Badge
+            v-if="isRelevanceSearchActive"
+            variant="secondary"
+            class="h-8 px-2 text-xs font-medium"
+            aria-label="Search results sorted by relevance"
+          >
+            Relevance
+          </Badge>
           <SortSelect
+            v-else
             v-model="gallerySortValue"
             aria-label="Sort gallery"
             trigger-label="Sort"
@@ -595,7 +612,16 @@ function handleClearAll() {
             <TooltipContent>Advanced Search</TooltipContent>
           </Tooltip>
 
+          <Badge
+            v-if="isRelevanceSearchActive"
+            variant="secondary"
+            class="h-8 px-2 text-xs font-medium"
+            aria-label="Search results sorted by relevance"
+          >
+            Relevance
+          </Badge>
           <SortSelect
+            v-else
             v-model="gallerySortValue"
             aria-label="Sort gallery"
             trigger-label="Sort"

@@ -16,7 +16,10 @@ registry, or report summary.
 
 from __future__ import annotations
 
-from scripts.create_perf_fixture import _synthetic_search_values, _visual_bytes
+from pathlib import Path
+
+from backend.metadata_store import _connect
+from scripts.create_perf_fixture import _seed_metadata, _synthetic_search_values, _visual_bytes, _write_png
 from scripts.perf_lib import budget_for
 
 
@@ -66,3 +69,33 @@ def test_related_performance_budgets_lock_100k_plan_limits() -> None:
         "storage_mib": 100,
         "description": "100k Related Assets latency, lexical isolation, worker RSS, and SQLite growth",
     }
+
+
+def test_perf_fixture_indexes_real_images_for_inspector(
+    isolated_gallery_root: Path,
+    isolated_metadata_db: Path,
+) -> None:
+    album = isolated_gallery_root / "perf_album"
+    album.mkdir()
+    image_path = album / "perf_0000.png"
+    _write_png(image_path, 0)
+
+    indexed, synthetic, related = _seed_metadata(
+        isolated_gallery_root,
+        album,
+        isolated_metadata_db,
+        0,
+        search_cohort_rows=0,
+        related_assets=False,
+    )
+
+    assert (indexed, synthetic, related) == (1, 0, {"rows": 0, "reference_asset_id": 0})
+    stat = image_path.stat()
+    with _connect() as conn:
+        row = conn.execute(
+            """SELECT mtime_ns, source_mtime_ns, source_size
+                 FROM image_metadata WHERE path = ?""",
+            (str(image_path.resolve()),),
+        ).fetchone()
+    assert row is not None
+    assert tuple(row) == (stat.st_mtime_ns, stat.st_mtime_ns, stat.st_size)
