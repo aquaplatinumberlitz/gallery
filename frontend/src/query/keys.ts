@@ -67,6 +67,8 @@ export const queryKeys = {
 
   search: (request: SearchQueryRequestV1) => ["search-v2", persistableSearchRequest(request), request.limit] as const,
 
+  searchCount: (request: SearchQueryRequestV1) => ["search-count", persistableSearchRequest(request)] as const,
+
   relatedAssets: (request: RelatedSearchRequestV1) => ["related-assets", request] as const,
 
   searchCapabilities: () => ["search-capabilities"] as const,

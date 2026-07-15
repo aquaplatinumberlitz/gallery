@@ -7,6 +7,7 @@ import type { FacetEntry } from "@/types";
 interface IndexedFacetGroup {
   id: string;
   label: string;
+  field?: string;
   entries: FacetEntry[];
 }
 
@@ -18,6 +19,10 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   initialVisible: 4,
 });
+
+const emit = defineEmits<{
+  apply: [field: string, value: string];
+}>();
 
 const expandedGroupIds = shallowRef<Set<string>>(new Set());
 const countFormatter = new Intl.NumberFormat();
@@ -83,14 +88,32 @@ function toggleGroup(groupId: string) {
               v-for="entry in group.visibleEntries"
               :key="entry.value"
               class="inline-flex max-w-full items-baseline gap-1.5 rounded-md bg-muted px-2 py-1 text-xs"
+              :class="group.field ? 'p-0 bg-transparent' : ''"
             >
-              <span class="min-w-0 break-words text-foreground">{{ entry.value }}</span>
-              <span
-                class="shrink-0 font-medium tabular-nums text-muted-foreground"
-                :aria-label="`${formatCount(entry.count)} assets`"
+              <button
+                v-if="group.field"
+                type="button"
+                class="inline-flex max-w-full items-baseline gap-1.5 rounded-md bg-muted px-2 py-1 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring-shadow)]"
+                :aria-label="`Filter by ${group.label}: ${entry.value} (${formatCount(entry.count)} assets)`"
+                @click="emit('apply', group.field!, entry.value)"
               >
-                {{ formatCount(entry.count) }}
-              </span>
+                <span class="min-w-0 break-words text-foreground">{{ entry.value }}</span>
+                <span
+                  class="shrink-0 font-medium tabular-nums text-muted-foreground"
+                  :aria-label="`${formatCount(entry.count)} assets`"
+                >
+                  {{ formatCount(entry.count) }}
+                </span>
+              </button>
+              <template v-else>
+                <span class="min-w-0 break-words text-foreground">{{ entry.value }}</span>
+                <span
+                  class="shrink-0 font-medium tabular-nums text-muted-foreground"
+                  :aria-label="`${formatCount(entry.count)} assets`"
+                >
+                  {{ formatCount(entry.count) }}
+                </span>
+              </template>
             </li>
           </ul>
           <p v-else :id="`indexed-facet-${group.id}`" class="text-xs text-muted-foreground">None indexed</p>

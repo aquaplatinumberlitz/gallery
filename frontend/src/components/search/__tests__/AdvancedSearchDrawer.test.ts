@@ -33,6 +33,14 @@ vi.mock("@/composables/useSearchCapabilitiesQuery", () => ({
   }),
 }));
 
+const matchPreviewMock = vi.hoisted(() => ({
+  state: { value: { status: "idle", total: 0, hasMore: false } },
+}));
+
+vi.mock("@/composables/useSearchMatchPreview", () => ({
+  useSearchMatchPreview: () => matchPreviewMock,
+}));
+
 function createWrapper(initialFilters: FieldFilter[] = [], storePatch: Record<string, unknown> = {}) {
   setActivePinia(createPinia());
   Object.assign(useGalleryStore(), storePatch);
@@ -77,6 +85,7 @@ describe("AdvancedSearchDrawer", () => {
     facetState.isLoading.value = false;
     facetState.isError.value = false;
     facetRequest.context = null;
+    matchPreviewMock.state.value = { status: "idle", total: 0, hasMore: false };
   });
 
   it("passes production search field errors to the workflow builder", async () => {
@@ -291,6 +300,66 @@ describe("AdvancedSearchDrawer", () => {
     const wrapper = createWrapper();
     await openGroup(wrapper, "Custom metadata");
     expect(wrapper.find("#advanced-search-raw").exists()).toBe(false);
+  });
+
+  it("removes a primary filter chip and clears its field via the chip remove button", async () => {
+    const wrapper = createWrapper([{ field: "prompt", value: "cat" }]);
+    const removeButton = wrapper.find('button[aria-label="Remove prompt:cat"]');
+    expect(removeButton.exists()).toBe(true);
+    await removeButton.trigger("click");
+    await flushPromises();
+    expect((wrapper.get("#advanced-search-prompt").element as HTMLInputElement).value).toBe("");
+    expect(wrapper.text()).toContain("No filters selected");
+    expect(wrapper.find('button[aria-label="Remove prompt:cat"]').exists()).toBe(false);
+  });
+
+  it("removes a passthrough chip without clearing unrelated primary fields", async () => {
+    const wrapper = createWrapper([
+      { field: "prompt", value: "cat" },
+      { field: "future_filter", operator: ">=", value: "7" },
+    ]);
+    expect(wrapper.find('button[aria-label="Remove future_filter:>=7"]').exists()).toBe(true);
+    await wrapper.find('button[aria-label="Remove future_filter:>=7"]').trigger("click");
+    await flushPromises();
+    expect((wrapper.get("#advanced-search-prompt").element as HTMLInputElement).value).toBe("cat");
+    expect(wrapper.find('button[aria-label="Remove future_filter:>=7"]').exists()).toBe(false);
+    expect(button(wrapper, "Apply 1 filter")).toBeDefined();
+  });
+
+  it("prefills the matching field and opens its section when an indexed facet chip is clicked", async () => {
+    facetState.data.value = {
+      model: [{ value: "PonyXL", count: 12 }],
+      sampler: [],
+      scheduler: [],
+    };
+    const wrapper = createWrapper();
+    const chip = wrapper.find('button[aria-label="Filter by Model: PonyXL (12 assets)"]');
+    expect(chip.exists()).toBe(true);
+    await chip.trigger("click");
+    await flushPromises();
+    expect((wrapper.get("#advanced-search-model").element as HTMLInputElement).value).toBe("PonyXL");
+    expect(wrapper.text()).toContain("model:PonyXL");
+    expect(button(wrapper, "Apply 1 filter")).toBeDefined();
+  });
+
+  it("renders the live match preview label from the preview composable state", () => {
+    matchPreviewMock.state.value = {
+      status: "done",
+      total: 1,
+      hasMore: false,
+    };
+    const wrapper = createWrapper([{ field: "prompt", value: "cat" }]);
+    expect(wrapper.get('[data-testid="advanced-search-match-preview"]').text()).toContain("1 match");
+  });
+
+  it("renders a no-matches preview when the preview reports zero results", () => {
+    matchPreviewMock.state.value = {
+      status: "done",
+      total: 0,
+      hasMore: false,
+    };
+    const wrapper = createWrapper([{ field: "prompt", value: "cat" }]);
+    expect(wrapper.get('[data-testid="advanced-search-match-preview"]').text()).toContain("No matches");
   });
 
   it("turns a prompt selection into the canonical exact-group request", async () => {

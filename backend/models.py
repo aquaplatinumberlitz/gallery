@@ -120,6 +120,14 @@ class SearchResponse(BaseModel):
     limit: int
 
 
+class SearchCountResponseV1(BaseModel):
+    """Lightweight count response for match-preview without fetching rows."""
+
+    schema_version: int = 1
+    total: int = Field(ge=0)
+    has_more: bool = False
+
+
 class SearchFolderScopeV1(StrictSearchModel):
     """ID-based folder scope that never accepts an absolute client path."""
 

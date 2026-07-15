@@ -244,6 +244,9 @@ REAL_NUMERIC_FIELDS: set[str] = {
 }
 NUMERIC_FIELDS = INTEGER_NUMERIC_FIELDS | REAL_NUMERIC_FIELDS
 
+DATE_COMPARISON_FIELDS: set[str] = {"date", "generation_time"}
+_DATE_VALUE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
 OR_VALUE_FIELDS: set[str] = {"model", "sampler", "seed", "path"}
 
 COLUMN_MAP: dict[str, str] = {
@@ -473,6 +476,14 @@ def _numeric_field_value(field: str, value: str) -> int | float | None:
 
 def _handle_standard_field(builder: _ConditionBuilder, ft: FieldToken) -> None:
     col = COLUMN_MAP.get(ft.field, "raw_metadata_text")
+    if ft.field in DATE_COMPARISON_FIELDS and ft.operator in (">", ">=", "<", "<="):
+        date_value = ft.value.strip()
+        if not _DATE_VALUE_RE.match(date_value):
+            raise FieldedSearchValidationError(f"Invalid date for {ft.field} filter; use YYYY-MM-DD")
+        builder.conditions.append(
+            f"m.{col} IS NOT NULL AND substr(m.{col}, 1, 10) {ft.operator} {builder.next_param(date_value)}"
+        )
+        return
     if ft.operator in (">", ">=", "<", "<="):
         numeric_value = _numeric_field_value(ft.field, ft.value)
         if numeric_value is None:

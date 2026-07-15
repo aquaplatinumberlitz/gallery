@@ -362,6 +362,9 @@ from .search_store import (
     search_index as search_index,
 )
 from .search_store import (
+    search_index_count as search_index_count,
+)
+from .search_store import (
     search_index_fielded as search_index_fielded,
 )
 from .search_store import (

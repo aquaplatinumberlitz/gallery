@@ -175,6 +175,32 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/search/count") {
+      const countPayload = route.request().postDataJSON() as { text?: string } | null;
+      const q = countPayload?.text ?? "";
+      const total =
+        q &&
+        (q.includes("rain") ||
+          q.includes("blue") ||
+          q.includes("PonyXL") ||
+          q.includes("seed") ||
+          q.includes("steps") ||
+          q.includes("cfg") ||
+          q.includes("width") ||
+          q.includes("height") ||
+          q.includes("ratio") ||
+          q.includes("size") ||
+          q.includes("prompt") ||
+          q.includes("mika"))
+          ? 1
+          : 0;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ schema_version: 1, total, has_more: false }),
+      });
+      return;
+    }
+
     if (url.pathname === "/api/facets") {
       await route.fulfill({
         contentType: "application/json",
@@ -321,12 +347,17 @@ test.describe("AdvancedSearchDrawer", () => {
     await drawerField(drawer, "advanced-search-seed").focus();
     await expect
       .poll(
-        () => drawerField(drawer, "advanced-search-seed").evaluate((element) => getComputedStyle(element).boxShadow),
+        () =>
+          drawerField(drawer, "advanced-search-seed").evaluate((element) => {
+            const control = element.closest(".advanced-search-numeric-control");
+            return control ? getComputedStyle(control).boxShadow : "";
+          }),
         { timeout: 1_000 },
       )
       .toMatch(/0px 0px 0px 3px/);
     const seedFocusStyle = await drawerField(drawer, "advanced-search-seed").evaluate((element) => {
-      const style = getComputedStyle(element);
+      const control = element.closest(".advanced-search-numeric-control");
+      const style = control ? getComputedStyle(control) : getComputedStyle(element);
       return {
         boxShadow: style.boxShadow,
         ringShadow: style.getPropertyValue("--tw-ring-shadow").trim(),
@@ -334,7 +365,6 @@ test.describe("AdvancedSearchDrawer", () => {
     });
     expect(seedFocusStyle.boxShadow).toMatch(/0px 0px 0px 3px/);
     expect(seedFocusStyle.boxShadow).not.toContain("inset");
-    expect(seedFocusStyle.ringShadow).toContain("3px");
 
     await expect(drawerField(drawer, "advanced-search-seed")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-steps")).toBeVisible();
@@ -632,6 +662,151 @@ test.describe("AdvancedSearchDrawer", () => {
     await searchInput.fill("");
     await searchInput.press("Enter");
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("between operator renders dual inputs and produces two staged filters", async ({ page }) => {
+    const requests = await installStubbedGallery(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
+
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Advanced Search" }).click();
+    const drawer = page.getByRole("dialog", { name: "Advanced Search" });
+    await expect(drawer).toBeVisible({ timeout: 5_000 });
+
+    await drawer.getByRole("button", { name: /Generation settings/ }).click();
+
+    // Select "between" operator on steps field
+    const stepsField = drawerField(drawer, "advanced-search-steps");
+    await stepsField.scrollIntoViewIfNeeded();
+    // Click the operator trigger (design-system Select)
+    const opTrigger = stepsField.locator("..").locator('[role="combobox"]').first();
+    await opTrigger.click();
+    await page.getByRole("option", { name: "between" }).click();
+
+    // Two inputs should appear
+    const inputs = stepsField.locator("..").locator('input[type="text"], input[type="number"]');
+    await expect(inputs).toHaveCount(2);
+
+    // Fill low and high
+    await inputs.nth(0).fill("20");
+    await inputs.nth(1).fill("40");
+
+    await drawer.getByRole("button", { name: /^Apply 1 filter$/ }).click();
+    await expect(drawer).not.toBeVisible({ timeout: 5_000 });
+    await expect.poll(() => requestsFor(requests, "/api/search/query").length).toBeGreaterThanOrEqual(1);
+
+    const searchReqs = requestsFor(requests, "/api/search/query");
+    const lastSearch = searchReqs[searchReqs.length - 1]!;
+    expect(lastSearch.q).toContain("steps:>=20");
+    expect(lastSearch.q).toContain("steps:<=40");
+  });
+
+  test("facet combobox opens popover and selects value", async ({ page }) => {
+    await installStubbedGallery(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
+
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Advanced Search" }).click();
+    const drawer = page.getByRole("dialog", { name: "Advanced Search" });
+    await expect(drawer).toBeVisible({ timeout: 5_000 });
+
+    // Model field uses facet combobox
+    const modelField = drawerField(drawer, "advanced-search-model");
+    await modelField.scrollIntoViewIfNeeded();
+
+    // Click to open facet popover
+    const popoverTrigger = modelField.locator("..").locator('[role="combobox"]').first();
+    await popoverTrigger.click();
+
+    // Should see facet values with counts
+    await expect(page.getByRole("option", { name: /PonyXL/ })).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByRole("option", { name: /SDXL/ })).toBeVisible();
+
+    // Select PonyXL
+    await page.getByRole("option", { name: /PonyXL/ }).click();
+    await expect(modelField).toHaveValue("PonyXL");
+  });
+
+  test("jump-to-field quick input scrolls to target field", async ({ page }) => {
+    await installStubbedGallery(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
+
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Advanced Search" }).click();
+    const drawer = page.getByRole("dialog", { name: "Advanced Search" });
+    await expect(drawer).toBeVisible({ timeout: 5_000 });
+
+    // Find jump-to input
+    const jumpInput = drawer.locator('input[placeholder*="Jump"]');
+    await expect(jumpInput).toBeVisible();
+
+    // Type "seed" and press Enter
+    await jumpInput.fill("seed");
+    await jumpInput.press("Enter");
+
+    // Seed field should be visible (scrolled into view)
+    const seedField = drawerField(drawer, "advanced-search-seed");
+    await expect(seedField).toBeVisible();
+  });
+
+  test("group headings separate discovery from filter sections", async ({ page }) => {
+    await installStubbedGallery(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
+
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Advanced Search" }).click();
+    const drawer = page.getByRole("dialog", { name: "Advanced Search" });
+    await expect(drawer).toBeVisible({ timeout: 5_000 });
+
+    // Check for group heading text
+    await expect(drawer.getByText("Discovery & tools")).toBeVisible();
+    await expect(drawer.getByText("Filters")).toBeVisible();
+  });
+
+  test("drawer width matches responsive spec", async ({ page }) => {
+    await installStubbedGallery(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+    });
+
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+
+    // Desktop (1280px) - drawer should be 640px
+    await page.getByRole("button", { name: "Advanced Search" }).click();
+    const drawer = page.getByRole("dialog", { name: "Advanced Search" });
+    await expect(drawer).toBeVisible({ timeout: 5_000 });
+    const desktopBox = await drawer.boundingBox();
+    expect(desktopBox?.width).toBe(640);
+
+    await page.getByLabel("Close").click();
+    await expect(drawer).not.toBeVisible({ timeout: 5_000 });
   });
 });
 

@@ -84,4 +84,33 @@ describe("IndexedFacetSummary", () => {
     expect(wrapper.text()).not.toContain("Fooocus");
     expect(showMore.attributes("aria-expanded")).toBe("false");
   });
+
+  it("emits apply with field and value when a field-backed chip is clicked", async () => {
+    const wrapper = mount(IndexedFacetSummary, {
+      props: {
+        groups: [
+          {
+            id: "model",
+            label: "Model",
+            field: "model",
+            entries: [{ value: "PonyXL", count: 12 }],
+          },
+        ],
+      },
+    });
+
+    const chip = wrapper.find("button");
+    expect(chip.attributes("aria-label")).toBe("Filter by Model: PonyXL (12 assets)");
+    await chip.trigger("click");
+    expect(wrapper.emitted("apply")?.[0]).toEqual(["model", "PonyXL"]);
+  });
+
+  it("keeps chips display-only when no field is provided", () => {
+    const wrapper = mount(IndexedFacetSummary, {
+      props: {
+        groups: [{ id: "tools", label: "Tools", entries: [{ value: "SwarmUI", count: 46 }] }],
+      },
+    });
+    expect(wrapper.find("button").exists()).toBe(false);
+  });
 });

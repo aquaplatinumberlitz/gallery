@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, shallowRef, watch } from "vue";
 import { useForm, useStore } from "@tanstack/vue-form";
-import { Search, Trash2, X } from "lucide-vue-next";
+import { LoaderCircle, Search, Trash2, X } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -10,8 +10,10 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useFacetsQuery } from "@/composables/useFacetsQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
+import { useSearchMatchPreview } from "@/composables/useSearchMatchPreview";
 import { useGalleryStore } from "@/stores/gallery";
 import { filterToDisplayString } from "@/utils/serializeAdvancedSearchToQuery";
+import { replaceManagedFilters } from "@/utils/searchQueryGrammar";
 import { buildSearchScopeV1 } from "@/utils/searchRequest";
 import { useSearchCapabilitiesQuery } from "@/composables/useSearchCapabilitiesQuery";
 import type {
@@ -23,6 +25,7 @@ import type {
 } from "@/types";
 import AdvancedSearchNumericField from "./AdvancedSearchNumericField.vue";
 import AdvancedSearchPrefixedField from "./AdvancedSearchPrefixedField.vue";
+import AdvancedSearchFacetField from "./AdvancedSearchFacetField.vue";
 import IndexedFacetSummary from "./IndexedFacetSummary.vue";
 import PromptUsagePanel from "./PromptUsagePanel.vue";
 import RawWorkflowSearch from "./RawWorkflowSearch.vue";
@@ -34,13 +37,17 @@ import {
   aspectRatios,
   buildDefaultValues,
   buildStagedState,
+  collectStagedChips,
   collectStagedFilters,
+  defaultSlotValue,
+  fieldValueForFacet,
   filterSignature,
   sectionForField,
   slotForFilter,
   validateValues,
   type FormFieldName,
   type FormValues,
+  type StagedChip,
   type StagedToken,
 } from "./advancedSearchModel";
 
@@ -137,9 +144,8 @@ const form = useForm({
 
 const formState = useStore(form.store);
 const validationErrors = computed(() => validateValues(formState.value.values));
-const stagedFilters = computed(() =>
-  collectStagedFilters(formState.value.values, stagedTokens.value, openingValues.value),
-);
+const stagedChips = computed(() => collectStagedChips(formState.value.values, stagedTokens.value, openingValues.value));
+const stagedFilters = computed(() => stagedChips.value.map((chip) => chip.filter));
 const isDirty = computed(() => filterSignature(stagedFilters.value) !== filterSignature(props.initialFilters));
 const activeFilterCount = computed(() => stagedFilters.value.length);
 const activeFilterSummary = computed(() =>
@@ -202,6 +208,52 @@ const fieldIds: Record<FormFieldName, string> = {
   raw: "advanced-search-raw",
 };
 
+const fieldLabels: Partial<Record<FormFieldName, string>> = {
+  prompt: "Prompt",
+  negative: "Negative prompt",
+  model: "Model",
+  folder: "Folder",
+  name: "File name",
+  date: "Date",
+  sampler: "Sampler",
+  scheduler: "Scheduler",
+  lora: "LoRA",
+  vae: "VAE",
+  seed: "Seed",
+  steps: "Steps",
+  cfg: "CFG scale",
+  clip_skip: "Clip skip",
+  denoising_strength: "Denoising strength",
+  hires_upscale: "HiRes upscale",
+  hires_steps: "HiRes steps",
+  width: "Width",
+  height: "Height",
+  size: "Size",
+  ratio: "Aspect ratio",
+  param: "Custom metadata field",
+  advanced: "Workflow metadata field",
+};
+
+const jumpQuery = shallowRef("");
+
+async function handleJumpToField() {
+  const query = jumpQuery.value.trim().toLowerCase();
+  if (!query) return;
+  const match = (Object.keys(fieldIds) as FormFieldName[]).find(
+    (slot) => fieldLabels[slot]?.toLowerCase().includes(query) || slot.toLowerCase().includes(query),
+  );
+  if (!match) return;
+  const section = sectionForField(match);
+  if (section && !activeAccordionSections.value.includes(section)) {
+    activeAccordionSections.value = [...activeAccordionSections.value, section];
+  }
+  await nextTick();
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  const target = document.getElementById(fieldIds[match]);
+  target?.focus();
+  target?.scrollIntoView({ block: "center" });
+}
+
 const facetData = computed(() => facetsQuery.data.value);
 const facetModelOptions = computed(() => facetData.value?.model?.map((entry: FacetEntry) => entry.value) ?? []);
 const facetSamplerOptions = computed(() => facetData.value?.sampler?.map((entry: FacetEntry) => entry.value) ?? []);
@@ -213,14 +265,65 @@ const additionalFacetGroups = computed(() => [
   { id: "seed", label: "Seed", entries: facetData.value?.seed_availability ?? [] },
   { id: "metadata", label: "Metadata", entries: facetData.value?.metadata_availability ?? [] },
 ]);
+const indexedFacetGroups = computed(() => [
+  { id: "model", label: "Model", field: "model" as const, entries: facetData.value?.model ?? [] },
+  { id: "sampler", label: "Sampler", field: "sampler" as const, entries: facetData.value?.sampler ?? [] },
+  { id: "scheduler", label: "Scheduler", field: "scheduler" as const, entries: facetData.value?.scheduler ?? [] },
+  { id: "lora", label: "LoRA", field: "lora" as const, entries: facetData.value?.lora ?? [] },
+  ...additionalFacetGroups.value,
+]);
 const facetsLoading = computed(() => facetsQuery.isLoading.value);
 const facetsFailed = computed(() => facetsQuery.isError?.value ?? false);
+
+const previewRequest = computed<PersistableSearchRequestV1 | null>(() => {
+  if (!canonicalScope.value) return null;
+  const text = replaceManagedFilters(galleryStore.searchQuery, stagedFilters.value).trim();
+  if (!text && stagedFilters.value.length === 0) return null;
+  return {
+    schema_version: 1,
+    mode: "lexical",
+    text,
+    scope: canonicalScope.value,
+    filters: { prompt_groups: [], workflow_groups: [] },
+  };
+});
+const matchPreview = useSearchMatchPreview(previewRequest, {
+  enabled: computed(() => props.isOpen && validationErrorCount.value === 0),
+});
+const matchPreviewLabel = computed(() => {
+  const state = matchPreview.state.value;
+  if (state.status === "idle") return "";
+  if (state.status === "loading") return "Checking matches…";
+  if (state.status === "error") return "Match check unavailable";
+  if (state.total === 0) return "No matches";
+  if (state.hasMore) return `${state.total}+ matches`;
+  return `${state.total} match${state.total === 1 ? "" : "es"}`;
+});
 
 function facetStatus(options: string[]) {
   if (facetsLoading.value) return "Loading suggestions";
   if (facetsFailed.value) return "Suggestions unavailable";
   if (options.length === 0) return "No suggestions available";
   return "";
+}
+
+function handleFacetApply(field: string, value: string) {
+  const slot = slotForFilter({ field, value });
+  if (!slot) return;
+  form.setFieldValue(slot, fieldValueForFacet(slot, value));
+  const section = sectionForField(slot);
+  if (section && !activeAccordionSections.value.includes(section)) {
+    activeAccordionSections.value = [...activeAccordionSections.value, section];
+  }
+}
+
+function removeChip(chip: StagedChip) {
+  if (chip.tokenId) {
+    stagedTokens.value = stagedTokens.value.filter((token) => token.id !== chip.tokenId);
+  }
+  if (chip.kind === "primary" && chip.slot) {
+    form.setFieldValue(chip.slot, defaultSlotValue(chip.slot));
+  }
 }
 
 function handleClearAll() {
@@ -290,7 +393,7 @@ watch(
   <Sheet :open="isOpen" @update:open="handleOpenChange">
     <SheetContent
       side="right"
-      class="advanced-search-drawer w-full max-w-none gap-0 p-0 sm:w-[560px] sm:max-w-[560px]"
+      class="advanced-search-drawer w-full max-w-none gap-0 p-0 sm:w-[min(640px,42vw)] sm:max-w-[640px]"
       data-testid="advanced-search-drawer"
       @interact-outside="handleInteractOutside"
     >
@@ -306,37 +409,51 @@ watch(
         >
           <div class="mb-4 rounded-md border bg-muted/40 px-3 py-2.5">
             <div class="flex items-center justify-between gap-3">
-              <p class="text-sm font-medium" aria-live="polite">{{ activeFilterSummary }}</p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                class="advanced-search-clear min-h-9 shrink-0"
-                :disabled="activeFilterCount === 0"
-                @click="handleClearAll"
-              >
-                <Trash2 data-icon="inline-start" />
-                Clear all
-              </Button>
+              <div class="flex min-w-0 flex-col gap-0.5">
+                <p class="text-sm font-medium" aria-live="polite">{{ activeFilterSummary }}</p>
+                <p
+                  v-if="matchPreviewLabel"
+                  class="flex items-center gap-1.5 text-xs text-muted-foreground"
+                  aria-live="polite"
+                  data-testid="advanced-search-match-preview"
+                >
+                  <LoaderCircle
+                    v-if="matchPreview.state.value.status === 'loading'"
+                    class="size-3 shrink-0 animate-spin"
+                    aria-hidden="true"
+                  />
+                  {{ matchPreviewLabel }}
+                </p>
+              </div>
             </div>
             <ul
-              v-if="stagedFilters.length"
+              v-if="stagedChips.length"
               class="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto"
               aria-label="Selected filters"
             >
               <li
-                v-for="(filter, index) in stagedFilters"
-                :key="`${filter.field}-${filter.operator ?? ''}-${filter.value}-${index}`"
-                class="max-w-full rounded-md border bg-background px-2 py-1"
+                v-for="chip in stagedChips"
+                :key="chip.id"
+                class="flex max-w-full items-center gap-1 rounded-md border bg-background pl-2 pr-1 py-0.5"
               >
-                <code class="block max-w-full truncate text-xs">{{ filterToDisplayString(filter) }}</code>
+                <code class="max-w-full truncate text-xs">{{ filterToDisplayString(chip.filter) }}</code>
+                <button
+                  type="button"
+                  class="advanced-search-chip-remove inline-flex shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring-shadow)]"
+                  :aria-label="`Remove ${filterToDisplayString(chip.filter)}`"
+                  @click="removeChip(chip)"
+                >
+                  <X class="size-3" aria-hidden="true" />
+                </button>
               </li>
             </ul>
           </div>
 
           <RecentSearchesPanel class="mb-4" @apply="applyCanonicalRequest" @keydown.stop />
 
-          <IndexedFacetSummary :groups="additionalFacetGroups" />
+          <IndexedFacetSummary class="mb-4" :groups="indexedFacetGroups" @apply="handleFacetApply" />
+
+          <p class="advanced-search-group-heading">Discovery &amp; tools</p>
 
           <Accordion
             type="multiple"
@@ -346,7 +463,7 @@ watch(
             data-testid="advanced-search-groups"
           >
             <AccordionItem value="prompts">
-              <AccordionTrigger class="text-left no-underline hover:no-underline">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
                 <span class="flex flex-col gap-0.5"
                   ><span>Prompt discovery</span
                   ><span class="text-xs font-normal text-muted-foreground"
@@ -365,7 +482,7 @@ watch(
             </AccordionItem>
 
             <AccordionItem value="workflow">
-              <AccordionTrigger class="text-left no-underline hover:no-underline">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
                 <span class="flex flex-col gap-0.5"
                   ><span>Workflow properties</span
                   ><span class="text-xs font-normal text-muted-foreground"
@@ -385,7 +502,7 @@ watch(
             </AccordionItem>
 
             <AccordionItem v-if="rawCapability?.enabled" value="raw-workflow">
-              <AccordionTrigger class="text-left no-underline hover:no-underline">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
                 <span class="flex flex-col gap-0.5"
                   ><span>Raw workflow</span
                   ><span class="text-xs font-normal text-muted-foreground"
@@ -399,7 +516,7 @@ watch(
             </AccordionItem>
 
             <AccordionItem value="indexes">
-              <AccordionTrigger class="text-left no-underline hover:no-underline">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
                 <span class="flex flex-col gap-0.5"
                   ><span>Index status</span
                   ><span class="text-xs font-normal text-muted-foreground"
@@ -412,8 +529,22 @@ watch(
               </AccordionContent>
             </AccordionItem>
 
+            <hr class="advanced-search-group-divider" />
+            <p class="advanced-search-group-heading">Filters</p>
+
+            <div class="advanced-search-jump-field mb-3">
+              <Search class="advanced-search-jump-icon" aria-hidden="true" />
+              <Input
+                v-model="jumpQuery"
+                class="advanced-search-jump-input"
+                placeholder="Jump to a field (e.g. seed, steps, model)…"
+                aria-label="Jump to filter field"
+                @keydown.enter.prevent="handleJumpToField"
+              />
+            </div>
+
             <AccordionItem value="content">
-              <AccordionTrigger class="text-left no-underline hover:no-underline">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
                 <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
                   <span class="flex flex-col gap-0.5">
                     <span>Content and files</span>
@@ -453,27 +584,15 @@ watch(
                   </form.Field>
                   <div class="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
                     <form.Field name="model" v-slot="{ field }">
-                      <Field class="gap-1.5">
-                        <FieldLabel for="advanced-search-model">Model</FieldLabel>
-                        <Input
-                          id="advanced-search-model"
-                          :model-value="field.state.value"
-                          list="model-datalist"
-                          placeholder="PonyXL"
-                          @update:model-value="field.handleChange"
-                        />
-                        <datalist id="model-datalist">
-                          <option
-                            v-for="option in facetModelOptions"
-                            :key="option"
-                            :value="option"
-                            class="advanced-search-option"
-                          />
-                        </datalist>
-                        <FieldDescription v-if="facetStatus(facetModelOptions)" class="text-xs" aria-live="polite">
-                          {{ facetStatus(facetModelOptions) }}
-                        </FieldDescription>
-                      </Field>
+                      <AdvancedSearchFacetField
+                        id="advanced-search-model"
+                        label="Model"
+                        :model-value="field.state.value"
+                        :options="facetData?.model ?? []"
+                        placeholder="PonyXL"
+                        :status-text="facetStatus(facetModelOptions)"
+                        @update:model-value="field.handleChange"
+                      />
                     </form.Field>
                     <form.Field name="folder" v-slot="{ field }">
                       <Field class="gap-1.5">
@@ -515,7 +634,7 @@ watch(
             </AccordionItem>
 
             <AccordionItem value="generation">
-              <AccordionTrigger class="text-left no-underline hover:no-underline">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
                 <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
                   <span class="flex flex-col gap-0.5">
                     <span>Generation settings</span>
@@ -543,68 +662,37 @@ watch(
                 <FieldGroup class="gap-4">
                   <div class="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
                     <form.Field name="sampler" v-slot="{ field }">
-                      <Field class="gap-1.5">
-                        <FieldLabel for="advanced-search-sampler">Sampler</FieldLabel>
-                        <Input
-                          id="advanced-search-sampler"
-                          :model-value="field.state.value"
-                          list="sampler-datalist"
-                          placeholder="Euler a"
-                          @update:model-value="field.handleChange"
-                        />
-                        <datalist id="sampler-datalist">
-                          <option
-                            v-for="option in facetSamplerOptions"
-                            :key="option"
-                            :value="option"
-                            class="advanced-search-option"
-                          />
-                        </datalist>
-                        <FieldDescription v-if="facetStatus(facetSamplerOptions)" class="text-xs" aria-live="polite">
-                          {{ facetStatus(facetSamplerOptions) }}
-                        </FieldDescription>
-                      </Field>
+                      <AdvancedSearchFacetField
+                        id="advanced-search-sampler"
+                        label="Sampler"
+                        :model-value="field.state.value"
+                        :options="facetData?.sampler ?? []"
+                        placeholder="Euler a"
+                        :status-text="facetStatus(facetSamplerOptions)"
+                        @update:model-value="field.handleChange"
+                      />
                     </form.Field>
                     <form.Field name="scheduler" v-slot="{ field }">
-                      <Field class="gap-1.5">
-                        <FieldLabel for="advanced-search-scheduler">Scheduler</FieldLabel>
-                        <Input
-                          id="advanced-search-scheduler"
-                          :model-value="field.state.value"
-                          list="scheduler-datalist"
-                          placeholder="Karras"
-                          @update:model-value="field.handleChange"
-                        />
-                        <datalist id="scheduler-datalist">
-                          <option
-                            v-for="option in facetSchedulerOptions"
-                            :key="option"
-                            :value="option"
-                            class="advanced-search-option"
-                          />
-                        </datalist>
-                        <FieldDescription v-if="facetStatus(facetSchedulerOptions)" class="text-xs" aria-live="polite">
-                          {{ facetStatus(facetSchedulerOptions) }}
-                        </FieldDescription>
-                      </Field>
+                      <AdvancedSearchFacetField
+                        id="advanced-search-scheduler"
+                        label="Scheduler"
+                        :model-value="field.state.value"
+                        :options="facetData?.scheduler ?? []"
+                        placeholder="Karras"
+                        :status-text="facetStatus(facetSchedulerOptions)"
+                        @update:model-value="field.handleChange"
+                      />
                     </form.Field>
                     <form.Field name="lora" v-slot="{ field }">
-                      <Field class="gap-1.5">
-                        <FieldLabel for="advanced-search-lora">LoRA</FieldLabel
-                        ><Input
-                          id="advanced-search-lora"
-                          :model-value="field.state.value"
-                          list="lora-datalist"
-                          placeholder="detail-slider"
-                          @update:model-value="field.handleChange"
-                        />
-                        <datalist id="lora-datalist">
-                          <option v-for="option in facetLoraOptions" :key="option" :value="option" />
-                        </datalist>
-                        <FieldDescription v-if="facetStatus(facetLoraOptions)" class="text-xs" aria-live="polite">
-                          {{ facetStatus(facetLoraOptions) }}
-                        </FieldDescription>
-                      </Field>
+                      <AdvancedSearchFacetField
+                        id="advanced-search-lora"
+                        label="LoRA"
+                        :model-value="field.state.value"
+                        :options="facetData?.lora ?? []"
+                        placeholder="detail-slider"
+                        :status-text="facetStatus(facetLoraOptions)"
+                        @update:model-value="field.handleChange"
+                      />
                     </form.Field>
                     <form.Field name="vae" v-slot="{ field }">
                       <Field class="gap-1.5">
@@ -704,7 +792,7 @@ watch(
             </AccordionItem>
 
             <AccordionItem value="dimensions">
-              <AccordionTrigger class="text-left no-underline hover:no-underline">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
                 <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
                   <span class="flex flex-col gap-0.5">
                     <span>Dimensions</span>
@@ -817,7 +905,7 @@ watch(
             </AccordionItem>
 
             <AccordionItem value="syntax">
-              <AccordionTrigger class="text-left no-underline hover:no-underline">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
                 <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
                   <span class="flex flex-col gap-0.5">
                     <span>Custom metadata</span>
@@ -903,6 +991,17 @@ watch(
             >
               Revert edits
             </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              class="advanced-search-clear"
+              :disabled="activeFilterCount === 0"
+              @click="handleClearAll"
+            >
+              <Trash2 data-icon="inline-start" />
+              Clear all
+            </Button>
             <span v-if="validationErrorCount" class="text-xs font-medium text-destructive" role="alert">
               {{ validationErrorCount }} field{{ validationErrorCount === 1 ? "" : "s" }} need attention
             </span>
@@ -926,6 +1025,56 @@ watch(
 </template>
 
 <style scoped>
+.advanced-search-group-heading {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  padding-block: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.advanced-search-group-heading:first-of-type {
+  margin-top: 0;
+}
+
+.advanced-search-group-divider {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin-block: 0.75rem 0.25rem;
+}
+
+.advanced-search-drawer :deep(.advanced-search-trigger) {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--background);
+}
+
+.advanced-search-jump-field {
+  position: relative;
+}
+
+.advanced-search-jump-field input {
+  height: 40px;
+}
+
+.advanced-search-jump-field .advanced-search-jump-icon {
+  position: absolute;
+  inset-inline-start: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.advanced-search-jump-field .advanced-search-jump-input {
+  padding-inline-start: 32px;
+}
+
 @media (max-width: 1023px) {
   .advanced-search-clear,
   .advanced-search-remove,
@@ -940,6 +1089,11 @@ watch(
 
   .advanced-search-remove {
     min-width: 44px;
+  }
+
+  .advanced-search-chip-remove {
+    min-width: 32px;
+    min-height: 32px;
   }
 
   .advanced-search-footer {

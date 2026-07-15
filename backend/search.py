@@ -21,6 +21,7 @@ from .metadata_store import (
     get_library_inspector_metadata,
     list_library_inspector_rows,
     search_index,
+    search_index_count,
     search_index_fielded,
     search_metadata,
 )
@@ -32,6 +33,7 @@ from .models import (
     RawWorkflowSearchRequestV1,
     RawWorkflowSearchResponseV1,
     SearchAllScopeV1,
+    SearchCountResponseV1,
     SearchFolderScopeV1,
     SearchLibraryScopeV1,
     SearchQueryRequestV1,
@@ -322,6 +324,47 @@ def api_search_query(request: SearchQueryRequestV1) -> SearchResponse:
     """Execute the canonical versioned Search V2 contract."""
     context = resolve_search_v2_scope(request.scope)
     return _execute_search_query(request, context)
+
+
+@router.post("/api/search/count", responses=_MODE_SEARCH_ERROR_RESPONSES)
+def api_search_count(request: SearchQueryRequestV1) -> SearchCountResponseV1:
+    """Return the total match count for a search request without fetching rows."""
+    context = resolve_search_v2_scope(request.scope)
+    if request.filters.prompt_groups:
+        require_search_index_mode("prompt_groups", library_id=context.library_id)
+    if request.mode == "workflow" or request.filters.workflow_groups:
+        require_search_index_mode("workflow", library_id=context.library_id)
+    if not request.text.strip() and not request.filters.prompt_groups and not request.filters.workflow_groups:
+        return SearchCountResponseV1(total=0, has_more=False)
+    try:
+        parsed = parse_fielded_query(request.text)
+        if any(token.field == "raw" for token in parsed.fields):
+            raise APIError(
+                409,
+                ErrorType.FEATURE_DISABLED,
+                "The raw: field is deprecated; use POST /api/search/workflow/raw when enabled",
+            )
+        decoded_prompt_groups = [
+            (group.kind, decode_prompt_value_id(group.value_id)) for group in request.filters.prompt_groups
+        ]
+        total = search_index_count(
+            request.text,
+            context.kind,
+            context.folder_path,
+            library_id=context.library_id,
+            prompt_groups=decoded_prompt_groups or None,
+            workflow_groups=request.filters.workflow_groups or None,
+        )
+    except FieldedSearchValidationError as exc:
+        raise APIError(422, ErrorType.BAD_REQUEST, str(exc)) from exc
+    except sqlite3.OperationalError as exc:
+        raise APIError(503, ErrorType.SERVER_ERROR, "Search index temporarily unavailable") from exc
+    except APIError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Search count failed")
+        raise APIError(500, ErrorType.SERVER_ERROR, "Internal server error") from exc
+    return SearchCountResponseV1(total=total, has_more=total > request.limit)
 
 
 @router.post("/api/search/prompt-usage/query", responses=_MODE_SEARCH_ERROR_RESPONSES)

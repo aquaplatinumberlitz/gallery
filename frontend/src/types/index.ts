@@ -176,6 +176,12 @@ export interface SearchQueryRequestV1 {
 
 export type PersistableSearchRequestV1 = Omit<SearchQueryRequestV1, "cursor" | "limit">;
 
+export interface SearchCountResponseV1 {
+  schema_version: number;
+  total: number;
+  has_more: boolean;
+}
+
 export interface PromptUsageQueryRequestV1 {
   polarity: "positive" | "negative";
   scope: SearchScopeV1;

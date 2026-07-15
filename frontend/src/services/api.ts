@@ -35,6 +35,7 @@ import type {
   RelatedSearchResponseV1,
   RelatedSearchStatusV1,
   SearchCapabilitiesV1,
+  SearchCountResponseV1,
   SearchIndexJobV1,
   SearchIndexStateV1,
   UnifiedSearchResponse,
@@ -395,6 +396,14 @@ export const unifiedSearchV2 = async (
   signal?: AbortSignal,
 ): Promise<UnifiedSearchResponse> => {
   const { data } = await api.post<UnifiedSearchResponse>("/api/search/query", request, { signal });
+  return data;
+};
+
+export const searchCountV2 = async (
+  request: SearchQueryRequestV1,
+  signal?: AbortSignal,
+): Promise<SearchCountResponseV1> => {
+  const { data } = await api.post<SearchCountResponseV1>("/api/search/count", request, { signal });
   return data;
 };
 

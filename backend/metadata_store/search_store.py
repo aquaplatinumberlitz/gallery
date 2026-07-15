@@ -20,7 +20,12 @@ from .identity import (
     file_index_matches_image_metadata_sql,
 )
 from .path_utils import canonicalize_catalog_path, named_path_scope_sql, path_scope_sql
-from .ranked_search import encode_search_cursor, is_first_search_page, search_ranked_media_page
+from .ranked_search import (
+    encode_search_cursor,
+    is_first_search_page,
+    search_ranked_media_count,
+    search_ranked_media_page,
+)
 
 SEARCH_FIELDS = ("name", "prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
 PROMPT_SEARCH_FIELDS = ("prompt", "negative_prompt", "model", "sampler", "raw_metadata_text")
@@ -982,3 +987,39 @@ def search_index_fielded(
         "returned": len(media),
         "limit": limit,
     }
+
+
+def search_index_count(
+    query: str,
+    scope: str,
+    root_path: str | Path | None = None,
+    *,
+    library_id: int | None = None,
+    prompt_groups: list[tuple[str, bytes]] | None = None,
+    workflow_groups: list[Any] | None = None,
+) -> int:
+    """Return the total matching media count without fetching rows."""
+    from ..fielded_search_parser import parse_fielded_query
+
+    initialize_database()
+    trimmed = query.strip()
+    normalized_scope = scope if scope in {"folder", "library", "all"} else "folder"
+    root = Path(root_path) if normalized_scope == "folder" and root_path else None
+
+    if not trimmed and not prompt_groups and not workflow_groups:
+        return 0
+    if normalized_scope == "folder" and root is None:
+        return 0
+
+    parsed = parse_fielded_query(trimmed)
+    with _DB_LOCK, _connect() as conn:
+        return search_ranked_media_count(
+            conn,
+            trimmed,
+            normalized_scope,
+            root_path,
+            parsed=parsed,
+            library_id=library_id,
+            prompt_groups=prompt_groups,
+            workflow_groups=workflow_groups,
+        )

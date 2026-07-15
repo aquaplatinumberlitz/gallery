@@ -570,6 +570,35 @@ def _candidate_selects(
     return selects
 
 
+def build_candidate_count_query(selects: list[str]) -> str:
+    """Build a COUNT query reusing the same candidate and dedup CTEs."""
+    union_sql = "\nUNION ALL\n".join(selects)
+    if len(selects) == 1:
+        return f"""
+          WITH candidates AS (
+            {union_sql}
+          )
+          SELECT count(*) AS total
+          FROM candidates
+        """
+    return f"""
+      WITH candidates AS (
+        {union_sql}
+      ),
+      deduped AS (
+        SELECT *,
+               row_number() OVER (
+                 PARTITION BY asset_id
+                 ORDER BY relevance_tier DESC, rank ASC, mtime_ns DESC, asset_id ASC
+               ) AS candidate_rank
+        FROM candidates
+      )
+      SELECT count(*) AS total
+      FROM deduped
+      WHERE candidate_rank = 1
+    """
+
+
 def build_candidate_page_query(
     selects: list[str],
     *,
@@ -765,6 +794,111 @@ def search_ranked_media_page(
             )
         )
     return rows[:limit], len(rows) > limit, fingerprint
+
+
+def search_ranked_media_count(
+    conn: sqlite3.Connection,
+    query: str,
+    scope: str,
+    root_path: str | Path | None,
+    *,
+    parsed: ParsedQuery | None = None,
+    library_id: int | None = None,
+    prompt_groups: list[tuple[str, bytes]] | None = None,
+    workflow_groups: list[Any] | None = None,
+) -> int:
+    """Return the total matching media count without fetching rows."""
+    scope_sql, scope_params = ("", {})
+    if scope == "current" and root_path is not None:
+        scope_sql, scope_params = named_path_scope_sql(root_path, column="fi.path", leading_and=True)
+    elif scope == "folder" and root_path is not None:
+        scope_sql, scope_params = named_path_scope_sql(root_path, column="fi.path", leading_and=True)
+        if library_id is not None:
+            scope_sql += " AND fi.library_id = :scope_library_id"
+            scope_params["scope_library_id"] = library_id
+    elif scope == "library":
+        scope_sql = " AND fi.library_id = :scope_library_id"
+        scope_params = {"scope_library_id": library_id}
+
+    residual = parsed.residual_text.strip() if parsed is not None else query.strip()
+
+    field_where = ""
+    field_params: dict[str, Any] = {}
+    if parsed is not None:
+        conditions, raw_params = build_fielded_conditions(ParsedQuery(residual_text="", fields=parsed.fields))
+        for index, (kind, value_hash) in enumerate(prompt_groups or []):
+            conditions.append(
+                "EXISTS (SELECT 1 FROM asset_prompt_values AS prompt_group "
+                "WHERE prompt_group.asset_id = catalog_asset.id "
+                f"AND prompt_group.kind = :prompt_kind_{index} "
+                f"AND prompt_group.value_hash = :prompt_hash_{index})"
+            )
+            raw_params[f"prompt_kind_{index}"] = kind
+            raw_params[f"prompt_hash_{index}"] = value_hash
+        workflow_conditions, workflow_params = build_workflow_group_conditions(workflow_groups or [])
+        conditions.extend(workflow_conditions)
+        raw_params.update(workflow_params)
+        field_where = " AND ".join(conditions) if conditions else "1=1"
+        field_where, field_params = _prefix_sql_params(field_where, raw_params, "field_")
+
+    trigram = _can_use_trigram_candidates(residual)
+    metadata_substring_query = _trigram_token_match_query(residual) if trigram else _unicode_match_query(residual)
+    params: dict[str, Any] = {
+        "filename_like": _like_pattern(residual),
+        "filename_match": _unicode_prefix_match_query(residual),
+        "filename_substring_match": _trigram_match_query(residual),
+        "filename_prefix": f"{_like_escape(residual)}%",
+        "negative_match": _column_fts_query("negative_prompt", residual, trigram=False),
+        "negative_substring_match": f"negative_prompt : ({metadata_substring_query})",
+        "metadata_match": (
+            f"({_column_fts_query('model', residual, trigram=False)}) OR "
+            f"({_column_fts_query('sampler', residual, trigram=False)})"
+        ),
+        "metadata_substring_match": (
+            f"(model : ({metadata_substring_query})) OR (sampler : ({metadata_substring_query}))"
+        ),
+        "positive_match": _column_fts_query("prompt", residual, trigram=False),
+        "positive_substring_match": f"prompt : ({metadata_substring_query})",
+        "query": residual,
+        "text_like": _like_pattern(residual),
+        **scope_params,
+        **field_params,
+    }
+
+    field_only = parsed is not None and not residual
+    include_videos = parsed is None
+    bounded_candidates = True
+    try:
+        selects = _candidate_selects(
+            residual,
+            scope_sql,
+            include_fts=not field_only,
+            field_where=field_where,
+            include_videos=include_videos,
+            field_only=field_only,
+            bounded_candidates=bounded_candidates,
+            has_cursor=False,
+        )
+        params["fts_candidate_limit"] = 4096
+        params["field_candidate_limit"] = 4096
+        row = conn.execute(build_candidate_count_query(selects), params).fetchone()
+        return int(row["total"]) if row else 0
+    except sqlite3.OperationalError:
+        if field_only:
+            raise
+        selects = _candidate_selects(
+            residual,
+            scope_sql,
+            include_fts=False,
+            field_where=field_where,
+            include_videos=include_videos,
+            bounded_candidates=False,
+            has_cursor=False,
+        )
+        params["fts_candidate_limit"] = 4096
+        params["field_candidate_limit"] = 4096
+        row = conn.execute(build_candidate_count_query(selects), params).fetchone()
+        return int(row["total"]) if row else 0
 
 
 def is_first_search_page(cursor: str | int | None) -> bool:

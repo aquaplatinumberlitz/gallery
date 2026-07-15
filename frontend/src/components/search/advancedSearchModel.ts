@@ -58,7 +58,28 @@ export const NUMERIC_OPS = [
   { label: ">=", value: ">=" },
   { label: "<", value: "<" },
   { label: "<=", value: "<=" },
+  { label: "–", value: "between" },
 ] as const;
+
+export const BETWEEN_SEPARATOR = ";";
+
+export function isBetweenOp(op: string): boolean {
+  return op === "between";
+}
+
+export function splitBetweenValue(raw: string): [string, string] {
+  const parts = raw.split(BETWEEN_SEPARATOR);
+  return [parts[0]?.trim() ?? "", parts[1]?.trim() ?? ""];
+}
+
+export function joinBetweenValue(low: string, high: string): string {
+  return `${low.trim()}${BETWEEN_SEPARATOR}${high.trim()}`;
+}
+
+export function isBetweenValueFilled(raw: string): boolean {
+  const [low, high] = splitBetweenValue(raw);
+  return Boolean(low) && Boolean(high);
+}
 
 export const aspectRatios = ["1:1", "4:3", "16:9", "3:2", "2:3", "9:16"] as const;
 
@@ -96,6 +117,15 @@ const numericFields = new Set<FormFieldName>([
   "clip_skip",
   "denoising_strength",
   "hires_upscale",
+  "hires_steps",
+  "width",
+  "height",
+]);
+
+const INTEGER_NUMERIC_FIELDS: ReadonlySet<FormFieldName> = new Set([
+  "seed",
+  "steps",
+  "clip_skip",
   "hires_steps",
   "width",
   "height",
@@ -253,19 +283,29 @@ function fieldChanged(values: FormValues, openingValues: FormValues, slot: FormF
   return true;
 }
 
-function filterForSlot(slot: FormFieldName, values: FormValues): FieldFilter | null {
+function filtersForSlot(slot: FormFieldName, values: FormValues): FieldFilter[] {
   const value = fieldValue(values, slot);
   if (typeof value === "string") {
     const trimmed = value.trim();
-    return trimmed ? { field: outputFields[slot], value: trimmed } : null;
+    return trimmed ? [{ field: outputFields[slot], value: trimmed }] : [];
+  }
+  if (isBetweenOp(value.op)) {
+    if (!isBetweenValueFilled(value.value)) return [];
+    const [low, high] = splitBetweenValue(value.value);
+    return [
+      { field: outputFields[slot], value: low, operator: ">=" },
+      { field: outputFields[slot], value: high, operator: "<=" },
+    ];
   }
   const trimmed = value.value.trim();
-  if (!trimmed) return null;
-  return {
-    field: outputFields[slot],
-    value: trimmed,
-    operator: value.op === "=" ? undefined : value.op,
-  };
+  if (!trimmed) return [];
+  return [
+    {
+      field: outputFields[slot],
+      value: trimmed,
+      operator: value.op === "=" ? undefined : value.op,
+    },
+  ];
 }
 
 export function collectStagedFilters(
@@ -273,29 +313,83 @@ export function collectStagedFilters(
   stagedTokens: StagedToken[],
   openingValues: FormValues,
 ): FieldFilter[] {
-  const result: FieldFilter[] = [];
+  return collectStagedChips(values, stagedTokens, openingValues).map((chip) => ({ ...chip.filter }));
+}
+
+export interface StagedChip {
+  id: string;
+  filter: FieldFilter;
+  kind: "primary" | "passthrough";
+  slot: FormFieldName | null;
+  tokenId: string | null;
+}
+
+export function collectStagedChips(
+  values: FormValues,
+  stagedTokens: StagedToken[],
+  openingValues: FormValues,
+): StagedChip[] {
+  const chips: StagedChip[] = [];
   const primarySlots = new Set<FormFieldName>();
 
   for (const token of stagedTokens) {
     if (!token.primary || token.slot === null) {
-      if (token.filter.value.trim()) result.push({ ...token.filter });
+      if (token.filter.value.trim()) {
+        chips.push({
+          id: `chip-passthru-${token.id}`,
+          filter: { ...token.filter },
+          kind: "passthrough",
+          slot: null,
+          tokenId: token.id,
+        });
+      }
       continue;
     }
     primarySlots.add(token.slot);
     if (!fieldChanged(values, openingValues, token.slot)) {
-      if (token.filter.value.trim()) result.push({ ...token.filter });
+      if (token.filter.value.trim()) {
+        chips.push({
+          id: `chip-primary-${token.id}-${token.filter.operator ?? "="}`,
+          filter: { ...token.filter },
+          kind: "primary",
+          slot: token.slot,
+          tokenId: token.id,
+        });
+      }
       continue;
     }
-    const replacement = filterForSlot(token.slot, values);
-    if (replacement) result.push(replacement);
+    for (const filter of filtersForSlot(token.slot, values)) {
+      chips.push({
+        id: `chip-primary-${token.id}-${filter.operator ?? "="}`,
+        filter,
+        kind: "primary",
+        slot: token.slot,
+        tokenId: token.id,
+      });
+    }
   }
 
   for (const slot of fieldOrder) {
     if (primarySlots.has(slot)) continue;
-    const filter = filterForSlot(slot, values);
-    if (filter) result.push(filter);
+    for (const filter of filtersForSlot(slot, values)) {
+      chips.push({
+        id: `chip-new-${slot}-${filter.operator ?? "="}`,
+        filter,
+        kind: "primary",
+        slot,
+        tokenId: null,
+      });
+    }
   }
-  return result;
+  return chips;
+}
+
+export function defaultSlotValue(slot: FormFieldName): string | NumericFilterValue {
+  return numericFields.has(slot) ? defaultNumericValue() : "";
+}
+
+export function fieldValueForFacet(slot: FormFieldName, value: string): string | NumericFilterValue {
+  return numericFields.has(slot) ? { value, op: "=" } : value;
 }
 
 export function validateValues(value: FormValues): Partial<Record<FormFieldName, string>> {
@@ -304,12 +398,32 @@ export function validateValues(value: FormValues): Partial<Record<FormFieldName,
   const isPositiveInteger = (input: string) => /^\d+$/.test(input.trim()) && Number(input) > 0;
   const isPositiveNumber = (input: string) => Number.isFinite(Number(input)) && Number(input) > 0;
 
+  const integerFields = ["steps", "clip_skip", "hires_steps", "width", "height"] as const;
+  const realFields = ["cfg", "denoising_strength", "hires_upscale"] as const;
+  const checkNumeric = (field: string, raw: string, validator: (input: string) => boolean): string | undefined => {
+    if (!raw) return undefined;
+    if (isBetweenOp(value[field as NumericFieldName]?.op ?? "")) {
+      const [low, high] = splitBetweenValue(raw);
+      if (low && !validator(low)) return "Enter valid numbers";
+      if (high && !validator(high)) return "Enter valid numbers";
+      if (low && high && Number(high) < Number(low)) return "Upper bound must be >= lower bound";
+      return undefined;
+    }
+    if (!validator(raw))
+      return INTEGER_NUMERIC_FIELDS.has(field as FormFieldName)
+        ? "Enter a positive whole number"
+        : "Enter a positive number";
+    return undefined;
+  };
+
   if (value.seed.value && !isInteger(value.seed.value)) errors.seed = "Enter a whole number";
-  for (const field of ["steps", "clip_skip", "hires_steps", "width", "height"] as const) {
-    if (value[field].value && !isPositiveInteger(value[field].value)) errors[field] = "Enter a positive whole number";
+  for (const field of integerFields) {
+    const msg = checkNumeric(field, value[field].value, isPositiveInteger);
+    if (msg) errors[field] = msg;
   }
-  for (const field of ["cfg", "denoising_strength", "hires_upscale"] as const) {
-    if (value[field].value && !isPositiveNumber(value[field].value)) errors[field] = "Enter a positive number";
+  for (const field of realFields) {
+    const msg = checkNumeric(field, value[field].value, isPositiveNumber);
+    if (msg) errors[field] = msg;
   }
   if (value.size) {
     const match = value.size.match(/^(\d+)\s*x\s*(\d+)$/i);
