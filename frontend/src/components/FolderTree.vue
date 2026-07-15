@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { computed, inject, reactive, watch } from "vue";
+import { computed, reactive, watch } from "vue";
 import { useGalleryStore } from "@/stores/gallery";
 import type { FolderTreeNode } from "@/types";
 import { normalizeQueryPath } from "@/query/keys";
-import { closeSidebarKey } from "@/injectionKeys";
-import { useDevice } from "@/composables/useDevice";
 import { Tree, TreeItem } from "@/components/ui/tree";
 import FolderTreeRow, { type FolderTreeDisplayItem } from "@/components/FolderTreeRow.vue";
 import Button from "@/components/ui/Button.vue";
@@ -18,8 +16,6 @@ const props = defineProps<{
 }>();
 
 const galleryStore = useGalleryStore();
-const { isMobile, isTablet } = useDevice();
-const closeSidebar = inject(closeSidebarKey, () => {});
 
 const loadedChildren = reactive<Record<string, FolderTreeNode[]>>({});
 const loadedPaths = reactive<Record<string, boolean>>({});
@@ -151,9 +147,6 @@ const onItemSelect = (event: CustomEvent<{ value?: FolderTreeDisplayItem }>) => 
   }
 
   galleryStore.selectFolder(item.node);
-  if (isMobile.value || isTablet.value) {
-    closeSidebar();
-  }
 };
 </script>
 
@@ -225,7 +218,9 @@ const onItemSelect = (event: CustomEvent<{ value?: FolderTreeDisplayItem }>) => 
   font-size: 11px;
   font-weight: 500;
   color: var(--sidebar-foreground);
-  transition: background 150ms ease, border-color 150ms ease;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
 }
 
 .tree-action-btn:hover {
