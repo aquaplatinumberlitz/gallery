@@ -247,6 +247,9 @@ async function installDiscoveryFixture(page: Page) {
     }
     if (url.pathname === "/api/search/capabilities") return fulfill(capabilities);
     if (url.pathname === "/api/search/query") return fulfill(searchResponse(payload));
+    if (url.pathname === "/api/search/count") {
+      return fulfill({ schema_version: 1, total: payload?.text ? 1 : 0, has_more: false });
+    }
     if (url.pathname === "/api/search/prompt-usage/query") {
       const negative = payload?.polarity === "negative";
       return fulfill({

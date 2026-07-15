@@ -153,6 +153,7 @@ vi.mock("@/composables/usePhotoMetadataQuery", () => ({
 }));
 
 vi.mock("@/debug/lightboxNavDebug", () => ({
+  isLightboxNavDebugEnabled: vi.fn(() => false),
   lightboxItemAt: vi.fn(),
   logLightboxNavDebug: vi.fn(),
 }));

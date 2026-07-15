@@ -4,17 +4,21 @@
   "album_open": {
     "scan_p95_ms": 2000,
     "first_thumbnail_ms": 3000,
-    "thumbnail_p95_ms": 200
+    "warm_batch_complete_ms": 500
   },
   "lightbox": {
-    "open_ms": 1000,
-    "transition_ms": 1000,
-    "preview_check_ms": 200
+    "open_ms": 200,
+    "transition_ms": 200,
+    "visual_ready_ms": 1000
   },
   "metadata_nav": {
+    "api_ms": 2000,
     "nav_ms": 2000,
     "render_ms": 2000,
+    "rendered_rows_max": 25,
+    "sort_ms": 2000,
     "search_debounce_ms": 3000,
+    "search_requests_max": 3,
     "state_restore_ms": 2000
   }
 }

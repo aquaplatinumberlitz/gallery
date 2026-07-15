@@ -280,7 +280,8 @@ test.describe("File catalog status panel", () => {
     await expect(page.getByRole("dialog")).toContainText("Metadata ready", { timeout: 5_000 });
   });
 
-  test("catalog status shows error state when API fails", async ({ page }) => {
+  test("catalog status shows error state when API fails", async ({ page, monitoredErrors }) => {
+    monitoredErrors.allowConsoleError("500 (Internal Server Error)");
     await installStubbedGallery(page, { failStatus: true });
     await openStubbedGallery(page, true);
 

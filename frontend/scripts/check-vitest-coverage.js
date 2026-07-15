@@ -7,12 +7,12 @@ import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const summaryPath = resolve(__dirname, "../coverage/vitest/coverage-summary.json");
-// Ratchet thresholds — raised as F5-F7 coverage lands. Final target: 90/90/85/80.
+// Measured 2026-07-15 baseline, rounded down to whole-percent ratchets.
 const thresholds = {
-  lines: 50,
-  statements: 49,
-  functions: 40,
-  branches: 35,
+  lines: 70,
+  statements: 68,
+  functions: 62,
+  branches: 58,
 };
 
 let summary;
@@ -32,12 +32,10 @@ for (const [metric, required] of Object.entries(thresholds)) {
   if (!ok) failed = true;
 }
 
-let overallFailed = failed;
-
 // Aggregate per-directory coverage from per-file entries.
 function aggregateArea(prefix) {
-  let totalLines = 0, coveredLines = 0;
-  const search = prefix.includes(":/") ? prefix : prefix;
+  let totalLines = 0,
+    coveredLines = 0;
   for (const [file, metrics] of Object.entries(summary)) {
     if (metrics.lines && file.includes(`/${prefix}/`)) {
       totalLines += metrics.lines.total;
@@ -48,19 +46,19 @@ function aggregateArea(prefix) {
   return (coveredLines / totalLines) * 100;
 }
 
-// Per-area soft checks (warn-only — do not block CI).
+// Same measured baseline policy for high-value areas. These are hard ratchets,
+// not generic industry targets; raise them only after adding durable coverage.
 const areaThresholds = {
-  "src/services": 90,
-  "src/stores": 90,
-  "src/utils": 90,
-  "src/lib/catalog": 90,
-  "src/query": 90,
-  "src/composables": 80,
-  "src/components": 80,
+  "src/services": 91,
+  "src/stores": 91,
+  "src/utils": 93,
+  "src/lib/catalog": 97,
+  "src/query": 95,
+  "src/composables": 89,
+  "src/components": 60,
 };
 
-let anyAreaBelow = false;
-console.log("\nPer-area coverage (soft checks):");
+console.log("\nPer-area coverage (enforced ratchets):");
 for (const [area, required] of Object.entries(areaThresholds)) {
   const pct = aggregateArea(area);
   if (pct === null) {
@@ -68,15 +66,13 @@ for (const [area, required] of Object.entries(areaThresholds)) {
     continue;
   }
   const ok = pct >= required;
-  if (!ok) anyAreaBelow = true;
-  console.log(`  ${area.padEnd(25)} ${ok ? "✓" : "✗"} ${String(pct.toFixed(1)).padStart(5)}% lines (suggested ${required}%)`);
+  if (!ok) failed = true;
+  console.log(
+    `  ${area.padEnd(25)} ${ok ? "✓" : "✗"} ${String(pct.toFixed(1)).padStart(5)}% lines (required ${required}%)`,
+  );
 }
 
-if (anyAreaBelow) {
-  console.warn("\n⚠ Some areas are below suggested thresholds. Consider adding tests.");
-}
-
-if (overallFailed) {
+if (failed) {
   console.error("\nCoverage thresholds not met.");
   process.exit(1);
 }

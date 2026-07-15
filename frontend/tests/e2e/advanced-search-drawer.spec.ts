@@ -235,6 +235,31 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/search/capabilities") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          schema_version: 1,
+          enabled_modes: ["lexical"],
+          supported_scopes: ["folder", "library", "all"],
+          field_limits: {},
+          workflow_registry: { version: 1, nodes: {} },
+          raw_search: {
+            enabled: false,
+            query_min_chars: 3,
+            query_max_chars: 128,
+            limit_max: 50,
+            deadline_ms: 250,
+            max_document_bytes: 1_048_576,
+            index_budget_bytes: 536_870_912,
+          },
+          index_requirements: {},
+          indexes: [],
+        }),
+      });
+      return;
+    }
+
     if (url.pathname === "/api/metadata") {
       await route.fulfill({
         contentType: "application/json",
@@ -684,10 +709,9 @@ test.describe("AdvancedSearchDrawer", () => {
     // Select "between" operator on steps field
     const stepsField = drawerField(drawer, "advanced-search-steps");
     await stepsField.scrollIntoViewIfNeeded();
-    // Click the operator trigger (design-system Select)
-    const opTrigger = stepsField.locator("..").locator('[role="combobox"]').first();
+    const opTrigger = drawer.getByRole("combobox", { name: "Steps operator", exact: true });
     await opTrigger.click();
-    await page.getByRole("option", { name: "between" }).click();
+    await page.getByRole("option", { name: "Between" }).click();
 
     // Two inputs should appear
     const inputs = stepsField.locator("..").locator('input[type="text"], input[type="number"]');
@@ -697,7 +721,7 @@ test.describe("AdvancedSearchDrawer", () => {
     await inputs.nth(0).fill("20");
     await inputs.nth(1).fill("40");
 
-    await drawer.getByRole("button", { name: /^Apply 1 filter$/ }).click();
+    await drawer.getByRole("button", { name: /^Apply 2 filters$/ }).click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });
     await expect.poll(() => requestsFor(requests, "/api/search/query").length).toBeGreaterThanOrEqual(1);
 
@@ -727,15 +751,16 @@ test.describe("AdvancedSearchDrawer", () => {
     await modelField.scrollIntoViewIfNeeded();
 
     // Click to open facet popover
-    const popoverTrigger = modelField.locator("..").locator('[role="combobox"]').first();
+    const popoverTrigger = drawer.getByRole("button", { name: "Browse Model suggestions" });
     await popoverTrigger.click();
 
     // Should see facet values with counts
-    await expect(page.getByRole("option", { name: /PonyXL/ })).toBeVisible({ timeout: 3_000 });
-    await expect(page.getByRole("option", { name: /SDXL/ })).toBeVisible();
+    const suggestions = page.getByRole("list", { name: "Model suggestions" });
+    await expect(suggestions.getByRole("button", { name: /PonyXL/ })).toBeVisible({ timeout: 3_000 });
+    await expect(suggestions.getByRole("button", { name: /SDXL/ })).toBeVisible();
 
     // Select PonyXL
-    await page.getByRole("option", { name: /PonyXL/ }).click();
+    await suggestions.getByRole("button", { name: /PonyXL/ }).click();
     await expect(modelField).toHaveValue("PonyXL");
   });
 
@@ -784,7 +809,7 @@ test.describe("AdvancedSearchDrawer", () => {
 
     // Check for group heading text
     await expect(drawer.getByText("Discovery & tools")).toBeVisible();
-    await expect(drawer.getByText("Filters")).toBeVisible();
+    await expect(drawer.getByText("Filters", { exact: true })).toBeVisible();
   });
 
   test("drawer width matches responsive spec", async ({ page }) => {
@@ -798,12 +823,15 @@ test.describe("AdvancedSearchDrawer", () => {
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 
-    // Desktop (1280px) - drawer should be 640px
+    // Desktop contract: min(640px, 42vw), matching the component class.
     await page.getByRole("button", { name: "Advanced Search" }).click();
     const drawer = page.getByRole("dialog", { name: "Advanced Search" });
     await expect(drawer).toBeVisible({ timeout: 5_000 });
     const desktopBox = await drawer.boundingBox();
-    expect(desktopBox?.width).toBe(640);
+    const viewport = page.viewportSize();
+    expect(desktopBox).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    expect(desktopBox!.width).toBeCloseTo(Math.min(640, viewport!.width * 0.42), 0);
 
     await page.getByLabel("Close").click();
     await expect(drawer).not.toBeVisible({ timeout: 5_000 });

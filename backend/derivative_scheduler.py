@@ -109,6 +109,8 @@ def derivative_variant(kind: str, max_long_edge: int, quality: int, format: str)
 class DerivativeScheduler:
     """Run durable, coalesced derivative jobs using priority worker threads."""
 
+    _ACCESS_TOUCH_INTERVAL_SECONDS = 60.0
+
     def __init__(self, worker_count: int = DERIVATIVE_WORKER_COUNT, quota_bytes: int = DERIVATIVE_QUOTA_BYTES):
         """Configure worker concurrency and the persisted-file quota."""
         self.worker_count = max(1, min(worker_count, 8))
@@ -848,17 +850,28 @@ class DerivativeScheduler:
         self._run_job(job)
         return True
 
-    def get_ready_derivative(self, asset_id: int, kind: str, variant: str) -> dict[str, Any] | None:
+    def get_ready_derivative(
+        self,
+        asset_id: int,
+        kind: str,
+        variant: str,
+        *,
+        source_mtime_ns: int | None = None,
+        source_size: int | None = None,
+    ) -> dict[str, Any] | None:
         """Return and touch a ready derivative for the current source version."""
         _ensure_database()
         with _connect() as conn:
-            asset = conn.execute("SELECT path FROM assets WHERE id = ?", (asset_id,)).fetchone()
-            if asset is None:
-                return None
-            try:
-                stat = Path(asset["path"]).stat()
-            except OSError:
-                return None
+            if source_mtime_ns is None or source_size is None:
+                asset = conn.execute("SELECT path FROM assets WHERE id = ?", (asset_id,)).fetchone()
+                if asset is None:
+                    return None
+                try:
+                    stat = Path(asset["path"]).stat()
+                except OSError:
+                    return None
+                source_mtime_ns = stat.st_mtime_ns
+                source_size = stat.st_size
             row = conn.execute(
                 """
                 SELECT * FROM asset_derivatives
@@ -866,23 +879,44 @@ class DerivativeScheduler:
                   AND source_size = ? AND status = 'ready'
                 ORDER BY id DESC LIMIT 1
                 """,
-                (asset_id, kind, variant, stat.st_mtime_ns, stat.st_size),
+                (asset_id, kind, variant, source_mtime_ns, source_size),
             ).fetchone()
             if row is None or not row["cache_path"] or not Path(row["cache_path"]).is_file():
                 return None
-            conn.execute(
-                "UPDATE asset_derivatives SET last_accessed_at = julianday('now') WHERE id = ?",
-                (row["id"],),
-            )
+            last_accessed_at = float(row["last_accessed_at"] or 0)
+            now_julian = time.time() / 86400.0 + 2440587.5
+            if last_accessed_at <= now_julian - self._ACCESS_TOUCH_INTERVAL_SECONDS / 86400.0:
+                conn.execute(
+                    "UPDATE asset_derivatives SET last_accessed_at = ? WHERE id = ?",
+                    (now_julian, row["id"]),
+                )
             return dict(row)
 
-    def acquire_ready_derivative(self, asset_id: int, kind: str, variant: str) -> dict[str, Any] | None:
+    def acquire_ready_derivative(
+        self,
+        asset_id: int,
+        kind: str,
+        variant: str,
+        *,
+        source_mtime_ns: int | None = None,
+        source_size: int | None = None,
+    ) -> dict[str, Any] | None:
         """Atomically look up and protect a ready file for response streaming."""
+        ready = self.get_ready_derivative(
+            asset_id,
+            kind,
+            variant,
+            source_mtime_ns=source_mtime_ns,
+            source_size=source_size,
+        )
+        if ready is None:
+            return None
+        cache_path = str(ready["cache_path"])
         with self._file_lock:
-            ready = self.get_ready_derivative(asset_id, kind, variant)
-            if ready is not None:
-                self._served_paths.add(str(ready["cache_path"]))
-            return ready
+            if not Path(cache_path).is_file():
+                return None
+            self._served_paths.add(cache_path)
+        return ready
 
     def get_derivative_outcome(self, derivative_id: int) -> dict[str, Any] | None:
         """Return a bounded read model for one scheduled derivative by ID.

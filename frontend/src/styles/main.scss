@@ -283,17 +283,27 @@ pre {
   font-family: var(--font-code);
 }
 
-.tree-container ::-webkit-scrollbar {
-  width: 6px;
+:where(*) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gallery-scrollbar-thumb) var(--gallery-scrollbar-track);
 }
 
-.tree-container ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--foreground) 18%, transparent);
-  border-radius: 6px;
+:where(*)::-webkit-scrollbar {
+  width: var(--gallery-scrollbar-size);
+  height: var(--gallery-scrollbar-size);
 }
 
-.tree-container ::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+:where(*)::-webkit-scrollbar-thumb {
+  background: var(--gallery-scrollbar-thumb);
+  border-radius: var(--gallery-radius-full);
+}
+
+:where(*)::-webkit-scrollbar-thumb:hover {
+  background: var(--gallery-scrollbar-thumb-hover);
+}
+
+:where(*)::-webkit-scrollbar-track {
+  background: var(--gallery-scrollbar-track);
 }
 
 /* ==========================================================================

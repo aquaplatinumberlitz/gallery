@@ -412,7 +412,7 @@ class TestBuildFieldedSearchSql:
         assert "asset_model_identity_values" in sql
         assert "identity_asset.offline = 0" in sql
         assert "identity.normalized_hash != ''" in sql
-        assert "alias_metadata.model_hash != ''" in sql
+        assert "coalesce(alias_metadata.model_hash, '')) != ''" in sql
         assert "m.model_hash" in sql
         assert "foo" in str(params)
 

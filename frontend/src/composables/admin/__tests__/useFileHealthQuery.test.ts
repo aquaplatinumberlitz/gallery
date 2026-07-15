@@ -68,9 +68,10 @@ describe("useFileHealthQuery", () => {
     return { result, wrapper };
   }
 
-  it("returns a query that fetches file health", () => {
+  it("returns a query that fetches file health", async () => {
+    vi.mocked(api.fetchFileHealth).mockResolvedValue(mockResponse);
     const { wrapper } = setup();
-    expect(vi.mocked(api.fetchFileHealth).mock).toBeDefined();
+    await vi.waitFor(() => expect(api.fetchFileHealth).toHaveBeenCalledOnce());
     wrapper.unmount();
   });
 });

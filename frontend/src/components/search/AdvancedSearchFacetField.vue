@@ -81,7 +81,7 @@ function handleOpenChange(value: boolean) {
       <PopoverContent
         align="end"
         :side-offset="4"
-        class="advanced-search-facet-content w-[--reka-popover-trigger-width] min-w-[240px] p-0"
+        class="advanced-search-facet-content z-[calc(var(--gallery-z-modal)+1)] w-[--reka-popover-trigger-width] min-w-[240px] p-0"
       >
         <div class="border-b px-2 py-2">
           <div class="relative">

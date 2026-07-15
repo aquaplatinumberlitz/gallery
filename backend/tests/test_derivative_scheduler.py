@@ -966,6 +966,98 @@ def test_repeated_ready_acquisition_does_not_retouch_recent_access(
     assert second_access == first_access
 
 
+def test_ready_acquisitions_do_not_serialize_database_lookup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Independent warm requests may resolve ready rows concurrently before the serving lease is pinned."""
+    scheduler = DerivativeScheduler(quota_bytes=400)
+    cache_file = tmp_path / "concurrent-ready.webp"
+    cache_file.write_bytes(b"ready")
+    barrier = threading.Barrier(2)
+    state_lock = threading.Lock()
+    active = 0
+    max_active = 0
+
+    def fake_get_ready(*_args, **_kwargs):
+        nonlocal active, max_active
+        with state_lock:
+            active += 1
+            max_active = max(max_active, active)
+        try:
+            barrier.wait(timeout=1)
+            return {"cache_path": str(cache_file)}
+        finally:
+            with state_lock:
+                active -= 1
+
+    monkeypatch.setattr(scheduler, "get_ready_derivative", fake_get_ready)
+    results: list[dict | None] = []
+
+    def acquire() -> None:
+        results.append(scheduler.acquire_ready_derivative(1, "thumbnail", "thumb_128"))
+
+    threads = [threading.Thread(target=acquire), threading.Thread(target=acquire)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert len(results) == 2
+    assert max_active == 2
+    for result in results:
+        assert result is not None
+        scheduler.release_serving(str(cache_file))
+
+
+def test_ready_acquisition_rechecks_file_after_concurrent_eviction(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A lookup racing with eviction never publishes a serving lease for a deleted file."""
+    _, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler(quota_bytes=200)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    variant = str(thumbnail["name"])
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", variant)
+    cache_file = tmp_path / "evicted-before-pin.webp"
+    cache_file.write_bytes(b"x" * 200)
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
+            (str(cache_file), derivative_id),
+        )
+        conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id = ?", (derivative_id,))
+
+    original_get_ready = scheduler.get_ready_derivative
+    lookup_complete = threading.Event()
+    allow_pin = threading.Event()
+
+    def delayed_get_ready(*args, **kwargs):
+        ready = original_get_ready(*args, **kwargs)
+        lookup_complete.set()
+        allow_pin.wait(timeout=2)
+        return ready
+
+    monkeypatch.setattr(scheduler, "get_ready_derivative", delayed_get_ready)
+    results: list[dict | None] = []
+    thread = threading.Thread(
+        target=lambda: results.append(scheduler.acquire_ready_derivative(asset_id, "thumbnail", variant))
+    )
+    thread.start()
+    assert lookup_complete.wait(timeout=1)
+    assert scheduler._reserve_capacity(200)
+    allow_pin.set()
+    thread.join(timeout=2)
+
+    assert results == [None]
+    assert not cache_file.exists()
+    assert str(cache_file) not in scheduler._served_paths
+
+
 def test_schedule_deferred_identity_stays_non_runnable_when_unlink_fails(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,

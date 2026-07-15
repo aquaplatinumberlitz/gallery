@@ -1,9 +1,29 @@
-import { describe, it, expect } from "vitest";
-import { defineComponent, h } from "vue";
+import { afterAll, describe, it, expect, vi } from "vitest";
+import { defineComponent, h, onUnmounted } from "vue";
 import { useRoute } from "vue-router";
 import { renderWithApp, renderWithAppAsync, type RenderWithAppOptions } from "../renderWithApp";
+import { assertNoUnexpectedRuntimeMessages } from "../setup";
+import { withSetup } from "../withSetup";
+
+const autoUnmountSpy = vi.fn();
+
+afterAll(() => {
+  expect(autoUnmountSpy).toHaveBeenCalledOnce();
+});
 
 describe("renderWithApp", () => {
+  it("fails the runtime-message gate for unexpected console errors", () => {
+    expect(() => assertNoUnexpectedRuntimeMessages(["boom"], [])).toThrow("Unexpected console errors detected:\nboom");
+  });
+
+  it("automatically unmounts wrappers after each test", () => {
+    withSetup(() => {
+      onUnmounted(autoUnmountSpy);
+      return {};
+    });
+    expect(autoUnmountSpy).not.toHaveBeenCalled();
+  });
+
   it("mounts a simple component", () => {
     const Comp = defineComponent({ setup: () => () => h("div", "hello") });
     const { wrapper } = renderWithApp(Comp);

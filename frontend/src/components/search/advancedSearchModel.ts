@@ -58,7 +58,7 @@ export const NUMERIC_OPS = [
   { label: ">=", value: ">=" },
   { label: "<", value: "<" },
   { label: "<=", value: "<=" },
-  { label: "–", value: "between" },
+  { label: "Between", value: "between" },
 ] as const;
 
 export const BETWEEN_SEPARATOR = ";";

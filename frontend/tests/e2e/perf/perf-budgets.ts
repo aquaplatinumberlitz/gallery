@@ -14,12 +14,16 @@ import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const raw = JSON.parse(readFileSync(join(here, "perf-budgets.json"), "utf-8")) as {
-  album_open: { scan_p95_ms: number; first_thumbnail_ms: number; thumbnail_p95_ms: number };
-  lightbox: { open_ms: number; transition_ms: number; preview_check_ms: number };
+  album_open: { scan_p95_ms: number; first_thumbnail_ms: number; warm_batch_complete_ms: number };
+  lightbox: { open_ms: number; transition_ms: number; visual_ready_ms: number };
   metadata_nav: {
+    api_ms: number;
     nav_ms: number;
     render_ms: number;
+    rendered_rows_max: number;
+    sort_ms: number;
     search_debounce_ms: number;
+    search_requests_max: number;
     state_restore_ms: number;
   };
 };

@@ -20,7 +20,9 @@ from pathlib import Path
 
 from scripts import bench_search
 from scripts.bench_search import SEARCH_QUERY_CLASSES
+from scripts.perf_manifest import expected_reports, load_perf_manifest
 from scripts.summarize_perf_reports import summarize
+from scripts.validate_perf_reports import validate_reports
 
 
 def test_search_benchmark_covers_required_query_classes() -> None:
@@ -44,6 +46,42 @@ def test_search_benchmark_covers_required_query_classes() -> None:
     assert cases["mixed_short_token"] == ("Euler a", 1, 50)
 
 
+def test_ci_perf_manifest_declares_every_blocking_report() -> None:
+    workloads = load_perf_manifest()
+    assert {name for name, workload in workloads.items() if workload["suite"] == "ci"} == {
+        "album_open",
+        "facets",
+        "inspector_api",
+        "inspector_store",
+        "lightbox",
+        "preview",
+        "related_assets",
+        "search",
+        "thumbnail",
+    }
+    assert expected_reports("ci") == [
+        "album-open-report.json",
+        "facets-report.json",
+        "inspector-store-report.json",
+        "library-inspector-report.json",
+        "lightbox-open-report.json",
+        "lightbox-transition-report.json",
+        "preview-benchmark-report.json",
+        "related-assets-benchmark-report.json",
+        "search-benchmark-report.json",
+        "thumbnail-benchmark-report.json",
+    ]
+
+
+def test_ci_perf_report_validation_fails_closed_on_missing_report(tmp_path: Path) -> None:
+    assert validate_reports(tmp_path, "ci") == [
+        f"missing expected ci report: {report}" for report in expected_reports("ci")
+    ]
+    for report in expected_reports("ci"):
+        (tmp_path / report).write_text("{}", encoding="utf-8")
+    assert validate_reports(tmp_path, "ci") == []
+
+
 def test_mixed_short_workload_rejects_empty_responses(monkeypatch) -> None:
     monkeypatch.setattr(
         bench_search,
@@ -59,6 +97,33 @@ def test_mixed_short_workload_rejects_empty_responses(monkeypatch) -> None:
         min_matches_per_iteration=50,
     )
 
+    assert result["contract_ok"] is False
+
+
+def test_model_only_workload_rejects_cross_model_results(monkeypatch) -> None:
+    monkeypatch.setattr(
+        bench_search,
+        "_get_json",
+        lambda *_args, **_kwargs: (
+            1.0,
+            {
+                "returned": 50,
+                "albums": [],
+                "next_cursor": None,
+                "media": [{"model": "wrong-model", "sampler": "Euler a"}] * 50,
+            },
+        ),
+    )
+
+    result = bench_search.bench_search_case(
+        "http://example.test",
+        "fielded_model_only",
+        "model:perf-model-3",
+        iterations=1,
+        min_matches_per_iteration=50,
+    )
+
+    assert result["unexpected_matches"] == 50
     assert result["contract_ok"] is False
 
 

@@ -14,8 +14,11 @@
 #   1. Add a `[section]` block here with the numeric fields and a `description`.
 #   2. If consumed by a Playwright spec, mirror the section into
 #      `frontend/tests/e2e/perf/perf-budgets.json`.
-#   3. Register the consumer in `scripts/check_perf_budgets.py` BUDGET_CONSUMERS.
-#   4. Re-run `python scripts/check_perf_budgets.py` to confirm coverage.
+#   3. Register the workload, consumer, suite, tokens, and reports in
+#      `scripts/perf_manifest.toml`.
+#   4. Record whether the threshold is published-standard-derived or
+#      baseline-derived, including source/calibration evidence.
+#   5. Re-run `python3 scripts/check_perf_budgets.py` to confirm coverage.
 
 [inspector]
 p95_ms = 500
@@ -32,19 +35,36 @@ description = "Warm SQLite listing vs cold scan"
 [album_open]
 scan_p95_ms = 2000
 first_thumbnail_ms = 3000
-thumbnail_p95_ms = 200
-description = "Playwright: album open scan + first thumbnail + thumbnail p95"
+warm_batch_complete_ms = 500
+description = "Playwright: album open scan + first thumbnail + warm visible-thumbnail batch completion"
 
 [lightbox]
-open_ms = 1000
-transition_ms = 1000
-preview_check_ms = 200
-description = "Playwright: lightbox open + transition + warm preview request p95"
+open_ms = 200
+transition_ms = 200
+visual_ready_ms = 1000
+description = "Playwright: browser-native first feedback and decoded visual readiness"
+# Google Web Vitals defines good INP as <=200 ms at p75. The controlled lab
+# gate applies the same target to first feedback and next-slide interactions.
+interaction_basis = "Google Web Vitals INP"
+interaction_basis_url = "https://web.dev/articles/inp"
+# Google RAIL places view changes in the 100-1000 ms continuity window. This
+# custom decoded-preview metric uses the upper bound; it is not a Core Web Vital.
+visual_ready_basis = "Google RAIL view-change continuity window"
+visual_ready_basis_url = "https://web.dev/articles/rail"
+
+[preview]
+cold_p95_ms = 1500
+warm_p95_ms = 100
+description = "Preview generation: cold render vs warm persisted derivative response"
 
 [metadata_nav]
+api_ms = 2000
 nav_ms = 2000
 render_ms = 2000
+rendered_rows_max = 25
+sort_ms = 2000
 search_debounce_ms = 3000
+search_requests_max = 3
 state_restore_ms = 2000
 description = "Playwright: metadata panel navigation, render, search, state restore"
 

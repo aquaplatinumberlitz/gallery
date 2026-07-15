@@ -4,6 +4,16 @@
    ========================================================================== */
 
 :root {
+  color-scheme: light;
+
+  /* ── Scrollbars ── */
+  --gallery-scrollbar-size: 6px;
+  --gallery-scrollbar-track: transparent;
+  --gallery-scrollbar-thumb: color-mix(in srgb, var(--foreground) 18%, transparent);
+  --gallery-scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 28%, transparent);
+  --gallery-scrollbar-on-dark-thumb: rgba(255, 255, 255, 0.2);
+  --gallery-scrollbar-on-dark-thumb-hover: rgba(255, 255, 255, 0.32);
+
   /* ── Semantic ── */
   --gallery-success: #22c55e;
   --gallery-success-bg: rgba(34, 197, 94, 0.1);
@@ -142,6 +152,8 @@
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
+
   /* ── Shadow (dark mode) ── */
   --gallery-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
   --gallery-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.35), 0 4px 8px rgba(0, 0, 0, 0.15);

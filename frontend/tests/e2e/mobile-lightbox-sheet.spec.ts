@@ -210,6 +210,17 @@ test("lightbox opens on mobile, metadata sheet opens and closes repeatedly", asy
   await expect(metadataDialog).toBeVisible({ timeout: 10_000 });
   await expect(metadataDialog).not.toHaveAttribute("aria-modal");
 
+  const mobileScrollbar = await page.locator("[data-vsbs-scroll]").evaluate((element) => ({
+    width: getComputedStyle(element, "::-webkit-scrollbar").width,
+    firefoxWidth: getComputedStyle(element).scrollbarWidth,
+    thumb: getComputedStyle(element, "::-webkit-scrollbar-thumb").backgroundColor,
+  }));
+  expect(mobileScrollbar).toEqual({
+    width: "4px",
+    firefoxWidth: "thin",
+    thumb: "rgba(255, 255, 255, 0.2)",
+  });
+
   const promptTab = page.getByRole("tab", { name: "Prompt" });
   const paramsTab = page.getByRole("tab", { name: "Params" });
   await expect(promptTab).toHaveAttribute("aria-selected", "true");

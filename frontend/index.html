@@ -26,7 +26,6 @@
         const systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
         const theme = explicit ? stored : auto && systemDark ? "dark" : "light";
         document.documentElement.setAttribute("data-theme", theme);
-        document.documentElement.style.colorScheme = theme;
       })();
     </script>
   </head>

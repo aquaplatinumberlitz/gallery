@@ -75,6 +75,11 @@ SEARCH_QUERY_CLASSES = (
     ("repeated_keyset_pages", "search_asset_00", 3, 150),
 )
 
+SEARCH_RESULT_CONTRACTS: dict[str, dict[str, str]] = {
+    "fielded_model_only": {"model": "perf-model-3"},
+    "fielded_sampler_only": {"sampler": "Euler a"},
+}
+
 
 def bench_search_case(
     base_url: str,
@@ -89,6 +94,8 @@ def bench_search_case(
     last_payload: dict = {}
     completed_page_chains = 0
     minimum_observed_matches: int | None = None
+    unexpected_matches = 0
+    expected_fields = SEARCH_RESULT_CONTRACTS.get(name, {})
     for _ in range(max(1, iterations)):
         cursor = ""
         observed_matches = 0
@@ -100,6 +107,13 @@ def bench_search_case(
                 params["cursor"] = cursor
             duration, last_payload = _get_json(base_url, "/api/search", params)
             durations.append(duration)
+            media = last_payload.get("media", []) if isinstance(last_payload, dict) else []
+            for row in media if isinstance(media, list) else []:
+                if not isinstance(row, dict):
+                    unexpected_matches += 1
+                    continue
+                if any(str(row.get(field) or "").casefold() != expected.casefold() for field, expected in expected_fields.items()):
+                    unexpected_matches += 1
             observed_matches += int(last_payload.get("returned") or 0)
             if page_index == 0:
                 observed_matches += len(last_payload.get("albums", []))
@@ -126,10 +140,13 @@ def bench_search_case(
         "expected_page_chains": max(1, iterations),
         "minimum_observed_matches": observed_matches,
         "minimum_required_matches": min_matches_per_iteration,
+        "expected_result_fields": expected_fields,
+        "unexpected_matches": unexpected_matches,
         "contract_ok": (
             int(stats["count"]) == expected_requests
             and completed_page_chains == max(1, iterations)
             and observed_matches >= min_matches_per_iteration
+            and unexpected_matches == 0
         ),
         "min_ms": stats["min_ms"],
         "p50_ms": stats["p50_ms"],
@@ -231,7 +248,8 @@ def main() -> int:
                 f"/api/search {result['class']} workload contract failed: "
                 f"requests={result['requests']}/{result['expected_requests']}, "
                 f"page_chains={result['completed_page_chains']}/{result['expected_page_chains']}, "
-                f"matches={result['minimum_observed_matches']}/{result['minimum_required_matches']}",
+                f"matches={result['minimum_observed_matches']}/{result['minimum_required_matches']}, "
+                f"unexpected_matches={result['unexpected_matches']}",
                 file=sys.stderr,
             )
             failed = True

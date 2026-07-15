@@ -103,6 +103,7 @@ vi.mock("@/debug/lightboxDomReport", () => ({
 }));
 
 vi.mock("@/debug/lightboxNavDebug", () => ({
+  isLightboxNavDebugEnabled: vi.fn(() => false),
   logLightboxNavDebug: vi.fn(),
   summarizeLightboxItems: vi.fn(() => ({ total: 0, currentIndex: 0 })),
 }));
@@ -199,6 +200,7 @@ beforeEach(() => {
   pswpInstances.length = 0;
   pswpEventHandlers.clear();
   queryClient.clear();
+  (fetchMetadata as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("metadata unavailable"));
 });
 
 afterEach(() => {
@@ -227,6 +229,26 @@ describe("usePhotoSwipe", () => {
 
     isOpenRef.value = true;
     await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
+  });
+
+  it("initializes PhotoSwipe before asynchronous dimension resolution settles", async () => {
+    let resolveMetadata!: (value: MetadataResponse) => void;
+    (fetchMetadata as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise<MetadataResponse>((resolve) => {
+        resolveMetadata = resolve;
+      }),
+    );
+    const { result, isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
+
+    isOpenRef.value = true;
+
+    await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
+    expect(pswpInstances[0].init).toHaveBeenCalledOnce();
+
+    resolveMetadata({ width: 1920, height: 1080 } as MetadataResponse);
+    await vi.waitFor(() => {
+      expect(useLightboxStore().dimensionsByPath["/img1.png"]?.width).toBe(1920);
+    });
   });
 
   it("zooms on image click and only closes from the backdrop", async () => {
@@ -340,7 +362,7 @@ describe("usePhotoSwipe", () => {
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
       const store = useLightboxStore();
-      expect(store.dimensionsByPath["/img1.png"]?.source).toBe("preview");
+      await vi.waitFor(() => expect(store.dimensionsByPath["/img1.png"]?.source).toBe("preview"));
     });
 
     it("falls back to cached metadata dimensions", async () => {
@@ -370,10 +392,12 @@ describe("usePhotoSwipe", () => {
       isOpenRef.value = true;
       await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
       const store = useLightboxStore();
-      expect(store.dimensionsByPath["/img1.png"]).toEqual({ width: 800, height: 600, source: "preview" });
+      await vi.waitFor(() => {
+        expect(store.dimensionsByPath["/img1.png"]).toEqual({ width: 800, height: 600, source: "preview" });
+      });
     });
 
-    it("returns null from resolveOpeningSlideDimensions when all methods fail", async () => {
+    it("keeps fallback geometry when asynchronous dimension resolution fails", async () => {
       (fetchMetadata as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("fetch failed"));
 
       const { result, isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
@@ -513,6 +537,43 @@ describe("usePhotoSwipe", () => {
 
       triggerPswpEvent(instance, "change");
       await vi.waitFor(() => expect(instance.refreshSlideContent).toHaveBeenCalledWith(1));
+    });
+
+    it("repairs active slide geometry in place when dimensions resolve", async () => {
+      (fetchMetadata as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        width: 1920,
+        height: 1080,
+        name: "img2",
+        tool: "test",
+        prompt: "",
+        negative_prompt: "",
+        params: {},
+      });
+
+      const { result, isOpenRef } = setup(makeItems(), 0, false);
+      isOpenRef.value = true;
+      await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
+      const instance = pswpInstances[0];
+      const resize = vi.fn();
+      instance.currIndex = 1;
+      instance.currSlide = {
+        data: {},
+        content: {},
+        width: 800,
+        height: 600,
+        resize,
+      };
+
+      triggerPswpEvent(instance, "change");
+
+      await vi.waitFor(() => expect(resize).toHaveBeenCalledOnce());
+      expect(instance.currSlide).toMatchObject({
+        data: { width: 1920, height: 1080 },
+        content: { width: 1920, height: 1080 },
+        width: 1920,
+        height: 1080,
+      });
+      expect(instance.refreshSlideContent).not.toHaveBeenCalledWith(1);
     });
   });
 

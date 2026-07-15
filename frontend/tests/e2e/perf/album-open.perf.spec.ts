@@ -17,7 +17,15 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "../helpers/monitorErrors";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, join, dirname as pathDirname } from "node:path";
-import { compactStats, installApiNetworkTracker, loadBudgets, nowMs, waitForNetworkQuiet } from "./perf-utils";
+import {
+  compactStats,
+  installApiNetworkTracker,
+  loadBudgets,
+  networkContractViolations,
+  nowMs,
+  resolvePerfResultsDir,
+  waitForNetworkQuiet,
+} from "./perf-utils";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathDirname(__filename);
@@ -68,6 +76,7 @@ type IterationResult = {
   scanPath: string;
   scanCursor: string;
   scanLimit: string;
+  networkContractViolations: string[];
 };
 
 async function runOneIteration(page: import("@playwright/test").Page): Promise<IterationResult> {
@@ -105,6 +114,7 @@ async function runOneIteration(page: import("@playwright/test").Page): Promise<I
 
   await expect.poll(() => tracker.scanSamples().length, { timeout: 10_000 }).toBeGreaterThan(0);
   await waitForNetworkQuiet(page);
+  await tracker.waitForSettled({ paths: ["/api/browse", "/api/thumbnail"], minimum: 2 });
 
   const allScanSamples = tracker.scanSamples();
   const scanSamples = allScanSamples
@@ -112,7 +122,7 @@ async function runOneIteration(page: import("@playwright/test").Page): Promise<I
     .sort((a, b) => a.startMs - b.startMs);
   const firstScan = scanSamples[0];
 
-  const allThumbnailSamples = tracker.thumbnailSamples().filter((sample) => typeof sample.durationMs === "number");
+  const allThumbnailSamples = tracker.thumbnailSamples();
   const thumbnailSamples = allThumbnailSamples.filter((s) => filterByAlbumPath(s, albumPath));
   const thumbnailDurations = thumbnailSamples.map((sample) => sample.durationMs ?? 0);
   const thumbnailStats = compactStats(thumbnailDurations);
@@ -134,6 +144,12 @@ async function runOneIteration(page: import("@playwright/test").Page): Promise<I
     expect(scanPath).toBe(albumPath);
   }
 
+  const contractViolations = [
+    ...networkContractViolations(scanSamples, { minimum: 1, allowedStatuses: [200] }),
+    ...networkContractViolations(thumbnailSamples, { minimum: 1, allowedStatuses: [200, 304] }),
+  ];
+  tracker.dispose();
+
   return {
     scanDurationMs: Math.round(firstScan?.durationMs ?? 0),
     scanStartMs: Math.round(firstScan?.startMs ?? 0),
@@ -147,6 +163,7 @@ async function runOneIteration(page: import("@playwright/test").Page): Promise<I
     scanPath: new URLSearchParams(firstScan?.search ?? "").get("path") ?? "",
     scanCursor: scanCursor(firstScan!),
     scanLimit: scanLimit(firstScan!),
+    networkContractViolations: contractViolations,
   };
 }
 
@@ -169,15 +186,20 @@ test("album open performance", async ({ page }) => {
   const firstThumbStarts = results.map((r) => r.firstThumbnailStartMs);
   const coldThumbnailP95 = results[0]?.thumbnailP95Ms ?? 0;
   const warmResults = results.length > 1 ? results.slice(1) : results;
-  const warmThumbnailP95s = warmResults.map((r) => r.thumbnailP95Ms);
+  const warmBatchDurations = warmResults.map((result) =>
+    Math.max(0, result.lastThumbnailEndMs - result.firstThumbnailStartMs),
+  );
   const duplicateCursor0Counts = results.map((r) => r.duplicateCursor0Count);
 
   // p95 across iterations (single measurement per iteration => p95 ≈ max for
   // small N, but we keep the percentile call so the formula scales with SAMPLE_COUNT).
   const scanP95 = Math.round(compactStats(scanDurations).p95);
   const firstThumbP95 = Math.round(compactStats(firstThumbStarts).p95);
-  const warmThumbP95OfP95 = Math.round(compactStats(warmThumbnailP95s).p95);
+  const warmBatchCompleteP95 = Math.round(compactStats(warmBatchDurations).p95);
   const maxDuplicateCursor0 = Math.max(...duplicateCursor0Counts);
+  const contractViolations = results.flatMap((result, index) =>
+    result.networkContractViolations.map((violation) => `iteration ${index + 1}: ${violation}`),
+  );
 
   const report = {
     albumName,
@@ -188,24 +210,28 @@ test("album open performance", async ({ page }) => {
       scanP95Ms: scanP95,
       firstThumbnailStartP95Ms: firstThumbP95,
       coldThumbnailP95Ms: coldThumbnailP95,
-      warmThumbnailP95OfP95Ms: warmThumbP95OfP95,
+      warmThumbnailBatchCompleteP95Ms: warmBatchCompleteP95,
       maxDuplicateCursor0Count: maxDuplicateCursor0,
+      networkContractViolations: contractViolations,
     },
     budgets: budgets.album_open,
     budgetSource: "frontend/tests/e2e/perf/perf-budgets.json[album_open]",
     verdict:
       scanP95 <= budgets.album_open.scan_p95_ms &&
       firstThumbP95 <= budgets.album_open.first_thumbnail_ms &&
-      warmThumbP95OfP95 <= budgets.album_open.thumbnail_p95_ms
+      warmBatchCompleteP95 <= budgets.album_open.warm_batch_complete_ms &&
+      maxDuplicateCursor0 <= 1 &&
+      contractViolations.length === 0
         ? "pass"
         : "fail",
   };
-  const resultsDir = resolve(__dirname, "../../../test-results/perf");
+  const resultsDir = resolvePerfResultsDir(resolve(__dirname, "../../../test-results/perf"));
   mkdirSync(resultsDir, { recursive: true });
   writeFileSync(join(resultsDir, "album-open-report.json"), JSON.stringify(report, null, 2));
 
   expect(maxDuplicateCursor0).toBeLessThanOrEqual(1);
+  expect(contractViolations).toEqual([]);
   expect(scanP95).toBeLessThanOrEqual(budgets.album_open.scan_p95_ms);
   expect(firstThumbP95 || Number.POSITIVE_INFINITY).toBeLessThanOrEqual(budgets.album_open.first_thumbnail_ms);
-  expect(warmThumbP95OfP95).toBeLessThanOrEqual(budgets.album_open.thumbnail_p95_ms);
+  expect(warmBatchCompleteP95).toBeLessThanOrEqual(budgets.album_open.warm_batch_complete_ms);
 });

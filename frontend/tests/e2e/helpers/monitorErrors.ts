@@ -8,19 +8,23 @@ export interface MonitoredErrors {
   pageErrors: string[];
   consoleErrors: string[];
   vueWarnings: string[];
-  apiErrors: string[];
+  allowConsoleError: (pattern: string) => void;
 }
 
 export const test = base.extend<{
   monitoredErrors: MonitoredErrors;
+  allowedConsoleErrorPatterns: string[];
 }>({
+  allowedConsoleErrorPatterns: [[], { option: true }],
   monitoredErrors: [
-    async ({ page }, use) => {
+    async ({ page, allowedConsoleErrorPatterns }, use) => {
+      const failedResponses: string[] = [];
+      const allowedPatterns = [...allowedConsoleErrorPatterns];
       const monitored: MonitoredErrors = {
         pageErrors: [],
         consoleErrors: [],
         vueWarnings: [],
-        apiErrors: [],
+        allowConsoleError: (pattern: string) => allowedPatterns.push(pattern),
       };
 
       page.on("pageerror", (err) => {
@@ -35,9 +39,11 @@ export const test = base.extend<{
         }
       });
 
-      page.on("response", (res) => {
-        if (res.status() >= 500 && res.url().includes("/api/")) {
-          monitored.apiErrors.push(`[API_ERROR] ${res.status()} ${res.url()}`);
+      // HTTP failures are diagnostic context, not a universal failure signal:
+      // fault-injection specs intentionally exercise 4xx/5xx responses.
+      page.on("response", (response) => {
+        if (response.status() >= 400) {
+          failedResponses.push(`${response.status()} ${response.request().method()} ${response.url()}`);
         }
       });
 
@@ -63,6 +69,14 @@ export const test = base.extend<{
 
       if (monitored.pageErrors.length > 0) {
         throw new Error("Unhandled page errors detected:\n" + monitored.pageErrors.join("\n"));
+      }
+      const unexpectedConsoleErrors = monitored.consoleErrors.filter(
+        (message) => !allowedPatterns.some((pattern) => message.includes(pattern)),
+      );
+      if (unexpectedConsoleErrors.length > 0) {
+        const responseContext =
+          failedResponses.length > 0 ? `\nHTTP failure context:\n${failedResponses.join("\n")}` : "";
+        throw new Error("Unhandled console errors detected:\n" + unexpectedConsoleErrors.join("\n") + responseContext);
       }
       if (monitored.vueWarnings.length > 0) {
         throw new Error("Vue warnings detected:\n" + monitored.vueWarnings.join("\n"));

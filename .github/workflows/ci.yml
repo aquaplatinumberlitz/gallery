@@ -226,7 +226,6 @@ jobs:
         run: ./test.sh perf
         env:
           GALLERY_TEST_BACKEND_PORT: "4180"
-          GALLERY_TEST_SKIP_BUILD: "1"
           GALLERY_TEST_TMPDIR: ${{ runner.temp }}/gallery-perf
 
       - name: Upload performance reports
@@ -235,8 +234,8 @@ jobs:
         with:
           name: performance-reports
           path: |
-            frontend/test-results/perf/
-            frontend/playwright-report/
+            ${{ runner.temp }}/gallery-perf/perf-reports/
+            ${{ runner.temp }}/gallery-perf/playwright-report/
           retention-days: 14
 
       - name: Upload performance backend log on failure

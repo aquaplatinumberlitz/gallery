@@ -274,6 +274,7 @@ const searchImageNodes = computed(() =>
 const searchMediaNodes = computed(() => searchMediaResults.value.map(searchResultToFileNode));
 
 const images = computed(() => (hasSearchQuery.value ? searchImageNodes.value : filenameImages.value));
+const imageIndexByPath = computed(() => new Map(images.value.map((item, index) => [item.path, index] as const)));
 const media = computed(() => (hasSearchQuery.value ? searchMediaNodes.value : filenameMedia.value));
 const isSearchSettling = computed(
   () =>
@@ -446,7 +447,7 @@ const handleOpenFolder = (path: string) => {
 
 const handleOpenImage = (path: string, name: string) => {
   // Pass the full list of images to the lightbox for navigation
-  lightboxStore.open({ path, name }, images.value);
+  lightboxStore.open({ path, name }, images.value, imageIndexByPath.value.get(path));
 };
 
 const selectedVideo = ref<FileNode | null>(null);
@@ -1005,7 +1006,6 @@ useInfiniteLoadSentinel({
   overflow-x: hidden;
   padding-right: 14px;
   padding-left: 10px;
-  scrollbar-width: thin;
 }
 
 .search-warmup-hint {
@@ -1133,7 +1133,6 @@ useInfiniteLoadSentinel({
   overscroll-behavior-y: contain;
   padding-right: 14px;
   padding-left: 10px;
-  scrollbar-width: thin; /* Slim size for Firefox */
   outline: none;
 }
 
@@ -1156,23 +1155,6 @@ useInfiniteLoadSentinel({
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.scroller::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scroller::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scroller::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--foreground) 15%, transparent);
-  border-radius: 6px;
-}
-
-.scroller::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--foreground) 25%, transparent);
 }
 
 .folders-only-container {

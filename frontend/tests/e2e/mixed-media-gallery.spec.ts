@@ -11,7 +11,8 @@ Changing mixed-media browse responses, `VideoCard`, gallery rendering, or
 lightbox/video routing.
 */
 
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./helpers/monitorErrors";
 import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://127.0.0.1:5173";
@@ -79,6 +80,20 @@ async function mockMixedGallery(page: Page) {
       await route.fulfill({ status: 503, json: { detail: { type: "video_poster_unavailable" } } });
       return;
     }
+    if (url.pathname === "/api/metadata") {
+      await route.fulfill({
+        json: {
+          tool: "stub",
+          prompt: "mixed media prompt",
+          negative_prompt: "",
+          params: {},
+          width: 1600,
+          height: 1000,
+          name: "photo.jpg",
+        },
+      });
+      return;
+    }
     if (url.pathname === "/api/libraries/1/status") {
       await route.fulfill({
         json: statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? rootPath, totalAssets: 2 }),
@@ -89,7 +104,11 @@ async function mockMixedGallery(page: Page) {
   });
 }
 
-test("mixed gallery preserves image lightbox and opens videos in the native player", async ({ page }) => {
+test("mixed gallery preserves image lightbox and opens videos in the native player", async ({
+  page,
+  monitoredErrors,
+}) => {
+  monitoredErrors.allowConsoleError("503 (Service Unavailable)");
   await mockMixedGallery(page);
   await page.goto(baseUrl);
 

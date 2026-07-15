@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { config } from "@vue/test-utils";
+import { config, enableAutoUnmount } from "@vue/test-utils";
 
 /**
  * Vitest global setup.
@@ -30,6 +30,14 @@ type WriteableWindow = Window & {
 };
 
 const vueWarnings: string[] = [];
+const consoleErrors: string[] = [];
+
+export function assertNoUnexpectedRuntimeMessages(errors: readonly string[], warnings: readonly string[]): void {
+  const sections: string[] = [];
+  if (errors.length > 0) sections.push(`Unexpected console errors detected:\n${errors.join("\n")}`);
+  if (warnings.length > 0) sections.push(`Unexpected Vue warnings detected:\n${warnings.join("\n")}`);
+  if (sections.length > 0) throw new Error(sections.join("\n\n"));
+}
 
 function isAnonymousTestStubPropertyWarning(text: string): boolean {
   const isAnonymousStub = text.includes("at <Anonymous");
@@ -118,6 +126,10 @@ const MutationObserverShim = class {
 
 beforeEach(() => {
   vueWarnings.length = 0;
+  consoleErrors.length = 0;
+  vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    consoleErrors.push(args.map((arg) => (typeof arg === "string" ? arg : String(arg))).join(" "));
+  });
   vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
     const text = args.map((arg) => (typeof arg === "string" ? arg : String(arg))).join(" ");
     if (text.includes("[Vue warn]") && !isAnonymousTestStubPropertyWarning(text)) {
@@ -145,9 +157,15 @@ beforeEach(() => {
   if (typeof w.IntersectionObserver !== "function") w.IntersectionObserver = IntersectionObserverShim;
   if (typeof w.MutationObserver !== "function") w.MutationObserver = MutationObserverShim;
 
-  if (typeof w.scrollTo !== "function") {
-    w.scrollTo = vi.fn();
+  // jsdom exposes getContext() but only reports a not-implemented error.
+  // Returning null exercises the production fallback in text measurement.
+  if (typeof HTMLCanvasElement !== "undefined") {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => null);
   }
+
+  // jsdom exposes scrollTo but its implementation only emits a not-implemented
+  // error, so replace it even when the function exists.
+  w.scrollTo = vi.fn();
   if (typeof HTMLElement !== "undefined" && typeof HTMLElement.prototype.scrollIntoView !== "function") {
     HTMLElement.prototype.scrollIntoView = vi.fn();
   }
@@ -215,13 +233,15 @@ afterEach(() => {
   delete (window as Partial<Window> & { __GALLERY_DEBUG_LIGHTBOX_NAV?: boolean }).__GALLERY_DEBUG_LIGHTBOX_NAV;
   // Clear DOM so mounted wrappers/leftover nodes from one test do not bleed into the next.
   document.body.innerHTML = "";
-  if (vueWarnings.length > 0) {
-    const message = `Unexpected Vue warnings detected:\n${vueWarnings.join("\n")}`;
-    vueWarnings.length = 0;
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-    throw new Error(message);
-  }
+  const errors = [...consoleErrors];
+  const warnings = [...vueWarnings];
+  consoleErrors.length = 0;
+  vueWarnings.length = 0;
   vi.restoreAllMocks();
   vi.useRealTimers();
+  assertNoUnexpectedRuntimeMessages(errors, warnings);
 });
+
+// Vitest runs afterEach hooks in reverse registration order. Register VTU's
+// cleanup last so wrappers unmount before the hook above clears the DOM.
+enableAutoUnmount(afterEach);

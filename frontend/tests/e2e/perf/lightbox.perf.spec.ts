@@ -18,7 +18,16 @@ import { expect, test } from "../helpers/monitorErrors";
 import type { Locator, Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, join, dirname as pathDirname } from "node:path";
-import { compactStats, installApiNetworkTracker, loadBudgets, nowMs } from "./perf-utils";
+import { LIGHTBOX_PERF_MARKS } from "../../../src/utils/lightboxPerformance";
+import {
+  compactStats,
+  installApiNetworkTracker,
+  loadBudgets,
+  networkContractViolations,
+  nowMs,
+  resolvePerfResultsDir,
+  waitForNetworkQuiet,
+} from "./perf-utils";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathDirname(__filename);
@@ -80,6 +89,7 @@ type OpenIteration = {
   derivativeQueueWaitMs: number;
   renderEncodePersistMs: number;
   networkResponseMs: number;
+  browserResourceLoadMs: number;
   browserDecodeVisualReadyMs: number;
   visualReadyAfterEventMs: number;
   previewRequestDurationMs: number;
@@ -94,10 +104,17 @@ type OpenIteration = {
   displayHeight: number;
   viewportWidth: number;
   viewportHeight: number;
+  networkContractViolations: string[];
 };
 
-async function waitForPreviewDecoded(lightboxImg: Locator): Promise<void> {
-  await lightboxImg.evaluate(async (img: HTMLImageElement) => {
+type BrowserVisualTiming = {
+  visualReadyAfterInteractionMs: number;
+  resourceLoadMs: number;
+  responseToDecodedMs: number;
+};
+
+async function waitForPreviewDecoded(lightboxImg: Locator, interactionMark: string): Promise<BrowserVisualTiming> {
+  return lightboxImg.evaluate(async (img: HTMLImageElement, markName) => {
     const isPreviewReady = () =>
       img.src.includes("/api/preview") && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
 
@@ -138,7 +155,52 @@ async function waitForPreviewDecoded(lightboxImg: Locator): Promise<void> {
     }
 
     await img.decode();
-  });
+    const readyAt = performance.now();
+    const interactionStart = performance.getEntriesByName(markName, "mark").at(-1)?.startTime;
+    if (interactionStart === undefined) {
+      throw new Error(`Missing browser performance mark ${markName}`);
+    }
+    const resource = performance.getEntriesByName(img.currentSrc || img.src, "resource").at(-1) as
+      | PerformanceResourceTiming
+      | undefined;
+    return {
+      visualReadyAfterInteractionMs: readyAt - interactionStart,
+      resourceLoadMs: resource ? resource.responseEnd - resource.startTime : 0,
+      responseToDecodedMs: resource ? Math.max(0, readyAt - resource.responseEnd) : 0,
+    };
+  }, interactionMark);
+}
+
+async function browserMarkDuration(page: Page, startMark: string, endMark: string): Promise<number> {
+  return page.evaluate(
+    ({ startMark, endMark }) => {
+      const start = performance.getEntriesByName(startMark, "mark").at(-1)?.startTime;
+      const end = performance.getEntriesByName(endMark, "mark").at(-1)?.startTime;
+      return start === undefined || end === undefined ? 0 : end - start;
+    },
+    { startMark, endMark },
+  );
+}
+
+async function armClickPerformanceMark(target: Locator, markName: string): Promise<void> {
+  await target.evaluate(
+    (element: HTMLElement, marks) => {
+      performance.clearMarks(marks.start);
+      performance.clearMarks(marks.overlay);
+      element.addEventListener(
+        "click",
+        () => {
+          performance.mark(marks.start);
+        },
+        { capture: true, once: true },
+      );
+    },
+    { start: markName, overlay: LIGHTBOX_PERF_MARKS.overlayPainted },
+  );
+}
+
+function activeLightboxImage(lightbox: Locator): Locator {
+  return lightbox.locator('.pswp__item[aria-hidden="false"] .pswp__img:not(.pswp__img--placeholder)').first();
 }
 
 async function runOpenIteration(page: Page): Promise<OpenIteration> {
@@ -151,16 +213,24 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
 
   tracker.clear();
   clickTime.value = nowMs();
+  await armClickPerformanceMark(firstPhoto, LIGHTBOX_PERF_MARKS.openStart);
 
   await firstPhoto.click();
 
   const lightbox = page.getByTestId("lightbox");
   await expect(lightbox).toBeVisible({ timeout: 10000 });
-  const eventToOverlayMs = Math.round(nowMs() - clickTime.value);
+  await expect
+    .poll(() => browserMarkDuration(page, LIGHTBOX_PERF_MARKS.openStart, LIGHTBOX_PERF_MARKS.overlayPainted), {
+      timeout: 5000,
+      message: "wait for browser-native lightbox overlay paint marks",
+    })
+    .toBeGreaterThan(0);
+  const eventToOverlayMs = Math.round(
+    await browserMarkDuration(page, LIGHTBOX_PERF_MARKS.openStart, LIGHTBOX_PERF_MARKS.overlayPainted),
+  );
 
-  const lightboxImg = lightbox.locator(".pswp__img:not(.pswp__img--placeholder)").first();
-  await waitForPreviewDecoded(lightboxImg);
-  const visualReadyAt = nowMs();
+  const lightboxImg = activeLightboxImage(lightbox);
+  const visualTiming = await waitForPreviewDecoded(lightboxImg, LIGHTBOX_PERF_MARKS.openStart);
 
   const actualSrc = await lightboxImg.evaluate((img: HTMLImageElement) => img.src);
   await expect
@@ -170,6 +240,7 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
     })
     .toBeGreaterThan(0);
 
+  await tracker.waitForSettled({ paths: ["/api/preview", "/api/image", "/api/metadata"], minimum: 1 });
   const previewSamples = tracker.previewSamples();
   const imageSamples = tracker.imageSamples();
   const metadataSamples = tracker.metadataSamples();
@@ -189,6 +260,12 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
 
   const srcIsFullImage = actualSrc?.includes("/api/image") ?? false;
   const srcIsPreview = actualSrc?.includes("/api/preview") ?? false;
+  const contractViolations = [
+    ...networkContractViolations(previewSamples, { minimum: 1, allowedStatuses: [200, 304] }),
+    ...networkContractViolations(imageSamples, { allowedStatuses: [200, 304] }),
+    ...networkContractViolations(metadataSamples, { allowedStatuses: [200, 304] }),
+  ];
+  tracker.dispose();
 
   return {
     eventToOverlayMs,
@@ -202,10 +279,9 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
           (firstPreviewSample?.serverRenderEncodePersistMs ?? 0),
       ),
     ),
-    browserDecodeVisualReadyMs: Math.round(
-      Math.max(0, visualReadyAt - clickTime.value - (firstPreviewSample?.endMs ?? visualReadyAt - clickTime.value)),
-    ),
-    visualReadyAfterEventMs: Math.round(visualReadyAt - clickTime.value),
+    browserResourceLoadMs: Math.round(visualTiming.resourceLoadMs),
+    browserDecodeVisualReadyMs: Math.round(visualTiming.responseToDecodedMs),
+    visualReadyAfterEventMs: Math.round(visualTiming.visualReadyAfterInteractionMs),
     previewRequestDurationMs: Math.round(firstPreviewSample?.durationMs ?? 0),
     metadataDurationMs: metadataSamples.length
       ? Math.round(Math.min(...metadataSamples.map((s) => s.durationMs ?? 0)))
@@ -220,6 +296,7 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
     displayHeight: Math.round(dims.displayH),
     viewportWidth: viewport?.width ?? 0,
     viewportHeight: viewport?.height ?? 0,
+    networkContractViolations: contractViolations,
   };
 }
 
@@ -247,6 +324,9 @@ test("lightbox opens first photo within budget", async ({ page }) => {
   const warmPreviewRequestP95 = Math.round(compactStats(warmPreviewRequestDurations).p95);
   const visualReadyP95 = Math.round(compactStats(visualReadyDurations).p95);
   const browserDecodeP95 = Math.round(compactStats(browserDecodeDurations).p95);
+  const contractViolations = iterations.flatMap((iteration, index) =>
+    iteration.networkContractViolations.map((violation) => `iteration ${index + 1}: ${violation}`),
+  );
 
   // Use the last iteration's image-quality assertions as representative — these
   // are binary invariants (preview endpoint used, no full-image on open, image
@@ -269,16 +349,19 @@ test("lightbox opens first photo within budget", async ({ page }) => {
       initialPreviewRequestMs: iterations[0].previewRequestDurationMs,
       visualReadyP95Ms: visualReadyP95,
       browserDecodeVisualReadyP95Ms: browserDecodeP95,
+      networkContractViolations: contractViolations,
     },
     budgets: budgets.lightbox,
     budgetSource: "frontend/tests/e2e/perf/perf-budgets.json[lightbox]",
     verdict:
-      visibleP95 <= budgets.lightbox.open_ms && warmPreviewRequestP95 <= budgets.lightbox.preview_check_ms
+      visibleP95 <= budgets.lightbox.open_ms &&
+      visualReadyP95 <= budgets.lightbox.visual_ready_ms &&
+      contractViolations.length === 0
         ? "pass"
         : "fail",
   };
 
-  const resultsDir = resolve(__dirname, "../../../test-results/perf");
+  const resultsDir = resolvePerfResultsDir(resolve(__dirname, "../../../test-results/perf"));
   mkdirSync(resultsDir, { recursive: true });
   writeFileSync(join(resultsDir, "lightbox-open-report.json"), JSON.stringify(report, null, 2));
 
@@ -292,7 +375,8 @@ test("lightbox opens first photo within budget", async ({ page }) => {
   }
 
   expect(visibleP95).toBeLessThanOrEqual(budgets.lightbox.open_ms);
-  expect(warmPreviewRequestP95).toBeLessThanOrEqual(budgets.lightbox.preview_check_ms);
+  expect(visualReadyP95).toBeLessThanOrEqual(budgets.lightbox.visual_ready_ms);
+  expect(contractViolations).toEqual([]);
   // Binary invariants checked on every iteration — if any iteration violated
   // them, the lightbox-loading-policy.spec.ts covers it; here we assert the
   // representative last sample plus a pass-rate check across iterations.
@@ -318,7 +402,8 @@ type TransitionIteration = {
   viewportWidth: number;
   viewportHeight: number;
   ratioDiff: number;
-  transitionLoadedFullImage: boolean;
+  currentSrc: string;
+  networkContractViolations: string[];
 };
 
 async function runTransitionIteration(page: Page): Promise<TransitionIteration> {
@@ -329,12 +414,13 @@ async function runTransitionIteration(page: Page): Promise<TransitionIteration> 
 
   const firstPhoto = page.getByTestId("photo-card").first();
 
+  await armClickPerformanceMark(firstPhoto, LIGHTBOX_PERF_MARKS.openStart);
   await firstPhoto.click();
 
   const lightbox = page.getByTestId("lightbox");
   await expect(lightbox).toBeVisible({ timeout: 10000 });
 
-  const lightboxImg = lightbox.locator(".pswp__img:not(.pswp__img--placeholder)").first();
+  const lightboxImg = activeLightboxImage(lightbox);
   await expect
     .poll(
       async () => {
@@ -343,6 +429,7 @@ async function runTransitionIteration(page: Page): Promise<TransitionIteration> 
       { timeout: 10000 },
     )
     .toBe(true);
+  await waitForPreviewDecoded(lightboxImg, LIGHTBOX_PERF_MARKS.openStart);
 
   const beforeSrc = await lightboxImg.getAttribute("src");
 
@@ -360,7 +447,7 @@ async function runTransitionIteration(page: Page): Promise<TransitionIteration> 
   await expect
     .poll(
       async () => {
-        const currentImg = lightbox.locator(".pswp__img:not(.pswp__img--placeholder)").first();
+        const currentImg = activeLightboxImage(lightbox);
         const src = await currentImg.getAttribute("src");
         const dims = await currentImg.evaluate((img: HTMLImageElement) => ({
           nw: img.naturalWidth,
@@ -371,9 +458,13 @@ async function runTransitionIteration(page: Page): Promise<TransitionIteration> 
       { timeout: 20000 },
     )
     .toBe(true);
-  const transitionPreviewLoadedAfterActionMs = Math.round(nowMs() - clickTime.value);
-
-  const dims = await lightboxImg.evaluate((img: HTMLImageElement) => ({
+  const currentImg = activeLightboxImage(lightbox);
+  const transitionVisualTiming = await waitForPreviewDecoded(currentImg, LIGHTBOX_PERF_MARKS.transitionStart);
+  const transitionPreviewLoadedAfterActionMs = Math.round(transitionVisualTiming.visualReadyAfterInteractionMs);
+  const currentSrc = await currentImg.evaluate((img: HTMLImageElement) => img.src);
+  await waitForNetworkQuiet(page, 250, 3000);
+  await tracker.waitForSettled({ paths: ["/api/preview", "/api/image"], minimum: 0 });
+  const dims = await currentImg.evaluate((img: HTMLImageElement) => ({
     naturalW: img.naturalWidth,
     naturalH: img.naturalHeight,
     displayW: img.getBoundingClientRect().width,
@@ -386,11 +477,13 @@ async function runTransitionIteration(page: Page): Promise<TransitionIteration> 
   const displayRatio = dims.displayW / dims.displayH;
   const ratioDiff = Math.abs(1 - naturalRatio / displayRatio);
 
-  const imageForTransition = tracker.imageSamples().filter((s) => {
-    const params = new URLSearchParams(s.search);
-    const path = params.get("path") || "";
-    return path.includes("0 (2)"); // index 1 in the sorted album
-  });
+  const previewSamples = tracker.previewSamples();
+  const imageSamples = tracker.imageSamples();
+  const contractViolations = [
+    ...networkContractViolations(previewSamples, { allowedStatuses: [200, 304] }),
+    ...networkContractViolations(imageSamples, { allowedStatuses: [200, 304] }),
+  ];
+  tracker.dispose();
 
   return {
     nextVisibleAfterActionMs,
@@ -404,7 +497,8 @@ async function runTransitionIteration(page: Page): Promise<TransitionIteration> 
     viewportWidth: viewport?.width ?? 0,
     viewportHeight: viewport?.height ?? 0,
     ratioDiff: Math.round(ratioDiff * 1000) / 1000,
-    transitionLoadedFullImage: imageForTransition.length > 0,
+    currentSrc,
+    networkContractViolations: contractViolations,
   };
 }
 
@@ -423,6 +517,10 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
 
   const transitionDurations = iterations.map((r) => r.transitionPreviewLoadedAfterActionMs);
   const transitionP95 = Math.round(compactStats(transitionDurations).p95);
+  const contractViolations = iterations.flatMap((iteration, index) =>
+    iteration.networkContractViolations.map((violation) => `iteration ${index + 1}: ${violation}`),
+  );
+  const originalRequestCount = iterations.reduce((total, iteration) => total + iteration.originalRequestCount, 0);
 
   const last = iterations[iterations.length - 1];
 
@@ -433,13 +531,18 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
     iterations,
     aggregate: {
       transitionPreviewLoadedP95Ms: transitionP95,
+      originalRequestCount,
+      networkContractViolations: contractViolations,
     },
     budgets: { transitionMs: budgets.lightbox.transition_ms },
     budgetSource: "frontend/tests/e2e/perf/perf-budgets.json[lightbox].transition_ms",
-    verdict: transitionP95 <= budgets.lightbox.transition_ms ? "pass" : "fail",
+    verdict:
+      transitionP95 <= budgets.lightbox.transition_ms && originalRequestCount === 0 && contractViolations.length === 0
+        ? "pass"
+        : "fail",
   };
 
-  const resultsDir = resolve(__dirname, "../../../test-results/perf");
+  const resultsDir = resolvePerfResultsDir(resolve(__dirname, "../../../test-results/perf"));
   mkdirSync(resultsDir, { recursive: true });
   writeFileSync(join(resultsDir, "lightbox-transition-report.json"), JSON.stringify(report, null, 2));
 
@@ -453,11 +556,13 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
   }
 
   expect(transitionP95).toBeLessThanOrEqual(budgets.lightbox.transition_ms);
+  expect(originalRequestCount).toBe(0);
+  expect(contractViolations).toEqual([]);
   // Every iteration must keep natural dims > 0 and stay within aspect ratio.
   for (const it of iterations) {
     expect(it.naturalWidth).toBeGreaterThan(0);
     expect(it.naturalHeight).toBeGreaterThan(0);
     expect(it.ratioDiff).toBeLessThan(0.2);
-    expect(it.transitionLoadedFullImage).toBe(false);
+    expect(it.originalRequestCount).toBe(0);
   }
 });

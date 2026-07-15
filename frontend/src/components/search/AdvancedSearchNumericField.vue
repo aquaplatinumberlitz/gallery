@@ -79,7 +79,7 @@ function updateBetweenHigh(high: string) {
         >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent align="start" class="min-w-20">
+        <SelectContent align="start" class="z-[calc(var(--gallery-z-modal)+1)] min-w-20">
           <SelectItem v-for="operator in operators" :key="operator.value" :value="operator.value">
             {{ operator.label }}
           </SelectItem>

@@ -106,7 +106,7 @@ case "$COMMAND" in
         exec "$INTERNAL_DIR/test-playwright.sh" functional "$@"
         ;;
     perf)
-        exec "$INTERNAL_DIR/test-playwright.sh" perf "$@"
+        exec "$INTERNAL_DIR/test-perf.sh" "$@"
         ;;
     full)
         export PLAYWRIGHT_RETRIES="${PLAYWRIGHT_RETRIES:-1}"
@@ -115,7 +115,7 @@ case "$COMMAND" in
         run_docs
         export GALLERY_TEST_SKIP_BUILD=1
         "$INTERNAL_DIR/test-playwright.sh" functional
-        "$INTERNAL_DIR/test-playwright.sh" perf
+        "$INTERNAL_DIR/test-perf.sh"
         ;;
     backend-api)
         cd "$REPO_ROOT"

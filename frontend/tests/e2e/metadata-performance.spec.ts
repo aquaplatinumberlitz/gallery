@@ -24,6 +24,7 @@ import type { Page, Request } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname as pathDirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadBudgets, resolvePerfResultsDir } from "./perf/perf-utils";
 
 const strictMetadataBudgets = process.env.GALLERY_PERF_METADATA_STRICT === "1";
 const metadataPerfEnabled = process.env.GALLERY_PERF_METADATA === "1" || strictMetadataBudgets;
@@ -37,13 +38,8 @@ const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathDirname(__filename);
 
-function budget(name: string, strictDefault?: number): number | null {
-  const raw = process.env[name];
-  if (raw !== undefined && raw !== "") {
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return strictMetadataBudgets && strictDefault !== undefined ? strictDefault : null;
+function enabledBudget(value: number, envNames: string[]): number | null {
+  return strictMetadataBudgets || envNames.some((name) => Boolean(process.env[name])) ? value : null;
 }
 
 function maybeExpectAtMost(value: number, limit: number | null): void {
@@ -53,21 +49,40 @@ function maybeExpectAtMost(value: number, limit: number | null): void {
 }
 
 function writePerfReport(filename: string, report: unknown): void {
-  const resultsDir = resolve(__dirname, "../../test-results/perf");
+  const resultsDir = resolvePerfResultsDir(resolve(__dirname, "../../test-results/perf"));
   mkdirSync(resultsDir, { recursive: true });
   writeFileSync(join(resultsDir, filename), JSON.stringify(report, null, 2));
 }
 
+const sharedMetadataBudgets = loadBudgets().metadata_nav;
 const metadataBudget = {
-  apiMs: budget("GALLERY_PERF_METADATA_API_BUDGET_MS", 2000),
-  tableReadyMs: budget("GALLERY_PERF_METADATA_TABLE_READY_BUDGET_MS", 2000),
-  responseRenderMs: budget("GALLERY_PERF_METADATA_RESPONSE_RENDER_BUDGET_MS", 2000),
-  renderedRowsMax: budget("GALLERY_PERF_METADATA_RENDERED_ROWS_MAX", 25),
-  sortTotalMs: budget("GALLERY_PERF_METADATA_SORT_TOTAL_BUDGET_MS", 2000),
-  sortResponseRenderMs: budget("GALLERY_PERF_METADATA_SORT_RESPONSE_RENDER_BUDGET_MS", 2000),
-  searchTotalMs: budget("GALLERY_PERF_METADATA_SEARCH_TOTAL_BUDGET_MS", 3000),
-  searchResponseRenderMs: budget("GALLERY_PERF_METADATA_SEARCH_RESPONSE_RENDER_BUDGET_MS", 2000),
-  searchRequestsMax: budget("GALLERY_PERF_METADATA_SEARCH_REQUESTS_MAX", 3),
+  apiMs: enabledBudget(sharedMetadataBudgets.api_ms, ["GALLERY_PERF_METADATA_API_BUDGET_MS"]),
+  tableReadyMs: enabledBudget(sharedMetadataBudgets.nav_ms, [
+    "GALLERY_PERF_METADATA_TABLE_READY_BUDGET_MS",
+    "GALLERY_PERF_METADATA_NAV_BUDGET_MS",
+  ]),
+  responseRenderMs: enabledBudget(sharedMetadataBudgets.render_ms, [
+    "GALLERY_PERF_METADATA_RESPONSE_RENDER_BUDGET_MS",
+    "GALLERY_PERF_METADATA_RENDER_BUDGET_MS",
+  ]),
+  renderedRowsMax: enabledBudget(sharedMetadataBudgets.rendered_rows_max, ["GALLERY_PERF_METADATA_RENDERED_ROWS_MAX"]),
+  sortTotalMs: enabledBudget(sharedMetadataBudgets.sort_ms, ["GALLERY_PERF_METADATA_SORT_TOTAL_BUDGET_MS"]),
+  sortResponseRenderMs: enabledBudget(sharedMetadataBudgets.render_ms, [
+    "GALLERY_PERF_METADATA_SORT_RESPONSE_RENDER_BUDGET_MS",
+  ]),
+  searchTotalMs: enabledBudget(sharedMetadataBudgets.search_debounce_ms, [
+    "GALLERY_PERF_METADATA_SEARCH_TOTAL_BUDGET_MS",
+    "GALLERY_PERF_METADATA_SEARCH_DEBOUNCE_BUDGET_MS",
+  ]),
+  searchResponseRenderMs: enabledBudget(sharedMetadataBudgets.render_ms, [
+    "GALLERY_PERF_METADATA_SEARCH_RESPONSE_RENDER_BUDGET_MS",
+  ]),
+  searchRequestsMax: enabledBudget(sharedMetadataBudgets.search_requests_max, [
+    "GALLERY_PERF_METADATA_SEARCH_REQUESTS_MAX",
+  ]),
+  stateRestoreMs: enabledBudget(sharedMetadataBudgets.state_restore_ms, [
+    "GALLERY_PERF_METADATA_STATE_RESTORE_BUDGET_MS",
+  ]),
 };
 
 // ---------------------------------------------------------------------------
@@ -456,6 +471,7 @@ test.describe("Metadata performance", () => {
     });
     await expect.poll(() => tableShell.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
 
+    const restoreStartedAt = timestamp();
     await page.getByRole("link", { name: /^gallery$/i }).click();
     await page.waitForURL("**/");
     await page.getByRole("link", { name: /metadata/i }).click();
@@ -464,5 +480,17 @@ test.describe("Metadata performance", () => {
 
     await expect(page.getByRole("combobox", { name: /sort metadata table/i })).toContainText(/Name A[-–]Z/);
     await expect.poll(() => page.locator(".metadata-table-shell").evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    const stateRestoreMs = Math.round(timestamp() - restoreStartedAt);
+    const report = {
+      stateRestore: {
+        roundTripMs: stateRestoreMs,
+        sortRestored: true,
+        scrollRestored: true,
+        budgets: { stateRestoreMs: metadataBudget.stateRestoreMs },
+      },
+    };
+    console.log(JSON.stringify(report, null, 2));
+    writePerfReport("metadata-state-report.json", report);
+    maybeExpectAtMost(stateRestoreMs, metadataBudget.stateRestoreMs);
   });
 });

@@ -1,0 +1,83 @@
+# Managed performance workload registry.
+#
+# suite values:
+# - ci: blocking push/PR workload executed by ./test.sh perf
+# - extended: opt-in release/local workload
+# - diagnostic: opt-in measurement that is not a PR gate
+
+[workloads.search]
+suite = "ci"
+budget_sections = ["search", "inspector_metadata"]
+consumers = ["scripts/bench_search.py"]
+budget_tokens = ["GALLERY_PERF_SEARCH_P95_BUDGET_MS", "GALLERY_PERF_INSPECTOR_METADATA_P95_BUDGET_MS", "budget_for(\"search\"", "budget_for(\"inspector_metadata\""]
+reports = ["search-benchmark-report.json"]
+
+[workloads.inspector_api]
+suite = "ci"
+budget_sections = ["inspector"]
+consumers = ["scripts/perf_library_inspector.py"]
+budget_tokens = ["GALLERY_PERF_INSPECTOR_P95_BUDGET_MS", "budget_for(\"inspector\""]
+reports = ["library-inspector-report.json"]
+
+[workloads.inspector_store]
+suite = "ci"
+budget_sections = ["inspector"]
+consumers = ["scripts/perf_inspector_store.py"]
+budget_tokens = ["GALLERY_PERF_INSPECTOR_P95_BUDGET_MS", "budget_for(\"inspector\""]
+reports = ["inspector-store-report.json"]
+
+[workloads.facets]
+suite = "ci"
+budget_sections = ["facets"]
+consumers = ["scripts/perf_facets.py"]
+budget_tokens = ["GALLERY_PERF_FACETS_P95_BUDGET_MS", "budget_for(\"facets\""]
+reports = ["facets-report.json"]
+
+[workloads.related_assets]
+suite = "ci"
+budget_sections = ["related_assets"]
+consumers = ["scripts/bench_related_assets.py"]
+budget_tokens = ["GALLERY_PERF_RELATED_ROWS", "budget_for(\"related_assets\""]
+reports = ["related-assets-benchmark-report.json"]
+
+[workloads.thumbnail]
+suite = "ci"
+budget_sections = ["thumbnail"]
+consumers = ["scripts/bench_thumbnail.py", "scripts/bench_derivative.py"]
+budget_tokens = ["GALLERY_PERF_BENCH_THUMBNAIL_COLD_P95_MS", "GALLERY_PERF_BENCH_THUMBNAIL_WARM_P95_MS", "kind=\"thumbnail\""]
+reports = ["thumbnail-benchmark-report.json"]
+
+[workloads.preview]
+suite = "ci"
+budget_sections = ["preview"]
+consumers = ["scripts/bench_preview.py", "scripts/bench_derivative.py"]
+budget_tokens = ["GALLERY_PERF_BENCH_PREVIEW_COLD_P95_MS", "GALLERY_PERF_BENCH_PREVIEW_WARM_P95_MS", "kind=\"preview\""]
+reports = ["preview-benchmark-report.json"]
+
+[workloads.album_open]
+suite = "ci"
+budget_sections = ["album_open"]
+consumers = ["frontend/tests/e2e/perf/album-open.perf.spec.ts", "frontend/tests/e2e/perf/perf-utils.ts"]
+budget_tokens = ["GALLERY_PERF_SCAN_BUDGET_MS", "GALLERY_PERF_FIRST_THUMB_BUDGET_MS", "GALLERY_PERF_THUMB_BATCH_BUDGET_MS", "GALLERY_PERF_THUMB_P95_BUDGET_MS"]
+reports = ["album-open-report.json"]
+
+[workloads.lightbox]
+suite = "ci"
+budget_sections = ["lightbox"]
+consumers = ["frontend/tests/e2e/perf/lightbox.perf.spec.ts", "frontend/tests/e2e/perf/perf-utils.ts"]
+budget_tokens = ["GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS", "GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS", "GALLERY_PERF_LIGHTBOX_VISUAL_READY_BUDGET_MS", "GALLERY_PERF_LIGHTBOX_PREVIEW_BUDGET_MS"]
+reports = ["lightbox-open-report.json", "lightbox-transition-report.json"]
+
+[workloads.warm_listing]
+suite = "extended"
+budget_sections = ["warm_listing"]
+consumers = ["scripts/perf_warm_listing.py"]
+budget_tokens = ["GALLERY_PERF_WARM_LISTING_BUDGET_MS", "budget_for(\"warm_listing\""]
+reports = ["warm-listing-report.json"]
+
+[workloads.metadata_nav]
+suite = "diagnostic"
+budget_sections = ["metadata_nav"]
+consumers = ["frontend/tests/e2e/metadata-performance.spec.ts", "frontend/tests/e2e/perf/perf-utils.ts"]
+budget_tokens = ["GALLERY_PERF_METADATA_API_BUDGET_MS", "GALLERY_PERF_METADATA_TABLE_READY_BUDGET_MS", "GALLERY_PERF_METADATA_NAV_BUDGET_MS", "GALLERY_PERF_METADATA_RESPONSE_RENDER_BUDGET_MS", "GALLERY_PERF_METADATA_RENDER_BUDGET_MS", "GALLERY_PERF_METADATA_SORT_TOTAL_BUDGET_MS", "GALLERY_PERF_METADATA_SORT_RESPONSE_RENDER_BUDGET_MS", "GALLERY_PERF_METADATA_SEARCH_TOTAL_BUDGET_MS", "GALLERY_PERF_METADATA_SEARCH_DEBOUNCE_BUDGET_MS", "GALLERY_PERF_METADATA_SEARCH_RESPONSE_RENDER_BUDGET_MS", "GALLERY_PERF_METADATA_STATE_RESTORE_BUDGET_MS"]
+reports = ["metadata-navigation-report.json", "metadata-sort-report.json", "metadata-search-report.json", "metadata-state-report.json"]

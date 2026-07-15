@@ -12,7 +12,8 @@ Changing active library selection, legacy migration, library selector UI, or
 no-library onboarding.
 */
 
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./helpers/monitorErrors";
 import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 
 const rootPath = "/registered/photos";

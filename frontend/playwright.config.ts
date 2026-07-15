@@ -5,10 +5,15 @@ const baseUrl = process.env.GALLERY_BASE_URL ?? `http://127.0.0.1:${devPort}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  forbidOnly: Boolean(process.env.CI),
   retries: Number(process.env.PLAYWRIGHT_RETRIES ?? (process.env.CI ? "1" : "0")),
   timeout: 60_000,
   expect: {
     timeout: 10_000,
+  },
+  use: {
+    trace: "on-first-retry",
+    screenshot: "only-on-failure",
   },
   webServer: {
     command:

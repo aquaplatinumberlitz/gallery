@@ -266,6 +266,25 @@ def _resolve_image_request_path(path: str) -> Path:
     return file_path
 
 
+def _resolve_derivative_source(path: str | None, asset_id: int | None) -> tuple[Path, int, os.stat_result]:
+    """Resolve and stat a derivative source outside the async event loop."""
+    from .derivative_scheduler import scheduler
+
+    if asset_id is not None:
+        asset_path = scheduler.get_asset_path(asset_id)
+        if asset_path is None:
+            raise APIError(404, ErrorType.NOT_FOUND, "Asset not found")
+        file_path = _resolve_image_request_path(str(asset_path))
+    elif path is not None:
+        file_path = _resolve_image_request_path(path)
+        asset_id = scheduler.find_asset_id(file_path)
+    else:
+        raise APIError(400, ErrorType.BAD_REQUEST, "Either path or asset_id is required")
+    if asset_id is None:
+        raise APIError(404, ErrorType.NOT_FOUND, "Asset not found")
+    return file_path, asset_id, file_path.stat()
+
+
 def _resolve_max_long_edge(max_long_edge: int, max_size: int | None) -> int:
     return max_size if max_size is not None else max_long_edge
 
@@ -290,22 +309,10 @@ async def _serve_derivative(
 ):
     from .derivative_scheduler import derivative_variant, scheduler
 
-    if asset_id is not None:
-        asset_path = scheduler.get_asset_path(asset_id)
-        if asset_path is None:
-            raise APIError(404, ErrorType.NOT_FOUND, "Asset not found")
-        file_path = _resolve_image_request_path(str(asset_path))
-    elif path is not None:
-        file_path = _resolve_image_request_path(path)
-        asset_id = scheduler.find_asset_id(file_path)
-    else:
-        raise APIError(400, ErrorType.BAD_REQUEST, "Either path or asset_id is required")
-    if asset_id is None:
-        raise APIError(404, ErrorType.NOT_FOUND, "Asset not found")
+    file_path, asset_id, stat = await run_in_threadpool(_resolve_derivative_source, path, asset_id)
     normalized_format = _normalize_derivative_format(format)
     variant = derivative_variant(kind, max_long_edge, quality, normalized_format)
 
-    stat = file_path.stat()
     etag = (
         f'"{kind}-{DERIVATIVE_CACHE_VERSION}-{stat.st_mtime_ns}-'
         f'{stat.st_size}-{max_long_edge}-{normalized_format}-{quality}"'
@@ -318,7 +325,14 @@ async def _serve_derivative(
         return Response(status_code=304, headers=headers)
 
     if asset_id is not None:
-        ready = await run_in_threadpool(scheduler.acquire_ready_derivative, asset_id, kind, variant)
+        ready = await run_in_threadpool(
+            scheduler.acquire_ready_derivative,
+            asset_id,
+            kind,
+            variant,
+            source_mtime_ns=stat.st_mtime_ns,
+            source_size=stat.st_size,
+        )
         if ready is None:
             try:
                 derivative_id = await run_in_threadpool(

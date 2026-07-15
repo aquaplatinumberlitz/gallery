@@ -108,6 +108,9 @@
 }
 
 .scroll-content {
+  --gallery-scrollbar-thumb: var(--gallery-scrollbar-on-dark-thumb);
+  --gallery-scrollbar-thumb-hover: var(--gallery-scrollbar-on-dark-thumb-hover);
+
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -120,14 +123,6 @@
   & > * {
     flex-shrink: 0;
     min-width: 0;
-  }
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
   }
 }
 

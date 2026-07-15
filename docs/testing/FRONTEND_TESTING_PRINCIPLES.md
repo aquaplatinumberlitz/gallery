@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-06-27
+Last reviewed: 2026-07-15
 
 This document records the frontend testing principles used in this repo, based
 on the official Vue, Vue Test Utils, Pinia, and Playwright documentation:
@@ -102,6 +102,11 @@ In this repo, prefer shared helpers before repeating plugin setup:
 - `frontend/src/test/withSetup.ts` runs composables that need Vue lifecycle
   hooks.
 
+The global setup automatically unmounts Vue Test Utils wrappers after every
+test and fails the test on unexpected `console.error` output or Vue warnings.
+Tests that intentionally exercise an error path must locally spy on and assert
+that expected console call; do not add broad global allowlists.
+
 ## Pinia
 
 For store unit tests, create a fresh active Pinia for each test:
@@ -163,21 +168,32 @@ Use web-first assertions such as `toBeVisible`, `toHaveText`, `toHaveURL`, and
 `toBeHidden`. Avoid fixed sleeps except when measuring performance or
 intentionally waiting for debounced behavior to settle.
 
-Use Playwright traces when debugging failures that only happen in CI. Add
-cross-browser projects only when a feature needs browser diversity; current PR
-coverage is intentionally Chromium-focused.
+The shared Playwright fixture fails on unhandled page errors, console errors,
+and Vue warnings. A spec that intentionally causes a browser console error may
+declare a narrow message allowlist through `allowedConsoleErrorPatterns`; HTTP
+4xx/5xx responses alone remain diagnostic because fault-injection tests create
+them deliberately. The functional config captures screenshots on failure and
+traces on first retry, and rejects `.only` in CI. Add cross-browser projects
+only when a feature needs browser diversity; current PR coverage is
+intentionally Chromium-focused.
+
+Vitest uses file parallelism with a default maximum of three workers. This is a
+measured repository optimization (the 2026-07-15 full suite dropped from about
+190 seconds serial to about 87 seconds in the parallel comparison), not a
+framework-wide constant. Override it with `VITEST_MAX_WORKERS` when local CPU or
+memory constraints differ.
 
 ## Repo Commands
 
 Run frontend checks from `frontend/` unless the command starts with `./test.sh`.
 
-| Purpose | Command |
-| --- | --- |
-| Frontend unit/component tests | `pnpm test:unit` |
-| Lint frontend tests | `pnpm lint:tests` |
+| Purpose                          | Command                                                 |
+| -------------------------------- | ------------------------------------------------------- |
+| Frontend unit/component tests    | `pnpm test:unit`                                        |
+| Lint frontend tests              | `pnpm lint:tests`                                       |
 | Targeted Playwright Chromium run | `corepack pnpm exec playwright test --project=chromium` |
-| Fast local repo gate | `./test.sh fast` |
-| Full CI-equivalent local suite | `./test.sh full` |
+| Fast local repo gate             | `./test.sh fast`                                        |
+| Full CI-equivalent local suite   | `./test.sh full`                                        |
 
 For targeted changes, choose the smallest test layer that can protect the
 behavior. Add Playwright only when browser integration or user workflow

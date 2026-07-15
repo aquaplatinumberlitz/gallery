@@ -588,6 +588,10 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 }
 
 [data-vsbs-scroll] {
+  --gallery-scrollbar-size: 4px;
+  --gallery-scrollbar-thumb: var(--gallery-scrollbar-on-dark-thumb);
+  --gallery-scrollbar-thumb-hover: var(--gallery-scrollbar-on-dark-thumb-hover);
+
   width: 100%;
   inline-size: 100%;
   min-width: 0;
@@ -601,15 +605,6 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
   overscroll-behavior: contain;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
-
-  &::-webkit-scrollbar {
-    width: 4px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
-  }
 }
 
 [data-vsbs-content] {

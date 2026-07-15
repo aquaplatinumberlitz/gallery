@@ -155,6 +155,25 @@ async function openStubbedGallery(page: Page) {
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 }
 
+async function readScrollbarStyle(page: Page, selector: string) {
+  return page.locator(selector).evaluate((element) => {
+    const style = getComputedStyle(element);
+    const scrollbar = getComputedStyle(element, "::-webkit-scrollbar");
+    const thumb = getComputedStyle(element, "::-webkit-scrollbar-thumb");
+    const track = getComputedStyle(element, "::-webkit-scrollbar-track");
+
+    return {
+      width: scrollbar.width,
+      height: scrollbar.height,
+      firefoxWidth: style.scrollbarWidth,
+      firefoxColors: style.scrollbarColor,
+      thumb: thumb.backgroundColor,
+      track: track.backgroundColor,
+      hoverToken: style.getPropertyValue("--gallery-scrollbar-thumb-hover").trim(),
+    };
+  });
+}
+
 test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -169,23 +188,77 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
     await expect(page.locator(".brand-title")).toBeVisible();
   });
 
-  test("1b. theme toggle works and changes data-theme", async ({ page }) => {
+  test("1b. theme toggle keeps browser color scheme and sidebar scrollbar in sync", async ({ page }) => {
     const themeToggle = page.getByLabel(/Switch to (dark|light) mode/);
     await expect(themeToggle).toBeVisible();
 
     const initialTheme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
+
+    await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.dataset.testid = "global-scrollbar-probe";
+      probe.style.cssText = "width:20px;height:20px;overflow:auto";
+      probe.innerHTML = '<div style="width:40px;height:40px"></div>';
+      document.body.appendChild(probe);
+    });
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          document: getComputedStyle(document.documentElement).colorScheme,
+          sidebar: getComputedStyle(document.querySelector<HTMLElement>('[data-sidebar="content"]')!).colorScheme,
+          scrollbarWidth: getComputedStyle(
+            document.querySelector<HTMLElement>('[data-sidebar="content"]')!,
+            "::-webkit-scrollbar",
+          ).width,
+        })),
+      )
+      .toEqual({ document: "light", sidebar: "light", scrollbarWidth: "6px" });
+
+    const lightSidebarScrollbar = await readScrollbarStyle(page, '[data-sidebar="content"]');
+    const lightGalleryScrollbar = await readScrollbarStyle(page, ".scroller");
+    const lightGlobalScrollbar = await readScrollbarStyle(page, '[data-testid="global-scrollbar-probe"]');
+
+    expect(lightSidebarScrollbar).toEqual(lightGalleryScrollbar);
+    expect(lightGlobalScrollbar).toEqual(lightGalleryScrollbar);
+    expect(lightGalleryScrollbar).toMatchObject({ width: "6px", height: "6px", firefoxWidth: "thin" });
 
     // Toggle directly to dark
     await themeToggle.click();
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
       .toBe("dark");
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          document: getComputedStyle(document.documentElement).colorScheme,
+          sidebar: getComputedStyle(document.querySelector<HTMLElement>('[data-sidebar="content"]')!).colorScheme,
+        })),
+      )
+      .toEqual({ document: "dark", sidebar: "dark" });
+
+    const darkSidebarScrollbar = await readScrollbarStyle(page, '[data-sidebar="content"]');
+    const darkGalleryScrollbar = await readScrollbarStyle(page, ".scroller");
+    const darkGlobalScrollbar = await readScrollbarStyle(page, '[data-testid="global-scrollbar-probe"]');
+
+    expect(darkSidebarScrollbar).toEqual(darkGalleryScrollbar);
+    expect(darkGlobalScrollbar).toEqual(darkGalleryScrollbar);
+    expect(darkGalleryScrollbar.thumb).not.toBe(lightGalleryScrollbar.thumb);
 
     // Toggle directly back to light
     await themeToggle.click();
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.getAttribute("data-theme")))
       .toBe(initialTheme);
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          document: getComputedStyle(document.documentElement).colorScheme,
+          sidebar: getComputedStyle(document.querySelector<HTMLElement>('[data-sidebar="content"]')!).colorScheme,
+        })),
+      )
+      .toEqual({ document: "light", sidebar: "light" });
+    expect(await readScrollbarStyle(page, ".scroller")).toEqual(lightGalleryScrollbar);
   });
 
   test("1c. search input and sort control exist", async ({ page }) => {
@@ -214,6 +287,13 @@ test.describe("Tailwind Phase 0 — Desktop (1440x900)", () => {
   test("1f. lightbox opens and closes", async ({ page }) => {
     await page.getByTestId("photo-card").first().click();
     await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+
+    const lightboxScrollbar = await readScrollbarStyle(page, ".scroll-content");
+    expect(lightboxScrollbar).toMatchObject({
+      width: "6px",
+      firefoxWidth: "thin",
+      thumb: "rgba(255, 255, 255, 0.2)",
+    });
 
     const closeBtn = page.locator(".pswp__button--close, [aria-label='Close'], .lightbox-close");
     if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {

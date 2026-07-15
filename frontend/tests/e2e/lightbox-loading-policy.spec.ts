@@ -324,7 +324,11 @@ test("explicit fullscreen action requests original for the current image", async
   expect(requestsFor(requests, "/api/image").every((request) => request.path === imagePaths[0])).toBe(true);
 });
 
-test("preview failure falls back to original for the current image", async ({ page }) => {
+const expectedPreviewFailureTest = test.extend({
+  allowedConsoleErrorPatterns: ["500 (Internal Server Error)"],
+});
+
+expectedPreviewFailureTest("preview failure falls back to original for the current image", async ({ page }) => {
   const requests = await installStubbedGallery(page, { failPreviewFor: imagePaths[0] });
   await openStubbedGallery(page, requests);
 
@@ -336,14 +340,12 @@ test("preview failure falls back to original for the current image", async ({ pa
   await expect.poll(() => requestedPath(requests, "/api/image", imagePaths[0])).toBe(true);
 });
 
-test("next and previous preload thumbnail plus preview only", async ({ page }) => {
+test("next and previous preload neighboring previews without originals", async ({ page }) => {
   const requests = await installStubbedGallery(page);
   await openStubbedGallery(page, requests);
   await openLightbox(page, requests, 1);
   await expect.poll(() => requestedPath(requests, "/api/preview", imagePaths[0])).toBe(true);
   await expect.poll(() => requestedPath(requests, "/api/preview", imagePaths[2])).toBe(true);
-  await expect.poll(() => requestedPath(requests, "/api/thumbnail", imagePaths[0])).toBe(true);
-  await expect.poll(() => requestedPath(requests, "/api/thumbnail", imagePaths[2])).toBe(true);
   await page.waitForTimeout(500); // negative assertion window: verify no original image requests during preload
 
   expect(requestsFor(requests, "/api/image")).toHaveLength(0);

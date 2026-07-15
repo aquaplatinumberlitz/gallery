@@ -3,6 +3,9 @@ import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 
+const configuredMaxWorkers = Number(process.env.VITEST_MAX_WORKERS ?? "3");
+const maxWorkers = Number.isFinite(configuredMaxWorkers) && configuredMaxWorkers > 0 ? configuredMaxWorkers : 3;
+
 export default defineConfig({
   plugins: [tailwindcss(), vue()],
   resolve: {
@@ -16,7 +19,8 @@ export default defineConfig({
     include: ["src/**/__tests__/**/*.test.ts"],
     exclude: ["node_modules/**", "dist/**", "tests/**", "src/debug/**"],
     testTimeout: 10000,
-    fileParallelism: false,
+    fileParallelism: true,
+    maxWorkers,
     setupFiles: ["./src/test/setup.ts"],
     css: false,
     coverage: {
@@ -34,10 +38,12 @@ export default defineConfig({
         "src/**/*.spec.ts",
       ],
       thresholds: {
-        statements: 0,
-        branches: 0,
-        functions: 0,
-        lines: 0,
+        // Measured 2026-07-15 baseline, rounded down to whole-percent
+        // ratchets so direct coverage runs cannot silently regress.
+        statements: 68,
+        branches: 58,
+        functions: 62,
+        lines: 70,
       },
     },
   },

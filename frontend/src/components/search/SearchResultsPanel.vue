@@ -317,7 +317,6 @@ const displayFolder = (result: UnifiedSearchResult) => {
   overflow-x: hidden;
   overflow-y: auto;
   padding: 0 14px 0 10px;
-  scrollbar-width: thin;
 }
 
 .search-sort-context {

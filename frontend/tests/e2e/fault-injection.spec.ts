@@ -265,7 +265,12 @@ async function openGallery(page: Page, requests?: ApiRequest[]) {
   }
 }
 
-test.use({ viewport: { width: 1280, height: 820 } });
+test.use({
+  viewport: { width: 1280, height: 820 },
+  // Resource-load errors are the behavior under test in this file. Page
+  // errors and Vue warnings remain fatal through the shared monitor.
+  allowedConsoleErrorPatterns: ["Failed to load resource"],
+});
 
 // ─── 2a: Search store throws during grid render ───
 test("search 500 shows fallback; no page error", async ({ page, monitoredErrors: _monitoredErrors }) => {

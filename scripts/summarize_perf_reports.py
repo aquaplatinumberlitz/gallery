@@ -55,7 +55,44 @@ def _check(label: str, value: Any, budget: Any = None, unit: str = "ms", *, lowe
 def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
     checks: list[dict] = []
 
-    if "scan" in data and "thumbnails" in data:
+    if name == "album-open-report.json" and "aggregate" in data:
+        budgets = data.get("budgets", {})
+        aggregate = data.get("aggregate", {})
+        checks.extend(
+            [
+                _check("scan p95", aggregate.get("scanP95Ms"), budgets.get("scan_p95_ms")),
+                _check(
+                    "first thumbnail start p95",
+                    aggregate.get("firstThumbnailStartP95Ms"),
+                    budgets.get("first_thumbnail_ms"),
+                ),
+                _check(
+                    "warm thumbnail batch complete p95",
+                    aggregate.get("warmThumbnailBatchCompleteP95Ms"),
+                    budgets.get("warm_batch_complete_ms"),
+                ),
+            ]
+        )
+    elif name == "lightbox-open-report.json" and "aggregate" in data:
+        budgets = data.get("budgets", {})
+        aggregate = data.get("aggregate", {})
+        checks.extend(
+            [
+                _check("lightbox visible p95", aggregate.get("visibleP95Ms"), budgets.get("open_ms")),
+                _check("visual ready p95", aggregate.get("visualReadyP95Ms"), budgets.get("visual_ready_ms")),
+            ]
+        )
+    elif name == "lightbox-transition-report.json" and "aggregate" in data:
+        budgets = data.get("budgets", {})
+        aggregate = data.get("aggregate", {})
+        checks.append(
+            _check(
+                "transition preview loaded p95",
+                aggregate.get("transitionPreviewLoadedP95Ms"),
+                budgets.get("transitionMs"),
+            )
+        )
+    elif "scan" in data and "thumbnails" in data:
         budgets = data.get("budgets", {})
         scan = data.get("scan", {})
         thumbnails = data.get("thumbnails", {})
@@ -115,6 +152,22 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
                 _check("sort total", report.get("totalMs"), budgets.get("totalMs")),
                 _check("sort response to update", report.get("apiResponseToUpdateMs"), budgets.get("responseRenderMs")),
                 _check("rendered rows", report.get("renderedRows"), budgets.get("renderedRowsMax"), "rows"),
+            ]
+        )
+    elif all(key in data for key in ("cold", "warm")) and "cold_p95_ms" in data.get("budgets", {}):
+        budgets = data.get("budgets", {})
+        kind = str(data.get("kind") or "derivative")
+        checks.extend(
+            [
+                _check(f"{kind} cold p95", data["cold"].get("p95_ms"), budgets.get("cold_p95_ms")),
+                _check(f"{kind} warm p95", data["warm"].get("p95_ms"), budgets.get("warm_p95_ms")),
+                _check(
+                    f"successful {kind} images",
+                    data.get("successful_image_count"),
+                    data.get("image_count"),
+                    "images",
+                    lower_is_better=False,
+                ),
             ]
         )
     elif all(key in data for key in ("metadata", "visual", "combined", "lexical_backfill")):
@@ -187,6 +240,10 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
                 _check("rendered rows", report.get("renderedRows"), budgets.get("renderedRowsMax"), "rows"),
             ]
         )
+    elif "stateRestore" in data:
+        report = data.get("stateRestore", {})
+        budgets = report.get("budgets", {})
+        checks.append(_check("metadata state restore", report.get("roundTripMs"), budgets.get("stateRestoreMs")))
     elif "p95_ms" in data and "budget_p95_ms" in data:
         label = "p95"
         if "inspector" in name:

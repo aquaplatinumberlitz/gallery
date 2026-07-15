@@ -542,14 +542,16 @@ def _handle_model(builder: _ConditionBuilder, ft: FieldToken) -> None:
             "FROM asset_model_identity_values AS identity "
             "JOIN assets AS identity_asset ON identity_asset.id = identity.asset_id "
             f"WHERE identity.normalized_name = {normalized_name_param} "
+            "AND identity.normalized_hash != '' "
             "AND identity_asset.offline = 0 AND identity_asset.deleted_at IS NULL"
         )
-        alias = "lower(coalesce(m.model_hash, '')) IN (" + alias_hashes + ")"
+        alias = "lower(coalesce(m.model_hash, '')) != '' AND lower(m.model_hash) IN (" + alias_hashes + ")"
         trigram_rowids = _trigram_field_rowids(builder, "model", value)
         if trigram_rowids:
             candidate_rowids = (
                 f"{trigram_rowids} UNION SELECT alias_metadata.id FROM image_metadata AS alias_metadata "
-                f"WHERE lower(coalesce(alias_metadata.model_hash, '')) IN ({alias_hashes})"
+                "WHERE lower(coalesce(alias_metadata.model_hash, '')) != '' "
+                f"AND lower(alias_metadata.model_hash) IN ({alias_hashes})"
             )
             candidates.append(f"(m.id IN ({candidate_rowids}) AND ({direct} OR {alias}))")
         else:

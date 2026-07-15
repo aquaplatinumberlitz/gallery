@@ -428,11 +428,10 @@ test.describe("LibraryInspector", () => {
     await expect
       .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
       .toBe(baseRows[1].path);
-    await page.waitForTimeout(300);
     await expect(pathPopover).toHaveAttribute("data-state", "open");
     await expect(pathPopover.getByRole("button", { name: "Path copied" })).toBeFocused();
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(1600);
+    await expect(pathPopover).not.toBeVisible();
 
     const promptTrigger = page.getByText("cinematic warm light, old wooden door", { exact: false });
     await promptTrigger.click();
@@ -445,7 +444,6 @@ test.describe("LibraryInspector", () => {
     await expect
       .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
       .toContain("full prompt detail");
-    await page.waitForTimeout(300);
     await expect(promptPopover).toHaveAttribute("data-state", "open");
     await expect(promptPopover.getByRole("button", { name: "Prompt copied" })).toBeFocused();
 
@@ -453,7 +451,6 @@ test.describe("LibraryInspector", () => {
     await expect
       .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
       .toBe("bad hands, watermark");
-    await page.waitForTimeout(300);
     await expect(promptPopover).toHaveAttribute("data-state", "open");
     await expect(promptPopover.getByRole("button", { name: "Negative prompt copied" })).toBeFocused();
 
@@ -461,13 +458,12 @@ test.describe("LibraryInspector", () => {
     await expect
       .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
       .toContain("Negative prompt: bad hands, watermark");
-    await page.waitForTimeout(300);
     await expect(promptPopover).toHaveAttribute("data-state", "open");
     await expect(promptPopover.getByRole("button", { name: "Metadata copied" })).toBeFocused();
     expect(metadataRequests(requests).length).toBeGreaterThanOrEqual(detailRequestsBeforeCopy);
 
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(1600);
+    await expect(promptPopover).not.toBeVisible();
     await page.getByText("LoRA 2").click();
     const loraPopover = page.locator('[data-slot="popover-content"]').filter({ hasText: "LoRA resources" });
     await expect(loraPopover.getByText("door-detail")).toBeVisible();
@@ -477,7 +473,6 @@ test.describe("LibraryInspector", () => {
     await expect
       .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
       .toContain("door-detail");
-    await page.waitForTimeout(300);
     await expect(loraPopover).toHaveAttribute("data-state", "open");
     await expect(loraPopover.getByRole("button", { name: "LoRA list copied" })).toBeFocused();
     await expect(loraPopover.getByRole("button", { name: "Copy all metadata" })).toBeVisible();
@@ -487,7 +482,6 @@ test.describe("LibraryInspector", () => {
     await expect
       .poll(() => page.evaluate(() => (window as Window & { __copiedText?: string }).__copiedText ?? ""))
       .toContain("Negative prompt: bad hands, watermark");
-    await page.waitForTimeout(300);
     await expect(loraPopover).toHaveAttribute("data-state", "open");
     await expect(loraPopover.getByRole("button", { name: "Metadata copied" })).toBeFocused();
     await expect(loraPopover.getByText("door-detail")).toBeVisible();

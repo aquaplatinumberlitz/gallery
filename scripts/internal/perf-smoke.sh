@@ -12,8 +12,9 @@ echo "=========================================="
 INTERNAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_DIR="$(dirname "$INTERNAL_DIR")"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-RESULTS_DIR="$REPO_ROOT/frontend/test-results/perf"
+RESULTS_DIR="${GALLERY_PERF_RESULTS_DIR:-$REPO_ROOT/test-results/perf-smoke}"
 mkdir -p "$RESULTS_DIR"
+export GALLERY_PERF_RESULTS_DIR="$RESULTS_DIR"
 
 BACKEND_PORT="${GALLERY_PERF_BACKEND_PORT:-4180}"
 export GALLERY_API_BASE_URL="${GALLERY_API_BASE_URL:-http://127.0.0.1:$BACKEND_PORT}"
@@ -140,6 +141,21 @@ if [[ "${GALLERY_PERF_SKIP_BACKEND:-0}" != "1" ]]; then
         --output "$RESULTS_DIR/warm-listing-report.json"
     )
     "$PERF_PYTHON" "$SCRIPT_DIR/perf_warm_listing.py" "${WARM_ARGS[@]}"
+
+    if [[ -n "${GALLERY_PERF_ALBUM_PATH:-}" ]]; then
+        echo ""
+        echo ">>> Running preview cold/warm perf test..."
+        GALLERY_PERF_BENCH_PREVIEW_FOLDER="$GALLERY_PERF_ALBUM_PATH" \
+            "$PERF_PYTHON" "$SCRIPT_DIR/bench_preview.py" \
+            | tee "$RESULTS_DIR/preview-benchmark-report.json"
+
+        echo ""
+        echo ">>> Running thumbnail cold/warm perf test..."
+        GALLERY_PERF_BENCH_THUMBNAIL_FOLDER="$GALLERY_PERF_ALBUM_PATH" \
+            GALLERY_PERF_BENCH_THUMBNAIL_MAX_LONG_EDGE=128 \
+            "$PERF_PYTHON" "$SCRIPT_DIR/bench_thumbnail.py" \
+            | tee "$RESULTS_DIR/thumbnail-benchmark-report.json"
+    fi
 fi
 
 if [[ "${GALLERY_PERF_SKIP_FRONTEND:-0}" == "1" ]]; then

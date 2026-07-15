@@ -6,7 +6,8 @@ import { useClipboard } from "../composables/useClipboard";
 import { useDevice } from "../composables/useDevice";
 import { DESKTOP_METADATA_WIDTH } from "../constants";
 import { usePhotoMetadataQuery } from "../composables/usePhotoMetadataQuery";
-import { lightboxItemAt, logLightboxNavDebug } from "../debug/lightboxNavDebug";
+import { isLightboxNavDebugEnabled, lightboxItemAt, logLightboxNavDebug } from "../debug/lightboxNavDebug";
+import { markLightboxOverlayPainted, markLightboxTransitionStart } from "../utils/lightboxPerformance";
 import { Minimize, X } from "lucide-vue-next";
 import LightboxDesktopPanel from "./LightboxDesktopPanel.vue";
 import LightboxTabletPanel from "./LightboxTabletPanel.vue";
@@ -112,13 +113,15 @@ function handlePhotoSwipeClose() {
 
 function handlePhotoSwipeIndexChange(newIndex: number) {
   const item = lightbox.galleryItems[newIndex];
-  logLightboxNavDebug("lightbox-mobile-index-change", {
-    newIndex,
-    eventItem: lightboxItemAt(lightbox.galleryItems, newIndex),
-    beforeIndex: lightbox.currentIndex,
-    beforeItemPath: lightbox.itemPath,
-    willUpdateStore: Boolean(item && item.path !== lightbox.itemPath),
-  });
+  if (isLightboxNavDebugEnabled()) {
+    logLightboxNavDebug("lightbox-mobile-index-change", {
+      newIndex,
+      eventItem: lightboxItemAt(lightbox.galleryItems, newIndex),
+      beforeIndex: lightbox.currentIndex,
+      beforeItemPath: lightbox.itemPath,
+      willUpdateStore: Boolean(item && item.path !== lightbox.itemPath),
+    });
+  }
   if (item && item.path !== lightbox.itemPath) {
     // Update store to reflect PhotoSwipe's new index for metadata fetching
     lightbox.currentIndex = newIndex;
@@ -130,13 +133,15 @@ function handlePhotoSwipeIndexChange(newIndex: number) {
 // Index change handler for desktop/tablet PhotoSwipeViewer
 function handleIndexChange(newIndex: number) {
   const item = lightbox.galleryItems[newIndex];
-  logLightboxNavDebug("lightbox-index-change", {
-    newIndex,
-    eventItem: lightboxItemAt(lightbox.galleryItems, newIndex),
-    beforeIndex: lightbox.currentIndex,
-    beforeItemPath: lightbox.itemPath,
-    willUpdateStore: Boolean(item && item.path !== lightbox.itemPath),
-  });
+  if (isLightboxNavDebugEnabled()) {
+    logLightboxNavDebug("lightbox-index-change", {
+      newIndex,
+      eventItem: lightboxItemAt(lightbox.galleryItems, newIndex),
+      beforeIndex: lightbox.currentIndex,
+      beforeItemPath: lightbox.itemPath,
+      willUpdateStore: Boolean(item && item.path !== lightbox.itemPath),
+    });
+  }
   if (item && item.path !== lightbox.itemPath) {
     lightbox.currentIndex = newIndex;
     lightbox.itemPath = item.path;
@@ -151,6 +156,8 @@ const handleKeydownCapture = (e: KeyboardEvent) => {
 
   const target = e.target as HTMLElement;
   if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+
+  markLightboxTransitionStart();
 
   pendingArrowKeydown = {
     key: e.key,
@@ -177,21 +184,25 @@ const handleKeydown = (e: KeyboardEvent) => {
       lightbox.currentIndex !== pending.indexBefore;
 
     if (photoSwipeHandled) {
-      logLightboxNavDebug("lightbox-keyboard-ignored", {
-        key: e.key,
-        currentIndex: lightbox.currentIndex,
-        indexBefore: pending?.indexBefore,
-        currentItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
-      });
+      if (isLightboxNavDebugEnabled()) {
+        logLightboxNavDebug("lightbox-keyboard-ignored", {
+          key: e.key,
+          currentIndex: lightbox.currentIndex,
+          indexBefore: pending?.indexBefore,
+          currentItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
+        });
+      }
       return;
     }
 
-    logLightboxNavDebug("lightbox-keyboard-fallback", {
-      key: e.key,
-      currentIndex: lightbox.currentIndex,
-      indexBefore: pending?.indexBefore ?? lightbox.currentIndex,
-      currentItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
-    });
+    if (isLightboxNavDebugEnabled()) {
+      logLightboxNavDebug("lightbox-keyboard-fallback", {
+        key: e.key,
+        currentIndex: lightbox.currentIndex,
+        indexBefore: pending?.indexBefore ?? lightbox.currentIndex,
+        currentItem: lightboxItemAt(lightbox.galleryItems, lightbox.currentIndex),
+      });
+    }
     e.preventDefault();
     if (e.key === "ArrowLeft") {
       lightbox.prev();
@@ -209,15 +220,23 @@ const handleKeydown = (e: KeyboardEvent) => {
 };
 
 // Sync lightbox state
-watch(show, (isOpen) => {
-  if (isOpen) {
-    showSheet.value = false;
-  } else {
-    if (document.fullscreenElement) {
+watch(
+  show,
+  async (isOpen) => {
+    if (isOpen) {
+      showSheet.value = false;
+      await nextTick();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (show.value) markLightboxOverlayPainted();
+        });
+      });
+    } else if (document.fullscreenElement) {
       exitFullscreen();
     }
-  }
-});
+  },
+  { flush: "post" },
+);
 
 function toggleSheet() {
   showSheet.value = !showSheet.value;

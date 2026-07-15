@@ -12,7 +12,8 @@ Changing library management UI, mutations, status wiring, or responsive admin
 layouts.
 */
 
-import { expect, test, type Page, type Request } from "@playwright/test";
+import type { Page, Request } from "@playwright/test";
+import { expect, test } from "./helpers/monitorErrors";
 import { browseResponse, statusBatch, statusEnvelope } from "./helpers/catalogFixtures";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://127.0.0.1:5173";
@@ -296,6 +297,39 @@ async function mockLibraryApi(page: Page, options: MockOptions = {}): Promise<Mo
 
     if (url.pathname === "/api/stats") {
       await route.fulfill({ json: { ...stats, library_count: state.libraries.length } });
+      return;
+    }
+    if (url.pathname === "/api/derivatives/status") {
+      const libraryId = Number(url.searchParams.get("library_id") ?? 0);
+      const selected = state.libraries.find((item) => item.id === libraryId);
+      const totalAssets = selected?.asset_count ?? 0;
+      await route.fulfill({
+        json: {
+          library_id: libraryId,
+          warm_enabled: true,
+          policy: "warm",
+          converged: true,
+          total_assets: totalAssets,
+          ready_derivatives: totalAssets * 3,
+          expected_derivatives: totalAssets * 3,
+          desired_derivatives: totalAssets * 3,
+          actionable_missing_derivatives: 0,
+          deferred_derivatives: 0,
+          terminal_failed_derivatives: 0,
+          library_used_bytes: 0,
+          quota_bytes: 0,
+          quota_used_bytes: 0,
+          quota_utilization: 0,
+          queued_jobs: 0,
+          running_jobs: 0,
+          failed_jobs: 0,
+          skipped_jobs: 0,
+          configured_worker_count: 1,
+          alive_worker_count: 1,
+          worker_healthy: true,
+          oldest_running_age_seconds: null,
+        },
+      });
       return;
     }
     if (url.pathname === "/api/jobs") {
