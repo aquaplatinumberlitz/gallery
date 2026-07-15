@@ -31,6 +31,6 @@ const label = computed(() => (state.value === "expanded" ? "Collapse sidebar" : 
         <ChevronRight v-else />
       </Button>
     </TooltipTrigger>
-    <TooltipContent>{{ label }}</TooltipContent>
+    <TooltipContent side="right" align="center">{{ label }}</TooltipContent>
   </Tooltip>
 </template>

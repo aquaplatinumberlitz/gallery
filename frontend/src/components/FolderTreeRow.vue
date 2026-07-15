@@ -124,7 +124,9 @@ watch(
     min-height: 46px;
     border-radius: var(--gallery-radius-md);
     padding-inline: 8px;
-    transition: background 150ms ease, transform 80ms ease;
+    transition:
+      background 150ms ease,
+      transform 80ms ease;
     position: relative;
   }
 
@@ -143,7 +145,9 @@ watch(
 
 .folder-icon {
   color: var(--primary);
-  transition: color 120ms ease, transform 120ms ease;
+  transition:
+    color 120ms ease,
+    transform 120ms ease;
   flex-shrink: 0;
 }
 

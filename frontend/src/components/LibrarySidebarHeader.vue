@@ -46,16 +46,16 @@ function openLibrarySelector() {
 </script>
 
 <template>
-  <div class="sidebar-header-root relative bg-sidebar group-data-[collapsible=icon]:p-1">
+  <div class="sidebar-header-root relative bg-sidebar p-4 pb-3 group-data-[collapsible=icon]:p-1">
     <!-- Mobile drag handle indicator -->
     <div v-if="isSidebarSheet" class="drag-handle-bar" aria-hidden="true">
       <span class="drag-handle" />
     </div>
 
-    <SidebarTrigger
-      v-if="!isSidebarSheet"
-      class="sidebar-close-trigger absolute right-2 top-2 z-20 size-7 group-data-[collapsible=icon]:static group-data-[collapsible=icon]:mx-auto"
-    />
+    <div class="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
+      <p class="sidebar-section-label group-data-[collapsible=icon]:hidden">Active library</p>
+      <SidebarTrigger v-if="!isSidebarSheet" class="sidebar-close-trigger size-7 shrink-0" />
+    </div>
     <IconTooltipButton
       variant="ghost"
       size="icon"
@@ -67,8 +67,7 @@ function openLibrarySelector() {
       <Library class="size-4" />
     </IconTooltipButton>
 
-    <div class="sidebar-header-content space-y-3 group-data-[collapsible=icon]:hidden">
-      <p class="sidebar-section-label">Active library</p>
+    <div class="sidebar-header-content mt-3 space-y-3 group-data-[collapsible=icon]:hidden">
       <Skeleton v-if="librariesQuery.isPending.value" class="h-9 w-full" />
       <div v-else-if="librariesQuery.isError.value" class="space-y-2">
         <p class="text-xs text-destructive">Could not load libraries.</p>
@@ -82,11 +81,7 @@ function openLibrarySelector() {
         <ButtonLink to="/admin/libraries" size="sm">Add Library</ButtonLink>
       </div>
       <template v-else-if="isMobile">
-        <button
-          type="button"
-          class="library-selector-btn"
-          @click="openLibrarySelector"
-        >
+        <button type="button" class="library-selector-btn" @click="openLibrarySelector">
           <span class="library-icon-badge">
             <FolderOpen class="size-4" />
           </span>
@@ -145,10 +140,6 @@ function openLibrarySelector() {
 </template>
 
 <style scoped>
-.sidebar-header-root {
-  padding: 16px 16px 14px;
-}
-
 .drag-handle-bar {
   display: flex;
   justify-content: center;
@@ -186,7 +177,10 @@ function openLibrarySelector() {
   background: color-mix(in srgb, var(--sidebar-accent) 50%, transparent);
   text-align: left;
   border: 1px solid color-mix(in srgb, var(--sidebar-border) 50%, transparent);
-  transition: background 180ms ease, border-color 180ms ease, transform 120ms ease;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 120ms ease;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -242,7 +236,9 @@ function openLibrarySelector() {
 .manage-libraries-btn {
   border-color: color-mix(in srgb, var(--sidebar-border) 60%, transparent);
   background: var(--sidebar);
-  transition: background 150ms ease, border-color 150ms ease;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
 }
 
 .manage-libraries-btn:hover {

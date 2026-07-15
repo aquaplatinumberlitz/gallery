@@ -909,6 +909,63 @@ def test_served_ready_file_is_not_evicted(
     assert row == ("ready",)
 
 
+def test_repeated_ready_acquisition_does_not_retouch_recent_access(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+    tmp_path: Path,
+):
+    """Warm hits reuse a recent access timestamp instead of serializing a SQLite write per request."""
+    image, asset_id = _catalog_image(isolated_gallery_root)
+    scheduler = DerivativeScheduler(quota_bytes=400)
+    thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
+    variant = str(thumbnail["name"])
+    derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", variant)
+    cache_file = tmp_path / "warm-ready.webp"
+    cache_file.write_bytes(b"ready")
+    stat = image.stat()
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        conn.execute(
+            """
+            UPDATE asset_derivatives
+            SET status = 'ready', cache_path = ?, byte_size = ?, last_accessed_at = NULL
+            WHERE id = ?
+            """,
+            (str(cache_file), cache_file.stat().st_size, derivative_id),
+        )
+        conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id = ?", (derivative_id,))
+
+    first = scheduler.acquire_ready_derivative(
+        asset_id,
+        "thumbnail",
+        variant,
+        source_mtime_ns=stat.st_mtime_ns,
+        source_size=stat.st_size,
+    )
+    assert first is not None
+    scheduler.release_serving(str(cache_file))
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        first_access = conn.execute(
+            "SELECT last_accessed_at FROM asset_derivatives WHERE id = ?", (derivative_id,)
+        ).fetchone()[0]
+
+    second = scheduler.acquire_ready_derivative(
+        asset_id,
+        "thumbnail",
+        variant,
+        source_mtime_ns=stat.st_mtime_ns,
+        source_size=stat.st_size,
+    )
+    assert second is not None
+    scheduler.release_serving(str(cache_file))
+    with sqlite3.connect(isolated_metadata_db) as conn:
+        second_access = conn.execute(
+            "SELECT last_accessed_at FROM asset_derivatives WHERE id = ?", (derivative_id,)
+        ).fetchone()[0]
+
+    assert first_access is not None
+    assert second_access == first_access
+
+
 def test_schedule_deferred_identity_stays_non_runnable_when_unlink_fails(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,

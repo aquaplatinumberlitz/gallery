@@ -180,6 +180,7 @@ class TestSearchFieldedQueries:
         data = resp.json()
         names = _all_image_names(data)
         assert "mika_portrait.png" in names
+        assert "landscape.png" not in names
 
     def test_fielded_search_no_results(self, isolated_app: TestClient, temp_gallery_with_metadata: Path):
         _index_gallery_images(temp_gallery_with_metadata)

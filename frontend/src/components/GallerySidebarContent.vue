@@ -72,7 +72,7 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
 
 /* Subtle accent line at the top of the content area */
 .sidebar-content-area::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 12px;

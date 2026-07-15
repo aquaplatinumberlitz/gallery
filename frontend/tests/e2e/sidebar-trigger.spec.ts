@@ -198,6 +198,22 @@ test.describe("SidebarTrigger", () => {
     await expect(trigger).toHaveAttribute("aria-label", "Expand sidebar");
   });
 
+  test("expanded sidebar trigger does not overlap the active library control", async ({ page }) => {
+    const trigger = page.locator('[data-sidebar="trigger"]');
+    const activeLibraryControl = page.locator('[data-sidebar="header"] button[role="combobox"]').first();
+
+    await expect(trigger).toBeVisible();
+    await expect(activeLibraryControl).toBeVisible();
+
+    const [triggerBox, activeLibraryBox] = await Promise.all([
+      trigger.boundingBox(),
+      activeLibraryControl.boundingBox(),
+    ]);
+    expect(triggerBox).not.toBeNull();
+    expect(activeLibraryBox).not.toBeNull();
+    expect(triggerBox!.y + triggerBox!.height + 3).toBeLessThanOrEqual(activeLibraryBox!.y);
+  });
+
   test("sidebar state persists in localStorage", async ({ page }) => {
     const trigger = page.locator('[data-sidebar="trigger"]');
     await expect(trigger).toBeVisible({ timeout: 5_000 });
@@ -227,6 +243,18 @@ test.describe("SidebarTrigger", () => {
         return box?.width ?? 0;
       })
       .toBeLessThan(100);
+
+    const sidebarHeader = page.locator(".sidebar-header-root");
+    await expect
+      .poll(async () => {
+        const [sidebarBox, headerBox] = await Promise.all([
+          sidebarContainer.boundingBox(),
+          sidebarHeader.boundingBox(),
+        ]);
+        if (!sidebarBox || !headerBox) return false;
+        return headerBox.x >= sidebarBox.x && headerBox.x + headerBox.width <= sidebarBox.x + sidebarBox.width;
+      })
+      .toBe(true);
   });
 });
 
