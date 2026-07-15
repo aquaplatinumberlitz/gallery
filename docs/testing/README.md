@@ -34,22 +34,24 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
 - Lightbox tests: `frontend/tests/e2e/lightbox-loading-policy.spec.ts`, `frontend/tests/e2e/lightbox-visual-layer.spec.ts`, `frontend/tests/e2e/mobile-lightbox-sheet.spec.ts`, and derivative backend tests.
 - Responsive tests: `frontend/tests/e2e/responsive-breakpoints.spec.ts`, `frontend/tests/e2e/sidebar-trigger.spec.ts`, mobile lightbox tests, and Tailwind migration/preflight tests.
 - Search discovery tests: `frontend/tests/e2e/search-discovery-evolution.spec.ts`
-  covers Search V2 reload/history, saved/recent actions, prompt groups, typed
+  covers Search V2 reload/history, automatic recent-search replay/clear, prompt groups, typed
   same-node workflow predicates, raw acknowledgement, index lifecycle actions,
-  and desktop/tablet/mobile parity.
+  hydrated URL-result row measurement, and desktop/tablet/mobile parity.
 - Related Assets frontend tests: `frontend/tests/e2e/related-assets.spec.ts`
-  covers card/lightbox entry points, explicit combined/recipe/visual profiles,
-  stable evidence copy, canonical scope, changed-seed comparison,
-  resized/re-encoded variants, unrelated/inactive/cross-library exclusion,
-  missing-visual fallback, existing-lightbox handoff, and mobile overflow.
+  covers card/lightbox entry points, the single combined request/list, absence
+  of match-type selectors, stable evidence copy, canonical scope,
+  changed-seed comparison, resized/re-encoded variants,
+  unrelated/inactive/cross-library exclusion, missing-visual recovery,
+  existing-lightbox handoff, badge sizing, and mobile overflow.
   Component/composable/store units cover cancellation, typed one-retry policy,
-  reference isolation, recorded-setting comparisons, smart-collection request
-  descriptors, metadata-only coverage, keyboard semantics, and no saved-search
-  persistence.
+  reference isolation, defensive dedupe/reason union with stable ordering,
+  recorded-setting comparisons, smart-collection request descriptors, partial
+  metadata/visual coverage, polling/refetch, keyboard semantics, and no
+  match-type or saved-search persistence.
 - Related Assets contract tests: `backend/tests/test_related_assets_contract.py`
   lock the bounded reference request, canonical scope authorization, typed
-  readiness/error models, stable reason codes, and deterministic metadata and
-  visual relation fixture cases and the stable API envelope.
+  readiness/error models, unified partial results, legacy profile compatibility,
+  stable reason codes, deterministic metadata/visual fixtures, and the stable API envelope.
 - Generation-signature tests: `backend/tests/test_generation_signatures.py`
   cover bounded Unicode/emphasis prompt atoms, canonical numeric inputs,
   layered hash sensitivity, weak-metadata rejection, schema-v10
@@ -121,7 +123,7 @@ Tier 2 — Pinia stores (state mutations + async actions with mocked services):
 | `frontend/src/stores/__tests__/gallery.test.ts`  | Active library lifecycle, sidebar tree normalization, history navigation, sort persistence, error/toast handling for `openInExplorer`.               |
 | `frontend/src/stores/__tests__/toast.test.ts`    | Toast store adapts Gallery API to Sonner: IDs, variants, durations, dismiss, clear, actions, and visible-toast limit.                                |
 | `frontend/src/stores/__tests__/lightbox.test.ts` | Open/close, image filtering, index resolution, neighbor preloading, and dimension remembering.                                                        |
-| `frontend/src/stores/__tests__/relatedAssets.test.ts` | Ephemeral reference/scope/profile session behavior and combined-profile reset on reference changes.                                      |
+| `frontend/src/stores/__tests__/relatedAssets.test.ts` | Ephemeral reference/scope session behavior with no match-type selection state.                                                            |
 
 Tier 3 — composables (mounted via `withSetup`, lifecycle + reactive state):
 
@@ -136,7 +138,6 @@ Tier 3 — composables (mounted via `withSetup`, lifecycle + reactive state):
 | `frontend/src/composables/__tests__/useClipboard.test.ts`        | Modern Clipboard API path, per-id labels, error toasts, status reset timer.                                      |
 | `frontend/src/composables/__tests__/useColumnResize.test.ts`     | Slider level mapping per device category, localStorage persistence, legacy migration, and row-height recompute. |
 | `frontend/src/composables/__tests__/useScrollVisibility.test.ts` | Scroll-driven bar visibility, bottom guard, polling-vs-container-ref attach paths, unmount cleanup.              |
-| `frontend/src/composables/__tests__/useGenerationComparison.test.ts` | Recorded seed, sampler, scheduler, steps, CFG, dimensions, model, resources, denoise, hires, and VAE comparison. |
 | `frontend/src/composables/__tests__/useRelatedAssetsQuery.test.ts` | Adaptable request input, cancellation-ready API calls, retry policy, stale success retention, and reference-key isolation. |
 | `frontend/src/composables/admin/__tests__/useGeneratedImagesStatusQuery.test.ts` | Generated-image status query enablement and API call shape.                                         |
 | `frontend/src/composables/admin/__tests__/useGeneratedImagesMutations.test.ts` | Library-scoped generated-image warm mutation and invalidation behavior.                              |

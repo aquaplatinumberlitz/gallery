@@ -5,6 +5,7 @@
  * Guarantees:
  * * sidebar controls remain discoverable and do not duplicate unexpectedly
  * * trigger interactions preserve gallery content and route state
+ * * mobile folder expansion and navigation keep the sidebar open until explicit dismissal
  *
  * Run when:
  * * changing sidebar trigger components, App shell layout, or responsive navigation
@@ -16,6 +17,7 @@ import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
 const rootPath = "/gallery-sidebar-trigger-test";
+const folderPath = `${rootPath}/Folder A`;
 const imagePaths = Array.from({ length: 2 }, (_, i) => `${rootPath}/image_${i + 1}.png`);
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
@@ -57,6 +59,18 @@ async function installStubbedGallery(page: Page) {
           browseResponse({
             libraryId: Number(url.searchParams.get("library_id") ?? 1),
             path: url.searchParams.get("path") ?? rootPath,
+            folders:
+              url.searchParams.get("path") === rootPath
+                ? [
+                    {
+                      name: "Folder A",
+                      path: folderPath,
+                      type: "folder",
+                      has_children: false,
+                      image_count: 1,
+                    },
+                  ]
+                : [],
             media: imagePaths.map((path, i) => ({
               name: `image_${i + 1}.png`,
               path,
@@ -241,6 +255,41 @@ test.describe("Mobile sidebar close control", () => {
     expect(dialogAccessibilityWarnings).toEqual([]);
 
     await closeButton.click();
+    await expect(sidebar).not.toBeVisible({ timeout: 3_000 });
+  });
+
+  test("keeps the sidebar open while expanding and navigating folders", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
+    await expect(sidebar).toBeVisible({ timeout: 5_000 });
+
+    const rootRow = sidebar
+      .locator('[data-slot="tree-item-label"]')
+      .filter({ hasText: "gallery-sidebar-trigger-test" });
+    await expect(rootRow).toBeVisible();
+    await rootRow.click({ position: { x: 12, y: 22 } });
+    await expect(sidebar).toBeVisible();
+
+    await rootRow.click({ position: { x: 12, y: 22 } });
+    const folderRow = sidebar.getByText("Folder A", { exact: true });
+    await expect(folderRow).toBeVisible();
+    await folderRow.click();
+
+    await expect(page.locator(".mh-context-title")).toHaveText("Folder A");
+    await expect(sidebar).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => localStorage.getItem("gallery-sidebar-open"))).toBe("true");
+  });
+
+  test("closes the sidebar when the backdrop is tapped", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
+    await expect(sidebar).toBeVisible({ timeout: 5_000 });
+
+    await page.mouse.click(360, 420);
     await expect(sidebar).not.toBeVisible({ timeout: 3_000 });
   });
 });

@@ -1,60 +1,171 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, shallowRef, useTemplateRef, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { ImageOff, Loader, RefreshCw, ScanSearch, TriangleAlert } from "lucide-vue-next";
-import Button from "@/components/ui/Button.vue";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import GenerationFamilySummary from "@/components/GenerationFamilySummary.vue";
+import { CircleHelp, DatabaseZap, ImageOff, Loader, RefreshCw, ScanSearch, TriangleAlert } from "lucide-vue-next";
 import PhotoCard from "@/components/PhotoCard.vue";
 import RelationReasonList from "@/components/RelationReasonList.vue";
-import { usePhotoMetadataQuery } from "@/composables/usePhotoMetadataQuery";
+import Button from "@/components/ui/Button.vue";
+import { Progress } from "@/components/ui/progress";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  useRelatedAssetsIndexRecovery,
+  type RelatedIndexKind,
+  type RelatedIndexRecoveryStatus,
+} from "@/composables/useRelatedAssetsIndexRecovery";
 import { useRelatedAssetsQuery } from "@/composables/useRelatedAssetsQuery";
 import { GalleryAPIError } from "@/services/api";
 import { useLightboxStore } from "@/stores/lightbox";
 import { useRelatedAssetsStore } from "@/stores/relatedAssets";
-import type {
-  FileNode,
-  RelatedProfileV1,
-  RelatedSearchRequestV1,
-  RelatedSearchResultV1,
-  RelatedSearchStatusV1,
-} from "@/types";
+import type { FileNode, RelatedSearchRequestV1, RelatedSearchResultV1, RelatedSearchStatusV1 } from "@/types";
+import { normalizeRelatedResults } from "@/utils/relatedAssets";
+
+type ReadinessAction = "build" | "retry_build" | null;
+
+interface ReadinessNotice {
+  kind: RelatedIndexKind;
+  title: string;
+  message: string;
+  role: "status" | "alert";
+  action: ReadinessAction;
+  status: RelatedIndexRecoveryStatus;
+}
 
 const relatedStore = useRelatedAssetsStore();
 const lightboxStore = useLightboxStore();
-const { isOpen, reference, scope, profile } = storeToRefs(relatedStore);
+const { isOpen, reference, scope } = storeToRefs(relatedStore);
+const relatedContentRef = useTemplateRef<HTMLElement>("relatedContent");
+const returnToResults = shallowRef(false);
+const returnScrollTop = shallowRef(0);
+const returnReferenceId = shallowRef<number | null>(null);
 
 const request = computed<RelatedSearchRequestV1 | null>(() => {
   if (!isOpen.value || !reference.value || !scope.value) return null;
   return {
     schema_version: 1,
     reference_asset_id: reference.value.assetId,
-    profile: profile.value,
+    profile: "related",
     scope: scope.value,
     limit: 60,
   };
 });
 const relatedQuery = useRelatedAssetsQuery(request);
 const response = computed(() => relatedQuery.data.value ?? null);
-const results = computed(() => response.value?.items ?? []);
-const selectedAssetId = computed(() => results.value[0]?.asset_id ?? null);
-const selectedResult = computed(() => results.value.find((item) => item.asset_id === selectedAssetId.value) ?? null);
-const referencePath = computed(() => reference.value?.path ?? "");
-const candidatePath = computed(() => selectedResult.value?.path ?? "");
-const referenceMetadataQuery = usePhotoMetadataQuery(isOpen, referencePath);
-const candidateMetadataQuery = usePhotoMetadataQuery(isOpen, candidatePath);
+const results = computed(() => normalizeRelatedResults(response.value?.items ?? []));
 
 const error = computed(() => (relatedQuery.error.value instanceof GalleryAPIError ? relatedQuery.error.value : null));
 const hasStaleError = computed(() => Boolean(error.value && response.value));
+const isReadinessError = computed(() =>
+  Boolean(error.value && ["relation_index_not_ready", "reference_not_indexed"].includes(error.value.type)),
+);
 const displayStatus = computed<RelatedSearchStatusV1 | null>(
   () => response.value?.status ?? error.value?.relatedStatus ?? null,
 );
+const referenceLibraryId = computed(() => {
+  if (reference.value?.libraryId) return reference.value.libraryId;
+  return scope.value?.kind === "folder" || scope.value?.kind === "library" ? scope.value.library_id : null;
+});
+const indexRecovery = useRelatedAssetsIndexRecovery({
+  libraryId: referenceLibraryId,
+  panelOpen: isOpen,
+  relatedStatus: displayStatus,
+  onReady: () => relatedQuery.refetch(),
+});
+
+function indexLabel(kind: RelatedIndexKind) {
+  return kind === "metadata" ? "Metadata" : "Visual";
+}
+
+function indexStatus(kind: RelatedIndexKind) {
+  return kind === "metadata" ? indexRecovery.metadataStatus.value : indexRecovery.visualStatus.value;
+}
+
+function normalizedState(status: RelatedIndexRecoveryStatus) {
+  return status.state === "pending" ? "not_ready" : status.state;
+}
+
+const readinessNotices = computed<ReadinessNotice[]>(() => {
+  const notices: ReadinessNotice[] = [];
+  for (const kind of ["metadata", "visual"] as const) {
+    const status = indexStatus(kind);
+    if (!status) continue;
+    const state = normalizedState(status);
+    const buildFailed = indexRecovery.buildErrorKind.value === kind;
+    if (state === "ready") continue;
+
+    if (state === "building") {
+      notices.push({
+        kind,
+        title: `${indexLabel(kind)} index is building`,
+        message:
+          kind === "visual"
+            ? "Visual matches are still indexing. Results will update automatically."
+            : "Metadata matches are still indexing. Results will update automatically.",
+        role: "status",
+        action: null,
+        status,
+      });
+      continue;
+    }
+
+    if (state === "failed" || buildFailed) {
+      notices.push({
+        kind,
+        title: `${indexLabel(kind)} index build failed`,
+        message:
+          ("error_summary" in status && status.error_summary) ||
+          "The previous background build did not finish. Existing results remain available.",
+        role: "alert",
+        action: "retry_build",
+        status,
+      });
+      continue;
+    }
+
+    if (state === "not_ready") {
+      notices.push({
+        kind,
+        title: kind === "metadata" ? "Metadata relationships aren’t built yet" : "Visual matching isn’t built yet",
+        message:
+          kind === "metadata"
+            ? "Build the metadata index to compare prompts, models, resources, and generation settings."
+            : "Build visual fingerprints to add pixel-similarity matches.",
+        role: "status",
+        action: "build",
+        status,
+      });
+      continue;
+    }
+
+    if (state === "degraded") {
+      notices.push({
+        kind,
+        title: `${indexLabel(kind)} coverage is partial`,
+        message: "Available matches are shown now. Coverage will improve when indexing recovers.",
+        role: "status",
+        action: null,
+        status,
+      });
+      continue;
+    }
+
+    notices.push({
+      kind,
+      title: `${indexLabel(kind)} matching is ${state}`,
+      message: "Available matches from the other index are still shown.",
+      role: state === "unavailable" ? "alert" : "status",
+      action: null,
+      status,
+    });
+  }
+  return notices;
+});
+
 const tierLabel = (item: RelatedSearchResultV1) => {
   if (item.relation_reasons.includes("same_exact_signature")) return "Exact settings";
   if (item.relation_reasons.includes("same_recipe")) return "Same recipe";
   if (item.relation_reasons.includes("same_generation_family")) return "Same family";
-  if (item.relation_reasons.includes("visual_variant")) return "Visual variant";
+  if (item.relation_reasons.includes("visual_variant")) return "Visual match";
   return {
     100: "Exact settings",
     90: "Same recipe",
@@ -82,117 +193,183 @@ const resultNodes = computed<FileNode[]>(() =>
   })),
 );
 
-function setProfile(value: string | number) {
-  relatedStore.setProfile(value as RelatedProfileV1);
-}
-
-function openResult(item: RelatedSearchResultV1) {
-  const index = resultNodes.value.findIndex((node) => node.asset_id === item.asset_id);
-  const node = resultNodes.value[index];
+async function openResult(item: RelatedSearchResultV1) {
+  const nodes = resultNodes.value.map((node) => ({ ...node }));
+  const index = nodes.findIndex((node) => node.asset_id === item.asset_id);
+  const node = nodes[index];
   if (!node) return;
+  returnToResults.value = true;
+  returnScrollTop.value = relatedContentRef.value?.scrollTop ?? 0;
+  returnReferenceId.value = reference.value?.assetId ?? null;
   relatedStore.close();
-  lightboxStore.open(node, resultNodes.value, index);
+  await nextTick();
+  lightboxStore.open(node, nodes, index);
 }
 
-function useAsReference(item: RelatedSearchResultV1) {
-  if (!response.value) return;
-  relatedStore.open(
-    { assetId: item.asset_id, path: item.path, name: item.name, libraryId: item.library_id },
-    response.value.scope,
-  );
-}
+watch(
+  () => lightboxStore.isOpen,
+  async (open, wasOpen) => {
+    if (open || !wasOpen || !returnToResults.value) return;
+    await nextTick();
+    await nextTick();
+    if (reference.value?.assetId !== returnReferenceId.value) {
+      returnToResults.value = false;
+      returnReferenceId.value = null;
+      return;
+    }
+    relatedStore.reopen();
+    await nextTick();
+    relatedContentRef.value?.scrollTo?.({ top: returnScrollTop.value });
+    returnToResults.value = false;
+    returnReferenceId.value = null;
+  },
+);
 </script>
 
 <template>
   <Sheet :open="isOpen" @update:open="!$event && relatedStore.close()">
     <SheetContent
       side="right"
-      class="related-sheet w-full gap-0 p-0 sm:max-w-[760px]"
+      class="related-sheet flex h-dvh min-h-0 w-full flex-col gap-0 overflow-hidden bg-background p-0 sm:max-w-[760px]"
       data-testid="related-assets-panel"
     >
-      <SheetHeader class="border-b border-border px-5 py-4 pr-14 text-left">
+      <SheetHeader class="shrink-0 border-b border-border px-5 py-4 pr-14 text-left">
         <div class="flex items-start gap-3">
           <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
             <ScanSearch class="size-5" />
           </div>
           <div class="min-w-0">
-            <SheetTitle class="truncate">Related Assets</SheetTitle>
+            <div class="flex items-center gap-1">
+              <SheetTitle class="truncate">Related assets</SheetTitle>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    class="size-11 shrink-0 text-muted-foreground"
+                    aria-label="How Related assets matches are found"
+                  >
+                    <CircleHelp />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="start" class="max-w-[340px] space-y-1.5 text-pretty">
+                  <p>
+                    The backend combines indexed generation metadata with visual fingerprints, deduplicates by asset ID,
+                    and returns the ranked order.
+                  </p>
+                  <p>
+                    Reason badges show only evidence present in the API, such as matching recipe, prompt, model, or
+                    near-duplicate pixels. They do not claim generation lineage.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <SheetDescription class="truncate">
-              {{ reference?.name || "Selected image" }} · recorded evidence and visual variants
+              {{ reference?.name || "Selected image" }} · metadata, recipe, and visual evidence
             </SheetDescription>
           </div>
         </div>
       </SheetHeader>
 
-      <Tabs :model-value="profile" class="flex min-h-0 flex-1 flex-col" @update:model-value="setProfile">
-        <div class="border-b border-border px-4 py-3 sm:px-5">
-          <TabsList class="grid h-auto w-full grid-cols-3">
-            <TabsTrigger value="related" class="min-h-11 px-2">Related</TabsTrigger>
-            <TabsTrigger value="recipe" class="min-h-11 px-2">Same recipe</TabsTrigger>
-            <TabsTrigger value="visual" class="min-h-11 px-2">Visual variants</TabsTrigger>
-          </TabsList>
+      <div ref="relatedContent" class="related-content" aria-live="polite">
+        <div v-if="displayStatus" class="coverage-row" aria-label="Related assets index coverage">
+          <span :data-state="displayStatus.metadata.state">
+            Metadata: {{ stateLabel(displayStatus.metadata.state) }}
+          </span>
+          <span :data-state="displayStatus.visual.state">Visual: {{ stateLabel(displayStatus.visual.state) }}</span>
         </div>
 
-        <TabsContent :value="profile" class="mt-0 min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          <div v-if="displayStatus" class="coverage-row" aria-label="Related Assets index coverage">
-            <span :data-state="displayStatus.metadata.state">
-              Metadata: {{ stateLabel(displayStatus.metadata.state) }}
-            </span>
-            <span :data-state="displayStatus.visual.state"> Visual: {{ stateLabel(displayStatus.visual.state) }} </span>
-          </div>
+        <div v-if="hasStaleError" class="state-banner state-banner-warning" role="alert">
+          <TriangleAlert class="size-4" />
+          <span>Refresh failed. Showing the last successful related results.</span>
+          <Button class="min-h-11" variant="outline" @click="relatedQuery.refetch()">
+            <RefreshCw /> Retry query
+          </Button>
+        </div>
 
-          <div v-if="hasStaleError" class="state-banner state-banner-warning" role="alert">
+        <div v-if="relatedQuery.isPending.value && !response" class="state-card" role="status">
+          <Loader class="size-5 animate-spin" />
+          <div><strong>Finding related assets…</strong><span>Reading available relation indexes.</span></div>
+        </div>
+
+        <div v-else-if="error && !response && !isReadinessError" class="state-card" role="alert">
+          <TriangleAlert class="size-5" />
+          <div>
+            <strong>{{ error.userMessage }}</strong>
+            <span>{{ error.suggestion }}</span>
+          </div>
+          <Button v-if="error.canRetry" class="min-h-11" variant="outline" @click="relatedQuery.refetch()">
+            <RefreshCw /> Retry query
+          </Button>
+        </div>
+
+        <template v-else>
+          <div v-if="indexRecovery.statusError.value && readinessNotices.length" class="state-banner" role="alert">
             <TriangleAlert class="size-4" />
-            <span>Refresh failed. Showing the last successful related results.</span>
-            <Button variant="outline" size="sm" @click="relatedQuery.refetch()"> <RefreshCw /> Retry </Button>
-          </div>
-
-          <div v-if="relatedQuery.isPending.value && !response" class="state-card" role="status">
-            <Loader class="size-5 animate-spin" />
-            <div><strong>Finding related assets…</strong><span>Reading persisted relation indexes.</span></div>
-          </div>
-
-          <div v-else-if="error && !response" class="state-card" role="alert">
-            <TriangleAlert class="size-5" />
-            <div>
-              <strong>{{ error.userMessage }}</strong>
-              <span>{{ error.suggestion }}</span>
-            </div>
-            <Button v-if="error.canRetry" variant="outline" size="sm" @click="relatedQuery.refetch()">
-              <RefreshCw /> Retry
+            <span>Latest index progress is unavailable. The last known coverage is shown.</span>
+            <Button class="min-h-11" variant="outline" @click="indexRecovery.refreshStatus()">
+              <RefreshCw /> Check status
             </Button>
           </div>
 
-          <template v-else-if="response">
-            <div v-if="profile === 'related' && !response.status.visual.usable" class="state-banner" role="status">
-              <ImageOff class="size-4" />
-              <span
-                >Showing metadata relations. Visual coverage is {{ stateLabel(response.status.visual.state) }}.</span
-              >
-            </div>
-
-            <GenerationFamilySummary
-              v-if="profile !== 'visual' && results.length"
-              class="mb-4"
-              :results="results"
-              :reference-metadata="referenceMetadataQuery.data.value ?? null"
-              :candidate-metadata="candidateMetadataQuery.data.value ?? null"
-              :candidate-name="selectedResult?.name"
-            />
-
-            <div v-if="results.length" class="related-grid" aria-live="polite">
-              <article v-for="item in results" :key="`${item.library_id}:${item.asset_id}`" class="related-card">
-                <div class="related-card-media">
-                  <PhotoCard
-                    :src="item.path"
-                    :name="item.name"
-                    :can-find-related="true"
-                    @click="openResult(item)"
-                    @find-related="useAsReference(item)"
+          <div v-if="readinessNotices.length" class="readiness-list" aria-label="Related assets coverage details">
+            <div
+              v-for="notice in readinessNotices"
+              :key="notice.kind"
+              class="readiness-notice"
+              :data-kind="notice.kind"
+              :role="notice.role"
+            >
+              <Loader v-if="normalizedState(notice.status) === 'building'" class="size-5 shrink-0 animate-spin" />
+              <TriangleAlert v-else-if="notice.role === 'alert'" class="size-5 shrink-0" />
+              <ImageOff v-else class="size-5 shrink-0" />
+              <div class="readiness-copy">
+                <strong>{{ notice.title }}</strong>
+                <span>{{ notice.message }}</span>
+                <template v-if="normalizedState(notice.status) === 'building' && notice.status.target_count">
+                  <Progress
+                    :model-value="indexRecovery.progressPercent(notice.kind)"
+                    class="mt-2 h-1.5"
+                    :aria-label="`${notice.kind} index build progress`"
                   />
+                  <span>{{ notice.status.indexed_count }} / {{ notice.status.target_count }} indexed</span>
+                </template>
+              </div>
+              <Button
+                v-if="notice.action"
+                class="readiness-action"
+                :disabled="indexRecovery.startingKind.value !== null"
+                :aria-label="`${notice.action === 'retry_build' ? 'Retry build' : 'Build'} ${notice.kind} index`"
+                :data-testid="`build-${notice.kind}-index`"
+                @click="indexRecovery.startBuild(notice.kind)"
+              >
+                <Loader
+                  v-if="indexRecovery.startingKind.value === notice.kind"
+                  data-icon="inline-start"
+                  class="animate-spin"
+                />
+                <DatabaseZap v-else data-icon="inline-start" />
+                {{ notice.action === "retry_build" ? "Retry build" : "Build index" }}
+              </Button>
+            </div>
+          </div>
+
+          <template v-if="response">
+            <div v-if="results.length" class="related-grid" data-testid="related-results">
+              <article v-for="item in results" :key="item.asset_id" class="related-card">
+                <div class="related-card-media">
+                  <PhotoCard :src="item.path" :name="item.name" @click="openResult(item)" />
                   <span class="tier-label">{{ tierLabel(item) }}</span>
                 </div>
-                <button type="button" class="result-title" @click="openResult(item)">{{ item.name }}</button>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <button type="button" class="result-title" @click="openResult(item)">{{ item.name }}</button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" class="max-w-[360px] break-all text-pretty">
+                    {{ item.name }}
+                  </TooltipContent>
+                </Tooltip>
                 <RelationReasonList :reasons="item.relation_reasons" />
               </article>
             </div>
@@ -200,24 +377,31 @@ function useAsReference(item: RelatedSearchResultV1) {
             <div v-else class="state-card state-card-empty" role="status">
               <ImageOff class="size-5" />
               <div>
-                <strong>No matching assets in this scope</strong>
-                <span v-if="profile === 'visual'">Visual matching is intentionally limited to near-duplicates.</span>
-                <span v-else>Try a wider scope or another relation filter.</span>
+                <strong>No related assets found</strong>
+                <span>Try a wider scope to include more assets.</span>
               </div>
             </div>
           </template>
-        </TabsContent>
-      </Tabs>
+        </template>
+      </div>
     </SheetContent>
   </Sheet>
 </template>
 
 <style scoped>
 .related-sheet {
-  display: flex;
-  height: 100dvh;
-  flex-direction: column;
   background: var(--background);
+}
+
+.related-content {
+  min-height: 0;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 16px max(24px, calc(env(safe-area-inset-bottom) + 16px));
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 .coverage-row {
@@ -230,30 +414,32 @@ function useAsReference(item: RelatedSearchResultV1) {
 .coverage-row span {
   padding: 4px 8px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--gallery-radius-full);
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   text-transform: capitalize;
 }
 
 .coverage-row span[data-state="ready"] {
-  border-color: color-mix(in srgb, var(--success, #3a9d62) 42%, var(--border));
-  color: color-mix(in srgb, var(--success, #3a9d62) 80%, var(--foreground));
+  border-color: color-mix(in srgb, var(--gallery-success) 42%, var(--border));
+  color: var(--gallery-success-fg);
 }
 
 .coverage-row span[data-state="degraded"],
 .coverage-row span[data-state="building"] {
-  border-color: color-mix(in srgb, var(--warning, #d98b1d) 42%, var(--border));
+  border-color: color-mix(in srgb, var(--gallery-warning) 42%, var(--border));
+  color: var(--gallery-warning-fg);
 }
 
 .state-card,
-.state-banner {
+.state-banner,
+.readiness-notice {
   display: flex;
   align-items: center;
   gap: 10px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--gallery-radius-lg);
   background: var(--card);
 }
 
@@ -264,13 +450,16 @@ function useAsReference(item: RelatedSearchResultV1) {
   text-align: left;
 }
 
-.state-card > div {
+.state-card > div,
+.readiness-copy {
   display: grid;
+  min-width: 0;
   gap: 3px;
 }
 
 .state-card span,
-.state-banner span {
+.state-banner span,
+.readiness-copy span {
   color: var(--muted-foreground);
   font-size: 12px;
 }
@@ -285,8 +474,30 @@ function useAsReference(item: RelatedSearchResultV1) {
   padding: 9px 11px;
 }
 
-.state-banner-warning {
-  border-color: color-mix(in srgb, var(--warning, #d98b1d) 45%, var(--border));
+.state-banner-warning,
+.readiness-notice[data-kind="metadata"]:has(.animate-spin),
+.readiness-notice[data-kind="visual"]:has(.animate-spin) {
+  border-color: color-mix(in srgb, var(--gallery-warning) 45%, var(--border));
+}
+
+.readiness-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.readiness-notice {
+  align-items: flex-start;
+  padding: 12px;
+}
+
+.readiness-copy {
+  flex: 1;
+}
+
+.readiness-action {
+  min-height: 44px;
+  flex: 0 0 auto;
 }
 
 .related-grid {
@@ -313,37 +524,55 @@ function useAsReference(item: RelatedSearchResultV1) {
   z-index: 4;
   padding: 4px 7px;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 999px;
+  border-radius: var(--gallery-radius-full);
   background: rgba(0, 0, 0, 0.62);
   color: white;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 750;
-  letter-spacing: 0.02em;
+  line-height: 1.25;
   backdrop-filter: blur(8px);
 }
 
 .result-title {
+  display: -webkit-box;
   min-width: 0;
-  padding: 0;
+  min-height: 44px;
+  padding: 6px 0;
   overflow: hidden;
   border: 0;
   background: transparent;
   color: var(--foreground);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.35;
   text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   cursor: pointer;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .result-title:focus-visible {
-  border-radius: 4px;
+  border-radius: var(--gallery-radius-sm);
   outline: none;
   box-shadow: var(--focus-ring-shadow);
 }
 
+@media (min-width: 640px) {
+  .related-content {
+    padding: 20px 20px 28px;
+  }
+}
+
 @media (max-width: 639px) {
+  .readiness-notice {
+    flex-wrap: wrap;
+  }
+
+  .readiness-action {
+    width: 100%;
+  }
+
   .related-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px 8px;

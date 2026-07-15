@@ -4,7 +4,7 @@
  *
  * Guarantees:
  * * canonical searches survive reload and browser history navigation
- * * saved/recent, prompt, workflow, raw, and index controls execute their typed API contracts
+ * * automatic recent-search, prompt, workflow, raw, and index controls execute their typed API contracts
  * * discovery controls remain available and labelled at desktop, tablet, and mobile widths
  *
  * Run when:
@@ -149,18 +149,33 @@ function searchResponse(payload: Record<string, unknown> | null) {
     sampler: "Euler a",
     seed: "12345",
   };
+  const media =
+    text === "mika"
+      ? Array.from({ length: 12 }, (_, index) => ({
+          ...item,
+          asset_id: index + 1,
+          name: `${String(index + 1).padStart(2, "0")}-4a2339ff-2692-4cc4-94de-dbe1319d2954.png`,
+          path: `${rootPath}/${index + 1}.png`,
+          relative_path: "test mika",
+          parent_path: `${rootPath}/test mika`,
+          match_type: "prompt_phrase",
+          prompt_snippet: "prompt phrase with enough indexed metadata to occupy two lines in a dense result card",
+          library_id: 1,
+          library_name: "gallery-repo",
+        }))
+      : [item];
   return {
     query: text,
     scope: (payload?.scope as { kind?: string } | undefined)?.kind ?? "all",
     root: rootPath,
     albums: [],
-    photos: [item],
-    media: [item],
+    photos: media,
+    media,
     prompt: [],
     videos: [],
     next_cursor: null,
     has_more: false,
-    returned: 1,
+    returned: media.length,
     limit: typeof payload?.limit === "number" ? payload.limit : 60,
   };
 }
@@ -382,7 +397,34 @@ test.describe("Search discovery evolution", () => {
     await expect(input).toHaveValue("snow model:PonyXL");
   });
 
-  test("saves, reruns, renames, deletes, and refreshes recent searches", async ({ page }) => {
+  test("measures hydrated URL-search rows so thumbnails never overlap result metadata", async ({ page }) => {
+    await installDiscoveryFixture(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("intro_mode", "disabled");
+      localStorage.setItem("gallery-active-library-id", "1");
+      localStorage.setItem("gallery-active-import-path-id", "10");
+      localStorage.setItem("gallery-sidebar-open", "false");
+    });
+    await page.goto(`${baseUrl}/?search_v=1&q=mika&scope=folder&mode=lexical&library=1&import=10&path=test+mika`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    const cards = page.locator(".search-result-card");
+    await expect(cards).toHaveCount(12);
+
+    const assertRowsDoNotOverlap = async () => {
+      const firstRowBottom = await cards.nth(0).evaluate((element) => element.getBoundingClientRect().bottom);
+      const secondRowTop = await cards.nth(6).evaluate((element) => element.getBoundingClientRect().top);
+      expect(secondRowTop).toBeGreaterThanOrEqual(firstRowBottom);
+    };
+
+    await assertRowsDoNotOverlap();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(cards).toHaveCount(12);
+    await assertRowsDoNotOverlap();
+  });
+
+  test("records, reruns, and clears recent searches automatically", async ({ page }) => {
     const requests = await installDiscoveryFixture(page);
     await initializeGallery(page);
     const input = page.locator("#gallery-search");
@@ -391,29 +433,18 @@ test.describe("Search discovery evolution", () => {
     await expect.poll(() => byPath(requests, "/api/search/query").at(-1)?.payload?.text).toBe("rain");
 
     let drawer = await openAdvancedSearch(page);
-    const library = drawer.getByRole("region", { name: "Search library" });
-    await expect(library.getByText("rain", { exact: true })).toBeVisible();
-    await library.getByLabel("Saved search name").fill("Rain study");
-    await library.getByRole("button", { name: "Save" }).click();
-    const renameInput = library.getByLabel("Rename Rain study");
-    await renameInput.fill("Weather study");
-    await renameInput.press("Tab");
-    await expect(library.getByLabel("Rename Weather study")).toBeVisible();
-    await page.getByLabel("Close").click();
-
-    await input.fill("");
-    await input.press("Enter");
-    drawer = await openAdvancedSearch(page);
-    const savedItem = drawer
-      .getByLabel("Rename Weather study")
-      .locator("xpath=ancestor::div[contains(@class, 'library-item')]");
-    await savedItem.getByRole("button", { name: "Run" }).click();
+    const history = drawer.getByRole("region", { name: "Recent searches" });
+    const recentRow = history.getByRole("button", { name: "Run recent search: rain" });
+    await expect(recentRow).toBeVisible();
+    await expect(recentRow).toContainText("Library root");
+    await recentRow.click();
     await expect(input).toHaveValue("rain");
     await expect(page).toHaveURL(/q=rain/);
 
     drawer = await openAdvancedSearch(page);
-    await drawer.getByLabel("Delete Weather study").click();
-    await expect(drawer.getByLabel("Rename Weather study")).not.toBeAttached();
+    await drawer.getByRole("button", { name: "Clear history" }).click();
+    await expect(drawer.getByText("Your recent searches will appear here automatically.")).toBeVisible();
+    await expect(drawer.getByRole("button", { name: /Run recent search:/ })).not.toBeAttached();
   });
 
   test("browses positive and negative prompt groups and shows exact assets", async ({ page }) => {
@@ -423,10 +454,45 @@ test.describe("Search discovery evolution", () => {
     let drawer = await openAdvancedSearch(page);
     await drawer.getByRole("button", { name: /Prompt discovery/ }).click();
     await expect(drawer.getByText("cinematic rain portrait")).toBeVisible();
+    await page.evaluate(() => {
+      const state = window as typeof window & { __promptCopyFallbackCalls?: number };
+      state.__promptCopyFallbackCalls = 0;
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+      Object.defineProperty(document, "execCommand", {
+        configurable: true,
+        value: (command: string) => {
+          if (command !== "copy") return false;
+          state.__promptCopyFallbackCalls = (state.__promptCopyFallbackCalls ?? 0) + 1;
+          return true;
+        },
+      });
+    });
+    await drawer.getByRole("button", { name: "Copy", exact: true }).click();
+    const copiedButton = drawer.getByRole("button", { name: "Prompt copied" });
+    await expect(copiedButton).toContainText("Copied");
+    await expect(copiedButton).toHaveAttribute("data-copied", "true");
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as typeof window & { __promptCopyFallbackCalls?: number }).__promptCopyFallbackCalls ?? 0,
+        ),
+      )
+      .toBe(1);
     await drawer.getByRole("button", { name: "Show assets" }).click();
     await expect
       .poll(() => byPath(requests, "/api/search/query").at(-1)?.payload?.filters)
       .toEqual({ prompt_groups: [{ kind: "positive", value_id: "p".repeat(43) }], workflow_groups: [] });
+
+    const input = page.locator("#gallery-search");
+    await input.fill('prompt:"blue archive"');
+    await input.press("Enter");
+    await expect
+      .poll(() => byPath(requests, "/api/search/query").at(-1)?.payload)
+      .toMatchObject({
+        mode: "lexical",
+        text: 'prompt:"blue archive"',
+        filters: { prompt_groups: [], workflow_groups: [] },
+      });
 
     drawer = await openAdvancedSearch(page);
     await drawer.getByRole("button", { name: /Prompt discovery/ }).click();
@@ -514,7 +580,8 @@ for (const viewport of [
     await initializeGallery(page);
     const drawer = await openAdvancedSearch(page, viewport.compact);
 
-    await expect(drawer.getByLabel("Saved search name")).toBeVisible();
+    await expect(drawer.getByRole("region", { name: "Recent searches" })).toBeVisible();
+    await expect(drawer.getByText("Successful searches are kept only in this browser.")).toBeVisible();
     for (const name of [/Prompt discovery/, /Workflow properties/, /Raw workflow/, /Index status/]) {
       await expect(drawer.getByRole("button", { name })).toBeVisible();
     }

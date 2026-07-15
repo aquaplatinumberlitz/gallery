@@ -47,7 +47,7 @@ function createWrapper(initialFilters: FieldFilter[] = [], storePatch: Record<st
         Tooltip: { template: "<div><slot /></div>" },
         TooltipTrigger: { template: "<div><slot /></div>" },
         TooltipContent: { template: "<div><slot /></div>" },
-        SearchLibraryPopover: true,
+        RecentSearchesPanel: true,
         PromptUsagePanel: true,
         WorkflowFilterBuilder: true,
         RawWorkflowSearch: true,
@@ -118,6 +118,35 @@ describe("AdvancedSearchDrawer", () => {
     const body = wrapper.get('[data-testid="advanced-search-scroll-body"]');
     expect(body.element.contains(footer.element)).toBe(false);
     expect(footer.classes()).toContain("shrink-0");
+  });
+
+  it("shows indexed facet values as readable wrapped items", () => {
+    facetState.data.value = {
+      model: [],
+      sampler: [],
+      scheduler: [],
+      tool: [
+        { value: "Unknown", count: 100 },
+        { value: "SwarmUI", count: 46 },
+      ],
+      orientation: [
+        { value: "portrait", count: 141 },
+        { value: "square", count: 44 },
+      ],
+      seed_availability: [
+        { value: "available", count: 107 },
+        { value: "missing", count: 102 },
+      ],
+      metadata_availability: [
+        { value: "available", count: 209 },
+        { value: "missing", count: 3 },
+      ],
+    };
+    const wrapper = createWrapper();
+
+    expect(wrapper.get('[aria-label="Tools indexed values"]').text()).toContain("SwarmUI46");
+    expect(wrapper.get('[aria-label="Seed indexed values"]').text()).toContain("missing102");
+    expect(wrapper.get('[aria-label="Metadata indexed values"]').text()).toContain("available209");
   });
 
   it("shows the meaningful active-filter count in the summary and apply label", () => {

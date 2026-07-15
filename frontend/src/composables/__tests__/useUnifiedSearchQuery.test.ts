@@ -17,7 +17,7 @@ vi.mock("@/services/api", () => ({
   unifiedSearchV2: vi.fn(),
 }));
 
-vi.mock("../useSavedSearches", () => ({ recordRecentSearch: vi.fn() }));
+vi.mock("../useRecentSearches", () => ({ recordRecentSearch: vi.fn() }));
 
 const makeSearchResult = (name: string): UnifiedSearchResult => ({
   name,

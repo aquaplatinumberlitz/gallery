@@ -130,7 +130,9 @@ describe("GalleryAPIError", () => {
       },
     } as unknown as AxiosError;
 
-    expect(GalleryAPIError.fromAxiosError(err).relatedStatus).toEqual(status);
+    const apiError = GalleryAPIError.fromAxiosError(err);
+    expect(apiError.relatedStatus).toEqual(status);
+    expect(apiError.canRetry).toBe(false);
   });
 
   it("maps FastAPI 422 details to exact workflow predicate rows", () => {

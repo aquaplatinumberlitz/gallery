@@ -1,7 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { ref } from "vue";
 import PromptUsagePanel from "../PromptUsagePanel.vue";
+
+const clipboardMocks = vi.hoisted(() => ({
+  copyText: vi.fn(),
+}));
+
+vi.mock("@/composables/useClipboard", () => ({
+  useClipboard: () => ({ copyText: clipboardMocks.copyText }),
+}));
 
 vi.mock("@/composables/usePromptUsageQuery", () => ({
   usePromptUsageQuery: () => ({
@@ -24,6 +32,25 @@ vi.mock("@/composables/usePromptUsageQuery", () => ({
 }));
 
 describe("PromptUsagePanel", () => {
+  beforeEach(() => {
+    clipboardMocks.copyText.mockReset();
+    clipboardMocks.copyText.mockResolvedValue(true);
+  });
+
+  it("copies prompt text through the shared clipboard fallback", async () => {
+    const wrapper = mount(PromptUsagePanel, { props: { scope: { kind: "library", library_id: 2 }, enabled: true } });
+    const copyButton = wrapper.get('[aria-label="Copy"]');
+
+    await copyButton.trigger("click");
+
+    expect(clipboardMocks.copyText).toHaveBeenCalledWith("Masterpiece portrait", "prompt", {
+      fallbackRoot: copyButton.element,
+    });
+    const copiedButton = wrapper.get('[aria-label="Prompt copied"]');
+    expect(copiedButton.text()).toContain("Copied");
+    expect(copiedButton.attributes("data-copied")).toBe("true");
+  });
+
   it("emits an exact kind and value id for Show assets", async () => {
     const wrapper = mount(PromptUsagePanel, { props: { scope: { kind: "library", library_id: 2 }, enabled: true } });
     await wrapper

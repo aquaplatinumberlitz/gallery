@@ -5,7 +5,7 @@ import { queryKeys } from "../query/keys";
 import { unifiedSearchV2 } from "../services/api";
 import type { SearchQueryRequestV1, UnifiedSearchResponse, UnifiedSearchResult, UnifiedSearchResults } from "../types";
 import { GALLERY_SEARCH_DEBOUNCE_MS } from "../constants";
-import { recordRecentSearch } from "./useSavedSearches";
+import { recordRecentSearch } from "./useRecentSearches";
 
 export const SEARCH_PAGE_SIZE = 60;
 

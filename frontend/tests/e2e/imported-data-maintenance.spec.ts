@@ -419,12 +419,10 @@ test.describe("imported-data maintenance verification", () => {
     const state = await installImportedDataApi(page);
     await openMaintenance(page);
 
-    await page.getByRole("button", { name: "Clear", exact: true }).first().click();
+    await page.getByRole("button", { name: "Clear imported data", exact: true }).first().click();
     const dialog = page.getByRole("dialog", { name: "Clear imported data?" });
-    await expect(dialog).toContainText(
-      "Libraries, folders, exclusion patterns, and source image files are not deleted.",
-    );
-    await dialog.getByRole("button", { name: "Clear" }).click();
+    await expect(dialog).toContainText("Library settings, folders, exclusion patterns, and source files are kept.");
+    await dialog.getByRole("button", { name: "Clear imported data" }).click();
 
     await expect.poll(() => state.assets.length).toBe(0);
     expect(state.libraries).toHaveLength(1);

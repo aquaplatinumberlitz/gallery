@@ -283,7 +283,7 @@ export class GalleryAPIError extends Error {
           "relation_index_not_ready",
           "Related assets are still indexing",
           parsed?.message || "Wait for relation coverage to become usable, then try again.",
-          true,
+          false,
           {},
           parsed?.status ?? null,
         );
@@ -293,7 +293,7 @@ export class GalleryAPIError extends Error {
           "reference_not_indexed",
           "Visual coverage is not ready",
           parsed?.message || "Build visual fingerprints for this image, then try again.",
-          true,
+          false,
           {},
           parsed?.status ?? null,
         );

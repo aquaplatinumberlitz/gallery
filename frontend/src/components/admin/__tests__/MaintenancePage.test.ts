@@ -173,13 +173,14 @@ describe("MaintenancePage", () => {
     expect(imageCache?.text()).toContain("Stale running jobs");
   });
 
-  it("shows only Rebuild and Clear imported-data action buttons", () => {
+  it("shows only Rebuild and explicit Clear imported data action buttons", () => {
     const wrapper = mountSubject();
     const actionLabels = wrapper
       .get("header")
       .findAll("button")
       .map((button) => button.text().trim());
-    expect(actionLabels).toEqual(["Rebuild", "Clear"]);
+    expect(actionLabels).toEqual(["Rebuild", "Clear imported data"]);
+    expect(wrapper.text()).toContain("search indexes");
     expect(wrapper.text()).not.toContain("Rebuild outdated previews");
     expect(wrapper.text()).not.toContain("Clear thumbnails");
   });

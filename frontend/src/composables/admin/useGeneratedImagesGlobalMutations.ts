@@ -15,6 +15,7 @@ export function useGeneratedImagesGlobalMutations() {
       { queryKey: queryKeys.jobsRoot() },
       { queryKey: queryKeys.statusRoot() },
       { queryKey: queryKeys.maintenanceRoot() },
+      { queryKey: queryKeys.searchIndexesRoot() },
     ];
     if (clear) {
       keys.push({ queryKey: queryKeys.browseAllRoot() }, { queryKey: queryKeys.browseInfiniteAllRoot() });

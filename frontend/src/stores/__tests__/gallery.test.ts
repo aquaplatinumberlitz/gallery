@@ -90,6 +90,42 @@ describe("search and sort", () => {
     expect(store.submittedSearchQuery).toBe("");
   });
 
+  it("starts user-authored text searches without carrying hidden structured filters", () => {
+    const store = useGalleryStore();
+    store.setSearchMode("workflow", false);
+    store.setSearchFilters(
+      {
+        prompt_groups: [{ kind: "positive", value_id: "p".repeat(43) }],
+        workflow_groups: [
+          {
+            node_type: "KSampler",
+            predicates: [{ property: "steps", op: "eq", value: 20 }],
+          },
+        ],
+      },
+      false,
+    );
+
+    store.updateLexicalSearchText('prompt:"blue archive"');
+
+    expect(store.searchQuery).toBe('prompt:"blue archive"');
+    expect(store.searchMode).toBe("lexical");
+    expect(store.searchFilters).toEqual({ prompt_groups: [], workflow_groups: [] });
+  });
+
+  it("preserves structured filters for canonical query restoration", () => {
+    const store = useGalleryStore();
+    const filters = {
+      prompt_groups: [{ kind: "positive" as const, value_id: "p".repeat(43) }],
+      workflow_groups: [],
+    };
+    store.setSearchFilters(filters, false);
+
+    store.setSearchQuery('prompt:"blue archive"');
+
+    expect(store.searchFilters).toEqual(filters);
+  });
+
   it("stores typed workflow field errors until search state changes", () => {
     const store = useGalleryStore();
     store.setSearchFieldErrors({ "filters.workflow_groups[0].predicates[0].value": "Invalid" });

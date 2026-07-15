@@ -6,8 +6,9 @@ canonical scope validation, and typed `/api/search/related` OpenAPI surface.
 
 Guarantees:
 Invalid requests return 422; out-of-scope references return 404; inactive or
-non-image references return 409; missing and unusable relation indexes remain
-distinct; the v1 response is bounded, cursor-free, and excludes its reference.
+non-image references return 409; unified requests return partial readiness while
+legacy single-source profiles keep typed readiness errors; the v1 response is
+bounded, cursor-free, and excludes its reference.
 
 Run when:
 Changing Related Assets request/result/status models, reason codes, reference
@@ -152,9 +153,13 @@ def test_related_reference_scope_type_readiness_and_response_contract(
     }
 
     not_ready = isolated_app.post("/api/search/related", json=request)
-    assert not_ready.status_code == 409
-    assert not_ready.json()["detail"]["error"] == "relation_index_not_ready"
-    assert not_ready.json()["detail"]["status"]["metadata"]["state"] == "not_ready"
+    assert not_ready.status_code == 200
+    assert not_ready.json()["items"] == []
+    assert not_ready.json()["status"]["metadata"]["state"] == "not_ready"
+
+    recipe_not_ready = isolated_app.post("/api/search/related", json={**request, "profile": "recipe"})
+    assert recipe_not_ready.status_code == 409
+    assert recipe_not_ready.json()["detail"]["error"] == "relation_index_not_ready"
 
     outside = isolated_app.post(
         "/api/search/related",
@@ -175,7 +180,7 @@ def test_related_reference_scope_type_readiness_and_response_contract(
         assert conflict.json()["detail"]["message"] == "Reference must be an active image"
 
     monkeypatch.setattr(related_module, "_related_status", lambda *_args: _status("failed"))
-    unusable = isolated_app.post("/api/search/related", json=request)
+    unusable = isolated_app.post("/api/search/related", json={**request, "profile": "recipe"})
     assert unusable.status_code == 503
     assert unusable.json()["detail"]["status"]["metadata"]["state"] == "failed"
 
@@ -373,3 +378,51 @@ def test_combined_profile_keeps_metadata_when_reference_visual_coverage_is_missi
         "indexed_count": 0,
         "target_count": 0,
     }
+
+
+def test_combined_profile_keeps_visual_results_when_metadata_is_building(
+    isolated_app: TestClient,
+    isolated_gallery_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary, _secondary, ids = _seed_references(isolated_gallery_root)
+    item = RelatedSearchResultV1(
+        asset_id=998,
+        library_id=primary["id"],
+        library_name=primary["name"],
+        name="visual-related.png",
+        path=str(isolated_gallery_root / "primary" / "visual-related.png"),
+        type="image",
+        parent_path=str(isolated_gallery_root / "primary"),
+        relative_path="",
+        mtime=2,
+        width=512,
+        height=512,
+        match_type="visual_variant",
+        relation_tier=80,
+        relation_reasons=["visual_variant"],
+        visual_distance=2,
+    )
+    monkeypatch.setattr(related_module, "_related_status", lambda *_args: _status("building", "ready"))
+    monkeypatch.setattr(
+        related_module,
+        "rank_related_metadata",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("metadata lookup should be skipped")),
+    )
+    monkeypatch.setattr(related_module, "query_visual_variants", lambda *_args, **_kwargs: [item])
+
+    response = isolated_app.post(
+        "/api/search/related",
+        json={
+            "schema_version": 1,
+            "reference_asset_id": ids["active"],
+            "profile": "related",
+            "scope": {"kind": "library", "library_id": primary["id"]},
+            "limit": 60,
+        },
+    )
+
+    assert response.status_code == 200
+    assert [row["asset_id"] for row in response.json()["items"]] == [998]
+    assert response.json()["status"]["metadata"]["state"] == "building"
+    assert response.json()["status"]["visual"]["state"] == "ready"

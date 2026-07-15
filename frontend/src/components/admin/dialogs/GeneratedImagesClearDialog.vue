@@ -19,14 +19,15 @@ const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
       <DialogHeader>
         <DialogTitle>Clear imported data{{ scopeLabel }}?</DialogTitle>
         <DialogDescription>
-          Clears imported catalog data, extracted metadata, jobs, and cached thumbnails{{ scopeLabel }}. Libraries,
-          folders, exclusion patterns, and source image files are not deleted.
+          Clears the file catalog, extracted metadata, search indexes, job history, thumbnails, and previews{{
+            scopeLabel
+          }}. Library settings, folders, exclusion patterns, and source files are kept.
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
         <Button variant="outline" :disabled="pending" @click="emit('update:open', false)">Cancel</Button>
         <Button variant="destructive" :disabled="pending" @click="emit('confirm')">
-          {{ pending ? "Clearing\u2026" : "Clear" }}
+          {{ pending ? "Clearing imported data\u2026" : "Clear imported data" }}
         </Button>
       </DialogFooter>
     </DialogScrollContent>

@@ -175,6 +175,11 @@ const virtualGrid = useVirtualGridRows({
 const virtualItems = virtualGrid.virtualItems;
 const virtualSpacerStyle = virtualGrid.virtualSpacerStyle;
 
+function measureVirtualRow(target: Element | ComponentPublicInstance | null) {
+  const element = resolveElement(target);
+  if (element) virtualGrid.virtualizer.value.measureElement(element);
+}
+
 const loadMoreSentinel = useTemplateRef<HTMLElement>("loadMoreSentinel");
 const canLoadMore = computed(() => props.hasNextPage && !props.fetchingNextPage && !props.paginationError);
 useInfiniteLoadSentinel({
@@ -219,6 +224,8 @@ const displayFolder = (result: UnifiedSearchResult) => {
         <template v-for="row in [rows[virtualRow.index]]" :key="row?.id ?? String(virtualRow.key)">
           <div
             v-if="row?.kind === 'header'"
+            :ref="measureVirtualRow"
+            :data-index="virtualRow.index"
             class="search-row search-row-header"
             :style="virtualGrid.getVirtualRowStyle(virtualRow.start)"
           >
@@ -231,6 +238,8 @@ const displayFolder = (result: UnifiedSearchResult) => {
 
           <div
             v-else-if="row?.kind === 'albums'"
+            :ref="measureVirtualRow"
+            :data-index="virtualRow.index"
             class="search-row search-album-grid"
             :style="
               virtualGrid.getVirtualRowStyle(virtualRow.start, {
@@ -250,6 +259,8 @@ const displayFolder = (result: UnifiedSearchResult) => {
 
           <div
             v-else-if="row?.kind === 'media'"
+            :ref="measureVirtualRow"
+            :data-index="virtualRow.index"
             class="search-row search-media-grid"
             :style="
               virtualGrid.getVirtualRowStyle(virtualRow.start, { gridTemplateColumns: `repeat(${columnCount}, 1fr)` })
@@ -333,6 +344,7 @@ const displayFolder = (result: UnifiedSearchResult) => {
 
 .search-media-grid {
   gap: 20px;
+  padding-bottom: 20px;
 }
 
 .search-result-card {

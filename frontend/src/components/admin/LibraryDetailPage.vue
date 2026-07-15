@@ -270,9 +270,46 @@ const statusTiles = computed<
 });
 
 const thumbnails = computed(() => generatedImagesQuery.data.value ?? null);
+
+function variantLabel(kind: "thumbnail" | "preview", maxLongEdge: number): string {
+  return `${kind === "thumbnail" ? "Thumbnail" : "Preview"} · ${maxLongEdge}px`;
+}
+
+function variantHelp(kind: "thumbnail" | "preview", maxLongEdge: number): string {
+  if (kind === "thumbnail" && maxLongEdge === 128) {
+    return "Small thumbnail used in prompt results and metadata tables.";
+  }
+  if (kind === "thumbnail" && maxLongEdge === 512) {
+    return "Gallery thumbnail used in grids and as the preferred visual fingerprint source.";
+  }
+  if (kind === "preview" && maxLongEdge === 1440) {
+    return "Previews are larger cached images used when opening an image in the lightbox or detail view.";
+  }
+  return `${kind === "thumbnail" ? "Thumbnail" : "Preview"} cache generated at ${maxLongEdge}px.`;
+}
+
 const derivativeCoverageRows = computed(() => {
   const currentStatus = thumbnails.value;
-  if (!currentStatus?.by_kind) return [];
+  if (!currentStatus) return [];
+
+  if (currentStatus.variants?.length) {
+    return currentStatus.variants.map((status) => ({
+      key: `${status.kind}:${status.variant}`,
+      kind: status.kind,
+      label: variantLabel(status.kind, status.max_long_edge),
+      help: variantHelp(status.kind, status.max_long_edge),
+      ready: status.ready_derivatives,
+      expected: status.expected_derivatives,
+      ratio: status.expected_derivatives > 0 ? status.ready_derivatives / status.expected_derivatives : 0,
+      queued: status.queued_derivatives,
+      running: status.running_derivatives,
+      failed: status.failed_derivatives,
+      deferred: status.deferred_derivatives,
+      countUnit: "images",
+    }));
+  }
+
+  if (!currentStatus.by_kind) return [];
 
   return (["thumbnail", "preview"] as const)
     .map((kind) => {
@@ -280,8 +317,13 @@ const derivativeCoverageRows = computed(() => {
       if (!status) return null;
       const ratio = status.expected_derivatives > 0 ? status.ready_derivatives / status.expected_derivatives : 0;
       return {
+        key: kind,
         kind,
         label: kind === "thumbnail" ? "Thumbnails" : "Previews",
+        help:
+          kind === "thumbnail"
+            ? "Thumbnails are small cached images used in gallery grids and lists."
+            : "Previews are larger cached images used when opening an image in the lightbox or detail view.",
         ready: status.ready_derivatives,
         expected: status.expected_derivatives,
         ratio,
@@ -289,6 +331,7 @@ const derivativeCoverageRows = computed(() => {
         running: status.running_derivatives,
         failed: status.failed_derivatives,
         deferred: status.deferred_derivatives,
+        countUnit: "files",
       };
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);
@@ -732,6 +775,10 @@ function estimatedAssets(): number | undefined {
                     <p class="mt-1 text-sm text-muted-foreground">
                       Cached thumbnails and previews used while browsing.
                     </p>
+                    <p v-if="thumbnails" class="mt-1 text-xs text-muted-foreground">
+                      {{ formatAssetCount(thumbnails.total_assets) }} images ·
+                      {{ formatAssetCount(thumbnails.expected_derivatives) }} generated cache files
+                    </p>
                   </div>
                   <Tooltip>
                     <TooltipTrigger as-child>
@@ -757,7 +804,7 @@ function estimatedAssets(): number | undefined {
                     v-if="derivativeCoverageRows.length"
                     class="divide-y divide-border rounded-md border border-border bg-muted/60"
                   >
-                    <div v-for="row in derivativeCoverageRows" :key="row.kind" class="space-y-2 p-3">
+                    <div v-for="row in derivativeCoverageRows" :key="row.key" class="space-y-2 p-3">
                       <div class="flex items-center justify-between gap-3">
                         <div class="flex min-w-0 items-center gap-2.5">
                           <ImageIcon class="size-4 shrink-0 text-foreground/70" aria-hidden="true" />
@@ -774,18 +821,13 @@ function estimatedAssets(): number | undefined {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent side="top" align="start" class="max-w-[280px] font-normal">
-                              <span v-if="row.kind === 'thumbnail'">
-                                Thumbnails are small cached images used in gallery grids and lists.
-                              </span>
-                              <span v-else>
-                                Previews are larger cached images used when opening an image in the lightbox or detail
-                                view.
-                              </span>
+                              {{ row.help }}
                             </TooltipContent>
                           </Tooltip>
                         </div>
                         <p class="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                          {{ formatAssetCount(row.ready) }}/{{ formatAssetCount(row.expected) }} cached
+                          {{ formatAssetCount(row.ready) }}/{{ formatAssetCount(row.expected) }} {{ row.countUnit }}
+                          cached
                         </p>
                       </div>
                       <Progress

@@ -96,21 +96,23 @@ const mockJobs = [
 ];
 
 const mockGeneratedImages = {
+  library_id: 1,
   warm_enabled: true,
   policy: "warm" as const,
   converged: false,
-  ready_derivatives: 149,
-  expected_derivatives: 200,
-  desired_derivatives: 200,
-  actionable_missing_derivatives: 51,
+  total_assets: 100,
+  ready_derivatives: 224,
+  expected_derivatives: 300,
+  desired_derivatives: 300,
+  actionable_missing_derivatives: 76,
   deferred_derivatives: 0,
   terminal_failed_derivatives: 0,
   by_kind: {
     thumbnail: {
-      ready_derivatives: 75,
-      expected_derivatives: 100,
-      desired_derivatives: 100,
-      missing_derivatives: 25,
+      ready_derivatives: 150,
+      expected_derivatives: 200,
+      desired_derivatives: 200,
+      missing_derivatives: 50,
       queued_derivatives: 2,
       running_derivatives: 1,
       failed_derivatives: 3,
@@ -127,6 +129,47 @@ const mockGeneratedImages = {
       deferred_derivatives: 8,
     },
   },
+  variants: [
+    {
+      kind: "thumbnail" as const,
+      variant: "thumb_128",
+      max_long_edge: 128,
+      ready_derivatives: 75,
+      expected_derivatives: 100,
+      desired_derivatives: 100,
+      missing_derivatives: 25,
+      queued_derivatives: 1,
+      running_derivatives: 0,
+      failed_derivatives: 1,
+      deferred_derivatives: 2,
+    },
+    {
+      kind: "thumbnail" as const,
+      variant: "thumb_512",
+      max_long_edge: 512,
+      ready_derivatives: 75,
+      expected_derivatives: 100,
+      desired_derivatives: 100,
+      missing_derivatives: 25,
+      queued_derivatives: 1,
+      running_derivatives: 1,
+      failed_derivatives: 2,
+      deferred_derivatives: 2,
+    },
+    {
+      kind: "preview" as const,
+      variant: "preview_1440",
+      max_long_edge: 1440,
+      ready_derivatives: 74,
+      expected_derivatives: 100,
+      desired_derivatives: 100,
+      missing_derivatives: 26,
+      queued_derivatives: 5,
+      running_derivatives: 6,
+      failed_derivatives: 7,
+      deferred_derivatives: 8,
+    },
+  ],
   library_used_bytes: 419430400,
   quota_used_bytes: 524288000,
   quota_bytes: 1073741824,
@@ -525,24 +568,35 @@ describe("LibraryDetailPage", () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Generated image cache");
-    expect(wrapper.text()).toContain("Thumbnails are small cached images used in gallery grids and lists.");
+    expect(wrapper.text()).toContain("100 images · 300 generated cache files");
+    expect(wrapper.text()).toContain("Small thumbnail used in prompt results and metadata tables.");
+    expect(wrapper.text()).toContain("Gallery thumbnail used in grids and as the preferred visual fingerprint source.");
     expect(wrapper.text()).toContain(
       "Previews are larger cached images used when opening an image in the lightbox or detail view.",
     );
-    expect(wrapper.text()).toContain("75/100 cached");
-    expect(wrapper.text()).toContain("74/100 cached");
-    expect(wrapper.text()).toContain("Queued2");
-    expect(wrapper.text()).toContain("Running1");
-    expect(wrapper.text()).toContain("Failed3");
-    expect(wrapper.text()).toContain("Deferred4");
-    expect(wrapper.text()).toContain("Queued5");
-    expect(wrapper.text()).toContain("Running6");
-    expect(wrapper.text()).toContain("Failed7");
-    expect(wrapper.text()).toContain("Deferred8");
+    expect(wrapper.text()).toContain("Thumbnail · 128px");
+    expect(wrapper.text()).toContain("Thumbnail · 512px");
+    expect(wrapper.text()).toContain("Preview · 1440px");
+    expect(wrapper.text()).toContain("75/100 images cached");
+    expect(wrapper.text()).toContain("74/100 images cached");
+    const rows = wrapper.findAll(".space-y-2.p-3");
+    const thumbnail128 = rows.find((row) => row.text().includes("Thumbnail · 128px"))!;
+    const thumbnail512 = rows.find((row) => row.text().includes("Thumbnail · 512px"))!;
+    const preview1440 = rows.find((row) => row.text().includes("Preview · 1440px"))!;
+    expect(thumbnail128.text()).toContain("Queued1");
+    expect(thumbnail128.text()).toContain("Failed1");
+    expect(thumbnail128.text()).toContain("Deferred2");
+    expect(thumbnail512.text()).toContain("Queued1");
+    expect(thumbnail512.text()).toContain("Running1");
+    expect(thumbnail512.text()).toContain("Failed2");
+    expect(preview1440.text()).toContain("Queued5");
+    expect(preview1440.text()).toContain("Running6");
+    expect(preview1440.text()).toContain("Failed7");
+    expect(preview1440.text()).toContain("Deferred8");
     expect(wrapper.text()).toContain("This library400.0 MB");
     expect(wrapper.text()).toContain("All libraries500.0 MB / 1.0 GB");
-    expect(wrapper.text()).toContain("51 image cache files missing");
-    expect(wrapper.text()).toContain("Prepare 51 image cache files now");
+    expect(wrapper.text()).toContain("76 image cache files missing");
+    expect(wrapper.text()).toContain("Prepare 76 image cache files now");
     expect(wrapper.find(".bg-warning").exists()).toBe(true);
     expect(wrapper.find(".bg-primary").exists()).toBe(false);
   });
@@ -552,13 +606,13 @@ describe("LibraryDetailPage", () => {
       ...mockGeneratedImages,
       policy: "on_demand",
       converged: true,
-      ready_derivatives: 200,
+      ready_derivatives: 300,
       actionable_missing_derivatives: 0,
       by_kind: {
         thumbnail: {
           ...mockGeneratedImages.by_kind.thumbnail,
-          ready_derivatives: 100,
-          expected_derivatives: 100,
+          ready_derivatives: 200,
+          expected_derivatives: 200,
           missing_derivatives: 0,
           queued_derivatives: 0,
           running_derivatives: 0,
@@ -576,6 +630,15 @@ describe("LibraryDetailPage", () => {
           deferred_derivatives: 0,
         },
       },
+      variants: mockGeneratedImages.variants.map((variant) => ({
+        ...variant,
+        ready_derivatives: variant.expected_derivatives,
+        missing_derivatives: 0,
+        queued_derivatives: 0,
+        running_derivatives: 0,
+        failed_derivatives: 0,
+        deferred_derivatives: 0,
+      })),
     };
     const wrapper = mountSubject();
 
@@ -591,7 +654,7 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
 
     expect(wrapper.text()).toContain("Cache statusOn demand");
-    expect(wrapper.text()).toContain("51 image cache files will be created on first view");
+    expect(wrapper.text()).toContain("76 image cache files will be created on first view");
     expect(wrapper.text()).not.toContain("Cache statusReady");
   });
 
@@ -600,7 +663,7 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
     const buildButton = wrapper
       .findAll("button")
-      .find((button) => button.text().includes("Prepare 51 image cache files now"));
+      .find((button) => button.text().includes("Prepare 76 image cache files now"));
     expect(buildButton).not.toBeUndefined();
 
     await buildButton!.trigger("click");
@@ -618,17 +681,22 @@ describe("LibraryDetailPage", () => {
   it("shows preview-only coverage and generated-image actionability", () => {
     mockGeneratedImagesData = {
       ...mockGeneratedImages,
-      ready_derivatives: 125,
+      ready_derivatives: 225,
       actionable_missing_derivatives: 75,
       by_kind: {
-        thumbnail: { ...mockGeneratedImages.by_kind.thumbnail, ready_derivatives: 100, expected_derivatives: 100 },
+        thumbnail: { ...mockGeneratedImages.by_kind.thumbnail, ready_derivatives: 200, expected_derivatives: 200 },
         preview: { ...mockGeneratedImages.by_kind.preview, ready_derivatives: 25, expected_derivatives: 100 },
       },
+      variants: mockGeneratedImages.variants.map((variant) => ({
+        ...variant,
+        ready_derivatives: variant.kind === "preview" ? 25 : variant.expected_derivatives,
+        missing_derivatives: variant.kind === "preview" ? 75 : 0,
+      })),
     };
     const wrapper = mountSubject();
 
-    expect(wrapper.text()).toContain("100/100 cached");
-    expect(wrapper.text()).toContain("25/100 cached");
+    expect(wrapper.text()).toContain("100/100 images cached");
+    expect(wrapper.text()).toContain("25/100 images cached");
     expect(wrapper.text()).toContain("75 image cache files missing");
     expect(wrapper.text()).toContain("Prepare 75 image cache files now");
   });
@@ -636,12 +704,17 @@ describe("LibraryDetailPage", () => {
   it("Phase 3: makes a preview-only generated-image gap actionable", () => {
     mockGeneratedImagesData = {
       ...mockGeneratedImages,
-      ready_derivatives: 125,
+      ready_derivatives: 225,
       actionable_missing_derivatives: 75,
       by_kind: {
-        thumbnail: { ...mockGeneratedImages.by_kind.thumbnail, ready_derivatives: 100, expected_derivatives: 100 },
+        thumbnail: { ...mockGeneratedImages.by_kind.thumbnail, ready_derivatives: 200, expected_derivatives: 200 },
         preview: { ...mockGeneratedImages.by_kind.preview, ready_derivatives: 25, expected_derivatives: 100 },
       },
+      variants: mockGeneratedImages.variants.map((variant) => ({
+        ...variant,
+        ready_derivatives: variant.kind === "preview" ? 25 : variant.expected_derivatives,
+        missing_derivatives: variant.kind === "preview" ? 75 : 0,
+      })),
     };
     const wrapper = mountSubject();
 

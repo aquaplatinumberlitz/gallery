@@ -73,6 +73,8 @@ export const queryKeys = {
 
   promptUsage: (request: Omit<PromptUsageQueryRequestV1, "cursor">) => ["prompt-usage", request] as const,
 
+  searchIndexesRoot: () => ["search-indexes"] as const,
+
   searchIndexes: (libraryId?: number | null) => ["search-indexes", libraryId ?? null] as const,
 
   metadata: (path: string) => ["metadata", normalizeQueryPath(path)] as const,

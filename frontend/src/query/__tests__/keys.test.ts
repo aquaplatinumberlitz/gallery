@@ -26,6 +26,11 @@ describe("normalizeBrowsePath", () => {
 });
 
 describe("queryKeys", () => {
+  it("provides a root key that invalidates every library search-index query", () => {
+    expect(queryKeys.searchIndexesRoot()).toEqual(["search-indexes"]);
+    expect(queryKeys.searchIndexes(7)).toEqual(["search-indexes", 7]);
+  });
+
   it.each([
     ["generatedImagesRoot", [], ["generated-images"]],
     ["landingPages", [], ["landing-pages"]],

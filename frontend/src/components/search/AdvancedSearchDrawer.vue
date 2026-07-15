@@ -12,7 +12,7 @@ import { useFacetsQuery } from "@/composables/useFacetsQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
 import { useGalleryStore } from "@/stores/gallery";
 import { filterToDisplayString } from "@/utils/serializeAdvancedSearchToQuery";
-import { buildSearchRequestV1, buildSearchScopeV1 } from "@/utils/searchRequest";
+import { buildSearchScopeV1 } from "@/utils/searchRequest";
 import { useSearchCapabilitiesQuery } from "@/composables/useSearchCapabilitiesQuery";
 import type {
   FacetEntry,
@@ -23,10 +23,11 @@ import type {
 } from "@/types";
 import AdvancedSearchNumericField from "./AdvancedSearchNumericField.vue";
 import AdvancedSearchPrefixedField from "./AdvancedSearchPrefixedField.vue";
+import IndexedFacetSummary from "./IndexedFacetSummary.vue";
 import PromptUsagePanel from "./PromptUsagePanel.vue";
 import RawWorkflowSearch from "./RawWorkflowSearch.vue";
+import RecentSearchesPanel from "./RecentSearchesPanel.vue";
 import SearchIndexStatusPanel from "./SearchIndexStatusPanel.vue";
-import SearchLibraryPopover from "./SearchLibraryPopover.vue";
 import WorkflowFilterBuilder from "./WorkflowFilterBuilder.vue";
 import {
   NUMERIC_OPS,
@@ -76,18 +77,6 @@ const canonicalScope = computed(() =>
     importPathId: galleryStore.activeImportPathId,
     importRootPath: galleryStore.activeImportRootPath,
     folderPath: galleryStore.currentBrowsePath || activeImportRootPath.value,
-  }),
-);
-const currentCanonicalRequest = computed(() =>
-  buildSearchRequestV1({
-    text: galleryStore.searchQuery,
-    scope: galleryStore.searchScope,
-    libraryId: galleryStore.activeLibraryId,
-    importPathId: galleryStore.activeImportPathId,
-    importRootPath: galleryStore.activeImportRootPath,
-    folderPath: galleryStore.currentBrowsePath || activeImportRootPath.value,
-    mode: galleryStore.searchMode,
-    filters: galleryStore.searchFilters,
   }),
 );
 const workflowRegistry = computed(() => capabilitiesQuery.data.value?.workflow_registry.nodes ?? {});
@@ -219,10 +208,10 @@ const facetSamplerOptions = computed(() => facetData.value?.sampler?.map((entry:
 const facetSchedulerOptions = computed(() => facetData.value?.scheduler?.map((entry: FacetEntry) => entry.value) ?? []);
 const facetLoraOptions = computed(() => facetData.value?.lora?.map((entry: FacetEntry) => entry.value) ?? []);
 const additionalFacetGroups = computed(() => [
-  { label: "Tools", entries: facetData.value?.tool ?? [] },
-  { label: "Orientation", entries: facetData.value?.orientation ?? [] },
-  { label: "Seed", entries: facetData.value?.seed_availability ?? [] },
-  { label: "Metadata", entries: facetData.value?.metadata_availability ?? [] },
+  { id: "tools", label: "Tools", entries: facetData.value?.tool ?? [] },
+  { id: "orientation", label: "Orientation", entries: facetData.value?.orientation ?? [] },
+  { id: "seed", label: "Seed", entries: facetData.value?.seed_availability ?? [] },
+  { id: "metadata", label: "Metadata", entries: facetData.value?.metadata_availability ?? [] },
 ]);
 const facetsLoading = computed(() => facetsQuery.isLoading.value);
 const facetsFailed = computed(() => facetsQuery.isError?.value ?? false);
@@ -345,37 +334,9 @@ watch(
             </ul>
           </div>
 
-          <SearchLibraryPopover
-            class="mb-4"
-            :current-request="currentCanonicalRequest"
-            @apply="applyCanonicalRequest"
-            @keydown.stop
-          />
+          <RecentSearchesPanel class="mb-4" @apply="applyCanonicalRequest" @keydown.stop />
 
-          <section
-            v-if="additionalFacetGroups.some((group) => group.entries.length)"
-            class="mb-4"
-            aria-label="Indexed facets"
-          >
-            <p class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Indexed facets</p>
-            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div
-                v-for="group in additionalFacetGroups"
-                :key="group.label"
-                class="min-w-0 rounded-md border bg-background px-2.5 py-2"
-              >
-                <p class="text-xs font-medium">{{ group.label }}</p>
-                <p class="mt-0.5 truncate text-xs text-muted-foreground">
-                  {{
-                    group.entries
-                      .slice(0, 2)
-                      .map((entry) => `${entry.value} (${entry.count})`)
-                      .join(", ") || "None indexed"
-                  }}
-                </p>
-              </div>
-            </div>
-          </section>
+          <IndexedFacetSummary :groups="additionalFacetGroups" />
 
           <Accordion
             type="multiple"

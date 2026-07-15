@@ -93,10 +93,32 @@ def _clear_imported_data_rows() -> tuple[dict[str, int], dict[str, Any]]:
             "rebuild_staging_rows_cleared": _count_rows_conn(conn, "catalog_rebuild_entries"),
             "folder_index_rows_cleared": _count_rows_conn(conn, "folder_index_state"),
             "integrity_runs_cleared": _count_rows_conn(conn, "integrity_check_runs"),
+            "search_index_jobs_cleared": _count_rows_conn(conn, "search_index_jobs"),
+            "search_index_states_reset": _count_rows_conn(conn, "search_index_states"),
+            "model_identity_aliases_cleared": _count_rows_conn(conn, "model_identity_aliases"),
         }
         conn.execute("BEGIN IMMEDIATE")
         try:
             derivative_result = scheduler.clear_database_rows(conn)
+            conn.execute("DELETE FROM search_index_jobs")
+            conn.execute(
+                """
+                UPDATE search_index_states
+                SET state = 'pending',
+                    indexed_count = 0,
+                    target_count = 0,
+                    failed_count = 0,
+                    skipped_count = 0,
+                    active_job_id = NULL,
+                    started_at = NULL,
+                    completed_at = NULL,
+                    updated_at = ?,
+                    error_code = NULL,
+                    error_summary = NULL
+                """,
+                (now,),
+            )
+            conn.execute("DELETE FROM model_identity_aliases")
             conn.execute("DELETE FROM catalog_rebuild_entries")
             conn.execute("DELETE FROM library_jobs")
             conn.execute("DELETE FROM metadata_index_jobs")

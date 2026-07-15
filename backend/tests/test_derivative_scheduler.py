@@ -84,6 +84,16 @@ def test_schedule_coalesces_jobs_and_reports_library_status(
     assert status["expected_derivatives"] == sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
     assert status["by_kind"]["thumbnail"]["queued_derivatives"] == 1
     assert status["by_kind"]["preview"]["missing_derivatives"] == 1
+    variants = {(item["kind"], item["variant"]): item for item in status["variants"]}
+    assert list(variants) == [
+        ("thumbnail", "thumb_128"),
+        ("thumbnail", "thumb_512"),
+        ("preview", "preview_1440"),
+    ]
+    assert variants[("thumbnail", "thumb_128")]["max_long_edge"] == 128
+    assert variants[("thumbnail", "thumb_128")]["queued_derivatives"] == 1
+    assert variants[("thumbnail", "thumb_512")]["missing_derivatives"] == 1
+    assert variants[("preview", "preview_1440")]["missing_derivatives"] == 1
     assert status["queued_jobs"] == 1
     assert status["quota_bytes"] == 1024 * 1024
     with pytest.raises(KeyError):
@@ -186,6 +196,13 @@ def test_library_status_excludes_legacy_variants(
     assert status["by_kind"]["thumbnail"]["ready_derivatives"] == len(DERIVATIVE_VARIANTS["thumbnail"])
     assert status["by_kind"]["preview"]["expected_derivatives"] == len(DERIVATIVE_VARIANTS["preview"])
     assert status["by_kind"]["preview"]["ready_derivatives"] == len(DERIVATIVE_VARIANTS["preview"])
+    assert [
+        (item["variant"], item["ready_derivatives"], item["expected_derivatives"]) for item in status["variants"]
+    ] == [
+        ("thumb_128", 1, 1),
+        ("thumb_512", 1, 1),
+        ("preview_1440", 1, 1),
+    ]
     assert status["library_used_bytes"] == current_bytes
     assert status["quota_used_bytes"] == current_bytes + legacy_file.stat().st_size
 

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, shallowRef } from "vue";
-import { Copy, Image, LoaderCircle } from "lucide-vue-next";
+import { Image, LoaderCircle } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import CopyActionButton from "@/components/ui/CopyActionButton.vue";
 import Input from "@/components/ui/Input.vue";
+import { useClipboard } from "@/composables/useClipboard";
 import { usePromptUsageQuery } from "@/composables/usePromptUsageQuery";
 import { getThumbnailUrl } from "@/services/api";
 import type { SearchPromptGroupV1, SearchScopeV1 } from "@/types";
@@ -14,6 +16,7 @@ const sort = shallowRef<"usage" | "recent">("usage");
 const text = shallowRef("");
 const copiedId = shallowRef("");
 const polarities = ["positive", "negative"] as const;
+const { copyText } = useClipboard();
 
 const request = computed(() =>
   props.scope
@@ -32,16 +35,17 @@ const usage = usePromptUsageQuery(
   computed(() => props.enabled),
 );
 
-async function copyPrompt(valueId: string, prompt: string) {
-  try {
-    await navigator.clipboard.writeText(prompt);
-    copiedId.value = valueId;
-    window.setTimeout(() => {
-      if (copiedId.value === valueId) copiedId.value = "";
-    }, 1_500);
-  } catch {
+async function copyPrompt(event: MouseEvent, valueId: string, prompt: string) {
+  const fallbackRoot = event.currentTarget instanceof Element ? event.currentTarget : null;
+  const copied = await copyText(prompt, "prompt", { fallbackRoot });
+  if (!copied) {
     copiedId.value = "";
+    return;
   }
+  copiedId.value = valueId;
+  window.setTimeout(() => {
+    if (copiedId.value === valueId) copiedId.value = "";
+  }, 1_500);
 }
 </script>
 
@@ -88,15 +92,12 @@ async function copyPrompt(valueId: string, prompt: string) {
           <span>{{ item.asset_count }} asset{{ item.asset_count === 1 ? "" : "s" }}</span>
         </div>
         <div class="prompt-actions">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            :aria-label="`Copy ${polarity} prompt`"
-            @click="copyPrompt(item.value_id, item.text)"
-          >
-            <Copy />
-          </Button>
+          <CopyActionButton
+            :copied="copiedId === item.value_id"
+            label="Copy"
+            success-aria-label="Prompt copied"
+            @click="copyPrompt($event, item.value_id, item.text)"
+          />
           <Button
             type="button"
             variant="outline"
@@ -106,7 +107,6 @@ async function copyPrompt(valueId: string, prompt: string) {
             <Image /> Show assets
           </Button>
         </div>
-        <span v-if="copiedId === item.value_id" class="copied" role="status">Copied</span>
       </li>
     </ul>
     <Button
@@ -143,8 +143,7 @@ async function copyPrompt(valueId: string, prompt: string) {
   font-weight: 650;
 }
 .panel-copy,
-.prompt-text span,
-.copied {
+.prompt-text span {
   color: var(--muted-foreground);
   font-size: 12px;
 }
@@ -226,11 +225,6 @@ async function copyPrompt(valueId: string, prompt: string) {
 }
 .prompt-actions {
   gap: 4px;
-}
-.copied {
-  position: absolute;
-  right: 9px;
-  bottom: 2px;
 }
 .spin {
   width: 15px;

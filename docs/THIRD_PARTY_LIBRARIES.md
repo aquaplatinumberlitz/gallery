@@ -254,8 +254,9 @@ Pinia stores UI/navigation state:
 
 - `gallery.ts`: root/current path, history, expanded folders, search input/scope, sort, loaded flags.
 - `lightbox.ts`: open item, current index, visible image list, navigation.
-- `relatedAssets.ts`: ephemeral Related Assets sheet reference, scope, and
-  profile UI state; result payloads remain in TanStack Query.
+- `relatedAssets.ts`: ephemeral Related Assets sheet reference and scope UI
+  state; the modal has no match-type selection and result payloads remain in
+  TanStack Query.
 - `toast.ts`: toast queue.
 
 Pinia should not duplicate new server/API response state that belongs in TanStack Query.
@@ -306,7 +307,9 @@ Related Assets uses a complete schema/reference/profile/scope/limit query key,
 forwards cancellation to Axios, and retries only typed retryable API errors.
 Reference changes intentionally do not retain the prior reference response;
 background refetch failures retain the last successful Query-owned response.
-No relation result payload is copied into Pinia or saved/recent search storage.
+The modal always supplies the combined `related` profile, and no match-type UI
+state or relation result payload is copied into Pinia or saved/recent search
+storage.
 
 The relation feature adds no image or ML dependency. Pillow, already used by
 the backend image pipeline, computes persisted fingerprints in bounded

@@ -123,6 +123,16 @@ describe("useRelatedAssetsQuery", () => {
     expect(fetchRelatedAssets).toHaveBeenCalledTimes(2);
   });
 
+  it("does not retry deterministic relation-readiness failures", async () => {
+    vi.mocked(fetchRelatedAssets).mockRejectedValue(
+      new GalleryAPIError("relation_index_not_ready", "Not ready", "Build the index", true),
+    );
+    const readiness = setup(request(10));
+
+    await vi.waitFor(() => expect(readiness.result.isError.value).toBe(true));
+    expect(fetchRelatedAssets).toHaveBeenCalledTimes(1);
+  });
+
   it("retains successful data when a background refetch fails", async () => {
     const { result } = setup(request(10));
     await vi.waitFor(() => expect(result.data.value?.reference_asset_id).toBe(10));

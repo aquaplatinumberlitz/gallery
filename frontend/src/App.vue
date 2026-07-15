@@ -8,7 +8,6 @@ import { useScrollVisibility } from "./composables/useScrollVisibility";
 import { useDevice } from "./composables/useDevice";
 import { useGalleryTheme } from "./composables/useGalleryTheme";
 import { galleryScrollContainerRefKey } from "./injectionKeys";
-import { closeSidebarKey } from "./injectionKeys";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useRouter } from "vue-router";
 import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
@@ -87,7 +86,7 @@ watch(
 );
 
 function handleSearchQueryUpdate(value: string) {
-  galleryStore.setSearchQuery(value);
+  galleryStore.updateLexicalSearchText(value);
 }
 
 function openAdvancedSearch() {
@@ -96,7 +95,7 @@ function openAdvancedSearch() {
 }
 
 function handleAdvancedSearchApply(filters: FieldFilter[]) {
-  galleryStore.setSearchQuery(fieldedSearch.applyFilters(filters));
+  galleryStore.updateLexicalSearchText(fieldedSearch.applyFilters(filters));
   galleryStore.submitSearch();
 }
 
@@ -176,7 +175,6 @@ const closeSidebar = () => {
     isSidebarOpen.value = false;
   }
 };
-provide(closeSidebarKey, closeSidebar);
 
 // Handle Escape key to close sidebar on mobile
 const handleGlobalKeydown = (e: KeyboardEvent) => {

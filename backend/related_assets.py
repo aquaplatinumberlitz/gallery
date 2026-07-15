@@ -318,54 +318,66 @@ def api_search_related(request: RelatedSearchRequestV1) -> RelatedSearchResponse
     try:
         reference = _reference_asset(request.reference_asset_id, context)
         status = _related_status(int(reference["id"]), context)
-        required = _required_component(request, status)
-        if request.profile == "visual" and required.state == "disabled":
-            raise APIError(
-                409,
-                ErrorType.FEATURE_DISABLED,
-                "Visual related-assets indexing is disabled",
-                extra={"status": status.model_dump(mode="json")},
-            )
-        if (
-            request.profile == "visual"
-            and required.state == "not_ready"
-            and _visual_index_globally_usable(int(reference["library_id"]))
-        ):
-            raise APIError(
-                409,
-                ErrorType.REFERENCE_NOT_INDEXED,
-                "Reference asset does not have a current visual fingerprint",
-                extra={"status": status.model_dump(mode="json")},
-            )
-        if required.state in {"not_ready", "disabled"} or (required.state == "building" and not required.usable):
-            raise APIError(
-                409,
-                ErrorType.RELATION_INDEX_NOT_READY,
-                "Required relation index is not ready",
-                extra={"status": status.model_dump(mode="json")},
-            )
-        if not required.usable:
-            raise APIError(
-                503,
-                ErrorType.SERVER_ERROR,
-                "Required persisted relation index is unusable",
-                extra={"status": status.model_dump(mode="json")},
-            )
-        if request.profile == "visual":
-            items = query_visual_variants(int(reference["id"]), context, limit=request.limit)
-        else:
-            metadata_items = rank_related_metadata(
-                int(reference["id"]),
-                context,
-                profile=request.profile,
-                limit=request.limit,
+        if request.profile == "related":
+            metadata_items = (
+                rank_related_metadata(
+                    int(reference["id"]),
+                    context,
+                    profile="related",
+                    limit=request.limit,
+                )
+                if status.metadata.usable
+                else []
             )
             visual_items = (
                 query_visual_variants(int(reference["id"]), context, limit=request.limit)
-                if request.profile == "related" and status.visual.usable
+                if status.visual.usable
                 else []
             )
             items = _merge_related_items(metadata_items, visual_items, limit=request.limit)
+        else:
+            required = _required_component(request, status)
+            if request.profile == "visual" and required.state == "disabled":
+                raise APIError(
+                    409,
+                    ErrorType.FEATURE_DISABLED,
+                    "Visual related-assets indexing is disabled",
+                    extra={"status": status.model_dump(mode="json")},
+                )
+            if (
+                request.profile == "visual"
+                and required.state == "not_ready"
+                and _visual_index_globally_usable(int(reference["library_id"]))
+            ):
+                raise APIError(
+                    409,
+                    ErrorType.REFERENCE_NOT_INDEXED,
+                    "Reference asset does not have a current visual fingerprint",
+                    extra={"status": status.model_dump(mode="json")},
+                )
+            if required.state in {"not_ready", "disabled"} or (required.state == "building" and not required.usable):
+                raise APIError(
+                    409,
+                    ErrorType.RELATION_INDEX_NOT_READY,
+                    "Required relation index is not ready",
+                    extra={"status": status.model_dump(mode="json")},
+                )
+            if not required.usable:
+                raise APIError(
+                    503,
+                    ErrorType.SERVER_ERROR,
+                    "Required persisted relation index is unusable",
+                    extra={"status": status.model_dump(mode="json")},
+                )
+            if request.profile == "visual":
+                items = query_visual_variants(int(reference["id"]), context, limit=request.limit)
+            else:
+                items = rank_related_metadata(
+                    int(reference["id"]),
+                    context,
+                    profile=request.profile,
+                    limit=request.limit,
+                )
         return RelatedSearchResponseV1(
             reference_asset_id=request.reference_asset_id,
             profile=request.profile,

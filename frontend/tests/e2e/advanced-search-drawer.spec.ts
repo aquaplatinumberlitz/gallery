@@ -188,6 +188,22 @@ async function installStubbedGallery(page: Page) {
             { value: "DPM++", count: 8 },
           ],
           scheduler: [{ value: "Karras", count: 20 }],
+          tool: [
+            { value: "Unknown", count: 100 },
+            { value: "SwarmUI", count: 46 },
+          ],
+          orientation: [
+            { value: "portrait", count: 141 },
+            { value: "square", count: 44 },
+          ],
+          seed_availability: [
+            { value: "available", count: 107 },
+            { value: "missing", count: 102 },
+          ],
+          metadata_availability: [
+            { value: "available", count: 209 },
+            { value: "missing", count: 3 },
+          ],
         }),
       });
       return;
@@ -288,6 +304,10 @@ test.describe("AdvancedSearchDrawer", () => {
     await expect(drawer).toContainText("Generation settings");
     await expect(drawer).toContainText("Dimensions");
     await expect(drawer).toContainText("Custom metadata");
+    await expect(drawer.getByLabel("Tools indexed values")).toContainText("Unknown");
+    await expect(drawer.getByLabel("Tools indexed values")).toContainText("SwarmUI");
+    await expect(drawer.getByLabel("Seed indexed values")).toContainText("missing");
+    await expect(drawer.getByLabel("Metadata indexed values")).toContainText("209");
 
     await expect(drawerField(drawer, "advanced-search-prompt")).toBeVisible();
     await expect(drawerField(drawer, "advanced-search-model")).toBeVisible();

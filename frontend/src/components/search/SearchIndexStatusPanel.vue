@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Ban, CircleAlert, LoaderCircle, RefreshCw, Square } from "lucide-vue-next";
+import { Ban, CircleAlert, CircleHelp, LoaderCircle, RefreshCw, Square } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSearchIndexStatusQuery } from "@/composables/useSearchIndexStatusQuery";
+import type { SearchIndexStateV1 } from "@/types";
 
 const props = defineProps<{ libraryId: number | null; open: boolean }>();
 const indexQuery = useSearchIndexStatusQuery(
@@ -16,6 +18,29 @@ const label = (state: string, usable: boolean, warning?: string | null) => {
   const resolved = tone(state, usable, warning);
   return resolved === "usable-stale" ? "Usable · rebuilding" : resolved.replaceAll("_", " ");
 };
+
+const INDEX_HELP: Record<string, string> = {
+  generation_signatures:
+    "Contributes metadata evidence to Related assets by comparing prompts, models, resources, and generation settings.",
+  prompt_values: "Indexes normalized positive and negative prompts for prompt discovery and exact prompt filters.",
+  visual_fingerprints:
+    "Contributes visual evidence to Related assets by comparing near-duplicate image fingerprints built from cached previews. It does not infer prompts or workflow lineage.",
+  workflow_properties: "Indexes supported ComfyUI node properties for structured workflow filters in Advanced Search.",
+  workflow_raw:
+    "Indexes compact raw workflow JSON for text search. It is disabled by default because it uses a separate storage budget.",
+};
+
+function indexHelp(row: SearchIndexStateV1): string | null {
+  if (row.index_name === "workflow_raw" && !row.enabled) {
+    return "Raw workflow search is off in server configuration, so there is nothing to index.";
+  }
+  return INDEX_HELP[row.index_name] ?? null;
+}
+
+function indexHelpLabel(row: SearchIndexStateV1): string {
+  if (row.index_name === "workflow_raw" && !row.enabled) return "Why workflow raw is disabled";
+  return `About ${row.index_name.replaceAll("_", " ")}`;
+}
 
 function rebuild(indexName: string, libraryId: number) {
   if (!window.confirm(`Rebuild ${indexName} for this library? Existing usable rows remain available.`)) return;
@@ -42,6 +67,27 @@ function rebuild(indexName: string, libraryId: number) {
           <span :data-tone="tone(row.state, row.usable, row.warning)">{{
             label(row.state, row.usable, row.warning)
           }}</span>
+          <Tooltip v-if="indexHelp(row)">
+            <TooltipTrigger as-child>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                class="size-8 text-muted-foreground"
+                :aria-label="indexHelpLabel(row)"
+              >
+                <CircleHelp />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" align="start" class="max-w-[280px] text-pretty">
+              {{ indexHelp(row) }}
+              <template v-if="row.index_name === 'workflow_raw' && !row.enabled">
+                Enable
+                <code class="break-all font-mono text-[11px]">GALLERY_SEARCH_WORKFLOW_RAW_ENABLED</code>, restart the
+                backend, then rebuild this index.
+              </template>
+            </TooltipContent>
+          </Tooltip>
         </div>
         <p class="index-progress">
           {{ row.indexed_count }} / {{ row.target_count }} indexed<span v-if="row.failed_count">

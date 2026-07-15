@@ -609,8 +609,14 @@ def test_api_derivative_status_success(isolated_app: TestClient, isolated_galler
     library_id = int(register_library(root)["id"])
     response = isolated_app.get("/api/derivatives/status", params={"library_id": library_id})
     assert response.status_code == 200
-    assert "quota_bytes" in response.json()
-    assert "thumbnail" in response.json()["by_kind"]
+    data = response.json()
+    assert "quota_bytes" in data
+    assert "thumbnail" in data["by_kind"]
+    assert [(item["kind"], item["variant"], item["max_long_edge"]) for item in data["variants"]] == [
+        ("thumbnail", "thumb_128", 128),
+        ("thumbnail", "thumb_512", 512),
+        ("preview", "preview_1440", 1440),
+    ]
 
 
 def test_api_warm_derivatives_not_found(isolated_app: TestClient):

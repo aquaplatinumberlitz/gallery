@@ -624,6 +624,19 @@ export interface GeneratedImagesStatus {
       }
     >
   >;
+  variants?: Array<{
+    kind: "thumbnail" | "preview";
+    variant: string;
+    max_long_edge: number;
+    ready_derivatives: number;
+    expected_derivatives: number;
+    desired_derivatives: number;
+    missing_derivatives: number;
+    queued_derivatives: number;
+    running_derivatives: number;
+    failed_derivatives: number;
+    deferred_derivatives: number;
+  }>;
   library_used_bytes: number;
   quota_bytes: number;
   quota_used_bytes: number;
@@ -660,6 +673,9 @@ export interface ImportedDataClearResponse {
   rebuild_staging_rows_cleared: number;
   folder_index_rows_cleared: number;
   integrity_runs_cleared: number;
+  search_index_jobs_cleared: number;
+  search_index_states_reset: number;
+  model_identity_aliases_cleared: number;
   derivative_catalog_entries_cleared: number;
   derivative_jobs_cleared: number;
   thumbnail_disk_cache_entries_cleared: number;

@@ -201,8 +201,10 @@ Desired-state reconciliation has explicit trigger ownership:
   reconciliation to reconsider deferred work.
 
 `GET /api/derivatives/status` reports current configured coverage for one
-library, that library's ready bytes as `library_used_bytes`, and global quota
-accounting as `quota_used_bytes`, `quota_bytes`, and `quota_utilization`.
+library both as aggregate `by_kind` counters and ordered per-variant counters
+for `thumb_128`, `thumb_512`, and `preview_1440`. It also reports that
+library's ready bytes as `library_used_bytes`, and global quota accounting as
+`quota_used_bytes`, `quota_bytes`, and `quota_utilization`.
 
 ## Overview
 
@@ -334,7 +336,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `DELETE /api/libraries/{id}?confirm=true` | Unregister catalog data without deleting source files                 | `libraries.py`      |
 | `GET /api/derivatives/status`             | Return policy-aware thumbnail/preview coverage, convergence, quota, job counts, and worker health | `libraries.py`      |
 | `POST /api/derivatives/warm`              | Explicitly queue missing configured images for one library; optional `kind=thumbnail\|preview` limits scope | `libraries.py`      |
-| `POST /api/maintenance/imported-data/clear` | Clear imported catalog, metadata, and generated-image data          | `maintenance.py`    |
+| `POST /api/maintenance/imported-data/clear` | Clear imported catalog, metadata, search-index lifecycle data, and generated-image data while preserving library settings and source files | `maintenance.py` |
 | `POST /api/maintenance/imported-data/rebuild` | Clear imported data and queue whole-library rebuild jobs          | `maintenance.py`    |
 | `POST /api/maintenance/catalog/reset`     | Reset catalog database data, including registered libraries           | `maintenance.py`    |
 | `GET /` and `GET /{path:path}`            | Serve the built SPA in production mode                                | `static_files.py`   |
@@ -502,7 +504,6 @@ Key paths:
 | `frontend/src/components/GalleryGrid.vue`                 | Main gallery renderer, browse album/photo sections, and search-query orchestration                                             |
 | `frontend/src/components/Lightbox.vue`                    | Device-dispatch lightbox orchestrator with the image-level Related Assets action                                               |
 | `frontend/src/components/RelatedAssetsPanel.vue`          | Canonical metadata/visual relation sheet, profile filters, coverage states, evidence, and lightbox handoff                     |
-| `frontend/src/components/GenerationFamilySummary.vue`     | Recorded family/recipe counts and generation-setting comparison without provenance claims                                     |
 | `frontend/src/components/LibraryInspector.vue`            | Desktop metadata inspection table at `/metadata`; TanStack Table for returned-row sorting plus TanStack Virtual for table rows |
 | `frontend/src/components/admin/LibraryListPage.vue`       | Admin registered-library list, update-all entrypoint, status summaries, and navigation to library detail pages                  |
 | `frontend/src/components/admin/LibraryDetailPage.vue`     | Admin library detail with status/progress, generated-image coverage, live watcher/refresh state, problems, jobs, and dialogs   |
@@ -510,12 +511,12 @@ Key paths:
 | `frontend/src/components/SortSelect.vue`                  | shadcn-vue Select sort control used by gallery desktop/tablet toolbars and the Library Inspector                               |
 | `frontend/src/components/SortDropdown.vue`                | Dropdown-menu sort control still used by the mobile header                                                                     |
 | `frontend/src/components/search/AdvancedSearchDrawer.vue` | Shared metadata/discovery composition sheet and canonical-request emitter                                                     |
-| `frontend/src/components/search/SearchLibraryPopover.vue` | Browser-local saved/recent search actions                                                                                      |
+| `frontend/src/components/search/RecentSearchesPanel.vue`  | Browser-local automatic recent-search list and direct replay actions                                                           |
 | `frontend/src/components/search/PromptUsagePanel.vue`     | Query-backed positive/negative prompt groups and exact-group action                                                            |
 | `frontend/src/components/search/WorkflowFilterBuilder.vue` | Capability-driven typed same-node predicate drafts                                                                             |
 | `frontend/src/components/search/RawWorkflowSearch.vue`    | Optional acknowledged Apply-only raw workflow query                                                                            |
 | `frontend/src/components/search/SearchIndexStatusPanel.vue` | Query-backed derived-index readiness, rebuild, and cancellation                                                               |
-| `frontend/src/components/search/SearchResultsPanel.vue`   | Virtualized album/media search sections, page loading, and typed open/retry actions                                            |
+| `frontend/src/components/search/SearchResultsPanel.vue`   | Dynamically measured virtualized album/media search rows, page loading, and typed open/retry actions                           |
 | `frontend/src/components/search/SearchFeedback.vue`       | Pending, blocking-error, stale-warning, pagination-error, and successful-empty search states                                   |
 | `frontend/src/components/search/SearchResultMetadata.vue` | Escaped match/snippet/generation/library context for one search result                                                         |
 | `frontend/src/components/ui/`                             | shadcn-vue/Reka-inspired local UI primitives                                                                                   |
@@ -534,7 +535,7 @@ Key paths:
 | TanStack DB          | Beta local reactive collection foundation; currently only the landing-pages collection is a runtime pilot                                             |
 | Pinia gallery store  | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state                                 |
 | Pinia lightbox store | Open image, current index, visible item list, navigation                                                                                              |
-| Pinia related store  | Ephemeral open/reference/scope/profile UI state; no related result payloads and no saved/recent-search persistence                                  |
+| Pinia related store  | Ephemeral open/reference/scope UI state; no match-type selection, related result payloads, or saved/recent-search persistence                      |
 | Pinia toast store    | Toast API adapter (Gallery API → Sonner): IDs, variants, durations, dismiss, clear, actions, visible-toast limit; Sonner owns render/dismiss mechanics |
 
 Query keys are centralized in `frontend/src/query/keys.ts`. Paths are normalized by trimming, converting backslashes to forward slashes, collapsing duplicate slashes, and removing a trailing slash except for `/`.
@@ -604,6 +605,8 @@ Core keys:
 Primary admin UI labels intentionally avoid backend terms such as derivatives,
 runtime, diagnostics, and integrity. User-facing labels are `Generated image cache`,
 `Live status`, `Problems`, `File issues`, `Check files`, and `Repair results`.
+Library Detail presents one cache progress row per configured image size so the
+number of generated files is never mistaken for the number of source images.
 
 ## Data Flow
 
@@ -671,12 +674,13 @@ Header search or AdvancedSearchDrawer
 - `/api/search/related` is a separate, non-persistable reference request. It
   reuses the canonical folder/library/all scope union, authorizes an active
   image reference before reading relation data, excludes the reference from
-  results, and distinguishes missing relation coverage (409) from unusable
-  persisted relation data (503). Generation signatures supply bounded
-  metadata candidates and visual fingerprints supply indexed near-duplicate
-  candidates. The combined `related` profile merges both result streams by
-  stable asset identity, retains all typed evidence, and keeps metadata results
-  available when visual coverage is disabled, building, degraded, or failed.
+  results, and returns independent metadata/visual readiness. Generation
+  signatures supply bounded metadata candidates and visual fingerprints supply
+  indexed near-duplicate candidates. The combined `related` profile queries
+  every usable stream, merges by stable asset identity, retains all typed
+  evidence, and returns partial or empty results with readiness instead of
+  failing when either stream is unavailable. Legacy `recipe` and `visual`
+  profile consumers retain their single-index 409/503 readiness errors.
 - Derived discovery indexes use durable per-library states and jobs. Claims
   carry worker ID, opaque token, and lease; completion is fenced. Workers read
   active assets by `asset_id` keyset in batches of at most 200, extract outside
@@ -738,8 +742,8 @@ Header search or AdvancedSearchDrawer
   media; filename-only videos are not returned for fielded queries unless a
   future video metadata index supports the same predicates.
 - The shared Advanced Search drawer is owned by `App.vue`, uses TanStack Form
-  for fielded metadata drafts, and composes separate saved/recent, prompt,
-  workflow, raw, and index-status children. Children keep local drafts and emit
+  for fielded metadata drafts, and composes separate automatic recent-search, prompt,
+  indexed-facet summary, workflow, raw, and index-status children. Children keep local drafts and emit
   typed canonical requests; `App.vue` applies library/import-path navigation
   and Pinia session state. It renders as a right sheet on tablet/desktop and a
   full-width sheet on compact mobile viewports.
@@ -748,26 +752,32 @@ Header search or AdvancedSearchDrawer
   active query/scope/mode/filters and navigation/UI state. Filter-only prompt
   or workflow requests are active searches even when their lexical text is empty.
 - Active search replaces browse sorting with a visible `Relevance` label. Search feedback distinguishes initial pending, blocking error, stale-data warning, next-page error, and successful empty states on desktop, tablet, and mobile.
+- Search result rows register their rendered elements with TanStack Virtual so
+  hydrated URL searches with long filenames, paths, match badges, snippets, or
+  library labels use measured heights. Absolute virtual rows must never rely on
+  estimates alone or allow the next thumbnail row to overlap result metadata.
 - Image-card and lightbox overflow actions open the global Related Assets
-  sheet with the current canonical scope. `related` is the default profile;
-  `recipe` and `visual` are explicit tabs. TanStack Query owns each complete
-  reference/profile/scope response and forwards cancellation through Axios.
+  sheet with the current canonical scope. The sheet always sends the combined
+  `related` profile and has no match-type tab, selector, or persisted selection.
+  TanStack Query owns each complete reference/scope response and forwards cancellation through Axios.
   Reference changes use a new key and do not show the prior reference's data;
   a failed background refresh retains the last successful response with a
   visible retry action. The ephemeral Pinia store owns only sheet state.
 - Related results reuse `PhotoCard` and the existing lightbox item list. Stable
-  reason codes map to concise evidence chips and fixed tier labels. The family
-  summary compares only recorded seed, sampler, scheduler, steps, CFG,
-  dimensions, model, LoRA/resources, denoising, hires, and VAE values and says
-  `same recorded settings`, never lineage or probability.
+  reason codes map to concise evidence chips and fixed tier labels. Backend
+  merging deduplicates and unions metadata/visual evidence; frontend response
+  normalization defensively does the same while preserving first-seen server
+  order. The modal does not fetch or render candidate generation metadata;
+  ranking and evidence calculation remain backend-owned.
 - Smart-collection descriptors contain either a canonical Search V2 request or
   a persisted relation/fact descriptor. They do not persist materialized asset
   membership and Related Assets sessions never enter saved/recent search state.
 - Search URL state uses `search_v=1` plus bounded base64url structured groups.
   Debounced edits replace browser history; committed actions push; guarded
-  hydration applies Back/Forward without a write loop. Saved searches (50) and
-  successful recent searches (20) are versioned, browser-local, and preserve
-  case-sensitive values.
+  hydration applies Back/Forward without a write loop. Up to 20 successful
+  searches are deduplicated automatically in versioned browser-local history
+  while preserving case-sensitive values. The UI does not require naming,
+  saving, pinning, or managing reusable queries.
 - `GET /api/search-metadata` remains available for older callers, returns the
   catalog-filtered global total, and follows the same DB-only response policy;
   the main gallery UI uses `POST /api/search/query`.

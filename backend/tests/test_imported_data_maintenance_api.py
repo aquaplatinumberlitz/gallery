@@ -241,6 +241,35 @@ def test_clear_imported_data_preserves_libraries_import_paths_exclusions_and_cle
 ) -> None:
     initialize_database()
     library_id = _seed_imported_data(isolated_gallery_root, isolated_thumbnail_cache, monkeypatch)
+    now = time.time()
+    with _DB_LOCK, _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO search_index_jobs (
+              index_name, library_id, mode, state, processed_count, target_count,
+              requested_at, started_at, finished_at
+            ) VALUES ('prompt_values', ?, 'missing', 'succeeded', 1, 1, ?, ?, ?)
+            """,
+            (library_id, now, now, now),
+        )
+        conn.execute(
+            """
+            INSERT INTO search_index_states (
+              index_name, library_id, state, schema_version, extractor_version,
+              indexed_count, target_count, failed_count, skipped_count,
+              started_at, completed_at, updated_at
+            ) VALUES ('prompt_values', ?, 'ready', 1, 1, 1, 1, 0, 0, ?, ?, ?)
+            """,
+            (library_id, now, now, now),
+        )
+        conn.execute(
+            """
+            INSERT INTO model_identity_aliases (
+              normalized_name, normalized_hash, display_name, display_hash,
+              asset_count, last_seen_mtime_ns
+            ) VALUES ('model', 'abc123', 'Model', 'ABC123', 1, 1)
+            """
+        )
 
     response = isolated_app.post("/api/maintenance/imported-data/clear", json={"confirm": True})
 
@@ -249,6 +278,9 @@ def test_clear_imported_data_preserves_libraries_import_paths_exclusions_and_cle
     assert data["state"] == "cleared"
     assert data["libraries_preserved"] == 1
     assert data["derivative_jobs_cleared"] == 1
+    assert data["search_index_jobs_cleared"] == 1
+    assert data["search_index_states_reset"] == 1
+    assert data["model_identity_aliases_cleared"] == 1
     assert data["thumbnail_disk_cache_entries_cleared"] >= 0
     assert data["preview_files_deleted"] == 2
     assert _table_count("libraries") == 1
@@ -268,15 +300,38 @@ def test_clear_imported_data_preserves_libraries_import_paths_exclusions_and_cle
         "folder_index_state",
         "asset_derivatives",
         "derivative_jobs",
+        "search_index_jobs",
+        "model_identity_aliases",
     ):
         assert _table_count(table) == 0, table
     with _DB_LOCK, _connect() as conn:
         library = conn.execute(
             "SELECT state, last_scan_at, last_error FROM libraries WHERE id = ?", (library_id,)
         ).fetchone()
+        search_state = conn.execute(
+            """
+            SELECT state, indexed_count, target_count, failed_count, skipped_count,
+                   active_job_id, started_at, completed_at, error_code, error_summary
+            FROM search_index_states
+            WHERE index_name = 'prompt_values' AND library_id = ?
+            """,
+            (library_id,),
+        ).fetchone()
     assert library["state"] == "discovering"
     assert library["last_scan_at"] is None
     assert library["last_error"] is None
+    assert dict(search_state) == {
+        "state": "pending",
+        "indexed_count": 0,
+        "target_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "active_job_id": None,
+        "started_at": None,
+        "completed_at": None,
+        "error_code": None,
+        "error_summary": None,
+    }
 
 
 def test_clear_imported_data_blocks_metadata_producer_until_commit(

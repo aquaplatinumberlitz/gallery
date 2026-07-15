@@ -108,12 +108,12 @@ const needsRefreshCount = computed(() => {
                 :disabled="clearMutation.isPending.value"
                 @click="clearOpen = true"
               >
-                <Trash2 class="-ms-1 opacity-60" :size="16" aria-hidden="true" /> Clear
+                <Trash2 data-icon="inline-start" aria-hidden="true" /> Clear imported data
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              Clears imported catalog data, extracted metadata, jobs, and cached thumbnails while keeping libraries and
-              folders.
+            <TooltipContent class="max-w-[320px] text-pretty">
+              Clears the file catalog, extracted metadata, search indexes, job history, thumbnails, and previews.
+              Library settings and source files are kept.
             </TooltipContent>
           </Tooltip>
         </div>

@@ -290,6 +290,12 @@ export const useGalleryStore = defineStore("gallery", {
       }
     },
 
+    updateLexicalSearchText(query: string) {
+      this.searchMode = "lexical";
+      this.searchFilters = { prompt_groups: [], workflow_groups: [] };
+      this.setSearchQuery(query);
+    },
+
     clearSearch() {
       this.clearSearchFieldErrors();
       this.searchQuery = "";

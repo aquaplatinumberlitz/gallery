@@ -48,6 +48,9 @@ beforeEach(() => {
       rebuild_staging_rows_cleared: 0,
       folder_index_rows_cleared: 0,
       integrity_runs_cleared: 0,
+      search_index_jobs_cleared: 0,
+      search_index_states_reset: 0,
+      model_identity_aliases_cleared: 0,
       derivative_catalog_entries_cleared: 0,
       derivative_jobs_cleared: 0,
       thumbnail_disk_cache_entries_cleared: 0,
@@ -66,6 +69,9 @@ beforeEach(() => {
     rebuild_staging_rows_cleared: 0,
     folder_index_rows_cleared: 10,
     integrity_runs_cleared: 0,
+    search_index_jobs_cleared: 5,
+    search_index_states_reset: 5,
+    model_identity_aliases_cleared: 3,
     derivative_catalog_entries_cleared: 200,
     derivative_jobs_cleared: 2,
     thumbnail_disk_cache_entries_cleared: 4,
@@ -85,6 +91,7 @@ describe("useGeneratedImagesGlobalMutations", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.maintenanceRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.searchIndexesRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseAllRoot() });
     wrapper.unmount();
   });
@@ -97,6 +104,7 @@ describe("useGeneratedImagesGlobalMutations", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.generatedImagesRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.jobsRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.statusRoot() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.searchIndexesRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseAllRoot() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.browseInfiniteAllRoot() });
     wrapper.unmount();
