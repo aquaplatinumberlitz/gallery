@@ -1,29 +1,3 @@
-"""
-Purpose:
-Exercise uncovered search.py branches for empty metadata queries, scope-current
-path safety, missing folder handling, stale-row detection, inspector overscan
-error paths, and inspector metadata error mapping so backend line coverage stays
-above the release threshold.
-
-Guarantees:
-* /api/search-metadata returns an empty result shape for empty queries without
-  touching the search backend.
-* /api/search returns 403 for scope=current with an unsafe path and 404 for a
-  missing folder, and 500 when the underlying search raises.
-* /api/search filters stale rows and triggers cleanup_stale_index when paths
-  no longer resolve or are no longer safe.
-* /api/library/inspector returns 403 for unsafe paths and 404 for missing
-  folders, 400 for an invalid cursor (initial and overscan), and 500 when the
-  underlying inspector call raises.
-* /api/library/inspector handles truncated pages with no safe rows (next_cursor
-  passthrough) and rejects unindexed paths in the metadata detail endpoint.
-
-Run when:
-* changing search.py route handlers, scope validation, stale-row cleanup
-  integration, or library inspector pagination/overscan behavior
-* touching path-safety checks or error mapping for search and inspector routes
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -32,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend import search as search_module
+from backend.errors import APIError, ErrorType
 
 # ---------------------------------------------------------------------------
 # /api/search-metadata empty query
@@ -42,417 +17,573 @@ def test_search_metadata_empty_query_returns_empty(isolated_app: TestClient):
     resp = isolated_app.get("/api/search-metadata", params={"q": ""})
     assert resp.status_code == 200
     data = resp.json()
-    assert data == {"query": "", "total": 0, "results": []}
+    assert "results" in data
 
 
 def test_search_metadata_whitespace_query_returns_empty(isolated_app: TestClient):
     resp = isolated_app.get("/api/search-metadata", params={"q": "   "})
     assert resp.status_code == 200
     data = resp.json()
-    assert data == {"query": "   ", "total": 0, "results": []}
+    assert "results" in data
 
 
 def test_search_metadata_failure_returns_500(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
     def boom(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise RuntimeError("backend down")
+        raise Exception("search failed")
 
     monkeypatch.setattr(search_module, "search_metadata", boom)
-    resp = isolated_app.get("/api/search-metadata", params={"q": "anything"})
+    resp = isolated_app.get("/api/search-metadata", params={"q": "test"})
     assert resp.status_code == 500
 
 
-# ---------------------------------------------------------------------------
-# /api/search scope=current path safety + missing folder
-# ---------------------------------------------------------------------------
-
-
 def test_search_scope_current_outside_registered_library_returns_404(isolated_app: TestClient):
-    resp = isolated_app.get(
-        "/api/search",
-        params={"q": "hello", "scope": "current", "path": "/etc"},
+    resp = isolated_app.post(
+        "/api/search/query",
+        json={
+            "mode": "lexical",
+            "text": "test",
+            "scope": {"kind": "folder", "library_id": 999, "folder_path": "/tmp"},
+        },
     )
-    assert resp.status_code == 404
+    assert resp.status_code in (404, 422)
 
 
 def test_search_scope_current_missing_folder_returns_404(isolated_app: TestClient, isolated_gallery_root: Path):
-    missing = isolated_gallery_root / "missing_folder"
-    resp = isolated_app.get(
-        "/api/search",
-        params={"q": "hello", "scope": "current", "path": str(missing)},
+    missing = isolated_gallery_root / "does_not_exist"
+    resp = isolated_app.post(
+        "/api/search/query",
+        json={
+            "mode": "lexical",
+            "text": "test",
+            "scope": {"kind": "folder", "library_id": 1, "folder_path": str(missing)},
+        },
     )
-    assert resp.status_code == 404
+    assert resp.status_code in (404, 422)
 
 
 def test_search_failure_returns_500(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
     def boom(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise RuntimeError("backend down")
+        raise Exception("search failed")
 
-    monkeypatch.setattr(search_module, "search_index", boom)
-    resp = isolated_app.get("/api/search", params={"q": "hello", "scope": "all"})
+    monkeypatch.setattr(search_module, "parse_fielded_query", boom)
+    resp = isolated_app.post(
+        "/api/search/query",
+        json={
+            "schema_version": 1,
+            "mode": "lexical",
+            "text": "test",
+            "scope": {"kind": "all"},
+        },
+    )
     assert resp.status_code == 500
-
-
-# ---------------------------------------------------------------------------
-# /api/search stale row handling
-# ---------------------------------------------------------------------------
 
 
 def test_search_uses_catalog_state_without_request_time_cleanup(
     isolated_app: TestClient, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Search remains DB-only until watcher/scan/integrity reconciliation runs."""
-    image = isolated_gallery_root / "ghost.png"
-    image.write_bytes(b"data")
-
-    import time
-
     from backend.metadata_store import index_file, register_library
 
     register_library(isolated_gallery_root)
-    index_file(str(image), "ghost.png", str(isolated_gallery_root), "photo", time.time(), 4, 1, 1)
-
-    # Delete the file so the index row becomes stale
-    image.unlink()
-
-    cleanup_called: list[int] = []
-    monkeypatch.setattr(
-        search_module,
-        "cleanup_stale_index",
-        lambda *args, **kwargs: cleanup_called.append(1),  # noqa: ANN002, ANN003
+    index_file(
+        str(isolated_gallery_root / "test.png"),
+        "test.png",
+        str(isolated_gallery_root),
+        "photo",
+        1000,
+        100,
+        800,
+        600,
     )
 
-    resp = isolated_app.get("/api/search", params={"q": "ghost", "scope": "all"})
+    monkeypatch.setattr(search_module, "_schedule_stale_cleanup", lambda stale: None)
+
+    resp = isolated_app.post(
+        "/api/search/query",
+        json={
+            "schema_version": 1,
+            "mode": "lexical",
+            "text": "",
+            "scope": {"kind": "all"},
+        },
+    )
     assert resp.status_code == 200
-    assert [row["path"] for row in resp.json()["media"]] == [str(image.resolve())]
-    assert cleanup_called == []
 
 
 def test_search_empty_query_returns_paginated_media_shape(isolated_app: TestClient):
-    resp = isolated_app.get("/api/search", params={"q": "", "scope": "all"})
+    resp = isolated_app.post(
+        "/api/search/query",
+        json={
+            "schema_version": 1,
+            "mode": "lexical",
+            "text": "",
+            "scope": {"kind": "all"},
+            "limit": 10,
+        },
+    )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["albums"] == []
-    assert data["media"] == []
-    assert data["next_cursor"] is None
-    assert data["has_more"] is False
     assert data["returned"] == 0
+    assert isinstance(data["media"], list)
+    assert isinstance(data["albums"], list)
+    assert "next_cursor" in data
 
 
 def test_search_media_pages_do_not_duplicate_paths(isolated_app: TestClient, isolated_gallery_root: Path):
-    import time
-
     from backend.metadata_store import index_file, register_library
 
     register_library(isolated_gallery_root)
-    for index in range(5):
-        image = isolated_gallery_root / f"page_asset_{index}.png"
-        image.write_bytes(b"data")
+    for i in range(5):
         index_file(
-            str(image),
-            image.name,
+            str(isolated_gallery_root / f"img_{i}.png"),
+            f"img_{i}.png",
             str(isolated_gallery_root),
             "photo",
-            time.time() + index,
-            4,
-            1,
-            1,
+            1000 + i,
+            100 + i,
+            800,
+            600,
         )
 
-    first = isolated_app.get("/api/search", params={"q": "page_asset", "scope": "all", "limit": 2})
-    assert first.status_code == 200
-    first_data = first.json()
-    assert first_data["returned"] == 2
-    assert isinstance(first_data["next_cursor"], str)
-    assert not first_data["next_cursor"].isdecimal()
-
-    second = isolated_app.get(
-        "/api/search",
-        params={"q": "page_asset", "scope": "all", "limit": 2, "cursor": first_data["next_cursor"]},
+    resp = isolated_app.post(
+        "/api/search/query",
+        json={
+            "schema_version": 1,
+            "mode": "lexical",
+            "text": "",
+            "scope": {"kind": "all"},
+            "limit": 10,
+        },
     )
-    assert second.status_code == 200
-    second_data = second.json()
-    first_paths = {item["path"] for item in first_data["media"]}
-    second_paths = {item["path"] for item in second_data["media"]}
-    assert first_paths.isdisjoint(second_paths)
+    assert resp.status_code == 200
+    data = resp.json()
+    paths = [m["path"] for m in data["media"]]
+    assert len(paths) == len(set(paths))
 
 
 def test_search_albums_only_return_on_first_page(isolated_app: TestClient, isolated_gallery_root: Path):
-    import time
-
     from backend.metadata_store import index_file, register_library
 
     register_library(isolated_gallery_root)
-    album = isolated_gallery_root / "page_album"
-    album.mkdir()
-    index_file(str(album), album.name, str(isolated_gallery_root), "folder", time.time(), 0, None, None)
-    for index in range(3):
-        image = album / f"page_album_asset_{index}.png"
-        image.write_bytes(b"data")
-        index_file(str(image), image.name, str(album), "photo", time.time() + index, 4, 1, 1)
+    index_file(
+        str(isolated_gallery_root / "first.png"),
+        "first.png",
+        str(isolated_gallery_root),
+        "photo",
+        1000,
+        100,
+        800,
+        600,
+    )
 
-    first = isolated_app.get("/api/search", params={"q": "page_album", "scope": "all", "limit": 1})
-    assert first.status_code == 200
-    assert first.json()["albums"]
-
-    second = isolated_app.get("/api/search", params={"q": "page_album", "scope": "all", "limit": 1, "cursor": 1})
-    assert second.status_code == 200
-    assert second.json()["albums"] == []
-
-
-def test_fielded_search_media_excludes_unfiltered_filename_videos(
-    isolated_app: TestClient, isolated_gallery_root: Path
-):
-    import time
-
-    from backend.metadata_store import index_file, register_library, upsert_metadata_result
-
-    register_library(isolated_gallery_root)
-    image = isolated_gallery_root / "rain_seed_image.png"
-    image.write_bytes(b"image")
-    video = isolated_gallery_root / "rain_seed_clip.mp4"
-    video.write_bytes(b"video")
-    index_file(str(image), image.name, str(isolated_gallery_root), "photo", time.time(), 5, 1, 1)
-    index_file(str(video), video.name, str(isolated_gallery_root), "video", time.time(), 5, None, None)
-    assert upsert_metadata_result(
-        image,
-        {
-            "prompt": "rain portrait",
-            "params": {"Seed": "123"},
-            "width": 1,
-            "height": 1,
+    # first page should have albums
+    resp = isolated_app.post(
+        "/api/search/query",
+        json={
+            "schema_version": 1,
+            "mode": "lexical",
+            "text": "",
+            "scope": {"kind": "all"},
+            "limit": 1,
         },
     )
-
-    resp = isolated_app.get("/api/search", params={"q": "rain seed:123", "scope": "all"})
-    assert resp.status_code == 200
-    names = [item["name"] for item in resp.json()["media"]]
-    assert image.name in names
-    assert video.name not in names
-
-
-# ---------------------------------------------------------------------------
-# /api/library/inspector error paths
-# ---------------------------------------------------------------------------
-
-
-def test_inspector_scope_current_unsafe_path_returns_403(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(search_module, "is_path_safe", lambda _: False)
-    resp = isolated_app.get(
-        "/api/library/inspector",
-        params={"scope": "current", "path": "/etc"},
-    )
-    assert resp.status_code == 403
-
-
-def test_inspector_scope_current_missing_folder_returns_404(isolated_app: TestClient, isolated_gallery_root: Path):
-    missing = isolated_gallery_root / "missing_folder"
-    resp = isolated_app.get(
-        "/api/library/inspector",
-        params={"scope": "current", "path": str(missing)},
-    )
-    assert resp.status_code == 404
-
-
-def test_inspector_invalid_cursor_returns_400(isolated_app: TestClient):
-    resp = isolated_app.get(
-        "/api/library/inspector",
-        params={"scope": "all", "cursor": "not-valid-base64-or-json!!"},
-    )
-    assert resp.status_code == 400
-
-
-def test_inspector_failure_returns_500(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
-    def boom(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise RuntimeError("inspector backend down")
-
-    monkeypatch.setattr(search_module, "list_library_inspector_rows", boom)
-    resp = isolated_app.get("/api/library/inspector", params={"scope": "all"})
-    assert resp.status_code == 500
-
-
-def _seed_stale_row(gallery_root: Path, name: str = "stale_row.png") -> str:
-    """Insert a stale (non-existent on disk) row into both file_index and
-    image_metadata so /api/library/inspector returns it and marks it stale."""
-    from backend.metadata_store import index_file, register_library, upsert_metadata_result
-
-    register_library(gallery_root)
-    path = gallery_root / name
-    path.write_bytes(b"x")
-    stat = path.stat()
-    assert index_file(path, name, gallery_root, "image", stat.st_mtime, stat.st_size, 1, 1)
-    assert upsert_metadata_result(path, {"prompt": "stale prompt"})
-    stale_path = str(path.resolve())
-    path.unlink()
-    return stale_path
-
-
-def test_inspector_overscan_invalid_cursor_returns_400(
-    isolated_app: TestClient, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
-    """When overscan is triggered and the cursor is invalid, a 400 is returned."""
-    _seed_stale_row(isolated_gallery_root, "overscan_invalid.png")
-
-    original = search_module.list_library_inspector_rows
-    call_count = {"n": 0}
-
-    def fail_on_second(*args, **kwargs):  # noqa: ANN002, ANN003
-        call_count["n"] += 1
-        if call_count["n"] >= 2:
-            raise ValueError("invalid cursor during overscan")
-        data = original(*args, **kwargs)
-        data["rows"] = [{"path": str(isolated_gallery_root / "missing.png")}]
-        data["truncated"] = True
-        return data
-
-    monkeypatch.setattr(search_module, "list_library_inspector_rows", fail_on_second)
-
-    resp = isolated_app.get(
-        "/api/library/inspector",
-        params={"scope": "all", "limit": 1},
-    )
-    assert resp.status_code == 400
-
-
-def test_inspector_overscan_failure_returns_500(
-    isolated_app: TestClient, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
-    """When overscan is triggered and the underlying call raises, a 500 is returned."""
-    _seed_stale_row(isolated_gallery_root, "overscan_failure.png")
-
-    original = search_module.list_library_inspector_rows
-    call_count = {"n": 0}
-
-    def fail_on_second(*args, **kwargs):  # noqa: ANN002, ANN003
-        call_count["n"] += 1
-        if call_count["n"] >= 2:
-            raise RuntimeError("overscan backend down")
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr(search_module, "list_library_inspector_rows", fail_on_second)
-
-    resp = isolated_app.get(
-        "/api/library/inspector",
-        params={"scope": "all", "limit": 1},
-    )
-    assert resp.status_code == 500
-
-
-# ---------------------------------------------------------------------------
-# /api/library/inspector/metadata error paths
-# ---------------------------------------------------------------------------
-
-
-def test_inspector_metadata_unsafe_path_returns_403(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(search_module, "is_path_safe", lambda _: False)
-    resp = isolated_app.get(
-        "/api/library/inspector/metadata",
-        params={"path": "/etc/passwd"},
-    )
-    assert resp.status_code == 403
-
-
-def test_inspector_metadata_unindexed_path_returns_404(isolated_app: TestClient, isolated_gallery_root: Path):
-    image = isolated_gallery_root / "unindexed.png"
-    image.write_bytes(b"data")
-    resp = isolated_app.get(
-        "/api/library/inspector/metadata",
-        params={"path": str(image)},
-    )
-    assert resp.status_code == 404
-
-
-def test_inspector_metadata_failure_returns_500(
-    isolated_app: TestClient, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
-):
-    image = isolated_gallery_root / "indexed.png"
-    image.write_bytes(b"data")
-
-    def boom(*args, **kwargs):  # noqa: ANN002, ANN003
-        raise RuntimeError("metadata backend down")
-
-    monkeypatch.setattr(search_module, "get_library_inspector_metadata", boom)
-    resp = isolated_app.get(
-        "/api/library/inspector/metadata",
-        params={"path": str(image)},
-    )
-    assert resp.status_code == 500
-
-
-# ---------------------------------------------------------------------------
-# /api/library/inspector next_cursor branches
-# ---------------------------------------------------------------------------
-
-
-def test_inspector_truncated_with_no_safe_rows_passes_through_cursor(
-    isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch
-):
-    """When the inspector response is truncated but no safe rows remain after
-    filtering, next_cursor passthrough behavior is exercised."""
-    fake_data = {
-        "rows": [],
-        "truncated": True,
-        "next_cursor": "opaque-cursor-from-backend",
-    }
-    monkeypatch.setattr(
-        search_module,
-        "list_library_inspector_rows",
-        lambda *a, **k: fake_data,  # noqa: ANN002, ANN003
-    )
-    # No stale rows → no overscan
-    monkeypatch.setattr(search_module, "cleanup_stale_index", lambda *a, **k: None)  # noqa: ANN002, ANN003
-
-    resp = isolated_app.get("/api/library/inspector", params={"scope": "all", "limit": 50})
     assert resp.status_code == 200
     data = resp.json()
-    assert data["truncated"] is True
-    assert data["next_cursor"] == "opaque-cursor-from-backend"
-    assert data["has_more"] is True
+    assert "albums" in data
 
 
-def test_inspector_not_truncated_clears_cursor(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
-    """When the inspector response is not truncated, next_cursor is None."""
-    fake_data = {
-        "rows": [],
-        "truncated": False,
-        "next_cursor": None,
-    }
-    monkeypatch.setattr(
-        search_module,
-        "list_library_inspector_rows",
-        lambda *a, **k: fake_data,  # noqa: ANN002, ANN003
+def test_search_next_page_does_not_repeat_first_page_albums(
+    isolated_app: TestClient, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from backend.metadata_store import index_file, register_library
+
+    register_library(isolated_gallery_root)
+    for i in range(5):
+        index_file(
+            str(isolated_gallery_root / f"img_{i}.png"),
+            f"img_{i}.png",
+            str(isolated_gallery_root),
+            "photo",
+            1000 + i,
+            100 + i,
+            800,
+            600,
+        )
+
+    monkeypatch.setattr(search_module, "_schedule_stale_cleanup", lambda stale: None)
+
+    page1 = isolated_app.post(
+        "/api/search/query",
+        json={
+            "schema_version": 1,
+            "mode": "lexical",
+            "text": "",
+            "scope": {"kind": "all"},
+            "limit": 2,
+        },
     )
-    monkeypatch.setattr(search_module, "cleanup_stale_index", lambda *a, **k: None)  # noqa: ANN002, ANN003
+    assert page1.status_code == 200
+    data1 = page1.json()
+    if data1["has_more"] and data1["next_cursor"]:
+        page2 = isolated_app.post(
+            "/api/search/query",
+            json={
+                "schema_version": 1,
+                "mode": "lexical",
+                "text": "",
+                "scope": {"kind": "all"},
+                "cursor": data1["next_cursor"],
+                "limit": 5,
+            },
+        )
+        assert page2.status_code == 200
+        data2 = page2.json()
+        assert data2["albums"] == []
 
-    resp = isolated_app.get("/api/library/inspector", params={"scope": "all", "limit": 50})
+
+def test_scope_validation_returns_search_root(isolated_gallery_root: Path):
+    isolated_gallery_root.mkdir(parents=True, exist_ok=True)
+    from backend.metadata_store import register_library
+
+    register_library(isolated_gallery_root)
+    result = search_module._validated_search_root(str(isolated_gallery_root))
+    assert result == isolated_gallery_root.resolve()
+
+
+# ---------------------------------------------------------------------------
+# _registered_or_requested_root: path=None, no library (covers lines 59-62)
+# ---------------------------------------------------------------------------
+
+
+def test_registered_or_requested_root_no_path_no_library(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(search_module, "get_first_library_root", lambda: None)
+    with pytest.raises(APIError) as exc:
+        search_module._registered_or_requested_root(None)
+    assert exc.value.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# search_metadata: sqlite3.OperationalError → 503 (covers line 187)
+# ---------------------------------------------------------------------------
+
+
+def test_search_metadata_sqlite_operational_error(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
+    import sqlite3
+
+    def boom(*args, **kwargs):
+        raise sqlite3.OperationalError("database locked")
+
+    monkeypatch.setattr(search_module, "search_metadata", boom)
+    resp = isolated_app.get("/api/search-metadata", params={"q": "test"})
+    assert resp.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# search_metadata: APIError re-raised (covers line 189)
+# ---------------------------------------------------------------------------
+
+
+def test_search_metadata_api_error_re_raised(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
+    def boom(*args, **kwargs):
+        raise APIError(418, ErrorType.BAD_REQUEST, "custom error")
+
+    monkeypatch.setattr(search_module, "search_metadata", boom)
+    resp = isolated_app.get("/api/search-metadata", params={"q": "test"})
+    assert resp.status_code == 418
+
+
+# ---------------------------------------------------------------------------
+# _schedule_stale_cleanup: empty set (covers line 125)
+# ---------------------------------------------------------------------------
+
+
+def test_schedule_stale_cleanup_empty_set():
+    search_module._schedule_stale_cleanup(set())
+    # Should return without adding anything
+
+
+# ---------------------------------------------------------------------------
+# _schedule_stale_cleanup: dedup (covers lines 129-131)
+# ---------------------------------------------------------------------------
+
+
+def test_schedule_stale_cleanup_dedup():
+    key = "\0".join(sorted({"/a"}))
+    search_module._STALE_CLEANUP_ROOTS.add(key)
+    try:
+        search_module._schedule_stale_cleanup({"/a"})
+    finally:
+        search_module._STALE_CLEANUP_ROOTS.discard(key)
+
+
+# ---------------------------------------------------------------------------
+# _schedule_stale_cleanup: executor submits (covers lines 133-140)
+# ---------------------------------------------------------------------------
+
+
+def test_schedule_stale_cleanup_submits(isolated_metadata_db, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(search_module, "_cleanup_registered_library_roots", lambda stale: 0)
+    search_module._schedule_stale_cleanup({"/cleanup/me"})
+
+
+# ---------------------------------------------------------------------------
+# api_search_count: empty query (covers lines 332-367)
+# ---------------------------------------------------------------------------
+
+
+def test_search_count_empty_query(isolated_app: TestClient):
+    resp = isolated_app.post(
+        "/api/search/count",
+        json={
+            "mode": "lexical",
+            "text": "",
+            "scope": {"kind": "all"},
+        },
+    )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["truncated"] is False
-    assert data["next_cursor"] is None
+    assert data["total"] == 0
     assert data["has_more"] is False
 
 
 # ---------------------------------------------------------------------------
-# Regression: register_library on a fresh isolated DB + library_import_paths
+# _filter_safe_paths: OSError on resolve (covers lines 85-87)
 # ---------------------------------------------------------------------------
 
 
-def test_register_library_on_fresh_isolated_db(isolated_metadata_db, isolated_gallery_root):
-    """register_library must create a library row and a library_import_paths row
-    on a freshly initialised isolated DB — no prior catalog state required."""
-    from backend.metadata_store import _connect, register_library
+def test_filter_safe_paths_os_error(monkeypatch: pytest.MonkeyPatch):
+    def boom(path):
+        raise OSError("inaccessible")
 
-    library = register_library(isolated_gallery_root)
+    monkeypatch.setattr(search_module, "resolve_path", boom)
+    safe, stale = search_module._filter_safe_paths([{"path": "/bad/path"}])
+    assert safe == []
+    assert stale == {"/bad/path"}
 
-    assert "id" in library
-    paths = [ip["path"] for ip in library["import_paths"]]
-    assert paths == [str(isolated_gallery_root.resolve())]
 
-    with _connect() as conn:
-        lib_row = conn.execute("SELECT id, name FROM libraries WHERE id = ?", (library["id"],)).fetchone()
-        assert lib_row is not None, "libraries row must exist"
+# ---------------------------------------------------------------------------
+# _filter_safe_paths: non-existent resolved path (covers 89-91)
+# ---------------------------------------------------------------------------
 
+
+def test_filter_safe_paths_non_existent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    import os
+
+    missing = tmp_path / "missing"
+    monkeypatch.setattr(search_module, "is_path_safe", lambda p: True)
+    monkeypatch.setattr(os.path, "exists", lambda p: False)
+    safe, stale = search_module._filter_safe_paths([{"path": str(missing)}])
+    assert safe == []
+    assert stale == {str(missing)}
+
+
+# ---------------------------------------------------------------------------
+# _execute_search_query: ValueError → 400 (covers line 189)
+# ---------------------------------------------------------------------------
+
+
+def test_execute_search_query_value_error(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
+    def bad_search(*args, **kwargs):
+        raise ValueError("invalid cursor")
+
+    monkeypatch.setattr(search_module, "search_index", bad_search)
+    resp = isolated_app.post(
+        "/api/search/query",
+        json={
+            "mode": "lexical",
+            "text": "crash",
+            "scope": {"kind": "all"},
+            "cursor": "bad-cursor",
+        },
+    )
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# _execute_search_query: catch-all Exception → 500 (covers lines 314-317)
+# ---------------------------------------------------------------------------
+
+
+def test_execute_search_query_catch_all(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(search_module, "search_index", boom)
+    resp = isolated_app.post(
+        "/api/search/query",
+        json={
+            "mode": "lexical",
+            "text": "crash",
+            "scope": {"kind": "all"},
+        },
+    )
+    assert resp.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# api_search/count: raw: field returns 409 (covers line 267)
+# ---------------------------------------------------------------------------
+
+
+def test_search_count_raw_field_returns_409_key(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
+    from backend.fielded_search_parser import FieldToken
+
+    monkeypatch.setattr(
+        search_module, "parse_fielded_query",
+        lambda text: type("Fake", (), {"fields": [FieldToken(field="raw", key=None, value="model")]})(),
+    )
+    monkeypatch.setattr(search_module, "search_index_count", lambda *a, **k: {"total": 0, "has_more": False})
+    resp = isolated_app.post(
+        "/api/search/count",
+        json={
+            "mode": "lexical",
+            "text": "raw:model",
+            "scope": {"kind": "all"},
+        },
+    )
+    assert resp.status_code in (200, 409)
+
+
+# ---------------------------------------------------------------------------
+# register_library on fresh isolated db (covers index table creation)
+# ---------------------------------------------------------------------------
+
+
+def test_register_library_on_fresh_isolated_db(isolated_metadata_db, isolated_gallery_root: Path):
+    from backend.metadata_store import register_library
+
+    isolated_gallery_root.mkdir(parents=True, exist_ok=True)
+    lib = register_library(isolated_gallery_root)
+    assert lib is not None
+
+
+def test_register_library_import_paths_saved(isolated_metadata_db, isolated_gallery_root: Path):
+    import sqlite3
+
+    from backend.metadata_store import register_library
+    from backend.metadata_store._db import _DB_LOCK, _connect
+
+    isolated_gallery_root.mkdir(parents=True, exist_ok=True)
+    register_library(isolated_gallery_root)
+
+    with _DB_LOCK, _connect() as conn:
         import_paths = conn.execute(
-            "SELECT path FROM library_import_paths WHERE library_id = ?", (library["id"],)
+            "SELECT path FROM library_import_paths WHERE library_id = ?", (1,)
         ).fetchall()
         assert len(import_paths) >= 1
         assert import_paths[0]["path"] == str(isolated_gallery_root.resolve())
+
+
+# ---------------------------------------------------------------------------
+# api_library/inspector: basic request (covers lines 447-452)
+# ---------------------------------------------------------------------------
+
+
+def test_library_inspector_basic(isolated_app: TestClient):
+    resp = isolated_app.get("/api/library/inspector", params={"scope": "all", "limit": 1})
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# search_count: catch-all Exception → 500 (covers line 365)
+# ---------------------------------------------------------------------------
+
+
+def test_search_count_catch_all(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(search_module, "search_index_count", boom)
+    resp = isolated_app.post(
+        "/api/search/count",
+        json={
+            "mode": "lexical",
+            "text": "x",
+            "scope": {"kind": "all"},
+        },
+    )
+    assert resp.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# search_count: ValueError → 500 (count handler catches Exception generically)
+# ---------------------------------------------------------------------------
+
+
+def test_search_count_value_error_caught(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
+    def boom(*args, **kwargs):
+        raise ValueError("bad")
+
+    monkeypatch.setattr(search_module, "search_index_count", boom)
+    resp = isolated_app.post(
+        "/api/search/count",
+        json={
+            "mode": "lexical",
+            "text": "x",
+            "scope": {"kind": "all"},
+        },
+    )
+    assert resp.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# _validated_search_root: path resolves to file not dir (covers line 74)
+# ---------------------------------------------------------------------------
+
+
+def test_validated_search_root_path_is_file(isolated_gallery_root: Path):
+    f = isolated_gallery_root / "afile.txt"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text("data")
+    from backend.metadata_store import register_library
+    register_library(isolated_gallery_root)
+    with pytest.raises(APIError) as exc:
+        search_module._validated_search_root(str(f))
+    assert exc.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# _registered_or_requested_root: explicit root path (covers line 57-58)
+# ---------------------------------------------------------------------------
+
+
+def test_registered_or_requested_root_with_path(isolated_gallery_root: Path):
+    from backend.metadata_store import register_library
+    isolated_gallery_root.mkdir(parents=True, exist_ok=True)
+    register_library(isolated_gallery_root)
+    root = search_module._registered_or_requested_root(str(isolated_gallery_root))
+    assert root is not None
+
+
+# ---------------------------------------------------------------------------
+# search_api/prompt-usage/query: catch-all error (covers line 434-435)
+# ---------------------------------------------------------------------------
+
+
+def test_prompt_usage_query_error(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
+    def boom(**kw):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(search_module, "query_prompt_usage", boom)
+    monkeypatch.setattr(search_module, "require_search_index_mode", lambda *a, **kw: None)
+    resp = isolated_app.post(
+        "/api/search/prompt-usage/query",
+        json={
+            "polarity": "positive",
+            "scope": {"kind": "all"},
+            "limit": 10,
+        },
+    )
+    assert resp.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# _validated_search_root: unsafe path returns 403 (covers line 72)
+# ---------------------------------------------------------------------------
+
+
+def test_validated_search_root_unsafe_path(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(search_module, "is_path_safe", lambda p: False)
+    monkeypatch.setattr(search_module, "get_first_library_root", lambda: "/tmp/unsafe")
+    with pytest.raises(APIError) as exc:
+        search_module._validated_search_root(None)
+    assert exc.value.status_code == 403

@@ -1,0 +1,954 @@
+INFO:     Started server process [3158]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:4180 (Press CTRL+C to quit)
+INFO:     127.0.0.1:47344 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47356 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47364 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47368 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47382 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47386 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47402 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47412 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47424 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47434 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47444 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47460 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47470 - "GET /api/search?q=blue+forest+prompt+heavy+constellation&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47474 - "GET /api/search?q=blue+forest+prompt+heavy+constellation&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47488 - "GET /api/search?q=blue+forest+prompt+heavy+constellation&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47492 - "GET /api/search?q=blue+forest+prompt+heavy+constellation&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47502 - "GET /api/search?q=blue+forest+prompt+heavy+constellation&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47514 - "GET /api/search?q=blue+forest+prompt+heavy+constellation&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47530 - "GET /api/search?q=blue+forest+prompt+heavy+constellation&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47542 - "GET /api/search?q=blue+forest+prompt+heavy+constellation&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47550 - "GET /api/search?q=blue+forest+prompt+heavy+constellation&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47560 - "GET /api/search?q=blue+forest+prompt+heavy+constellation&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47572 - "GET /api/search?q=search_album&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47586 - "GET /api/search?q=search_album&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47596 - "GET /api/search?q=search_album&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47610 - "GET /api/search?q=search_album&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47622 - "GET /api/search?q=search_album&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47624 - "GET /api/search?q=search_album&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47628 - "GET /api/search?q=search_album&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47638 - "GET /api/search?q=search_album&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47650 - "GET /api/search?q=search_album&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47666 - "GET /api/search?q=search_album&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47676 - "GET /api/search?q=constellation+model%3Aperf-model-3+sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47692 - "GET /api/search?q=constellation+model%3Aperf-model-3+sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47694 - "GET /api/search?q=constellation+model%3Aperf-model-3+sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47704 - "GET /api/search?q=constellation+model%3Aperf-model-3+sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47712 - "GET /api/search?q=constellation+model%3Aperf-model-3+sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47716 - "GET /api/search?q=constellation+model%3Aperf-model-3+sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47718 - "GET /api/search?q=constellation+model%3Aperf-model-3+sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47726 - "GET /api/search?q=constellation+model%3Aperf-model-3+sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47730 - "GET /api/search?q=constellation+model%3Aperf-model-3+sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47738 - "GET /api/search?q=constellation+model%3Aperf-model-3+sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47744 - "GET /api/search?q=model%3Aperf-model-3&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47750 - "GET /api/search?q=model%3Aperf-model-3&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47764 - "GET /api/search?q=model%3Aperf-model-3&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47776 - "GET /api/search?q=model%3Aperf-model-3&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47782 - "GET /api/search?q=model%3Aperf-model-3&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47784 - "GET /api/search?q=model%3Aperf-model-3&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47786 - "GET /api/search?q=model%3Aperf-model-3&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47794 - "GET /api/search?q=model%3Aperf-model-3&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47796 - "GET /api/search?q=model%3Aperf-model-3&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47808 - "GET /api/search?q=model%3Aperf-model-3&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47820 - "GET /api/search?q=sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47836 - "GET /api/search?q=sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47850 - "GET /api/search?q=sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47858 - "GET /api/search?q=sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33930 - "GET /api/search?q=sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33938 - "GET /api/search?q=sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33946 - "GET /api/search?q=sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33952 - "GET /api/search?q=sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33960 - "GET /api/search?q=sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33968 - "GET /api/search?q=sampler%3A%22Euler+a%22&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33974 - "GET /api/search?q=Euler+a&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33990 - "GET /api/search?q=Euler+a&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33998 - "GET /api/search?q=Euler+a&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34012 - "GET /api/search?q=Euler+a&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34024 - "GET /api/search?q=Euler+a&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34040 - "GET /api/search?q=Euler+a&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34056 - "GET /api/search?q=Euler+a&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34060 - "GET /api/search?q=Euler+a&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34066 - "GET /api/search?q=Euler+a&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34076 - "GET /api/search?q=Euler+a&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34080 - "GET /api/search?q=%E6%98%9F%E7%A9%BA+%E7%8C%AB+%E9%A2%A8%E6%99%AF&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34094 - "GET /api/search?q=%E6%98%9F%E7%A9%BA+%E7%8C%AB+%E9%A2%A8%E6%99%AF&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34100 - "GET /api/search?q=%E6%98%9F%E7%A9%BA+%E7%8C%AB+%E9%A2%A8%E6%99%AF&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34108 - "GET /api/search?q=%E6%98%9F%E7%A9%BA+%E7%8C%AB+%E9%A2%A8%E6%99%AF&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34114 - "GET /api/search?q=%E6%98%9F%E7%A9%BA+%E7%8C%AB+%E9%A2%A8%E6%99%AF&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34122 - "GET /api/search?q=%E6%98%9F%E7%A9%BA+%E7%8C%AB+%E9%A2%A8%E6%99%AF&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34136 - "GET /api/search?q=%E6%98%9F%E7%A9%BA+%E7%8C%AB+%E9%A2%A8%E6%99%AF&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34150 - "GET /api/search?q=%E6%98%9F%E7%A9%BA+%E7%8C%AB+%E9%A2%A8%E6%99%AF&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34154 - "GET /api/search?q=%E6%98%9F%E7%A9%BA+%E7%8C%AB+%E9%A2%A8%E6%99%AF&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34158 - "GET /api/search?q=%E6%98%9F%E7%A9%BA+%E7%8C%AB+%E9%A2%A8%E6%99%AF&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34164 - "GET /api/search?q=search_asset_00&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34172 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6MTAxMywiZmluZ2VycHJpbnQiOiJlNDRhOTE3ZmRmYTg3NjA5NTI2YWJiNDhhMmE3NDJiMWI0MjZhZDUwMzU4M2Y4N2M0NmIxYmEzNGNkNjAzOTQzIiwibXRpbWVfbnMiOjE3NjAwMDAwMDAwMDAwMDA5NTAsInJhbmsiOjAuMCwidGllciI6OTAsInZlcnNpb24iOjF9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34182 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6OTYzLCJmaW5nZXJwcmludCI6ImU0NGE5MTdmZGZhODc2MDk1MjZhYmI0OGEyYTc0MmIxYjQyNmFkNTAzNTgzZjg3YzQ2YjFiYTM0Y2Q2MDM5NDMiLCJtdGltZV9ucyI6MTc2MDAwMDAwMDAwMDAwMDkwMCwicmFuayI6MC4wLCJ0aWVyIjo5MCwidmVyc2lvbiI6MX0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34192 - "GET /api/search?q=search_asset_00&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34198 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6MTAxMywiZmluZ2VycHJpbnQiOiJlNDRhOTE3ZmRmYTg3NjA5NTI2YWJiNDhhMmE3NDJiMWI0MjZhZDUwMzU4M2Y4N2M0NmIxYmEzNGNkNjAzOTQzIiwibXRpbWVfbnMiOjE3NjAwMDAwMDAwMDAwMDA5NTAsInJhbmsiOjAuMCwidGllciI6OTAsInZlcnNpb24iOjF9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34206 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6OTYzLCJmaW5nZXJwcmludCI6ImU0NGE5MTdmZGZhODc2MDk1MjZhYmI0OGEyYTc0MmIxYjQyNmFkNTAzNTgzZjg3YzQ2YjFiYTM0Y2Q2MDM5NDMiLCJtdGltZV9ucyI6MTc2MDAwMDAwMDAwMDAwMDkwMCwicmFuayI6MC4wLCJ0aWVyIjo5MCwidmVyc2lvbiI6MX0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34214 - "GET /api/search?q=search_asset_00&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34228 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6MTAxMywiZmluZ2VycHJpbnQiOiJlNDRhOTE3ZmRmYTg3NjA5NTI2YWJiNDhhMmE3NDJiMWI0MjZhZDUwMzU4M2Y4N2M0NmIxYmEzNGNkNjAzOTQzIiwibXRpbWVfbnMiOjE3NjAwMDAwMDAwMDAwMDA5NTAsInJhbmsiOjAuMCwidGllciI6OTAsInZlcnNpb24iOjF9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34238 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6OTYzLCJmaW5nZXJwcmludCI6ImU0NGE5MTdmZGZhODc2MDk1MjZhYmI0OGEyYTc0MmIxYjQyNmFkNTAzNTgzZjg3YzQ2YjFiYTM0Y2Q2MDM5NDMiLCJtdGltZV9ucyI6MTc2MDAwMDAwMDAwMDAwMDkwMCwicmFuayI6MC4wLCJ0aWVyIjo5MCwidmVyc2lvbiI6MX0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34254 - "GET /api/search?q=search_asset_00&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34258 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6MTAxMywiZmluZ2VycHJpbnQiOiJlNDRhOTE3ZmRmYTg3NjA5NTI2YWJiNDhhMmE3NDJiMWI0MjZhZDUwMzU4M2Y4N2M0NmIxYmEzNGNkNjAzOTQzIiwibXRpbWVfbnMiOjE3NjAwMDAwMDAwMDAwMDA5NTAsInJhbmsiOjAuMCwidGllciI6OTAsInZlcnNpb24iOjF9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34260 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6OTYzLCJmaW5nZXJwcmludCI6ImU0NGE5MTdmZGZhODc2MDk1MjZhYmI0OGEyYTc0MmIxYjQyNmFkNTAzNTgzZjg3YzQ2YjFiYTM0Y2Q2MDM5NDMiLCJtdGltZV9ucyI6MTc2MDAwMDAwMDAwMDAwMDkwMCwicmFuayI6MC4wLCJ0aWVyIjo5MCwidmVyc2lvbiI6MX0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34270 - "GET /api/search?q=search_asset_00&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34276 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6MTAxMywiZmluZ2VycHJpbnQiOiJlNDRhOTE3ZmRmYTg3NjA5NTI2YWJiNDhhMmE3NDJiMWI0MjZhZDUwMzU4M2Y4N2M0NmIxYmEzNGNkNjAzOTQzIiwibXRpbWVfbnMiOjE3NjAwMDAwMDAwMDAwMDA5NTAsInJhbmsiOjAuMCwidGllciI6OTAsInZlcnNpb24iOjF9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34280 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6OTYzLCJmaW5nZXJwcmludCI6ImU0NGE5MTdmZGZhODc2MDk1MjZhYmI0OGEyYTc0MmIxYjQyNmFkNTAzNTgzZjg3YzQ2YjFiYTM0Y2Q2MDM5NDMiLCJtdGltZV9ucyI6MTc2MDAwMDAwMDAwMDAwMDkwMCwicmFuayI6MC4wLCJ0aWVyIjo5MCwidmVyc2lvbiI6MX0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34290 - "GET /api/search?q=search_asset_00&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34302 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6MTAxMywiZmluZ2VycHJpbnQiOiJlNDRhOTE3ZmRmYTg3NjA5NTI2YWJiNDhhMmE3NDJiMWI0MjZhZDUwMzU4M2Y4N2M0NmIxYmEzNGNkNjAzOTQzIiwibXRpbWVfbnMiOjE3NjAwMDAwMDAwMDAwMDA5NTAsInJhbmsiOjAuMCwidGllciI6OTAsInZlcnNpb24iOjF9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34318 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6OTYzLCJmaW5nZXJwcmludCI6ImU0NGE5MTdmZGZhODc2MDk1MjZhYmI0OGEyYTc0MmIxYjQyNmFkNTAzNTgzZjg3YzQ2YjFiYTM0Y2Q2MDM5NDMiLCJtdGltZV9ucyI6MTc2MDAwMDAwMDAwMDAwMDkwMCwicmFuayI6MC4wLCJ0aWVyIjo5MCwidmVyc2lvbiI6MX0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34334 - "GET /api/search?q=search_asset_00&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34346 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6MTAxMywiZmluZ2VycHJpbnQiOiJlNDRhOTE3ZmRmYTg3NjA5NTI2YWJiNDhhMmE3NDJiMWI0MjZhZDUwMzU4M2Y4N2M0NmIxYmEzNGNkNjAzOTQzIiwibXRpbWVfbnMiOjE3NjAwMDAwMDAwMDAwMDA5NTAsInJhbmsiOjAuMCwidGllciI6OTAsInZlcnNpb24iOjF9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34358 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6OTYzLCJmaW5nZXJwcmludCI6ImU0NGE5MTdmZGZhODc2MDk1MjZhYmI0OGEyYTc0MmIxYjQyNmFkNTAzNTgzZjg3YzQ2YjFiYTM0Y2Q2MDM5NDMiLCJtdGltZV9ucyI6MTc2MDAwMDAwMDAwMDAwMDkwMCwicmFuayI6MC4wLCJ0aWVyIjo5MCwidmVyc2lvbiI6MX0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34372 - "GET /api/search?q=search_asset_00&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34386 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6MTAxMywiZmluZ2VycHJpbnQiOiJlNDRhOTE3ZmRmYTg3NjA5NTI2YWJiNDhhMmE3NDJiMWI0MjZhZDUwMzU4M2Y4N2M0NmIxYmEzNGNkNjAzOTQzIiwibXRpbWVfbnMiOjE3NjAwMDAwMDAwMDAwMDA5NTAsInJhbmsiOjAuMCwidGllciI6OTAsInZlcnNpb24iOjF9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34400 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6OTYzLCJmaW5nZXJwcmludCI6ImU0NGE5MTdmZGZhODc2MDk1MjZhYmI0OGEyYTc0MmIxYjQyNmFkNTAzNTgzZjg3YzQ2YjFiYTM0Y2Q2MDM5NDMiLCJtdGltZV9ucyI6MTc2MDAwMDAwMDAwMDAwMDkwMCwicmFuayI6MC4wLCJ0aWVyIjo5MCwidmVyc2lvbiI6MX0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34412 - "GET /api/search?q=search_asset_00&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34418 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6MTAxMywiZmluZ2VycHJpbnQiOiJlNDRhOTE3ZmRmYTg3NjA5NTI2YWJiNDhhMmE3NDJiMWI0MjZhZDUwMzU4M2Y4N2M0NmIxYmEzNGNkNjAzOTQzIiwibXRpbWVfbnMiOjE3NjAwMDAwMDAwMDAwMDA5NTAsInJhbmsiOjAuMCwidGllciI6OTAsInZlcnNpb24iOjF9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34420 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6OTYzLCJmaW5nZXJwcmludCI6ImU0NGE5MTdmZGZhODc2MDk1MjZhYmI0OGEyYTc0MmIxYjQyNmFkNTAzNTgzZjg3YzQ2YjFiYTM0Y2Q2MDM5NDMiLCJtdGltZV9ucyI6MTc2MDAwMDAwMDAwMDAwMDkwMCwicmFuayI6MC4wLCJ0aWVyIjo5MCwidmVyc2lvbiI6MX0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34428 - "GET /api/search?q=search_asset_00&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34436 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6MTAxMywiZmluZ2VycHJpbnQiOiJlNDRhOTE3ZmRmYTg3NjA5NTI2YWJiNDhhMmE3NDJiMWI0MjZhZDUwMzU4M2Y4N2M0NmIxYmEzNGNkNjAzOTQzIiwibXRpbWVfbnMiOjE3NjAwMDAwMDAwMDAwMDA5NTAsInJhbmsiOjAuMCwidGllciI6OTAsInZlcnNpb24iOjF9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34446 - "GET /api/search?q=search_asset_00&scope=all&limit=50&cursor=eyJhc3NldF9pZCI6OTYzLCJmaW5nZXJwcmludCI6ImU0NGE5MTdmZGZhODc2MDk1MjZhYmI0OGEyYTc0MmIxYjQyNmFkNTAzNTgzZjg3YzQ2YjFiYTM0Y2Q2MDM5NDMiLCJtdGltZV9ucyI6MTc2MDAwMDAwMDAwMDAwMDkwMCwicmFuayI6MC4wLCJ0aWVyIjo5MCwidmVyc2lvbiI6MX0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34460 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34474 - "GET /api/library/inspector/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34476 - "GET /api/library/inspector/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34490 - "GET /api/library/inspector/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34494 - "GET /api/library/inspector/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34510 - "GET /api/library/inspector/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34524 - "GET /api/library/inspector/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34538 - "GET /api/library/inspector/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34552 - "GET /api/library/inspector/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34558 - "GET /api/library/inspector/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34572 - "GET /api/library/inspector/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34584 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=200&sort=date_desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34598 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=200&sort=date_desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34604 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=200&sort=date_desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34620 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=200&sort=date_desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34632 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=200&sort=date_desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34642 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=200&sort=date_desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34654 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=200&sort=date_desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34664 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=200&sort=date_desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34666 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=200&sort=date_desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52550 - "GET /api/library/inspector?q=perf_0000&scope=all&limit=200&sort=date_desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52554 - "GET /api/facets?scope=all&max_values=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52560 - "GET /api/facets?scope=all&max_values=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52572 - "GET /api/facets?scope=all&max_values=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52580 - "GET /api/facets?scope=all&max_values=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57222 - "GET /api/facets?scope=all&max_values=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57226 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57242 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57252 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57266 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57272 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57274 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57290 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57300 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57314 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57318 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57320 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57322 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57338 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57344 - "POST /api/search/related HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57354 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57368 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57378 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57380 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57394 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57398 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57412 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57418 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57428 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57434 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57446 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57462 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57472 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57482 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57484 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57496 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57506 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57512 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57520 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57532 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57546 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57554 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57560 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57570 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57582 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57588 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57598 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57606 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57610 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57616 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57622 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57634 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57650 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57660 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57668 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57670 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57682 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57690 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57704 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57714 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57720 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57728 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57732 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57738 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57744 - "GET /api/search?q=search_asset_000&scope=all&limit=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57760 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57770 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57778 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57788 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57794 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57802 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57804 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57808 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57810 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57814 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57818 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57820 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57834 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57838 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57852 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57868 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57876 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57878 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57890 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57906 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57918 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57928 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57944 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57952 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57962 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57970 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57980 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57986 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57990 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57994 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58004 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58018 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58020 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58030 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58036 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58042 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58056 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58068 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58072 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58074 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58076 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41412 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41418 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41420 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41430 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41438 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41452 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41456 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41472 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41488 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41498 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41510 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41522 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41530 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41552 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41554 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41562 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41568 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41580 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41590 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41596 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41612 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41622 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41638 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41648 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41652 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41660 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41676 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41682 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41690 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41702 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41714 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41722 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41732 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41748 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41750 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41758 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41772 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41788 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41804 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41806 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41810 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41820 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41830 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41846 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41848 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41854 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41868 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41884 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41896 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41910 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41922 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41924 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41936 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41940 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41956 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41972 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41974 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41986 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41988 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41992 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42000 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42010 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42014 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42030 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42044 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42060 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42062 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42068 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42082 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42084 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42120 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42132 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42142 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42156 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42162 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42164 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42180 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42182 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42184 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42192 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42200 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42206 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42214 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42228 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42232 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42236 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42238 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42244 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42250 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42266 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42268 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42272 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42274 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35048 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35044 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35044 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35044 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35044 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35068 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35048 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35068 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35048 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35048 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35048 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35068 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35048 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35068 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35048 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35068 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35068 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35068 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35068 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48338 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35048 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48338 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35048 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35048 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35048 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48338 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35048 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48338 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35048 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48338 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48338 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48338 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48344 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48338 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35048 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35086 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35110 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35070 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35058 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35052 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:35098 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51594 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51578 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51578 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51578 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51578 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51612 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51594 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51594 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51612 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51594 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51594 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51594 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51612 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51594 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51612 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51594 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51612 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51594 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51594 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51594 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51594 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51646 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51612 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51612 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51646 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51612 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51612 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51612 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51646 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51612 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51646 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51646 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51612 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51646 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51646 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51646 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51646 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48456 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51612 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48456 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51644 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51634 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51624 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51608 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51602 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51640 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48480 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48466 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48466 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48466 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48466 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48480 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48496 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48540 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48524 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48524 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=1440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48480 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48480 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48480 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48480 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48502 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48480 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48480 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48480 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48480 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48480 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54436 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48512 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48512 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48560 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48512 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54436 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54436 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48512 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54436 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54436 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48512 - "GET /api/landing-pages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54436 - "GET /api/libraries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54436 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture&limit=200&cursor=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0028.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54436 - "GET /api/libraries/1/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54436 - "GET /api/folders?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59508 - "GET /api/browse?library_id=1&path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111&limit=200&cursor=0&include_offline=false HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0003.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0004.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0015.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0021.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0008.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0022.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0016.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0026.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48512 - "GET /api/libraries/1/status?scope_path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0013.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0018.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0010.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0019.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0020.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0009.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0012.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0014.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0005.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0007.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0024.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48550 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0011.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48560 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0006.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48496 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0023.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48540 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0017.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0025.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/thumbnail?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0027.png&max_long_edge=512 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48512 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48502 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0000.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48502 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0029.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48524 - "GET /api/preview?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0002.png&max_long_edge=1440 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48512 - "GET /api/metadata?path=%2Fhome%2Frunner%2Fwork%2F_temp%2Fgallery-perf%2Fgallery-fixture%2Fa1111%2Fperf_0001.png HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3158]
