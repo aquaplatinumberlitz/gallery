@@ -384,6 +384,324 @@ def test_parse_failure_marks_extraction_failed_and_index_degraded(isolated_galle
     assert state["state"] == "degraded"
 
 
+# ---------------------------------------------------------------------------
+# _typed_value boundary coverage
+# ---------------------------------------------------------------------------
+
+
+def test_typed_value_boolean_with_bool() -> None:
+    from backend.workflow_discovery import BOOLEAN, _typed_value
+
+    assert _typed_value(True, BOOLEAN) == {"value_type": "boolean", "value_boolean": 1}
+    assert _typed_value(False, BOOLEAN) == {"value_type": "boolean", "value_boolean": 0}
+
+
+def test_typed_value_boolean_with_non_bool() -> None:
+    from backend.workflow_discovery import BOOLEAN, _typed_value
+
+    assert _typed_value(1, BOOLEAN) is None
+    assert _typed_value("true", BOOLEAN) is None
+
+
+def test_typed_value_uint64_with_bool_returns_none() -> None:
+    from backend.workflow_discovery import UINT64, _typed_value
+
+    assert _typed_value(True, UINT64) is None
+
+
+def test_typed_value_uint64_out_of_range() -> None:
+    from backend.workflow_discovery import UINT64, _typed_value
+
+    assert _typed_value(-1, UINT64) is None
+    assert _typed_value(1 << 64, UINT64) is None
+
+
+def test_typed_value_integer_out_of_range() -> None:
+    from backend.workflow_discovery import INTEGER, _typed_value
+
+    assert _typed_value(-(1 << 63) - 1, INTEGER) is None
+    assert _typed_value(1 << 63, INTEGER) is None
+
+
+def test_typed_value_integer_non_integer_float() -> None:
+    from backend.workflow_discovery import INTEGER, _typed_value
+
+    assert _typed_value(3.14, INTEGER) is None
+
+
+def test_typed_value_real_non_finite() -> None:
+    from backend.workflow_discovery import REAL, _typed_value
+
+    assert _typed_value(float("nan"), REAL) is None
+    assert _typed_value(float("inf"), REAL) is None
+
+
+# ---------------------------------------------------------------------------
+# _normalized_node boundary coverage
+# ---------------------------------------------------------------------------
+
+
+def test_normalized_node_empty_type_returns_none() -> None:
+    from backend.workflow_discovery import _normalized_node
+
+    assert _normalized_node("1", {"class_type": ""}, ui_graph=False) is None
+
+
+def test_normalized_node_too_long_type_returns_none() -> None:
+    from backend.workflow_discovery import _normalized_node
+
+    assert _normalized_node("1", {"class_type": "x" * 129}, ui_graph=False) is None
+
+
+def test_normalized_node_max_properties_break() -> None:
+    from backend.workflow_discovery import _normalized_node
+
+    node = {
+        "class_type": "KSamplerAdvanced",
+        "inputs": {
+            "noise_seed": 1,
+            "steps": 20,
+            "start_at_step": 0,
+            "end_at_step": 20,
+            "cfg": 7.0,
+            "sampler_name": "euler",
+            "scheduler": "normal",
+            "add_noise": True,
+            "return_with_leftover_noise": False,
+        },
+    }
+    result = _normalized_node("1", node, ui_graph=False)
+    assert result is not None
+    assert len(result["properties"]) <= 32
+
+
+# ---------------------------------------------------------------------------
+# normalize_workflow_document boundary coverage
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_workflow_document_node_limit() -> None:
+    too_many = {str(i): {"class_type": "SaveImage", "inputs": {"filename_prefix": "x"}} for i in range(2049)}
+    with pytest.raises(WorkflowExtractionError, match="workflow_node_limit"):
+        normalize_workflow_document(too_many)
+
+
+def test_normalize_workflow_document_skips_non_dict_node() -> None:
+    result = normalize_workflow_document({"1": "not a dict"})
+    assert result["nodes"] == []
+
+
+def test_normalize_workflow_document_property_limit() -> None:
+    many_nodes = {}
+    for i in range(1000):
+        many_nodes[str(i)] = {
+            "class_type": "KSamplerAdvanced",
+            "inputs": {
+                "noise_seed": i, "steps": 20, "start_at_step": 0, "end_at_step": 20,
+                "cfg": 7.0, "sampler_name": "euler", "scheduler": "normal",
+                "add_noise": True, "return_with_leftover_noise": False,
+            },
+        }
+    with pytest.raises(WorkflowExtractionError, match="workflow_property_limit"):
+        normalize_workflow_document(many_nodes)
+
+
+# ---------------------------------------------------------------------------
+# _json_workflow_from_raw boundary coverage
+# ---------------------------------------------------------------------------
+
+
+def test_json_workflow_from_raw_source_too_large() -> None:
+    from backend.workflow_discovery import _json_workflow_from_raw
+
+    with pytest.raises(WorkflowExtractionError, match="workflow_source_too_large"):
+        _json_workflow_from_raw("x" * (2 * 1024 * 1024 + 1))
+
+
+def test_json_workflow_from_raw_prompt_line() -> None:
+    from backend.workflow_discovery import _json_workflow_from_raw
+
+    document = {"1": {"class_type": "SaveImage", "inputs": {"filename_prefix": "test"}}}
+    raw = f"prompt: {json.dumps(document)}"
+    result = _json_workflow_from_raw(raw)
+    assert result is not None
+    assert result["nodes"][0]["node_type"] == "SaveImage"
+
+
+def test_json_workflow_from_raw_ignores_workflow_invalid_document_and_continues() -> None:
+    from backend.workflow_discovery import _json_workflow_from_raw
+
+    raw = "prompt: [1, 2, 3]\nnot valid either"
+    result = _json_workflow_from_raw(raw)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _workflow_source boundary coverage
+# ---------------------------------------------------------------------------
+
+
+def test_workflow_source_no_row_returns_none(isolated_metadata_db: Path) -> None:
+    from backend.workflow_discovery import _workflow_source
+
+    result, looks_comfy = _workflow_source({"path": "/nonexistent"})
+    assert result is None
+    assert looks_comfy is False
+
+
+def test_extract_workflow_properties_catches_workflow_extraction_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    from backend.workflow_discovery import extract_workflow_properties
+    from backend.search_indexer import SearchExtractionResult
+
+    def raise_extraction_error(asset):
+        from backend.workflow_discovery import WorkflowExtractionError
+        raise WorkflowExtractionError("workflow_source_too_large")
+
+    monkeypatch.setattr("backend.workflow_discovery._workflow_source", raise_extraction_error)
+    result = extract_workflow_properties({"path": "/bad.json"})
+    assert isinstance(result, SearchExtractionResult)
+    assert result.status == "failed"
+    assert result.error_code == "workflow_source_too_large"
+
+
+# ---------------------------------------------------------------------------
+# validate_workflow_groups boundary coverage
+# ---------------------------------------------------------------------------
+
+
+def test_validate_workflow_groups_unsupported_node_type() -> None:
+    from backend.workflow_discovery import validate_workflow_groups
+    from dataclasses import dataclass
+
+    @dataclass
+    class Predicate:
+        property: str
+        op: str
+        value: object
+
+    @dataclass
+    class Group:
+        node_type: str
+        predicates: list
+
+    with pytest.raises(ValueError, match="node_type is unsupported"):
+        validate_workflow_groups([Group("UnknownNode", [])])
+
+
+def test_validate_workflow_groups_unsupported_property() -> None:
+    from backend.workflow_discovery import validate_workflow_groups
+    from dataclasses import dataclass
+
+    @dataclass
+    class Predicate:
+        property: str
+        op: str
+        value: object
+
+    @dataclass
+    class Group:
+        node_type: str
+        predicates: list
+
+    with pytest.raises(ValueError, match="property is unsupported"):
+        validate_workflow_groups([Group("KSampler", [Predicate("nonexistent", "eq", 1)])])
+
+
+def test_validate_workflow_groups_invalid_value() -> None:
+    from backend.workflow_discovery import validate_workflow_groups
+    from dataclasses import dataclass
+
+    @dataclass
+    class Predicate:
+        property: str
+        op: str
+        value: object
+
+    @dataclass
+    class Group:
+        node_type: str
+        predicates: list
+
+    with pytest.raises(ValueError, match="value is invalid"):
+        validate_workflow_groups([Group("KSampler", [Predicate("steps", "eq", "not_a_number")])])
+
+
+# ---------------------------------------------------------------------------
+# build_workflow_group_conditions: text prefix with escape
+# ---------------------------------------------------------------------------
+
+
+def test_build_workflow_group_conditions_text_prefix_escape() -> None:
+    from backend.workflow_discovery import build_workflow_group_conditions
+    from dataclasses import dataclass
+
+    @dataclass
+    class Predicate:
+        property: str
+        op: str
+        value: object
+
+    @dataclass
+    class Group:
+        node_type: str
+        predicates: list
+
+    conditions, params = build_workflow_group_conditions(
+        [Group("SaveImage", [Predicate("filename_prefix", "prefix", "test_%_suffix")])]
+    )
+    assert len(conditions) == 1
+    assert "\\%" in str(params)
+
+
+def test_build_workflow_group_conditions_text_contains_escape() -> None:
+    from backend.workflow_discovery import build_workflow_group_conditions
+    from dataclasses import dataclass
+
+    @dataclass
+    class Predicate:
+        property: str
+        op: str
+        value: object
+
+    @dataclass
+    class Group:
+        node_type: str
+        predicates: list
+
+    conditions, params = build_workflow_group_conditions(
+        [Group("SaveImage", [Predicate("filename_prefix", "contains", "testval")])]
+    )
+    assert len(conditions) == 1
+    assert "%testval%" in str(params)
+
+
+# ---------------------------------------------------------------------------
+# build_workflow_group_conditions: uint64_token fallback
+# ---------------------------------------------------------------------------
+
+
+def test_build_workflow_group_conditions_uint64_token() -> None:
+    from backend.workflow_discovery import build_workflow_group_conditions
+    from dataclasses import dataclass
+
+    @dataclass
+    class Predicate:
+        property: str
+        op: str
+        value: object
+
+    @dataclass
+    class Group:
+        node_type: str
+        predicates: list
+
+    conditions, params = build_workflow_group_conditions(
+        [Group("KSampler", [Predicate("seed", "eq", "12345")])]
+    )
+    assert len(conditions) == 1
+    assert "value_text" in conditions[0]
+
+
 def test_typed_query_plan_and_25k_500k_property_budget(isolated_gallery_root: Path) -> None:
     library = register_library(isolated_gallery_root, name="Workflow perf")
     with _connect() as conn:

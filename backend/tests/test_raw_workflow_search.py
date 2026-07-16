@@ -386,3 +386,159 @@ def test_raw_workflow_25k_fixture_meets_500ms_budget_and_250ms_deadline(
         assert result["returned"] == 50
     assert sorted(durations)[-1] < 500
     assert sorted(durations)[-1] < raw_module.RAW_WORKFLOW_QUERY_DEADLINE_SECONDS * 1000
+
+
+# ---------------------------------------------------------------------------
+# _raw_workflow_source: no metadata row (line 70)
+# ---------------------------------------------------------------------------
+
+
+def test_raw_workflow_source_no_row():
+    from backend.workflow_raw_search import _raw_workflow_source
+
+    document, looks_comfy = _raw_workflow_source({"path": "/nonexistent"})
+    assert document is None
+    assert looks_comfy is False
+
+
+# ---------------------------------------------------------------------------
+# _raw_workflow_source: JSON decode error in metadata (lines 76-77)
+# ---------------------------------------------------------------------------
+
+
+def test_raw_workflow_source_bad_metadata_json(isolated_metadata_db: Path):
+    from backend.workflow_raw_search import _raw_workflow_source
+    from backend.metadata_store._db import _connect
+
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO image_metadata(path, name, mtime, size, metadata_json) "
+            "VALUES ('/test.png', 'test.png', 1000, 100, '{bad json')"
+        )
+
+    document, looks_comfy = _raw_workflow_source({"path": "/test.png"})
+    assert document is None
+    assert looks_comfy is False
+
+
+# ---------------------------------------------------------------------------
+# extract_raw_workflow: non-ComfyUI, no document (lines 88-90)
+# ---------------------------------------------------------------------------
+
+
+def test_extract_raw_workflow_not_applicable(isolated_metadata_db: Path, monkeypatch: pytest.MonkeyPatch):
+    from backend.workflow_raw_search import extract_raw_workflow
+    from backend.search_indexer import SearchExtractionResult
+
+    def non_comfy_source(asset):
+        return None, False
+
+    monkeypatch.setattr("backend.workflow_raw_search._raw_workflow_source", non_comfy_source)
+    result = extract_raw_workflow({"path": "/test.png"})
+    assert isinstance(result, SearchExtractionResult)
+    assert result.status == "not_applicable"
+
+
+# ---------------------------------------------------------------------------
+# _validate_query: too short (line 205)
+# ---------------------------------------------------------------------------
+
+
+def test_raw_validate_query_too_short():
+    from backend.workflow_raw_search import _validate_query
+
+    with pytest.raises(ValueError, match="3-128"):
+        _validate_query("ab")
+
+
+# ---------------------------------------------------------------------------
+# _decode_cursor: bad format (line 187)
+# ---------------------------------------------------------------------------
+
+
+def test_raw_decode_cursor_bad_format():
+    from backend.workflow_raw_search import _decode_cursor
+
+    with pytest.raises(ValueError, match="Invalid raw workflow cursor"):
+        _decode_cursor("bad-cursor!!!", "fingerprint")
+
+
+# ---------------------------------------------------------------------------
+# _decode_cursor: version mismatch (line 196)
+# ---------------------------------------------------------------------------
+
+
+def test_raw_decode_cursor_version_mismatch():
+    import base64, json
+    from backend.workflow_raw_search import _decode_cursor, RAW_WORKFLOW_CURSOR_VERSION
+
+    old_version = RAW_WORKFLOW_CURSOR_VERSION - 1
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"version": old_version, "fingerprint": "fp", "rank": 1.0, "mtime_ns": 0, "asset_id": 1}).encode()
+    ).decode().rstrip("=")
+
+    with pytest.raises(ValueError, match="Invalid raw workflow cursor"):
+        _decode_cursor(payload, "fp")
+
+
+# ---------------------------------------------------------------------------
+# _decode_cursor: fingerprint mismatch (line 198-199)
+# ---------------------------------------------------------------------------
+
+
+def test_raw_decode_cursor_fingerprint_mismatch():
+    import base64, json
+    from backend.workflow_raw_search import _decode_cursor, RAW_WORKFLOW_CURSOR_VERSION
+
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"version": RAW_WORKFLOW_CURSOR_VERSION, "fingerprint": "wrong_fp", "rank": 1.0, "mtime_ns": 0, "asset_id": 1}).encode()
+    ).decode().rstrip("=")
+
+    with pytest.raises(ValueError, match="Invalid raw workflow cursor"):
+        _decode_cursor(payload, "expected_fp")
+
+
+# ---------------------------------------------------------------------------
+# query_raw_workflows: scope=folder with root_path (lines 245-249)
+# ---------------------------------------------------------------------------
+
+
+def test_raw_query_scope_folder(isolated_metadata_db: Path, monkeypatch: pytest.MonkeyPatch):
+    from backend.workflow_raw_search import query_raw_workflows
+    from backend.metadata_store._db import _connect
+
+    result = query_raw_workflows(
+        query="test",
+        scope="folder",
+        root_path="/tmp",
+        library_id=1,
+        cursor=None,
+        limit=1,
+    )
+    assert result["returned"] == 0
+
+
+# ---------------------------------------------------------------------------
+# query_raw_workflows: timeout path (lines 293-296)
+# ---------------------------------------------------------------------------
+
+
+def test_raw_query_operational_error_interrupted(isolated_metadata_db: Path, monkeypatch: pytest.MonkeyPatch):
+    import sqlite3
+    from unittest.mock import MagicMock
+    from backend.workflow_raw_search import query_raw_workflows, RawWorkflowTimeout
+
+    mock_conn = MagicMock()
+    mock_conn.execute.side_effect = sqlite3.OperationalError("interrupted")
+    mock_conn.row_factory = None
+    monkeypatch.setattr("backend.workflow_raw_search._readonly_connection", lambda: mock_conn)
+
+    with pytest.raises(RawWorkflowTimeout):
+        query_raw_workflows(
+            query="test",
+            scope="all",
+            root_path=None,
+            library_id=None,
+            cursor=None,
+            limit=1,
+        )

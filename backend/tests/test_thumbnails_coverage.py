@@ -349,3 +349,112 @@ def test_api_thumbnail_404_for_missing_file(tmp_path: Path):
     client = TestClient(app, raise_server_exceptions=False)
     resp = client.get("/api/thumbnail", params={"path": str(tmp_path / "ghost.png")})
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# _render_derivative_impl: L mode images (line 194)
+# ---------------------------------------------------------------------------
+
+
+def test_render_derivative_impl_l_mode_converts_to_rgb(tmp_path: Path):
+    from PIL import Image
+    from backend import thumbnails
+    from io import BytesIO
+
+    image = tmp_path / "grayscale.png"
+    Image.new("L", (100, 80), 128).save(image, format="PNG")
+
+    out = thumbnails._render_derivative_impl(image, max_long_edge=50, quality=80, format="webp", no_upscale=True)
+    with Image.open(BytesIO(out)) as rendered:
+        assert rendered.mode == "RGB"
+
+
+# ---------------------------------------------------------------------------
+# generate_derivative: request_timing coverage (line 251)
+# ---------------------------------------------------------------------------
+
+
+def test_generate_derivative_records_timing(isolated_thumbnail_cache: Path, tmp_path: Path):
+    from PIL import Image
+    from backend import thumbnails
+
+    image = tmp_path / "timing.png"
+    Image.new("RGB", (200, 150), (40, 120, 200)).save(image, format="PNG")
+
+    timing: dict[str, float] = {}
+    thumbnails.generate_derivative(image, kind="thumbnail", max_long_edge=100, quality=80, format="webp", request_timing=timing)
+    assert "render_encode_persist_ms" in timing
+    assert timing["render_encode_persist_ms"] > 0
+
+
+# ---------------------------------------------------------------------------
+# _validate_public_size boundary (lines 292-296)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_public_size_rejects_unsupported():
+    from backend import thumbnails
+    from backend.errors import APIError
+
+    with pytest.raises(APIError) as exc:
+        thumbnails._validate_public_size("thumbnail", 999)
+    assert exc.value.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# _resolve_derivative_source: asset_id path (lines 274-277) and error paths
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_derivative_source_with_asset_id_not_found(
+    isolated_metadata_db: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from backend import thumbnails
+    from backend.errors import APIError
+    from backend.metadata_store._db import _connect
+
+    monkeypatch.setattr("backend.thumbnails.require_media_path_allowed", lambda p, t: None)
+
+    with pytest.raises(APIError) as exc:
+        thumbnails._resolve_derivative_source(None, 99999)
+    assert exc.value.status_code == 404
+
+
+def test_resolve_derivative_source_without_path_or_asset_id():
+    from backend import thumbnails
+    from backend.errors import APIError
+
+    with pytest.raises(APIError) as exc:
+        thumbnails._resolve_derivative_source(None, None)
+    assert exc.value.status_code == 400
+
+
+def test_resolve_derivative_source_with_path_asset_not_found(
+    isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from backend import thumbnails
+    from backend.errors import APIError
+    import backend.derivative_scheduler as ds
+
+    image = isolated_gallery_root / "test.png"
+    image.write_bytes(b"dummy")
+    monkeypatch.setattr(thumbnails, "require_media_path_allowed", lambda p, t: Path(str(image)))
+    monkeypatch.setattr(thumbnails, "is_image", lambda p: True)
+    monkeypatch.setattr(ds.scheduler, "find_asset_id", lambda p: None)
+    monkeypatch.setattr(ds.scheduler, "get_asset_path", lambda aid: None)
+
+    with pytest.raises(APIError) as exc:
+        thumbnails._resolve_derivative_source(str(image), None)
+    assert exc.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# clear_thumbnail_disk_cache coverage (line 151)
+# ---------------------------------------------------------------------------
+
+
+def test_clear_thumbnail_disk_cache():
+    from backend import thumbnails
+
+    count = thumbnails.clear_thumbnail_disk_cache()
+    assert count >= 0

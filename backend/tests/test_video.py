@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+from backend.errors import APIError
 from backend.metadata_store import (
     get_library_for_path,
     get_library_stats,
@@ -216,3 +217,261 @@ def test_video_poster_reports_missing_ffmpeg(
 
     assert response.status_code == 503
     assert response.json()["detail"]["error"] == "video_tool_unavailable"
+
+
+# ---------------------------------------------------------------------------
+# _validate_video coverage: file not found (404) and not a video (400)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_video_file_not_found():
+    import backend.video as video_module
+
+    with pytest.raises(APIError) as exc:
+        video_module._validate_video("/nonexistent/video.mp4")
+    assert exc.value.status_code == 404
+
+
+def test_validate_video_not_a_video_file(isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch):
+    import backend.video as video_module
+
+    text_file = isolated_gallery_root / "notes.txt"
+    text_file.write_text("not a video")
+    monkeypatch.setattr("backend.video.require_media_path_allowed", lambda p, k: Path(str(text_file)))
+    with pytest.raises(APIError) as exc:
+        video_module._validate_video(str(text_file))
+    assert exc.value.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# iter_file_range: empty chunk break (line 76) — simulated via tiny file
+# ---------------------------------------------------------------------------
+
+
+def test_iter_file_range_empty_chunk_break(tmp_path: Path):
+    import backend.video as video_module
+
+    path = tmp_path / "small.txt"
+    path.write_bytes(b"hello")
+    chunks = list(video_module.iter_file_range(path, 0, 3, chunk_size=5))
+    assert chunks == [b"hell"]
+
+
+# ---------------------------------------------------------------------------
+# _release_poster_serving: remaining > 0 (line 100)
+# ---------------------------------------------------------------------------
+
+
+def test_release_poster_serving_with_remaining():
+    import backend.video as video_module
+
+    video_module._acquire_poster_serving("/test/path")
+    video_module._acquire_poster_serving("/test/path")
+    video_module._release_poster_serving("/test/path")
+    import threading
+    with video_module._POSTER_STATE_LOCK:
+        assert video_module._POSTER_SERVING_COUNTS.get("/test/path") == 1
+    video_module._release_poster_serving("/test/path")
+
+
+# ---------------------------------------------------------------------------
+# _PosterServingLease: double release no-ops (line 115)
+# ---------------------------------------------------------------------------
+
+
+def test_poster_serving_lease_double_release():
+    import backend.video as video_module
+    from pathlib import Path
+
+    lease = video_module._PosterServingLease(Path("/tmp/test.webp"))
+    lease.release()
+    lease.release()
+
+
+# ---------------------------------------------------------------------------
+# Poster quota eviction: protected path skipped (lines 151-152)
+# ---------------------------------------------------------------------------
+
+
+def test_poster_quota_eviction_skips_protected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    import backend.video as video_module
+
+    cache_dir = tmp_path / "posters"
+    cache_dir.mkdir()
+    monkeypatch.setattr(video_module, "POSTER_CACHE_DIR", cache_dir)
+
+    for i in range(3):
+        p = cache_dir / f"poster_{i}.webp"
+        p.write_bytes(b"\x00" * 100)
+    monkeypatch.setattr(video_module, "VIDEO_POSTER_QUOTA_BYTES", 50)
+    monkeypatch.setattr(video_module, "_POSTER_GENERATING_PATHS", set())
+    monkeypatch.setattr(video_module, "_POSTER_SERVED_PATHS", {str(cache_dir / "poster_0.webp")})
+
+    result = video_module._enforce_poster_quota()
+    assert result is False
+
+
+# ---------------------------------------------------------------------------
+# 304 for if-none-match with no range (line 173)
+# ---------------------------------------------------------------------------
+
+
+def test_video_304_if_none_match(isolated_app, simple_video_file: Path):
+    resp1 = isolated_app.get("/api/video", params={"path": str(simple_video_file)})
+    etag = resp1.headers.get("etag")
+    assert etag is not None
+
+    resp2 = isolated_app.get(
+        "/api/video",
+        params={"path": str(simple_video_file)},
+        headers={"If-None-Match": etag},
+    )
+    assert resp2.status_code == 304
+
+
+# ---------------------------------------------------------------------------
+# if-range header validation (lines 181-188)
+# ---------------------------------------------------------------------------
+
+
+def test_video_if_range_matching_etag(isolated_app, simple_video_file: Path):
+    resp1 = isolated_app.get("/api/video", params={"path": str(simple_video_file)})
+    etag = resp1.headers.get("etag")
+
+    resp2 = isolated_app.get(
+        "/api/video",
+        params={"path": str(simple_video_file)},
+        headers={
+            "Range": "bytes=0-5",
+            "If-Range": etag,
+        },
+    )
+    assert resp2.status_code == 206
+
+
+def test_video_if_range_matching_date(isolated_app, simple_video_file: Path):
+    import email.utils
+    from datetime import datetime, timezone
+
+    resp1 = isolated_app.get("/api/video", params={"path": str(simple_video_file)})
+    last_modified = resp1.headers.get("last-modified")
+    dt = datetime.fromtimestamp(0, tz=timezone.utc)
+    past_date = email.utils.formatdate(dt.timestamp(), usegmt=True)
+
+    resp2 = isolated_app.get(
+        "/api/video",
+        params={"path": str(simple_video_file)},
+        headers={
+            "Range": "bytes=0-5",
+            "If-Range": past_date,
+        },
+    )
+    assert resp2.status_code == 200
+
+
+def test_video_if_range_invalid_date_falls_back(isolated_app, simple_video_file: Path):
+    resp2 = isolated_app.get(
+        "/api/video",
+        params={"path": str(simple_video_file)},
+        headers={
+            "Range": "bytes=0-5",
+            "If-Range": "not-a-valid-date-string",
+        },
+    )
+    assert resp2.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# ffmpeg poster generation failure (line 280)
+# ---------------------------------------------------------------------------
+
+
+def test_video_poster_ffmpeg_failure(
+    isolated_app,
+    monkeypatch: pytest.MonkeyPatch,
+    video_file: Path,
+):
+    import backend.video as video_module
+    import subprocess
+
+    real_run = subprocess.run
+
+    def failing_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=args[0], returncode=1, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", failing_run)
+    _catalog_video(video_file)
+
+    response = isolated_app.get("/api/video/poster", params={"path": str(video_file)})
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["error"] == "video_poster_failed"
+
+
+def test_video_poster_os_error(
+    isolated_app,
+    monkeypatch: pytest.MonkeyPatch,
+    video_file: Path,
+):
+    import backend.video as video_module
+    import subprocess
+
+    def failing_run(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(subprocess, "run", failing_run)
+    _catalog_video(video_file)
+
+    response = isolated_app.get("/api/video/poster", params={"path": str(video_file)})
+
+    assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Poster quota enforcement failure (lines 307-314)
+# ---------------------------------------------------------------------------
+
+
+def test_video_poster_quota_exceeded(
+    isolated_app,
+    monkeypatch: pytest.MonkeyPatch,
+    video_file: Path,
+    isolated_thumbnail_cache: Path,
+):
+    import backend.video as video_module
+
+    poster_dir = isolated_thumbnail_cache / "video_posters"
+    monkeypatch.setattr(video_module, "POSTER_CACHE_DIR", poster_dir)
+    monkeypatch.setattr(video_module, "VIDEO_POSTER_QUOTA_BYTES", 1)
+    _catalog_video(video_file)
+
+    response = isolated_app.get("/api/video/poster", params={"path": str(video_file)})
+
+    assert response.status_code == 507
+
+
+# ---------------------------------------------------------------------------
+# RuntimeError when serving lease is not acquired (line 325)
+# ---------------------------------------------------------------------------
+
+
+def test_video_poster_missing_lease(
+    isolated_app,
+    monkeypatch: pytest.MonkeyPatch,
+    video_file: Path,
+    isolated_thumbnail_cache: Path,
+):
+    import backend.video as video_module
+
+    poster_dir = isolated_thumbnail_cache / "video_posters"
+    monkeypatch.setattr(video_module, "POSTER_CACHE_DIR", poster_dir)
+
+    def failing_get(*args, **kwargs):
+        return "/tmp/nonexistent.webp"
+
+    monkeypatch.setattr(video_module, "_get_or_generate_poster", failing_get)
+    _catalog_video(video_file)
+
+    response = isolated_app.get("/api/video/poster", params={"path": str(video_file)})
+
+    assert response.status_code == 500
