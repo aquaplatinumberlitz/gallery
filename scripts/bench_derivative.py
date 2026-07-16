@@ -47,12 +47,8 @@ def run_derivative_benchmark(
     sample_count = int(os.getenv(f"{env_prefix}_SAMPLES", "5"))
     warm_repeats = max(1, int(os.getenv(f"{env_prefix}_WARM_REPEATS", "3")))
     max_long_edge = int(os.getenv(f"{env_prefix}_MAX_LONG_EDGE", str(default_max_long_edge)))
-    cold_budget = float(
-        os.getenv(f"{env_prefix}_COLD_P95_MS", str(budget_for(kind, "cold_p95_ms")))
-    )
-    warm_budget = float(
-        os.getenv(f"{env_prefix}_WARM_P95_MS", str(budget_for(kind, "warm_p95_ms")))
-    )
+    cold_budget = float(os.getenv(f"{env_prefix}_COLD_P95_MS", str(budget_for(kind, "cold_p95_ms"))))
+    warm_budget = float(os.getenv(f"{env_prefix}_WARM_P95_MS", str(budget_for(kind, "warm_p95_ms"))))
 
     if sample_count < 1:
         print(f"{kind} sample count must be >= 1", file=sys.stderr)
@@ -128,16 +124,8 @@ def run_derivative_benchmark(
             f"workload contract cold={len(cold_durations)}/{len(images)}, "
             f"warm={len(warm_durations)}/{expected_warm_requests}"
         )
-    response_sizes = [
-        detail.get("cold_bytes", 0)
-        for detail in sample_details
-        if "cold_error" not in detail
-    ]
-    response_sizes.extend(
-        size
-        for detail in sample_details
-        for size in detail.get("warm_response_bytes", [])
-    )
+    response_sizes = [detail.get("cold_bytes", 0) for detail in sample_details if "cold_error" not in detail]
+    response_sizes.extend(size for detail in sample_details for size in detail.get("warm_response_bytes", []))
     if len(response_sizes) != len(images) + expected_warm_requests or any(size <= 0 for size in response_sizes):
         failures.append("workload contract received an empty or missing response payload")
     if cold_stats["p95_ms"] > cold_budget:

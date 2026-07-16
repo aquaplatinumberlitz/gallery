@@ -112,7 +112,10 @@ def bench_search_case(
                 if not isinstance(row, dict):
                     unexpected_matches += 1
                     continue
-                if any(str(row.get(field) or "").casefold() != expected.casefold() for field, expected in expected_fields.items()):
+                if any(
+                    str(row.get(field) or "").casefold() != expected.casefold()
+                    for field, expected in expected_fields.items()
+                ):
                     unexpected_matches += 1
             observed_matches += int(last_payload.get("returned") or 0)
             if page_index == 0:
