@@ -93,7 +93,7 @@ function toggleGroup(groupId: string) {
               <button
                 v-if="group.field"
                 type="button"
-                class="inline-flex max-w-full items-baseline gap-1.5 rounded-md bg-muted px-2 py-1 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring-shadow)]"
+                class="inline-flex max-w-full cursor-pointer items-baseline gap-1.5 rounded-md bg-muted px-2 py-1 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring-shadow)]"
                 :aria-label="`Filter by ${group.label}: ${entry.value} (${formatCount(entry.count)} assets)`"
                 @click="emit('apply', group.field!, entry.value)"
               >

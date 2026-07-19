@@ -388,4 +388,13 @@ describe("AdvancedSearchDrawer", () => {
       },
     ]);
   });
+
+  it("exposes the apply shortcut on the submit button without a footer kbd hint", () => {
+    const wrapper = createWrapper();
+    const footer = wrapper.find('[data-testid="advanced-search-footer"]');
+    expect(footer.find("kbd").exists()).toBe(false);
+    const submit = footer.find('button[type="submit"]');
+    expect(submit.attributes("aria-keyshortcuts")).toBe("Control+Enter Meta+Enter");
+    expect(submit.attributes("title")).toContain("Ctrl");
+  });
 });

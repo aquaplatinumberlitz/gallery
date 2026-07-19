@@ -3,8 +3,10 @@ import { ref, nextTick, onBeforeUnmount, computed, watch } from "vue";
 import { Menu, Search, X, ArrowLeft, Loader2, SlidersHorizontal } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import { useGalleryStore } from "../stores/gallery";
+import { useFieldedSearch } from "@/composables/useFieldedSearch";
 import SortDropdown from "./SortDropdown.vue";
 import SearchScopeSelect from "./SearchScopeSelect.vue";
+import SearchFilterChips from "./SearchFilterChips.vue";
 import type { SearchScope, SortValue } from "../types";
 import { AnimatePresence, motion } from "motion-v";
 
@@ -27,6 +29,20 @@ const emit = defineEmits<{
   "toggle-theme": [];
   "open-advanced-search": [];
 }>();
+
+const {
+  fieldedFilters,
+  removeFilter,
+  clearAll,
+} = useFieldedSearch(() => props.searchQuery);
+
+function handleRemoveFilter(index: number) {
+  emit("update:searchQuery", removeFilter(index));
+}
+
+function handleClearAll() {
+  emit("update:searchQuery", clearAll());
+}
 
 const isSearchActive = ref(false);
 const searchInputRef = ref<HTMLInputElement | null>(null);
@@ -213,6 +229,13 @@ const gallerySortValue = computed<SortValue>({
           </div>
         </div>
       </motion.div>
+      <SearchFilterChips
+        v-if="isSearchActive"
+        :filters="fieldedFilters"
+        @remove="handleRemoveFilter"
+        @clear-all="handleClearAll"
+        class="mt-2 px-1"
+      />
     </div>
 
     <RouterLink v-if="!isSearchActive && showBackToGallery" to="/" class="mh-btn" aria-label="Back to gallery">

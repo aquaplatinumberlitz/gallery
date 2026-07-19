@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef } from "vue";
+import { computed, shallowRef, watch } from "vue";
 import { ChevronDown, Search } from "lucide-vue-next";
 import Input from "@/components/ui/Input.vue";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -27,6 +27,7 @@ const emit = defineEmits<{
 const countFormatter = new Intl.NumberFormat();
 const open = shallowRef(false);
 const filterText = shallowRef("");
+const focusedIndex = shallowRef(-1);
 
 const filteredOptions = computed(() => {
   const query = filterText.value.trim().toLowerCase();
@@ -44,9 +45,46 @@ function formatCount(count: number) {
   return countFormatter.format(count);
 }
 
+function handleListKeydown(e: KeyboardEvent) {
+  const items = filteredOptions.value;
+  if (!items.length) return;
+  switch (e.key) {
+    case "ArrowDown":
+      e.preventDefault();
+      if (focusedIndex.value < items.length - 1) focusedIndex.value++;
+      else focusedIndex.value = 0;
+      break;
+    case "ArrowUp":
+      e.preventDefault();
+      if (focusedIndex.value > 0) focusedIndex.value--;
+      else focusedIndex.value = items.length - 1;
+      break;
+    case "Enter":
+      e.preventDefault();
+      if (focusedIndex.value >= 0 && focusedIndex.value < items.length) {
+        selectOption(items[focusedIndex.value].value);
+      }
+      break;
+    case "Escape":
+      e.preventDefault();
+      open.value = false;
+      break;
+  }
+}
+
+watch(filterText, () => {
+  focusedIndex.value = -1;
+});
+
 function handleOpenChange(value: boolean) {
   open.value = value;
-  if (!value) filterText.value = "";
+  if (value) {
+    focusedIndex.value = -1;
+  } else {
+    filterText.value = "";
+    focusedIndex.value = -1;
+    document.getElementById(props.id)?.focus();
+  }
 }
 </script>
 
@@ -64,7 +102,7 @@ function handleOpenChange(value: boolean) {
           variant="ghost"
           data-focus-ring="none"
           class="h-full min-w-0 flex-1 rounded-r-none px-3 focus-visible:border-transparent focus-visible:ring-0"
-          aria-describedby="statusText ? `${id}-status` : undefined"
+          :aria-describedby="statusText ? `${id}-status` : undefined"
           @update:model-value="emit('update:modelValue', $event)"
         />
         <PopoverTrigger as-child>
@@ -101,11 +139,15 @@ function handleOpenChange(value: boolean) {
         <ul
           v-if="filteredOptions.length"
           class="advanced-search-facet-list max-h-60 overflow-y-auto"
+          role="listbox"
           :aria-label="`${label} suggestions`"
+          @keydown="handleListKeydown"
         >
-          <li v-for="entry in filteredOptions" :key="entry.value">
+          <li v-for="(entry, index) in filteredOptions" :key="entry.value">
             <button
               type="button"
+              role="option"
+              :aria-selected="index === focusedIndex"
               class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
               @click="selectOption(entry.value)"
             >

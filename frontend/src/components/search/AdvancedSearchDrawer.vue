@@ -453,8 +453,6 @@ watch(
 
           <IndexedFacetSummary class="mb-4" :groups="indexedFacetGroups" @apply="handleFacetApply" />
 
-          <p class="advanced-search-group-heading">Discovery &amp; tools</p>
-
           <Accordion
             type="multiple"
             :model-value="activeAccordionSections"
@@ -462,83 +460,18 @@ watch(
             class="min-w-0 max-w-full"
             data-testid="advanced-search-groups"
           >
-            <AccordionItem value="prompts">
-              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
-                <span class="flex flex-col gap-0.5"
-                  ><span>Prompt discovery</span
-                  ><span class="text-xs font-normal text-muted-foreground"
-                    >Browse grouped positive and negative prompts</span
-                  ></span
-                >
-              </AccordionTrigger>
-              <AccordionContent class="px-1 pt-2">
-                <PromptUsagePanel
-                  :scope="canonicalScope"
-                  :enabled="props.isOpen"
-                  @show-assets="showPromptAssets"
-                  @keydown.stop
-                />
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem value="workflow">
-              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
-                <span class="flex flex-col gap-0.5"
-                  ><span>Workflow properties</span
-                  ><span class="text-xs font-normal text-muted-foreground"
-                    >Build typed same-node ComfyUI filters</span
-                  ></span
-                >
-              </AccordionTrigger>
-              <AccordionContent class="px-1 pt-2">
-                <WorkflowFilterBuilder
-                  :registry="workflowRegistry"
-                  :initial-groups="galleryStore.searchFilters.workflow_groups"
-                  :server-field-errors="galleryStore.searchFieldErrors"
-                  @apply="applyWorkflowGroups"
-                  @keydown.stop
-                />
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem v-if="rawCapability?.enabled" value="raw-workflow">
-              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
-                <span class="flex flex-col gap-0.5"
-                  ><span>Raw workflow</span
-                  ><span class="text-xs font-normal text-muted-foreground"
-                    >Explicit, bounded, Apply-only search</span
-                  ></span
-                >
-              </AccordionTrigger>
-              <AccordionContent class="px-1 pt-2">
-                <RawWorkflowSearch :capability="rawCapability" :scope="canonicalScope" @keydown.stop />
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem value="indexes">
-              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
-                <span class="flex flex-col gap-0.5"
-                  ><span>Index status</span
-                  ><span class="text-xs font-normal text-muted-foreground"
-                    >Readiness, progress, rebuilds, and failures</span
-                  ></span
-                >
-              </AccordionTrigger>
-              <AccordionContent class="px-1 pt-2">
-                <SearchIndexStatusPanel :library-id="galleryStore.activeLibraryId" :open="props.isOpen" @keydown.stop />
-              </AccordionContent>
-            </AccordionItem>
-
-            <hr class="advanced-search-group-divider" />
             <p class="advanced-search-group-heading">Filters</p>
 
+            <label for="advanced-search-jump-input" class="mb-1 text-xs font-medium text-foreground"
+              >Jump to a filter field</label
+            >
             <div class="advanced-search-jump-field mb-3">
               <Search class="advanced-search-jump-icon" aria-hidden="true" />
               <Input
+                id="advanced-search-jump-input"
                 v-model="jumpQuery"
                 class="advanced-search-jump-input"
                 placeholder="Jump to a field (e.g. seed, steps, model)…"
-                aria-label="Jump to filter field"
                 @keydown.enter.prevent="handleJumpToField"
               />
             </div>
@@ -973,6 +906,76 @@ watch(
                 </FieldGroup>
               </AccordionContent>
             </AccordionItem>
+
+            <hr class="advanced-search-group-divider" />
+            <p class="advanced-search-group-heading">Discovery &amp; tools</p>
+
+            <AccordionItem value="prompts">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
+                <span class="flex flex-col gap-0.5"
+                  ><span>Prompt discovery</span
+                  ><span class="text-xs font-normal text-muted-foreground"
+                    >Browse grouped positive and negative prompts</span
+                  ></span
+                >
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-2">
+                <PromptUsagePanel
+                  :scope="canonicalScope"
+                  :enabled="props.isOpen"
+                  @show-assets="showPromptAssets"
+                  @keydown.stop
+                />
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="workflow">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
+                <span class="flex flex-col gap-0.5"
+                  ><span>Workflow properties</span
+                  ><span class="text-xs font-normal text-muted-foreground"
+                    >Build typed same-node ComfyUI filters</span
+                  ></span
+                >
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-2">
+                <WorkflowFilterBuilder
+                  :registry="workflowRegistry"
+                  :initial-groups="galleryStore.searchFilters.workflow_groups"
+                  :server-field-errors="galleryStore.searchFieldErrors"
+                  @apply="applyWorkflowGroups"
+                  @keydown.stop
+                />
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem v-if="rawCapability?.enabled" value="raw-workflow">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
+                <span class="flex flex-col gap-0.5"
+                  ><span>Raw workflow</span
+                  ><span class="text-xs font-normal text-muted-foreground"
+                    >Explicit, bounded, Apply-only search</span
+                  ></span
+                >
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-2">
+                <RawWorkflowSearch :capability="rawCapability" :scope="canonicalScope" @keydown.stop />
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="indexes">
+              <AccordionTrigger class="advanced-search-trigger text-left no-underline hover:no-underline">
+                <span class="flex flex-col gap-0.5"
+                  ><span>Index status</span
+                  ><span class="text-xs font-normal text-muted-foreground"
+                    >Readiness, progress, rebuilds, and failures</span
+                  ></span
+                >
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-2">
+                <SearchIndexStatusPanel :library-id="galleryStore.activeLibraryId" :open="props.isOpen" @keydown.stop />
+              </AccordionContent>
+            </AccordionItem>
           </Accordion>
         </div>
 
@@ -1002,19 +1005,23 @@ watch(
               <Trash2 data-icon="inline-start" />
               Clear all
             </Button>
-            <span v-if="validationErrorCount" class="text-xs font-medium text-destructive" role="alert">
+            <span v-if="validationErrorCount" class="min-w-0 truncate text-xs font-medium text-destructive" role="alert">
               {{ validationErrorCount }} field{{ validationErrorCount === 1 ? "" : "s" }} need attention
             </span>
-            <span v-else-if="isDirty" class="text-xs text-muted-foreground">Unsaved changes</span>
+            <span v-else-if="isDirty" class="min-w-0 truncate text-xs text-muted-foreground">Unsaved changes</span>
           </div>
           <div class="flex items-center justify-end gap-2 sm:gap-3">
-            <span class="hidden text-xs text-muted-foreground md:inline"
-              ><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd></span
-            >
             <Button type="button" variant="ghost" size="sm" class="advanced-search-action" @click="handleCancel">
               Cancel
             </Button>
-            <Button type="submit" size="sm" class="advanced-search-action" :disabled="!isDirty">
+            <Button
+              type="submit"
+              size="sm"
+              class="advanced-search-action"
+              :disabled="!isDirty"
+              aria-keyshortcuts="Control+Enter Meta+Enter"
+              title="Apply (Ctrl/⌘ + Enter)"
+            >
               <Search data-icon="inline-start" />{{ applyLabel }}
             </Button>
           </div>

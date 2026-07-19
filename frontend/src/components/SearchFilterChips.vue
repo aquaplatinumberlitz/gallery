@@ -44,17 +44,17 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
+.search-filter-remove {
+  width: 44px;
+  height: 44px;
+  margin-block: -0.375rem;
+  margin-right: -0.375rem;
+}
+
 @media (max-width: 1023px) {
   .search-filter-chip {
     min-height: 44px;
     padding-block: 0.375rem;
-  }
-
-  .search-filter-remove {
-    width: 44px;
-    height: 44px;
-    margin-block: -0.375rem;
-    margin-right: -0.375rem;
   }
 
   .search-filter-clear {

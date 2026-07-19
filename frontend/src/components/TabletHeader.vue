@@ -5,9 +5,11 @@ import { RouterLink } from "vue-router";
 import Breadcrumb from "./Breadcrumb.vue";
 import SearchScopeSelect from "./SearchScopeSelect.vue";
 import { useGalleryStore } from "../stores/gallery";
+import { useFieldedSearch } from "@/composables/useFieldedSearch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRouteChrome } from "@/composables/useRouteChrome";
 import { AnimatePresence, motion } from "motion-v";
+import SearchFilterChips from "./SearchFilterChips.vue";
 import type { SearchScope } from "@/types";
 
 interface Props {
@@ -29,6 +31,20 @@ const emit = defineEmits<{
 
 const galleryStore = useGalleryStore();
 const { pageTitle, showBackToGallery } = useRouteChrome();
+
+const {
+  fieldedFilters,
+  removeFilter,
+  clearAll,
+} = useFieldedSearch(() => props.searchQuery);
+
+function handleRemoveFilter(index: number) {
+  emit("update:searchQuery", removeFilter(index));
+}
+
+function handleClearAll() {
+  emit("update:searchQuery", clearAll());
+}
 
 const handleBreadcrumbNavigate = (path: string) => {
   galleryStore.selectFolder(path);
@@ -245,6 +261,14 @@ function openAdvancedSearch() {
       </Tooltip>
     </div>
   </header>
+
+  <SearchFilterChips
+    v-if="isSearchActive"
+    :filters="fieldedFilters"
+    @remove="handleRemoveFilter"
+    @clear-all="handleClearAll"
+    class="th-chips-row"
+  />
 
   <!-- Focus overlay -->
   <AnimatePresence :initial="false">
