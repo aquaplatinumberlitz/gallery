@@ -230,8 +230,8 @@ describe("Lightbox component", () => {
     expect(lightbox.attributes("style")).toContain("--lightbox-sidebar-width");
   });
 
-  it("renders fullscreen controls when not present (default)", async () => {
+  it("renders unified lx-bar overlay controls on desktop", async () => {
     const wrapper = await mountSubject();
-    expect(wrapper.find('[data-testid="fs-controls"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="lx-bar"]').exists()).toBe(true);
   });
 });

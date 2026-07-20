@@ -370,7 +370,6 @@ function handleToggleFullscreen() {
               :gen-time-text="genTimeText"
               :copy-status="copyStatus"
               :copy-text="copyLightboxText"
-              @close="handleClose"
             />
           </template>
 

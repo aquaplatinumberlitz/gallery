@@ -43,10 +43,6 @@ const props = defineProps<{
   copyText: (text: string | undefined, id: string) => Promise<boolean>;
 }>();
 
-const emit = defineEmits<{
-  close: [];
-}>();
-
 // Collapsible states
 const showGenParams = ref(true);
 const showResources = ref(false);
