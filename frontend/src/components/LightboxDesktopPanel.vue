@@ -6,8 +6,6 @@ import type { MetadataResponse } from "../types";
 import {
   Loader,
   Maximize,
-  Minimize,
-  X,
   Calendar,
   Clock,
   MessageSquareText,
@@ -41,15 +39,12 @@ const props = defineProps<{
   sizeText: string;
   dateText: string;
   genTimeText: string;
-  canFullscreen: boolean;
-  isFullscreen: boolean;
   copyStatus: Record<string, boolean>;
   copyText: (text: string | undefined, id: string) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
   close: [];
-  "toggle-fullscreen": [];
 }>();
 
 // Collapsible states
@@ -91,7 +86,7 @@ const modelCount = computed(() => {
 </script>
 
 <template>
-  <aside v-if="!props.isFullscreen" class="lightbox-right">
+  <aside class="lightbox-right">
     <div v-if="props.isLoading && !props.meta" class="meta-loading">
       <Loader :stroke-width="1.5" class="lucide-spin icon-nav" />
       <span>Loading info...</span>
@@ -108,29 +103,6 @@ const modelCount = computed(() => {
           <OverflowTooltip as="h3" id="lightbox-image-name" :text="props.imageName" align="start">
             {{ props.imageName }}
           </OverflowTooltip>
-          <div class="header-actions">
-            <Tooltip v-if="props.canFullscreen">
-              <TooltipTrigger as-child>
-                <button
-                  class="close-btn-mini fullscreen-btn"
-                  :aria-label="props.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
-                  @click="emit('toggle-fullscreen')"
-                >
-                  <Minimize v-if="props.isFullscreen" :stroke-width="1.5" class="icon-lg" />
-                  <Maximize v-else :stroke-width="1.5" class="icon-lg" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{{ props.isFullscreen ? "Exit fullscreen" : "Fullscreen" }}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <button class="close-btn-mini" aria-label="Close lightbox" @click="emit('close')">
-                  <X :stroke-width="1.5" class="icon-lg" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Close</TooltipContent>
-            </Tooltip>
-          </div>
         </div>
         <div class="header-meta">
           <span v-if="props.sizeText" class="meta-tag"

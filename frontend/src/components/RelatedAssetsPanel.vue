@@ -175,6 +175,16 @@ const tierLabel = (item: RelatedSearchResultV1) => {
     40: "Related",
   }[item.relation_tier];
 };
+
+/** Maps a result's highest-priority reason to its semantic color tier name */
+const tierColorTier = (item: RelatedSearchResultV1): string => {
+  if (item.relation_reasons.includes("same_exact_signature")) return "exact";
+  if (item.relation_reasons.includes("same_recipe") || item.relation_reasons.includes("same_generation_family")) return "recipe";
+  if (item.relation_reasons.includes("same_prompt") || item.relation_reasons.includes("strong_prompt_overlap")) return "prompt";
+  if (item.relation_reasons.includes("visual_variant")) return "visual";
+  return "model";
+};
+
 const stateLabel = (state: string) => state.replace(/_/g, " ");
 
 const resultNodes = computed<FileNode[]>(() =>
@@ -189,7 +199,11 @@ const resultNodes = computed<FileNode[]>(() =>
     mtime: item.mtime,
     width: item.width,
     height: item.height,
-    relation_scope: response.value?.scope,
+    // Spread to plain object — response.value?.scope is a reactive TanStack Query
+    // reference. Assigning it directly would carry the Proxy into FileNode, causing
+    // DataCloneError if structuredClone() is called downstream (e.g. relatedAssets store).
+    relation_scope: response.value?.scope ? { ...response.value.scope } : undefined,
+
   })),
 );
 
@@ -360,8 +374,20 @@ watch(
               <article v-for="item in results" :key="item.asset_id" class="related-card">
                 <div class="related-card-media">
                   <PhotoCard :src="item.path" :name="item.name" @click="openResult(item)" />
-                  <span class="tier-label">{{ tierLabel(item) }}</span>
+
+                  <!-- Tier badge: bottom-left, semantic dot -->
+                  <span class="tier-label" :data-tier="tierColorTier(item)">
+                    <span class="tier-dot" aria-hidden="true" />
+                    {{ tierLabel(item) }}
+                  </span>
+
+                  <!-- Detail chips: hover-reveal overlay at top of image -->
+                  <div class="chip-overlay" aria-hidden="true">
+                    <RelationReasonList :reasons="item.relation_reasons" />
+                  </div>
                 </div>
+
+                <!-- Compact 1-line filename -->
                 <Tooltip>
                   <TooltipTrigger as-child>
                     <button type="button" class="result-title" @click="openResult(item)">{{ item.name }}</button>
@@ -370,7 +396,6 @@ watch(
                     {{ item.name }}
                   </TooltipContent>
                 </Tooltip>
-                <RelationReasonList :reasons="item.relation_reasons" />
               </article>
             </div>
 
@@ -503,53 +528,113 @@ watch(
 .related-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
-  gap: 16px;
+  gap: 14px;
 }
 
 .related-card {
   display: grid;
   min-width: 0;
   align-content: start;
-  gap: 7px;
+  /* tight: image + 1-line filename only */
+  gap: 4px;
 }
 
 .related-card-media {
   position: relative;
+  border-radius: var(--gallery-radius-lg);
+  overflow: hidden;
 }
 
+/* ── Tier badge: bottom-left, dot + label ── */
 .tier-label {
   position: absolute;
-  bottom: 7px;
-  left: 7px;
+  bottom: 6px;
+  left: 6px;
   z-index: 4;
-  padding: 4px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px 2px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--gallery-radius-full);
-  background: rgba(0, 0, 0, 0.62);
-  color: white;
-  font-size: 12px;
-  font-weight: 750;
-  line-height: 1.25;
+  background: rgba(0, 0, 0, 0.56);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.2;
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
 }
 
+/* Semantic dot per tier */
+.tier-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.65);
+}
+.tier-label[data-tier="exact"]  .tier-dot { background: #818cf8; }
+.tier-label[data-tier="recipe"] .tier-dot { background: #fbbf24; }
+.tier-label[data-tier="prompt"] .tier-dot { background: #7dd3fc; }
+.tier-label[data-tier="model"]  .tier-dot { background: #2dd4bf; }
+.tier-label[data-tier="visual"] .tier-dot { background: #fb7185; }
+
+/* ── Chip overlay: top of image, revealed on hover ── */
+.chip-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 7px 7px 20px;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.50) 0%,
+    transparent 100%
+  );
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+  pointer-events: none;
+}
+
+.related-card-media:hover .chip-overlay,
+.related-card-media:focus-within .chip-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Touch (mobile/tablet): chip overlay stays hidden — tier badge is sufficient.
+   Detailed reasons are accessible via the lightbox/detail view.
+   Follows image-first grid principle (Google Photos, Apple Photos). */
+
+/* ── Compact filename: 1 line, no wasted height ── */
 .result-title {
   display: -webkit-box;
   min-width: 0;
-  min-height: 44px;
-  padding: 6px 0;
+  padding: 1px 0 0;
   overflow: hidden;
   border: 0;
   background: transparent;
-  color: var(--foreground);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.35;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
   text-align: left;
   overflow-wrap: anywhere;
   cursor: pointer;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
+  transition: color 120ms ease;
+}
+
+.result-title:hover {
+  color: var(--foreground);
 }
 
 .result-title:focus-visible {

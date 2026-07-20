@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, shallowRef, toRef, useTemplateRef, watch } from "vue";
 import "photoswipe/dist/photoswipe.css";
-import { X, ZoomIn, ZoomOut, Info } from "lucide-vue-next";
+import { X, ZoomIn, ZoomOut, Info, ScanSearch } from "lucide-vue-next";
 import type { FileNode } from "../types";
 import { usePhotoSwipe } from "../composables/usePhotoSwipe";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -11,12 +11,14 @@ const props = defineProps<{
   currentIndex: number;
   isOpen: boolean;
   metadataOpen?: boolean;
+  canFindRelated?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "close"): void;
   (e: "indexChange", index: number): void;
   (e: "toggleMetadata"): void;
+  (e: "findRelated"): void;
 }>();
 
 const containerRef = useTemplateRef<HTMLElement>("container");
@@ -75,10 +77,22 @@ watch(
   </div>
 
   <div v-if="!metadataOpen" class="tablet-photoswipe-bar">
+    <Tooltip v-if="canFindRelated">
+      <TooltipTrigger as-child>
+        <button
+          class="lx-ctrl"
+          aria-label="Find related"
+          @click="emit('findRelated')"
+        >
+          <ScanSearch :size="22" :stroke-width="2.2" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>Find related</TooltipContent>
+    </Tooltip>
     <Tooltip>
       <TooltipTrigger as-child>
         <button
-          class="lightbox-floating-control lightbox-floating-control--tablet"
+          class="lx-ctrl"
           aria-label="Close"
           @click="emit('close')"
         >
@@ -90,7 +104,7 @@ watch(
     <Tooltip>
       <TooltipTrigger as-child>
         <button
-          class="lightbox-floating-control lightbox-floating-control--tablet"
+          class="lx-ctrl"
           :aria-label="isZoomed ? 'Zoom out' : 'Zoom in'"
           @click="toggleZoom"
         >
@@ -104,7 +118,7 @@ watch(
       <TooltipTrigger as-child>
         <button
           ref="metadataButton"
-          class="lightbox-floating-control lightbox-floating-control--tablet"
+          class="lx-ctrl"
           aria-label="View image info"
           @click="emit('toggleMetadata')"
         >

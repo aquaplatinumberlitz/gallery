@@ -8,7 +8,7 @@ import { DESKTOP_METADATA_WIDTH } from "../constants";
 import { usePhotoMetadataQuery } from "../composables/usePhotoMetadataQuery";
 import { isLightboxNavDebugEnabled, lightboxItemAt, logLightboxNavDebug } from "../debug/lightboxNavDebug";
 import { markLightboxOverlayPainted, markLightboxTransitionStart } from "../utils/lightboxPerformance";
-import { Minimize, X } from "lucide-vue-next";
+import { Minimize, X, ScanSearch, Maximize } from "lucide-vue-next";
 import LightboxDesktopPanel from "./LightboxDesktopPanel.vue";
 import LightboxTabletPanel from "./LightboxTabletPanel.vue";
 import LightboxMobileSheet from "./LightboxMobileSheet.vue";
@@ -16,7 +16,7 @@ import MobilePhotoSwipe from "./MobilePhotoSwipe.vue";
 import TabletPhotoSwipe from "./TabletPhotoSwipe.vue";
 import PhotoSwipeViewer from "./PhotoSwipeViewer.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import AssetActionMenu from "@/components/AssetActionMenu.vue";
+
 import { useGalleryStore } from "@/stores/gallery";
 import { useRelatedAssetsStore } from "@/stores/relatedAssets";
 import { buildSearchScopeV1 } from "@/utils/searchRequest";
@@ -305,15 +305,39 @@ function handleToggleFullscreen() {
           class="lightbox-overlay"
           :style="{ '--lightbox-sidebar-width': sidebarWidthStyle }"
         >
-          <AssetActionMenu
-            v-if="currentItem?.asset_id"
-            class="lightbox-related-actions"
-            label="Lightbox image actions"
-            :dark="true"
-            @find-related="handleFindRelated"
-          />
           <!-- Desktop/Wide: PhotoSwipe + Sidebar -->
           <template v-if="isDesktop || isWide">
+            <div class="lx-bar" data-testid="lx-bar">
+              <Tooltip v-if="currentItem?.asset_id">
+                <TooltipTrigger as-child>
+                  <button class="lx-ctrl" aria-label="Find related" @click="handleFindRelated">
+                    <ScanSearch />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Find related</TooltipContent>
+              </Tooltip>
+              <Tooltip v-if="canFullscreen">
+                <TooltipTrigger as-child>
+                  <button
+                    class="lx-ctrl"
+                    :aria-label="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+                    @click="handleToggleFullscreen"
+                  >
+                    <Minimize v-if="isFullscreen" />
+                    <Maximize v-else />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{{ isFullscreen ? "Exit fullscreen" : "Fullscreen" }}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <button class="lx-ctrl" aria-label="Close" @click="handleClose">
+                    <X />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Close</TooltipContent>
+              </Tooltip>
+            </div>
             <PhotoSwipeViewer
               ref="desktopPhotoSwipeRef"
               :items="lightbox.galleryItems"
@@ -344,32 +368,10 @@ function handleToggleFullscreen() {
               :size-text="sizeText"
               :date-text="dateText"
               :gen-time-text="genTimeText"
-              :can-fullscreen="canFullscreen"
-              :is-fullscreen="isFullscreen"
               :copy-status="copyStatus"
               :copy-text="copyLightboxText"
               @close="handleClose"
-              @toggle-fullscreen="handleToggleFullscreen"
             />
-            <!-- Fullscreen overlay controls -->
-            <div v-if="isFullscreen" class="fs-controls" data-testid="fs-controls">
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <button class="fs-btn" aria-label="Exit fullscreen" @click="exitFullscreen">
-                    <Minimize class="gallery-icon-xl" :stroke-width="1.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Exit fullscreen</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <button class="fs-btn" aria-label="Close" @click="handleClose">
-                    <X class="gallery-icon-xl" :stroke-width="1.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Close</TooltipContent>
-              </Tooltip>
-            </div>
           </template>
 
           <!-- Tablet: PhotoSwipe + Bottom Sheet -->
@@ -379,6 +381,8 @@ function handleToggleFullscreen() {
               :current-index="lightbox.currentIndex"
               :is-open="show"
               :metadata-open="showSheet"
+              :can-find-related="Boolean(currentItem?.asset_id)"
+              @find-related="handleFindRelated"
               @close="handleClose"
               @index-change="handleIndexChange"
               @toggle-metadata="toggleSheet"
@@ -406,6 +410,8 @@ function handleToggleFullscreen() {
             :current-index="lightbox.currentIndex"
             :is-open="show"
             :metadata-open="showSheet"
+            :can-find-related="Boolean(currentItem?.asset_id)"
+            @find-related="handleFindRelated"
             @close="handlePhotoSwipeClose"
             @index-change="handlePhotoSwipeIndexChange"
             @toggle-metadata="toggleSheet"
@@ -462,52 +468,6 @@ function handleToggleFullscreen() {
   outline: none;
 }
 
-.lightbox-related-actions {
-  position: absolute;
-  top: 18px;
-  right: calc(var(--lightbox-sidebar-width, 0px) + 68px);
-  z-index: calc(var(--gallery-z-lightbox, 100000) + 2);
-}
-
-@media (max-width: 767px) {
-  .lightbox-related-actions {
-    top: max(12px, env(safe-area-inset-top));
-    right: 58px;
-  }
-}
-
-.fs-controls {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  display: inline-flex;
-  gap: 8px;
-  z-index: 10;
-}
-
-.fs-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(0, 0, 0, 0.4);
-  color: #fff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.fs-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
-.fs-btn:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring-shadow);
-}
 
 /* ── Token-based icon sizes ────────────────────────────────── */
 .gallery-icon-lg {

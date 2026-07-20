@@ -205,6 +205,9 @@ onBeforeUnmount(() => {
 .photo-card-shell {
   position: relative;
   width: 100%;
+  /* Enable container queries so child elements can respond to card width */
+  container-type: inline-size;
+  container-name: photo-card;
 }
 
 .photo-card {
@@ -269,21 +272,52 @@ onBeforeUnmount(() => {
 
 .photo-action-menu {
   position: absolute;
-  top: 7px;
-  right: 7px;
+  top: 8px;
+  right: 8px;
   z-index: 5;
   opacity: 0;
-  transition: opacity 160ms ease;
+  transform: translateY(-4px);
+  transition:
+    opacity 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .photo-card-shell:hover .photo-action-menu,
 .photo-card-shell:focus-within .photo-action-menu {
   opacity: 1;
+  transform: translateY(0);
 }
 
+/* Mobile: icon circle sits bottom-right, always visible, no animation */
 @media (hover: none) {
   .photo-action-menu {
+    top: auto;
+    bottom: 6px;
+    right: 6px;
     opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/*
+  Container query: hide pill text when card < 200px wide.
+  Covers tablet multi-column layouts (4–5 cols) and any small-grid desktop.
+  The button collapses to icon-only circle automatically — no JS needed.
+  :deep() pierces scoped boundary to target AssetActionMenu internals.
+*/
+@container photo-card (max-width: 199px) {
+  :deep(.action-label) {
+    display: none;
+  }
+
+  :deep(.asset-action-trigger) {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+    gap: 0;
   }
 }
 

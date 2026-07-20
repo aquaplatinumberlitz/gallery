@@ -38,11 +38,37 @@ const descriptions: Record<RelationReasonCodeV1, string> = {
     "Persisted image fingerprints are within the near-duplicate threshold. This does not prove a shared prompt or lineage.",
 };
 
+/**
+ * Semantic color tier per reason code.
+ * Higher-confidence reasons get warmer/brighter tints.
+ * "visual" gets its own distinct hue (rose) to distinguish pixel-similarity from metadata.
+ */
+const colorTier: Record<RelationReasonCodeV1, string> = {
+  // Tier: exact — indigo/violet (highest confidence)
+  same_exact_signature: "exact",
+  // Tier: recipe — amber (strong, structured match)
+  same_recipe: "recipe",
+  same_generation_family: "recipe",
+  // Tier: prompt — sky/cyan (semantic match)
+  same_prompt: "prompt",
+  strong_prompt_overlap: "prompt",
+  // Tier: model — teal (resource match)
+  same_model_hash: "model",
+  same_model_name: "model",
+  shared_lora: "model",
+  shared_resource: "model",
+  shared_workflow_property: "model",
+  similar_generation_settings: "model",
+  // Tier: visual — rose (pixel-based, separate from metadata)
+  visual_variant: "visual",
+};
+
 const visibleReasons = computed(() => {
-  const byLabel = new Map<string, { label: string; description: string }>();
+  const byLabel = new Map<string, { label: string; description: string; tier: string }>();
   for (const reason of props.reasons) {
     const label = labels[reason];
-    if (!byLabel.has(label)) byLabel.set(label, { label, description: descriptions[reason] });
+    if (!byLabel.has(label))
+      byLabel.set(label, { label, description: descriptions[reason], tier: colorTier[reason] });
   }
   return [...byLabel.values()];
 });
@@ -53,7 +79,13 @@ const visibleReasons = computed(() => {
     <li v-for="reason in visibleReasons" :key="reason.label">
       <Tooltip>
         <TooltipTrigger as-child>
-          <span class="reason-chip" tabindex="0" :aria-label="`${reason.label}: ${reason.description}`">
+          <span
+            class="reason-chip"
+            :data-tier="reason.tier"
+            tabindex="0"
+            :aria-label="`${reason.label}: ${reason.description}`"
+          >
+            <span class="reason-dot" aria-hidden="true" />
             {{ reason.label }}
           </span>
         </TooltipTrigger>
@@ -76,25 +108,116 @@ const visibleReasons = computed(() => {
   list-style: none;
 }
 
+/* ── Base chip ── */
 .reason-chip {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   max-width: 100%;
-  padding: 3px 7px;
+  padding: 2px 7px 2px 5px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--muted) 72%, transparent);
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 1.25;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default;
+  transition: filter 120ms ease;
+
+  /* fallback: neutral */
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
+  color: var(--muted-foreground);
 }
 
 .reason-chip:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring-shadow);
+}
+
+/* ── Dot indicator ── */
+.reason-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: currentColor;
+  opacity: 0.7;
+}
+
+/* ── Semantic tiers ── */
+
+/* Exact settings — indigo: highest confidence, structured + seed match */
+.reason-chip[data-tier="exact"] {
+  background: color-mix(in srgb, #6366f1 10%, var(--background));
+  border-color: color-mix(in srgb, #6366f1 35%, transparent);
+  color: color-mix(in srgb, #818cf8 90%, var(--foreground));
+}
+.reason-chip[data-tier="exact"] .reason-dot {
+  background-color: #818cf8;
+  opacity: 1;
+}
+
+/* Same recipe / family — amber: strong generation match */
+.reason-chip[data-tier="recipe"] {
+  background: color-mix(in srgb, #f59e0b 8%, var(--background));
+  border-color: color-mix(in srgb, #f59e0b 30%, transparent);
+  color: color-mix(in srgb, #fbbf24 85%, var(--foreground));
+}
+.reason-chip[data-tier="recipe"] .reason-dot {
+  background-color: #f59e0b;
+  opacity: 1;
+}
+
+/* Same prompt / overlap — sky: semantic/text match */
+.reason-chip[data-tier="prompt"] {
+  background: color-mix(in srgb, #38bdf8 8%, var(--background));
+  border-color: color-mix(in srgb, #38bdf8 30%, transparent);
+  color: color-mix(in srgb, #7dd3fc 85%, var(--foreground));
+}
+.reason-chip[data-tier="prompt"] .reason-dot {
+  background-color: #38bdf8;
+  opacity: 1;
+}
+
+/* Model / LoRA / resource match — teal */
+.reason-chip[data-tier="model"] {
+  background: color-mix(in srgb, #14b8a6 8%, var(--background));
+  border-color: color-mix(in srgb, #14b8a6 28%, transparent);
+  color: color-mix(in srgb, #2dd4bf 85%, var(--foreground));
+}
+.reason-chip[data-tier="model"] .reason-dot {
+  background-color: #14b8a6;
+  opacity: 1;
+}
+
+/* Visually similar — rose: pixel-based, intentionally distinct from metadata */
+.reason-chip[data-tier="visual"] {
+  background: color-mix(in srgb, #f43f5e 8%, var(--background));
+  border-color: color-mix(in srgb, #f43f5e 28%, transparent);
+  color: color-mix(in srgb, #fb7185 85%, var(--foreground));
+}
+.reason-chip[data-tier="visual"] .reason-dot {
+  background-color: #f43f5e;
+  opacity: 1;
+}
+
+/* ── Light mode overrides: darken text for readability ── */
+html[data-theme="light"] .reason-chip[data-tier="exact"] {
+  color: #4338ca;
+}
+html[data-theme="light"] .reason-chip[data-tier="recipe"] {
+  color: #92400e;
+}
+html[data-theme="light"] .reason-chip[data-tier="prompt"] {
+  color: #0369a1;
+}
+html[data-theme="light"] .reason-chip[data-tier="model"] {
+  color: #0f766e;
+}
+html[data-theme="light"] .reason-chip[data-tier="visual"] {
+  color: #be185d;
 }
 </style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, toRef, useTemplateRef, watch } from "vue";
-import { Info, X } from "lucide-vue-next";
+import { Info, X, ScanSearch } from "lucide-vue-next";
 import "photoswipe/dist/photoswipe.css";
 import type { FileNode } from "../types";
 import { usePhotoSwipe } from "../composables/usePhotoSwipe";
@@ -10,12 +10,14 @@ const props = defineProps<{
   currentIndex: number;
   isOpen: boolean;
   metadataOpen?: boolean;
+  canFindRelated?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "close"): void;
   (e: "indexChange", index: number): void;
   (e: "toggleMetadata"): void;
+  (e: "findRelated"): void;
 }>();
 
 const containerRef = useTemplateRef<HTMLElement>("container");
@@ -53,13 +55,21 @@ watch(
   <div class="mobile-photoswipe-counter">
     {{ counter }}
   </div>
-  <button class="lightbox-floating-control mobile-photoswipe-close" aria-label="Close" @click="emit('close')">
+  <button class="lx-ctrl mobile-photoswipe-close" aria-label="Close" @click="emit('close')">
     <X :size="22" :stroke-width="2.2" />
+  </button>
+  <button
+    v-if="!metadataOpen && canFindRelated"
+    class="lx-ctrl mobile-photoswipe-find-related"
+    aria-label="Find related"
+    @click.stop="emit('findRelated')"
+  >
+    <ScanSearch :size="22" :stroke-width="2.2" />
   </button>
   <button
     v-if="!metadataOpen"
     ref="metadataButton"
-    class="lightbox-floating-control lightbox-floating-control--mobile"
+    class="lx-ctrl mobile-photoswipe-info"
     :aria-label="'View image info'"
     @click.stop="emit('toggleMetadata')"
   >
@@ -100,14 +110,19 @@ watch(
   top: max(10px, env(safe-area-inset-top));
   left: max(12px, calc(env(safe-area-inset-left) + 8px));
   z-index: calc(var(--gallery-z-lightbox, 100000) + 1);
-  min-width: 44px;
-  min-height: 44px;
 }
 
-.lightbox-floating-control--mobile {
+.mobile-photoswipe-info {
   position: fixed;
   right: max(18px, env(safe-area-inset-right) + 14px);
   bottom: max(24px, env(safe-area-inset-bottom) + 12px);
+  z-index: calc(var(--gallery-z-lightbox, 100000) + 1);
+}
+
+.mobile-photoswipe-find-related {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right) + 14px);
+  bottom: max(76px, env(safe-area-inset-bottom) + 64px);
   z-index: calc(var(--gallery-z-lightbox, 100000) + 1);
 }
 </style>
