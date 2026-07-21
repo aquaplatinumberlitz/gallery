@@ -453,6 +453,54 @@ def test_worker_loop_contains_job_exception_and_processes_next_job(monkeypatch: 
     assert processed == [1, 2]
 
 
+def test_worker_loop_does_not_lose_wake_signal_set_between_empty_check_and_wait(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Regression: a wake signal set between _claim_job returning None and the
+    worker's wait/clear sequence must not be lost.
+
+    The previous code cleared the event before waiting, so a set() that fired
+    in the window between the empty-queue check and clear() was erased, forcing
+    the worker to block for the full timeout (1s) before re-polling. The fix
+    waits first and clears after, so the same set() is observed immediately.
+    """
+    scheduler = DerivativeScheduler()
+    processed: list[int] = []
+    call_count = [0]
+
+    def claim_job(_worker_id: str | None = None):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # Simulate a producer enqueuing + signaling AFTER the empty-queue
+            # check inside _claim_job, but BEFORE the worker reaches its
+            # wait/clear sequence. This is the lost-wakeup race window.
+            scheduler._wake_event.set()
+            return None
+        # Second call: the "enqueued" job is now available.
+        return {"job_id": 1}
+
+    def run_job(job):
+        processed.append(job["job_id"])
+        scheduler._stop_event.set()
+
+    monkeypatch.setattr(scheduler, "_claim_job", claim_job)
+    monkeypatch.setattr(scheduler, "_run_job", run_job)
+
+    start = time.monotonic()
+    scheduler._worker_loop()
+    elapsed = time.monotonic() - start
+
+    assert processed == [1]
+    # With the old clear-then-wait order, the set() above was erased by clear(),
+    # forcing wait(timeout=1) to block for the full second. The new wait-then-
+    # clear order observes the signal immediately, so the loop processes the
+    # job in well under the timeout.
+    assert elapsed < 0.5, (
+        f"worker took {elapsed:.3f}s to process a ready job, suggesting the "
+        "wake signal was lost between the empty-queue check and wait()"
+    )
+
+
 def test_claim_skips_job_when_asset_becomes_offline(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,

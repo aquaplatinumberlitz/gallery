@@ -1572,8 +1572,8 @@ class DerivativeScheduler:
                 self._stop_event.wait(0.5)
                 continue
             if job is None:
-                self._wake_event.clear()
                 self._wake_event.wait(timeout=1)
+                self._wake_event.clear()
                 continue
 
     def _supervisor_loop(self) -> None:
