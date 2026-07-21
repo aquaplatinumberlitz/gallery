@@ -204,7 +204,7 @@ describe("MaintenancePage", () => {
       },
     ];
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Recent job history");
+    expect(wrapper.text()).toContain("Recent jobs");
     expect(wrapper.text()).toContain("Latest 8 file catalog, metadata, and image cache jobs.");
     expect(wrapper.text()).toContain("View all jobs");
     expect(wrapper.text()).toContain("scan #12");
@@ -290,10 +290,12 @@ describe("MaintenancePage", () => {
     mockGlobalSummaryData = [{ ready_derivatives: 2, expected_derivatives: 2 }];
     const wrapper = mountSubject();
 
+    const runtimeSection = wrapper.get('section[aria-labelledby="runtime-heading"]');
+    const runtimeCards = runtimeSection.findAll('.rounded-xl');
+    const catalogSection = runtimeCards[0];
+    const metadataSection = runtimeCards[1];
     const cards = wrapper.findAll('[data-slot="card"]');
-    const catalogSection = cards.find((section) => section.text().includes("File catalog queue depth"));
-    const metadataSection = cards.find((section) => section.text().includes("Metadata workers"));
-    const thumbnailsSection = cards.find((section) => section.text().includes("Cached files"));
+    const thumbnailsSection = cards.find((section) => section.text().includes("Image cache"));
 
     expect(catalogSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
       "About File catalog queue depth",
@@ -304,10 +306,6 @@ describe("MaintenancePage", () => {
       "About Failed jobs",
       "About Old or missing metadata",
       "About Jobs without catalog item",
-    ]);
-    expect(thumbnailsSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
-      "Refresh image cache diagnostics",
-      "About required files",
     ]);
     expect(thumbnailsSection?.text()).not.toContain("Rebuild");
     expect(thumbnailsSection?.text()).not.toContain("Clear");
@@ -399,17 +397,17 @@ describe("MaintenancePage", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("File catalog workers");
     expect(wrapper.text()).toContain("3");
-    expect(wrapper.text()).toContain("File catalog active jobs");
+    expect(wrapper.text()).toContain("Active jobs");
     expect(wrapper.text()).toContain("1");
-    expect(wrapper.text()).toContain("File catalog queue depth");
+    expect(wrapper.text()).toContain("Queue depth");
     expect(wrapper.text()).toContain("5");
-    expect(wrapper.text()).toContain("Metadata workers");
+    expect(wrapper.text()).toContain("Workers");
     expect(wrapper.text()).toContain("4");
-    expect(wrapper.text()).toContain("Metadata active jobs");
+    expect(wrapper.text()).toContain("Active jobs");
     expect(wrapper.text()).toContain("2");
-    expect(wrapper.text()).toContain("Metadata queue depth");
+    expect(wrapper.text()).toContain("Queue depth");
     expect(wrapper.text()).toContain("10");
-    expect(wrapper.text()).toContain("Metadata staged queue depth");
+    expect(wrapper.text()).toContain("Staged queue depth");
     expect(wrapper.text()).toContain("7");
   });
 
@@ -449,10 +447,10 @@ describe("MaintenancePage", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Metadata extraction");
     expect(wrapper.text()).toContain("Reads file details after files are cataloged.");
-    expect(wrapper.text()).toContain("Metadata workers");
-    expect(wrapper.text()).toContain("Metadata active jobs");
-    expect(wrapper.text()).toContain("Metadata queue depth");
-    expect(wrapper.text()).toContain("Metadata staged queue depth");
+    expect(wrapper.text()).toContain("Workers");
+    expect(wrapper.text()).toContain("Active jobs");
+    expect(wrapper.text()).toContain("Queue depth");
+    expect(wrapper.text()).toContain("Staged queue depth");
     expect(wrapper.text()).toContain("Queued");
     expect(wrapper.text()).toContain("2");
     expect(wrapper.text()).toContain("Running");

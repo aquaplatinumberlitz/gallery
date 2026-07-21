@@ -369,7 +369,7 @@ test("card action opens one unified result list and result selection reuses ligh
   await lastResult.click();
   await expect(page.getByTestId("lightbox")).toBeVisible();
   await expect(page.getByTestId("lightbox").getByAltText(lastResultName)).toBeVisible();
-  await page.getByLabel("Close lightbox").click();
+  await page.getByLabel("Close").click();
   await expect(page.getByTestId("lightbox")).not.toBeVisible();
   await expect(page.getByRole("heading", { name: "Related assets" })).toBeVisible();
   expect(await scrollBody.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);

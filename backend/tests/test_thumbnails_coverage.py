@@ -357,9 +357,11 @@ def test_api_thumbnail_404_for_missing_file(tmp_path: Path):
 
 
 def test_render_derivative_impl_l_mode_converts_to_rgb(tmp_path: Path):
-    from PIL import Image
-    from backend import thumbnails
     from io import BytesIO
+
+    from PIL import Image
+
+    from backend import thumbnails
 
     image = tmp_path / "grayscale.png"
     Image.new("L", (100, 80), 128).save(image, format="PNG")
@@ -376,13 +378,16 @@ def test_render_derivative_impl_l_mode_converts_to_rgb(tmp_path: Path):
 
 def test_generate_derivative_records_timing(isolated_thumbnail_cache: Path, tmp_path: Path):
     from PIL import Image
+
     from backend import thumbnails
 
     image = tmp_path / "timing.png"
     Image.new("RGB", (200, 150), (40, 120, 200)).save(image, format="PNG")
 
     timing: dict[str, float] = {}
-    thumbnails.generate_derivative(image, kind="thumbnail", max_long_edge=100, quality=80, format="webp", request_timing=timing)
+    thumbnails.generate_derivative(
+        image, kind="thumbnail", max_long_edge=100, quality=80, format="webp", request_timing=timing
+    )
     assert "render_encode_persist_ms" in timing
     assert timing["render_encode_persist_ms"] > 0
 
@@ -406,12 +411,9 @@ def test_validate_public_size_rejects_unsupported():
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_derivative_source_with_asset_id_not_found(
-    isolated_metadata_db: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_resolve_derivative_source_with_asset_id_not_found(isolated_metadata_db: Path, monkeypatch: pytest.MonkeyPatch):
     from backend import thumbnails
     from backend.errors import APIError
-    from backend.metadata_store._db import _connect
 
     monkeypatch.setattr("backend.thumbnails.require_media_path_allowed", lambda p, t: None)
 
@@ -432,9 +434,9 @@ def test_resolve_derivative_source_without_path_or_asset_id():
 def test_resolve_derivative_source_with_path_asset_not_found(
     isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
 ):
+    import backend.derivative_scheduler as ds
     from backend import thumbnails
     from backend.errors import APIError
-    import backend.derivative_scheduler as ds
 
     image = isolated_gallery_root / "test.png"
     image.write_bytes(b"dummy")

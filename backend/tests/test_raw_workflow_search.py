@@ -407,8 +407,8 @@ def test_raw_workflow_source_no_row():
 
 
 def test_raw_workflow_source_bad_metadata_json(isolated_metadata_db: Path):
-    from backend.workflow_raw_search import _raw_workflow_source
     from backend.metadata_store._db import _connect
+    from backend.workflow_raw_search import _raw_workflow_source
 
     with _connect() as conn:
         conn.execute(
@@ -427,8 +427,8 @@ def test_raw_workflow_source_bad_metadata_json(isolated_metadata_db: Path):
 
 
 def test_extract_raw_workflow_not_applicable(isolated_metadata_db: Path, monkeypatch: pytest.MonkeyPatch):
-    from backend.workflow_raw_search import extract_raw_workflow
     from backend.search_indexer import SearchExtractionResult
+    from backend.workflow_raw_search import extract_raw_workflow
 
     def non_comfy_source(asset):
         return None, False
@@ -469,13 +469,21 @@ def test_raw_decode_cursor_bad_format():
 
 
 def test_raw_decode_cursor_version_mismatch():
-    import base64, json
-    from backend.workflow_raw_search import _decode_cursor, RAW_WORKFLOW_CURSOR_VERSION
+    import base64
+    import json
+
+    from backend.workflow_raw_search import RAW_WORKFLOW_CURSOR_VERSION, _decode_cursor
 
     old_version = RAW_WORKFLOW_CURSOR_VERSION - 1
-    payload = base64.urlsafe_b64encode(
-        json.dumps({"version": old_version, "fingerprint": "fp", "rank": 1.0, "mtime_ns": 0, "asset_id": 1}).encode()
-    ).decode().rstrip("=")
+    payload = (
+        base64.urlsafe_b64encode(
+            json.dumps(
+                {"version": old_version, "fingerprint": "fp", "rank": 1.0, "mtime_ns": 0, "asset_id": 1}
+            ).encode()
+        )
+        .decode()
+        .rstrip("=")
+    )
 
     with pytest.raises(ValueError, match="Invalid raw workflow cursor"):
         _decode_cursor(payload, "fp")
@@ -487,12 +495,26 @@ def test_raw_decode_cursor_version_mismatch():
 
 
 def test_raw_decode_cursor_fingerprint_mismatch():
-    import base64, json
-    from backend.workflow_raw_search import _decode_cursor, RAW_WORKFLOW_CURSOR_VERSION
+    import base64
+    import json
 
-    payload = base64.urlsafe_b64encode(
-        json.dumps({"version": RAW_WORKFLOW_CURSOR_VERSION, "fingerprint": "wrong_fp", "rank": 1.0, "mtime_ns": 0, "asset_id": 1}).encode()
-    ).decode().rstrip("=")
+    from backend.workflow_raw_search import RAW_WORKFLOW_CURSOR_VERSION, _decode_cursor
+
+    payload = (
+        base64.urlsafe_b64encode(
+            json.dumps(
+                {
+                    "version": RAW_WORKFLOW_CURSOR_VERSION,
+                    "fingerprint": "wrong_fp",
+                    "rank": 1.0,
+                    "mtime_ns": 0,
+                    "asset_id": 1,
+                }
+            ).encode()
+        )
+        .decode()
+        .rstrip("=")
+    )
 
     with pytest.raises(ValueError, match="Invalid raw workflow cursor"):
         _decode_cursor(payload, "expected_fp")
@@ -505,7 +527,6 @@ def test_raw_decode_cursor_fingerprint_mismatch():
 
 def test_raw_query_scope_folder(isolated_metadata_db: Path, monkeypatch: pytest.MonkeyPatch):
     from backend.workflow_raw_search import query_raw_workflows
-    from backend.metadata_store._db import _connect
 
     result = query_raw_workflows(
         query="test",
@@ -526,7 +547,8 @@ def test_raw_query_scope_folder(isolated_metadata_db: Path, monkeypatch: pytest.
 def test_raw_query_operational_error_interrupted(isolated_metadata_db: Path, monkeypatch: pytest.MonkeyPatch):
     import sqlite3
     from unittest.mock import MagicMock
-    from backend.workflow_raw_search import query_raw_workflows, RawWorkflowTimeout
+
+    from backend.workflow_raw_search import RawWorkflowTimeout, query_raw_workflows
 
     mock_conn = MagicMock()
     mock_conn.execute.side_effect = sqlite3.OperationalError("interrupted")

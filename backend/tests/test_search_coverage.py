@@ -9,7 +9,11 @@ from backend import search as search_module
 from backend.errors import APIError, ErrorType
 
 # ---------------------------------------------------------------------------
-# /api/search-metadata empty query
+# Purpose: Verify search-metadata, search/query, search/count, library
+#   inspector, prompt-usage/query, and workflow/raw API behaviour.
+# Guarantees: Empty/whitespace queries, scope validation, error wrapping,
+#   pagination dedup, stale-cleanup scheduling, SQLite error → 503.
+# Run when: search.py, metadata_store/, or fielded_search_parser.py changes.
 # ---------------------------------------------------------------------------
 
 
@@ -428,7 +432,8 @@ def test_search_count_raw_field_returns_409_key(isolated_app: TestClient, monkey
     from backend.fielded_search_parser import FieldToken
 
     monkeypatch.setattr(
-        search_module, "parse_fielded_query",
+        search_module,
+        "parse_fielded_query",
         lambda text: type("Fake", (), {"fields": [FieldToken(field="raw", key=None, value="model")]})(),
     )
     monkeypatch.setattr(search_module, "search_index_count", lambda *a, **k: {"total": 0, "has_more": False})
@@ -457,8 +462,6 @@ def test_register_library_on_fresh_isolated_db(isolated_metadata_db, isolated_ga
 
 
 def test_register_library_import_paths_saved(isolated_metadata_db, isolated_gallery_root: Path):
-    import sqlite3
-
     from backend.metadata_store import register_library
     from backend.metadata_store._db import _DB_LOCK, _connect
 
@@ -466,9 +469,7 @@ def test_register_library_import_paths_saved(isolated_metadata_db, isolated_gall
     register_library(isolated_gallery_root)
 
     with _DB_LOCK, _connect() as conn:
-        import_paths = conn.execute(
-            "SELECT path FROM library_import_paths WHERE library_id = ?", (1,)
-        ).fetchall()
+        import_paths = conn.execute("SELECT path FROM library_import_paths WHERE library_id = ?", (1,)).fetchall()
         assert len(import_paths) >= 1
         assert import_paths[0]["path"] == str(isolated_gallery_root.resolve())
 
@@ -535,6 +536,7 @@ def test_validated_search_root_path_is_file(isolated_gallery_root: Path):
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text("data")
     from backend.metadata_store import register_library
+
     register_library(isolated_gallery_root)
     with pytest.raises(APIError) as exc:
         search_module._validated_search_root(str(f))
@@ -548,6 +550,7 @@ def test_validated_search_root_path_is_file(isolated_gallery_root: Path):
 
 def test_registered_or_requested_root_with_path(isolated_gallery_root: Path):
     from backend.metadata_store import register_library
+
     isolated_gallery_root.mkdir(parents=True, exist_ok=True)
     register_library(isolated_gallery_root)
     root = search_module._registered_or_requested_root(str(isolated_gallery_root))
@@ -607,8 +610,6 @@ def test_resolve_safe_inspector_path_unsafe(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_cleanup_registered_library_roots_value_error_continues(isolated_metadata_db, monkeypatch):
-    import backend.metadata_store as ms
-
     result = search_module._cleanup_registered_library_roots({"/stale/path/file.png"})
     assert result == 0
 
@@ -621,6 +622,7 @@ def test_cleanup_registered_library_roots_value_error_continues(isolated_metadat
 def test_search_count_prompt_groups_requires_mode(isolated_app: TestClient, monkeypatch: pytest.MonkeyPatch):
     def require_mode(index_name, **kwargs):
         from backend.errors import APIError, ErrorType
+
         raise APIError(409, ErrorType.FEATURE_DISABLED, "mode disabled")
 
     monkeypatch.setattr(search_module, "require_search_index_mode", require_mode)
@@ -749,7 +751,7 @@ def test_library_inspector_catch_all(isolated_app: TestClient, monkeypatch: pyte
 def test_library_inspector_overscan_truncated(
     isolated_app: TestClient, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    from backend.metadata_store import register_library, index_file
+    from backend.metadata_store import index_file, register_library
 
     register_library(isolated_gallery_root)
     for i in range(5):
@@ -766,14 +768,10 @@ def test_library_inspector_overscan_truncated(
 
     def overscan_rows(q, scope, root, limit, sort, cursor, model, prompt):
         return {
-            "rows": [
-                {"path": str(isolated_gallery_root / f"img_{i}.png")}
-                for i in range(min(limit, 5))
-            ],
+            "rows": [{"path": str(isolated_gallery_root / f"img_{i}.png")} for i in range(min(limit, 5))],
             "truncated": True,
         }
 
-    original = search_module.list_library_inspector_rows
     call_count = 0
 
     def tracking_rows(*args, **kwargs):
@@ -787,10 +785,14 @@ def test_library_inspector_overscan_truncated(
         return overscan_rows(*args, **kwargs)
 
     monkeypatch.setattr(search_module, "list_library_inspector_rows", tracking_rows)
-    monkeypatch.setattr(search_module, "_filter_safe_paths", lambda rows: (
-        [{"path": r["path"], "name": Path(r["path"]).name} for r in rows],
-        set(),
-    ))
+    monkeypatch.setattr(
+        search_module,
+        "_filter_safe_paths",
+        lambda rows: (
+            [{"path": r["path"], "name": Path(r["path"]).name} for r in rows],
+            set(),
+        ),
+    )
 
     resp = isolated_app.get("/api/library/inspector", params={"scope": "all", "limit": 2})
     assert resp.status_code == 200
@@ -804,7 +806,7 @@ def test_library_inspector_overscan_truncated(
 def test_library_inspector_schedules_stale_cleanup(
     isolated_app: TestClient, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    from backend.metadata_store import register_library, index_file
+    from backend.metadata_store import index_file, register_library
 
     register_library(isolated_gallery_root)
     index_file(
@@ -842,7 +844,7 @@ def test_library_inspector_schedules_stale_cleanup(
 def test_library_inspector_truncated_no_safe_rows(
     isolated_app: TestClient, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    from backend.metadata_store import register_library, index_file
+    from backend.metadata_store import index_file, register_library
 
     register_library(isolated_gallery_root)
     index_file(

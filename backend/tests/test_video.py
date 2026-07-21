@@ -17,6 +17,7 @@ from __future__ import annotations
 import shutil
 import sqlite3
 import subprocess
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -268,7 +269,6 @@ def test_release_poster_serving_with_remaining():
     video_module._acquire_poster_serving("/test/path")
     video_module._acquire_poster_serving("/test/path")
     video_module._release_poster_serving("/test/path")
-    import threading
     with video_module._POSTER_STATE_LOCK:
         assert video_module._POSTER_SERVING_COUNTS.get("/test/path") == 1
     video_module._release_poster_serving("/test/path")
@@ -280,8 +280,9 @@ def test_release_poster_serving_with_remaining():
 
 
 def test_poster_serving_lease_double_release():
-    import backend.video as video_module
     from pathlib import Path
+
+    import backend.video as video_module
 
     lease = video_module._PosterServingLease(Path("/tmp/test.webp"))
     lease.release()
@@ -351,11 +352,10 @@ def test_video_if_range_matching_etag(isolated_app, simple_video_file: Path):
 
 def test_video_if_range_matching_date(isolated_app, simple_video_file: Path):
     import email.utils
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    resp1 = isolated_app.get("/api/video", params={"path": str(simple_video_file)})
-    last_modified = resp1.headers.get("last-modified")
-    dt = datetime.fromtimestamp(0, tz=timezone.utc)
+    isolated_app.get("/api/video", params={"path": str(simple_video_file)})
+    dt = datetime.fromtimestamp(0, tz=UTC)
     past_date = email.utils.formatdate(dt.timestamp(), usegmt=True)
 
     resp2 = isolated_app.get(
@@ -391,10 +391,7 @@ def test_video_poster_ffmpeg_failure(
     monkeypatch: pytest.MonkeyPatch,
     video_file: Path,
 ):
-    import backend.video as video_module
     import subprocess
-
-    real_run = subprocess.run
 
     def failing_run(*args, **kwargs):
         return subprocess.CompletedProcess(args=args[0], returncode=1, stdout=b"", stderr=b"")
@@ -413,7 +410,6 @@ def test_video_poster_os_error(
     monkeypatch: pytest.MonkeyPatch,
     video_file: Path,
 ):
-    import backend.video as video_module
     import subprocess
 
     def failing_run(*args, **kwargs):

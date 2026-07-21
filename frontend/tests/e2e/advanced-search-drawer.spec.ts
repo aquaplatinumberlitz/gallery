@@ -755,12 +755,12 @@ test.describe("AdvancedSearchDrawer", () => {
     await popoverTrigger.click();
 
     // Should see facet values with counts
-    const suggestions = page.getByRole("list", { name: "Model suggestions" });
-    await expect(suggestions.getByRole("button", { name: /PonyXL/ })).toBeVisible({ timeout: 3_000 });
-    await expect(suggestions.getByRole("button", { name: /SDXL/ })).toBeVisible();
+    const suggestions = page.getByRole("listbox", { name: "Model suggestions" });
+    await expect(suggestions.getByRole("option", { name: /PonyXL/ })).toBeVisible({ timeout: 3_000 });
+    await expect(suggestions.getByRole("option", { name: /SDXL/ })).toBeVisible();
 
     // Select PonyXL
-    await suggestions.getByRole("button", { name: /PonyXL/ }).click();
+    await suggestions.getByRole("option", { name: /PonyXL/ }).click();
     await expect(modelField).toHaveValue("PonyXL");
   });
 

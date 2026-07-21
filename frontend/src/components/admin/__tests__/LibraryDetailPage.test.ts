@@ -355,7 +355,7 @@ describe("LibraryDetailPage", () => {
     const wrapper = mountSubject();
     expect(wrapper.text()).toContain("Overview");
     expect(wrapper.text()).toContain("Status");
-    expect(wrapper.text()).toContain("Generated image cache");
+    expect(wrapper.text()).toContain("Image cache");
     expect(wrapper.text()).toContain("5 cataloged files unavailable");
     expect(wrapper.text()).toContain("Ready");
     expect(wrapper.text()).not.toContain("Ready with issues");
@@ -365,9 +365,9 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("File catalog is current");
     expect(wrapper.text()).toContain("80");
     expect(wrapper.text()).toContain("20");
-    expect(wrapper.text()).toContain("95 available");
+    expect(wrapper.text()).toContain("95");
     expect(wrapper.text()).toContain("5 unavailable");
-    expect(wrapper.find('[aria-label="About available with issues"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="About file availability"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("previously cataloged files are unavailable");
     expect(wrapper.text()).toContain("moved, deleted, excluded by the library configuration");
     expect(wrapper.text()).toContain("then choose Check again");
@@ -384,18 +384,18 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("No exclusion patterns");
     expect(wrapper.text()).toContain("All files under the source folders are included during library updates.");
     expect(wrapper.text()).toContain("Add exclusion pattern");
-    expect(wrapper.text()).toContain("Danger zone");
-    expect(wrapper.text()).toContain("Recent job history");
+    expect(wrapper.text()).toContain("Destructive actions");
+    expect(wrapper.text()).toContain("Recent jobs");
     expect(wrapper.text()).toContain("Latest 8 jobs");
     expect(wrapper.text()).toContain("View all jobs");
-    expect(wrapper.text()).toContain("File catalog lifecycle");
+    expect(wrapper.text()).toContain("Catalog lifecycle");
     expect(wrapper.find(".library-progress").exists()).toBe(false);
   });
 
   it("places danger zone after history and lifecycle details", () => {
     const text = mountSubject().text();
-    expect(text.indexOf("Recent job history")).toBeLessThan(text.indexOf("File catalog lifecycle"));
-    expect(text.indexOf("File catalog lifecycle")).toBeLessThan(text.indexOf("Danger zone"));
+    expect(text.indexOf("Recent jobs")).toBeLessThan(text.indexOf("Catalog lifecycle"));
+    expect(text.indexOf("Catalog lifecycle")).toBeLessThan(text.indexOf("Destructive actions"));
   });
 
   it("limits the embedded job history", () => {
@@ -406,8 +406,8 @@ describe("LibraryDetailPage", () => {
   it("hides unavailable file count when there are no unavailable files", () => {
     mockStats.offline_assets = 0;
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("95 available");
     expect(wrapper.text()).not.toContain("0 unavailable");
+    expect(wrapper.text()).not.toContain("cataloged files unavailable");
   });
 
   it("shows empty jobs state", () => {
@@ -567,8 +567,8 @@ describe("LibraryDetailPage", () => {
   it("renders derivative cache with full data", () => {
     mockGeneratedImagesData = mockGeneratedImages;
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("Generated image cache");
-    expect(wrapper.text()).toContain("100 images · 300 generated cache files");
+    expect(wrapper.text()).toContain("Image cache");
+    expect(wrapper.text()).toContain("100 images · 300 cache files");
     expect(wrapper.text()).toContain("Small thumbnail used in prompt results and metadata tables.");
     expect(wrapper.text()).toContain("Gallery thumbnail used in grids and as the preferred visual fingerprint source.");
     expect(wrapper.text()).toContain(
@@ -577,9 +577,9 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("Thumbnail · 128px");
     expect(wrapper.text()).toContain("Thumbnail · 512px");
     expect(wrapper.text()).toContain("Preview · 1440px");
-    expect(wrapper.text()).toContain("75/100 images cached");
-    expect(wrapper.text()).toContain("74/100 images cached");
-    const rows = wrapper.findAll(".space-y-2.p-3");
+    expect(wrapper.text()).toContain("75/100 cached");
+    expect(wrapper.text()).toContain("74/100 cached");
+    const rows = wrapper.findAll('[class*="bg-muted/30"]');
     const thumbnail128 = rows.find((row) => row.text().includes("Thumbnail · 128px"))!;
     const thumbnail512 = rows.find((row) => row.text().includes("Thumbnail · 512px"))!;
     const preview1440 = rows.find((row) => row.text().includes("Preview · 1440px"))!;
@@ -695,8 +695,8 @@ describe("LibraryDetailPage", () => {
     };
     const wrapper = mountSubject();
 
-    expect(wrapper.text()).toContain("100/100 images cached");
-    expect(wrapper.text()).toContain("25/100 images cached");
+    expect(wrapper.text()).toContain("100/100 cached");
+    expect(wrapper.text()).toContain("25/100 cached");
     expect(wrapper.text()).toContain("75 image cache files missing");
     expect(wrapper.text()).toContain("Prepare 75 image cache files now");
   });

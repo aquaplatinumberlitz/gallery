@@ -176,7 +176,7 @@ test("boot id does not change during album browse / lightbox / navigation", asyn
   expect(currentId).toBe(bootId);
 
   // Close lightbox
-  await page.getByLabel("Close lightbox").click();
+  await page.getByLabel("Close").click();
   await expect(page.getByTestId("lightbox")).not.toBeVisible({ timeout: 5000 });
   currentId = await page.evaluate(() => window.__galleryBootId);
   expect(currentId).toBe(bootId);
@@ -205,7 +205,7 @@ test("no unexpected full page reload during album browsing", async ({ page }) =>
   expect(navigations).toBe(baseline);
 
   // Close lightbox - should not navigate
-  await page.getByLabel("Close lightbox").click();
+  await page.getByLabel("Close").click();
   await expect(page.getByTestId("lightbox")).not.toBeVisible({ timeout: 5_000 });
   expect(navigations).toBe(baseline);
 });

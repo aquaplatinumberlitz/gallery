@@ -497,9 +497,15 @@ def test_normalize_workflow_document_property_limit() -> None:
         many_nodes[str(i)] = {
             "class_type": "KSamplerAdvanced",
             "inputs": {
-                "noise_seed": i, "steps": 20, "start_at_step": 0, "end_at_step": 20,
-                "cfg": 7.0, "sampler_name": "euler", "scheduler": "normal",
-                "add_noise": True, "return_with_leftover_noise": False,
+                "noise_seed": i,
+                "steps": 20,
+                "start_at_step": 0,
+                "end_at_step": 20,
+                "cfg": 7.0,
+                "sampler_name": "euler",
+                "scheduler": "normal",
+                "add_noise": True,
+                "return_with_leftover_noise": False,
             },
         }
     with pytest.raises(WorkflowExtractionError, match="workflow_property_limit"):
@@ -550,11 +556,12 @@ def test_workflow_source_no_row_returns_none(isolated_metadata_db: Path) -> None
 
 
 def test_extract_workflow_properties_catches_workflow_extraction_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    from backend.workflow_discovery import extract_workflow_properties
     from backend.search_indexer import SearchExtractionResult
+    from backend.workflow_discovery import extract_workflow_properties
 
     def raise_extraction_error(asset):
         from backend.workflow_discovery import WorkflowExtractionError
+
         raise WorkflowExtractionError("workflow_source_too_large")
 
     monkeypatch.setattr("backend.workflow_discovery._workflow_source", raise_extraction_error)
@@ -570,8 +577,9 @@ def test_extract_workflow_properties_catches_workflow_extraction_error(monkeypat
 
 
 def test_validate_workflow_groups_unsupported_node_type() -> None:
-    from backend.workflow_discovery import validate_workflow_groups
     from dataclasses import dataclass
+
+    from backend.workflow_discovery import validate_workflow_groups
 
     @dataclass
     class Predicate:
@@ -589,8 +597,9 @@ def test_validate_workflow_groups_unsupported_node_type() -> None:
 
 
 def test_validate_workflow_groups_unsupported_property() -> None:
-    from backend.workflow_discovery import validate_workflow_groups
     from dataclasses import dataclass
+
+    from backend.workflow_discovery import validate_workflow_groups
 
     @dataclass
     class Predicate:
@@ -608,8 +617,9 @@ def test_validate_workflow_groups_unsupported_property() -> None:
 
 
 def test_validate_workflow_groups_invalid_value() -> None:
-    from backend.workflow_discovery import validate_workflow_groups
     from dataclasses import dataclass
+
+    from backend.workflow_discovery import validate_workflow_groups
 
     @dataclass
     class Predicate:
@@ -632,8 +642,9 @@ def test_validate_workflow_groups_invalid_value() -> None:
 
 
 def test_build_workflow_group_conditions_text_prefix_escape() -> None:
-    from backend.workflow_discovery import build_workflow_group_conditions
     from dataclasses import dataclass
+
+    from backend.workflow_discovery import build_workflow_group_conditions
 
     @dataclass
     class Predicate:
@@ -654,8 +665,9 @@ def test_build_workflow_group_conditions_text_prefix_escape() -> None:
 
 
 def test_build_workflow_group_conditions_text_contains_escape() -> None:
-    from backend.workflow_discovery import build_workflow_group_conditions
     from dataclasses import dataclass
+
+    from backend.workflow_discovery import build_workflow_group_conditions
 
     @dataclass
     class Predicate:
@@ -681,8 +693,9 @@ def test_build_workflow_group_conditions_text_contains_escape() -> None:
 
 
 def test_build_workflow_group_conditions_uint64_token() -> None:
-    from backend.workflow_discovery import build_workflow_group_conditions
     from dataclasses import dataclass
+
+    from backend.workflow_discovery import build_workflow_group_conditions
 
     @dataclass
     class Predicate:
@@ -695,9 +708,7 @@ def test_build_workflow_group_conditions_uint64_token() -> None:
         node_type: str
         predicates: list
 
-    conditions, params = build_workflow_group_conditions(
-        [Group("KSampler", [Predicate("seed", "eq", "12345")])]
-    )
+    conditions, params = build_workflow_group_conditions([Group("KSampler", [Predicate("seed", "eq", "12345")])])
     assert len(conditions) == 1
     assert "value_text" in conditions[0]
 

@@ -244,9 +244,7 @@ def list_library_inspector_rows(
             and not normalized_model_filter
             and prompt_filter == "all"
         )
-        use_date_index_scan = (
-            normalized_sort in {"date_asc", "date_desc"}
-        )
+        use_date_index_scan = normalized_sort in {"date_asc", "date_desc"}
         metadata_source_sql = (
             "image_metadata m INDEXED BY idx_image_metadata_inspector_date"
             if use_date_index_scan

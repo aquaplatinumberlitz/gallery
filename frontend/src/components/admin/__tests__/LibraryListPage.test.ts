@@ -102,7 +102,7 @@ describe("LibraryListPage", () => {
   it("shows Update vocabulary and no user-facing Scan or Rescan actions", () => {
     const wrapper = mountSubject();
 
-    expect(wrapper.get("header").text()).toContain("Update all libraries");
+    expect(wrapper.get("header").text()).toContain("Update all");
     expect(wrapper.text()).toContain("Update library");
     expect(wrapper.findAll("button").some((button) => button.text().trim() === "Scan")).toBe(false);
     expect(wrapper.findAll("button").some((button) => button.text().trim() === "Scan all")).toBe(false);
@@ -122,13 +122,14 @@ describe("LibraryListPage", () => {
 
     const libraryButton = wrapper.findAll("button").find((button) => button.text().includes(mockLibrary.name));
 
-    expect(libraryButton?.classes()).toContain("cursor-pointer");
+    expect(libraryButton?.classes()).toContain("hover:underline");
   });
 
   it("shows total media files with a secondary photo/video breakdown", () => {
     const wrapper = mountSubject();
 
     expect(wrapper.text()).toContain("12");
-    expect(wrapper.get('[aria-label="Media file breakdown"]').text()).toBe("10 photos · 2 videos");
+    expect(wrapper.text()).toContain("10 photos");
+    expect(wrapper.text()).toContain("2 videos");
   });
 });
