@@ -21,7 +21,7 @@ describe("CopyActionButton", () => {
     expect(button.text()).toBe("Copy prompt");
     expect(button.attributes("aria-label")).toBe("Copy prompt");
     expect(button.attributes("data-copied")).toBe("false");
-    expect(button.classes()).toEqual(expect.arrayContaining(["border", "border-border/60"]));
+    expect(button.classes()).toEqual(expect.arrayContaining(["border", "border-transparent", "text-muted-foreground"]));
     expect(wrapper.get(".copy-state-icon").attributes("data-copied")).toBe("false");
   });
 

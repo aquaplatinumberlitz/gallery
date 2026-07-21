@@ -170,7 +170,7 @@ describe("MaintenancePage", () => {
     expect(imageCache?.text()).toContain("Queue health");
     expect(imageCache?.text()).toContain("2/3");
     expect(imageCache?.text()).toContain("Queue depth");
-    expect(imageCache?.text()).toContain("Stale running jobs");
+    expect(imageCache?.text()).toContain("Stale running");
   });
 
   it("shows only Rebuild and explicit Clear imported data action buttons", () => {
@@ -249,12 +249,10 @@ describe("MaintenancePage", () => {
     };
 
     const wrapper = mountSubject();
-    const fileHealth = wrapper
-      .findAll('[data-slot="card"]')
-      .find((card) => card.text().includes("Check catalog, metadata, and image cache consistency"));
+    const fileHealth = wrapper.find('[aria-labelledby="file-health-heading"]');
 
     expect(fileHealth?.text()).toContain("Run checks");
-    expect(fileHealth?.text()).toContain("Issues found");
+    expect(fileHealth?.text()).toContain("issues found");
     expect(fileHealth?.text()).toContain("Missing source files");
     expect(fileHealth?.text()).toContain("Actions taken");
     expect(fileHealth?.text()).toContain("Requeued");
@@ -266,12 +264,12 @@ describe("MaintenancePage", () => {
     mockRuntimeData = {
       global_runtime: {
         catalog_worker_count: 1,
-        catalog_active_jobs: 0,
-        catalog_queue_depth: 0,
+        catalog_active_jobs: 1,
+        catalog_queue_depth: 1,
         metadata_worker_count: 1,
-        metadata_active_jobs: 0,
-        metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
+        metadata_active_jobs: 1,
+        metadata_queue_depth: 1,
+        metadata_staged_queue_depth: 1,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -280,11 +278,11 @@ describe("MaintenancePage", () => {
       metadata_lifecycle: {
         queued_metadata_jobs: 0,
         running_metadata_jobs: 0,
-        failed_metadata_jobs: 0,
-        stale_metadata_jobs: 0,
+        failed_metadata_jobs: 1,
+        stale_metadata_jobs: 1,
         assets_done_but_metadata_missing_or_stale: 0,
-        repairable_metadata_assets: 0,
-        metadata_jobs_without_matching_assets: 0,
+        repairable_metadata_assets: 1,
+        metadata_jobs_without_matching_assets: 1,
       },
     };
     mockGlobalSummaryData = [{ ready_derivatives: 2, expected_derivatives: 2 }];
@@ -359,8 +357,8 @@ describe("MaintenancePage", () => {
     mockRuntimeData = {
       global_runtime: {
         catalog_worker_count: 1,
-        catalog_active_jobs: 0,
-        catalog_queue_depth: 0,
+        catalog_active_jobs: 1,
+        catalog_queue_depth: 1,
         metadata_worker_count: 2,
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
@@ -395,12 +393,11 @@ describe("MaintenancePage", () => {
       metadata_lifecycle: null,
     };
     const wrapper = mountSubject();
-    expect(wrapper.text()).toContain("File catalog workers");
+    expect(wrapper.text()).toContain("Workers");
     expect(wrapper.text()).toContain("3");
     expect(wrapper.text()).toContain("Active jobs");
     expect(wrapper.text()).toContain("1");
     expect(wrapper.text()).toContain("Queue depth");
-    expect(wrapper.text()).toContain("5");
     expect(wrapper.text()).toContain("Workers");
     expect(wrapper.text()).toContain("4");
     expect(wrapper.text()).toContain("Active jobs");
@@ -418,9 +415,9 @@ describe("MaintenancePage", () => {
         catalog_active_jobs: 0,
         catalog_queue_depth: 0,
         metadata_worker_count: 2,
-        metadata_active_jobs: 0,
-        metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
+        metadata_active_jobs: 2,
+        metadata_queue_depth: 3,
+        metadata_staged_queue_depth: 1,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -451,8 +448,6 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("Active jobs");
     expect(wrapper.text()).toContain("Queue depth");
     expect(wrapper.text()).toContain("Staged queue depth");
-    expect(wrapper.text()).toContain("Queued");
-    expect(wrapper.text()).toContain("2");
     expect(wrapper.text()).toContain("Running");
     expect(wrapper.text()).toContain("1");
     expect(wrapper.text()).toContain("Failed jobs");

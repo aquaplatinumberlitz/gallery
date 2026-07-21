@@ -210,7 +210,7 @@ const defaultStubs = {
   DropdownMenuTrigger: { template: "<div><slot /></div>" },
   ArrowLeft: { template: "<span>arrow-left</span>" },
   ArrowUpDown: { template: "<span>sort-icon</span>" },
-  Columns3: { template: "<span>columns-icon</span>" },
+  EyeOff: { template: "<span>eye-off-icon</span>" },
   Copy: { template: "<span>copy-icon</span>" },
   Check: { template: "<span>check-icon</span>" },
   Search: { template: "<span>search-icon</span>" },
