@@ -12,15 +12,18 @@ import {
   Trash2,
   ImageIcon,
   Info,
+  FolderOpen,
+  Folder,
+  Clock,
+  HardDrive,
+  Film,
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import Badge from "@/components/ui/Badge.vue";
 import CopyButton from "@/components/ui/CopyButton.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
-import Separator from "@/components/ui/Separator.vue";
 import Skeleton from "@/components/ui/skeleton/Skeleton.vue";
-import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useLibrariesQuery } from "@/composables/admin/useLibrariesQuery";
 import { useLibraryEvents } from "@/composables/admin/useLibraryEvents";
@@ -448,235 +451,281 @@ function estimatedAssets(): number | undefined {
 </script>
 
 <template>
-  <main class="h-full overflow-y-auto p-4 text-foreground sm:p-6" aria-labelledby="library-heading">
-    <div class="mx-auto max-w-6xl space-y-6">
-      <ButtonLink to="/admin/libraries" variant="ghost" class="-ml-3"><ArrowLeft /> Libraries</ButtonLink>
+  <main class="ldp-main h-full overflow-y-auto text-foreground" aria-labelledby="library-heading">
+    <div class="ldp-container mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+      <!-- breadcrumb -->
+      <ButtonLink to="/admin/libraries" variant="ghost" class="ldp-back -ml-2 mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft class="size-3.5" />
+        Libraries
+      </ButtonLink>
 
+      <!-- ── NOT FOUND ── -->
       <div
         v-if="!libraryId || libraryQuery.isError.value"
-        class="grid min-h-72 place-items-center rounded-lg border border-dashed border-border bg-card p-8 text-center shadow-sm"
+        class="ldp-empty grid min-h-72 place-items-center rounded-xl border border-dashed border-border bg-card p-8 text-center"
       >
         <div class="space-y-3">
-          <h2 class="text-xl font-semibold">Library not found</h2>
+          <div class="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
+            <FolderOpen class="size-6 text-muted-foreground" />
+          </div>
+          <h2 class="text-lg font-semibold">Library not found</h2>
           <p class="text-sm text-muted-foreground">It may have been unregistered or the link is invalid.</p>
           <ButtonLink to="/admin/libraries" variant="outline">Back to libraries</ButtonLink>
         </div>
       </div>
 
-      <div v-else-if="libraryQuery.isPending.value" class="space-y-4">
-        <Skeleton class="h-16 w-full" />
-        <div class="grid gap-4 md:grid-cols-2"><Skeleton v-for="item in 6" :key="item" class="h-40 w-full" /></div>
+      <!-- ── LOADING ── -->
+      <div v-else-if="libraryQuery.isPending.value" class="space-y-5">
+        <div class="flex items-start gap-4">
+          <Skeleton class="size-11 shrink-0 rounded-lg" />
+          <div class="flex-1 space-y-2">
+            <Skeleton class="h-7 w-56" />
+            <Skeleton class="h-4 w-72" />
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-4"><Skeleton v-for="i in 4" :key="i" class="h-24" /></div>
+        <Skeleton class="h-52" />
+        <Skeleton class="h-40" />
       </div>
 
+      <!-- ── MAIN CONTENT ── -->
       <template v-else-if="library">
-        <header class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-3">
-              <h2 id="library-heading" class="truncate text-xl font-semibold tracking-normal text-foreground">
-                {{ library.name }}
-              </h2>
-              <LibraryStatusBadge :status="status" />
+        <!-- ═══════════════════════════════════════════
+             PAGE HEADER
+        ════════════════════════════════════════════ -->
+        <header class="ldp-header flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div class="flex min-w-0 items-start gap-3.5">
+            <div class="ldp-icon-wrap mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-muted">
+              <FolderOpen class="size-5 text-foreground/60" />
             </div>
-            <OverflowTooltip
-              as="p"
-              :text="library.import_paths[0]?.path ?? library.root_path"
-              class="mt-1 font-mono text-xs text-muted-foreground"
-              align="start"
-            >
-              {{ library.import_paths[0]?.path ?? library.root_path }}
-            </OverflowTooltip>
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2.5">
+                <h1 id="library-heading" class="truncate text-2xl font-semibold tracking-tight text-foreground" style="text-wrap: balance">
+                  {{ library.name }}
+                </h1>
+                <LibraryStatusBadge :status="status" />
+              </div>
+              <OverflowTooltip
+                as="p"
+                :text="library.import_paths[0]?.path ?? library.root_path"
+                class="mt-1 font-mono text-xs text-muted-foreground"
+                align="start"
+              >
+                {{ library.import_paths[0]?.path ?? library.root_path }}
+              </OverflowTooltip>
+            </div>
           </div>
-          <div class="flex flex-wrap gap-2">
+
+          <div class="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
               @click="useInGallery"
             >
-              <Images data-icon="inline-start" /> Open gallery
+              <Images class="mr-1.5 size-4" /> Open gallery
             </Button>
             <Button
-              variant="outline"
-              class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
               :disabled="busy"
               @click="scanMutation.mutate({ id: library.id })"
             >
-              <RefreshCw data-icon="inline-start" /> Update library
+              <RefreshCw class="mr-1.5 size-4" :class="busy ? 'animate-spin' : ''" />
+              {{ busy ? "Updating…" : "Update library" }}
             </Button>
-            <Button
-              variant="outline"
-              class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
-              @click="editOpen = true"
-            >
-              <Pencil data-icon="inline-start" /> Edit
-            </Button>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button variant="outline" size="icon" class="border-border bg-card shadow-sm" @click="editOpen = true">
+                  <Pencil class="size-4" />
+                  <span class="sr-only">Edit library</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Edit library</TooltipContent>
+            </Tooltip>
           </div>
         </header>
 
+        <!-- Contract error banner -->
         <div
           v-if="statusContractError"
-          class="rounded-md border border-warning/40 bg-warning/10 p-4 text-sm"
+          class="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm"
           role="status"
         >
           {{ STATUS_CONTRACT_ERROR_MESSAGE }}
         </div>
 
-        <Separator />
+        <!-- ═══════════════════════════════════════════
+             OVERVIEW STATS
+        ════════════════════════════════════════════ -->
+        <section class="mt-8" aria-label="Library statistics">
+          <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Overview</h2>
 
-        <section class="space-y-4">
-          <h3 class="text-sm font-semibold text-foreground">Overview</h3>
           <dl
             v-if="statsQuery.data.value"
-            class="grid divide-y divide-border rounded-md border border-border bg-card sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"
+            class="ldp-stats grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
           >
-            <div class="p-4">
-              <dt class="text-sm text-muted-foreground">Images</dt>
-              <dd class="mt-1 text-base font-semibold tabular-nums text-foreground">
+            <div class="ldp-stat-card rounded-xl border border-border bg-card p-4">
+              <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Images class="size-3.5 shrink-0" aria-hidden="true" /> Images
+              </dt>
+              <dd class="mt-2 text-2xl font-semibold tabular-nums text-foreground">
                 {{ formatAssetCount(statsQuery.data.value.photos) }}
               </dd>
             </div>
-            <div class="p-4">
-              <dt class="text-sm text-muted-foreground">Videos</dt>
-              <dd class="mt-1 text-base font-semibold tabular-nums text-foreground">
+
+            <div class="ldp-stat-card rounded-xl border border-border bg-card p-4">
+              <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Film class="size-3.5 shrink-0" aria-hidden="true" /> Videos
+              </dt>
+              <dd class="mt-2 text-2xl font-semibold tabular-nums text-foreground">
                 {{ formatAssetCount(statsQuery.data.value.videos) }}
               </dd>
             </div>
-            <div class="p-4">
-              <dt class="text-sm text-muted-foreground">Source storage</dt>
-              <dd class="mt-1 text-base font-semibold tabular-nums text-foreground">
+
+            <div class="ldp-stat-card rounded-xl border border-border bg-card p-4">
+              <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <HardDrive class="size-3.5 shrink-0" aria-hidden="true" /> Source storage
+              </dt>
+              <dd class="mt-2 text-2xl font-semibold tabular-nums text-foreground">
                 {{ formatBytes(statsQuery.data.value.usage_bytes) }}
               </dd>
             </div>
-            <div class="p-4">
-              <dt class="flex items-center gap-1 text-sm text-muted-foreground">
+
+            <div class="ldp-stat-card rounded-xl border border-border bg-card p-4">
+              <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Folder class="size-3.5 shrink-0" aria-hidden="true" />
                 Files
                 <Tooltip>
                   <TooltipTrigger as-child>
                     <Button
                       variant="ghost"
                       size="icon"
-                      class="-my-1 size-8 text-muted-foreground hover:text-foreground"
+                      class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
                       aria-label="About file availability"
                     >
-                      <Info class="size-3.5" />
+                      <Info class="size-3" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" align="start" class="max-w-[260px]">
                     <p>Available: indexed images/videos currently available on disk.</p>
-                    <p class="mt-1">
-                      Unavailable: cataloged files not available in the latest scan or under unavailable import paths.
-                    </p>
+                    <p class="mt-1">Unavailable: cataloged files not available in the latest scan or under unavailable import paths.</p>
                   </TooltipContent>
                 </Tooltip>
               </dt>
               <dd
-                class="mt-1 text-base font-semibold tabular-nums"
+                class="mt-2 text-2xl font-semibold tabular-nums"
                 :class="hasUnavailableFiles ? 'text-warning' : 'text-foreground'"
               >
-                {{ formatAssetCount(statsQuery.data.value.active_assets) }} available
-                <span v-if="hasUnavailableFiles">
-                  · {{ formatAssetCount(statsQuery.data.value.offline_assets) }} unavailable
-                </span>
+                {{ formatAssetCount(statsQuery.data.value.active_assets) }}
               </dd>
+              <p v-if="hasUnavailableFiles" class="mt-1 text-xs text-warning">
+                {{ formatAssetCount(statsQuery.data.value.offline_assets) }} unavailable
+              </p>
             </div>
           </dl>
+
           <div
             v-else-if="statsLoadError"
-            class="rounded-md border border-destructive/30 bg-destructive/5 p-4"
+            class="rounded-lg border border-destructive/30 bg-destructive/5 p-4"
             role="alert"
           >
             <p class="text-sm font-medium">Overview data could not be loaded.</p>
             <Button variant="outline" size="sm" class="mt-3" @click="statsQuery.refetch?.()">Try again</Button>
           </div>
-          <Skeleton v-else class="h-24 w-full" />
+          <div v-else class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Skeleton v-for="i in 4" :key="i" class="h-24 rounded-xl" />
+          </div>
         </section>
 
-        <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
-          <Card class="gap-0 py-0">
-            <CardContent class="p-5">
-              <div class="space-y-4">
-                <div class="flex items-start justify-between gap-3">
-                  <div>
-                    <div class="flex flex-wrap items-center gap-2">
-                      <h3 class="text-sm font-semibold text-foreground">Status</h3>
-                      <IndexStatusBadge v-if="status" :presentation="statusPresentation" />
-                    </div>
-                    <p class="mt-1 text-sm text-muted-foreground">
-                      Availability, update progress, and metadata readiness.
-                    </p>
-                  </div>
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        class="size-11"
-                        aria-label="Refresh status"
-                        :disabled="statusQuery.isFetching.value"
-                        @click="statusQuery.refetch()"
-                      >
-                        <RefreshCw :class="statusQuery.isFetching.value ? 'animate-spin' : ''" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" align="end" class="max-w-[220px]">
-                      Reload this library's availability, update progress, and metadata state.
-                    </TooltipContent>
-                  </Tooltip>
+        <!-- ═══════════════════════════════════════════
+             STATUS + IMAGE CACHE  (two-column)
+        ════════════════════════════════════════════ -->
+        <div class="mt-8 grid gap-5 xl:grid-cols-2 xl:items-start">
+          <!-- ── Status card ── -->
+          <section class="ldp-section-card rounded-xl border border-border bg-card" aria-labelledby="status-heading">
+            <div class="flex items-start justify-between gap-3 p-5 pb-4">
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <h2 id="status-heading" class="text-sm font-semibold text-foreground">Status</h2>
+                  <IndexStatusBadge v-if="status" :presentation="statusPresentation" />
                 </div>
+                <p class="mt-1 text-xs text-muted-foreground">Availability, update progress, and metadata readiness.</p>
+              </div>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="size-8 shrink-0 text-muted-foreground"
+                    aria-label="Refresh status"
+                    :disabled="statusQuery.isFetching.value"
+                    @click="statusQuery.refetch()"
+                  >
+                    <RefreshCw class="size-3.5" :class="statusQuery.isFetching.value ? 'animate-spin' : ''" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" class="max-w-[220px]">
+                  Reload availability, update progress, and metadata state.
+                </TooltipContent>
+              </Tooltip>
+            </div>
 
-                <div
-                  v-if="statusLoadError"
-                  class="rounded-md border border-destructive/30 bg-destructive/5 p-4"
-                  role="alert"
-                >
-                  <p class="text-sm font-medium">Status could not be loaded.</p>
-                  <Button variant="outline" size="sm" class="mt-3" @click="statusQuery.refetch?.()">Try again</Button>
-                </div>
-                <div
-                  v-else-if="status"
-                  class="rounded-md border border-border p-3"
-                  :class="{
-                    'border-success/20 bg-success-bg': healthSeverity === 'healthy',
-                    'border-warning/30 bg-warning-bg': healthSeverity === 'warning',
-                    'border-destructive/30 bg-destructive/10': healthSeverity === 'error',
-                  }"
-                >
-                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div class="flex min-w-0 gap-3">
-                      <CircleCheck
-                        v-if="healthSeverity === 'healthy'"
-                        class="mt-0.5 size-5 shrink-0 text-success"
-                        aria-hidden="true"
-                      />
-                      <AlertTriangle
-                        v-else-if="healthSeverity === 'warning'"
-                        class="mt-0.5 size-5 shrink-0 text-warning"
-                        aria-hidden="true"
-                      />
-                      <CircleX v-else class="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden="true" />
-                      <div class="flex min-w-0 flex-wrap items-center gap-2">
-                        <p class="font-medium">{{ healthMessage }}</p>
-                        <Button
-                          v-if="canUpdateFromStatus"
-                          variant="outline"
-                          size="sm"
-                          class="h-7 px-2 text-xs"
-                          :disabled="busy"
-                          @click="scanMutation.mutate({ id: library.id })"
-                        >
-                          <RefreshCw data-icon="inline-start" /> Update
-                        </Button>
-                      </div>
+            <div class="space-y-3 px-5 pb-5">
+              <!-- Load error -->
+              <div
+                v-if="statusLoadError"
+                class="rounded-lg border border-destructive/30 bg-destructive/5 p-4"
+                role="alert"
+              >
+                <p class="text-sm font-medium">Status could not be loaded.</p>
+                <Button variant="outline" size="sm" class="mt-3" @click="statusQuery.refetch?.()">Try again</Button>
+              </div>
+
+              <!-- Health banner -->
+              <div
+                v-else-if="status"
+                class="ldp-health-banner rounded-lg border p-4"
+                :class="{
+                  'border-success/25 bg-success/8': healthSeverity === 'healthy',
+                  'border-warning/30 bg-warning/8': healthSeverity === 'warning',
+                  'border-destructive/30 bg-destructive/8': healthSeverity === 'error',
+                }"
+              >
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="flex min-w-0 items-start gap-3">
+                    <CircleCheck
+                      v-if="healthSeverity === 'healthy'"
+                      class="mt-px size-5 shrink-0 text-success"
+                      aria-hidden="true"
+                    />
+                    <AlertTriangle
+                      v-else-if="healthSeverity === 'warning'"
+                      class="mt-px size-5 shrink-0 text-warning"
+                      aria-hidden="true"
+                    />
+                    <CircleX v-else class="mt-px size-5 shrink-0 text-destructive" aria-hidden="true" />
+                    <div class="min-w-0">
+                      <p class="font-medium leading-snug">{{ healthMessage }}</p>
+                      <Button
+                        v-if="canUpdateFromStatus"
+                        variant="outline"
+                        size="sm"
+                        class="mt-2 h-7 px-2.5 text-xs"
+                        :disabled="busy"
+                        @click="scanMutation.mutate({ id: library.id })"
+                      >
+                        <RefreshCw class="mr-1 size-3" /> Update
+                      </Button>
                     </div>
+                  </div>
+                  <div class="flex shrink-0 flex-wrap gap-2">
                     <Button
                       v-if="healthSeverity === 'warning' && hasCatalogIssues"
                       variant="outline"
                       size="sm"
-                      class="shrink-0"
                       @click="healthDetailsOpen = !healthDetailsOpen"
                     >
                       {{ healthDetailsOpen ? "Hide details" : "Review" }}
                     </Button>
-                    <div v-else-if="hasUnavailableFiles" class="flex shrink-0 flex-wrap gap-2">
+                    <template v-else-if="hasUnavailableFiles">
                       <Button variant="outline" size="sm" @click="offlineFilesOpen = true">View files</Button>
                       <Button
                         variant="outline"
@@ -684,416 +733,435 @@ function estimatedAssets(): number | undefined {
                         :disabled="busy"
                         @click="scanMutation.mutate({ id: library.id })"
                       >
-                        <RefreshCw :class="busy ? 'animate-spin' : ''" data-icon="inline-start" />
-                        {{ busy ? "Checking..." : "Check again" }}
+                        <RefreshCw class="mr-1 size-3" :class="busy ? 'animate-spin' : ''" />
+                        {{ busy ? "Checking…" : "Check again" }}
                       </Button>
-                    </div>
+                    </template>
                     <Button
                       v-else-if="healthSeverity === 'error'"
                       variant="outline"
                       size="sm"
-                      class="shrink-0"
                       :disabled="busy"
                       @click="scanMutation.mutate({ id: library.id })"
                     >
-                      <RefreshCw :class="busy ? 'animate-spin' : ''" data-icon="inline-start" />
-                      {{ busy ? "Checking..." : "Check again" }}
+                      <RefreshCw class="mr-1 size-3" :class="busy ? 'animate-spin' : ''" />
+                      {{ busy ? "Checking…" : "Check again" }}
                     </Button>
                   </div>
-
-                  <div
-                    v-if="healthSeverity === 'warning' && hasCatalogIssues && healthDetailsOpen"
-                    class="mt-3 border-t pt-3"
-                  >
-                    <div class="grid gap-3 text-sm sm:grid-cols-3">
-                      <div v-for="issue in issueBreakdown" :key="issue.label">
-                        <p class="text-xs text-muted-foreground">{{ issue.label }}</p>
-                        <p class="text-lg font-semibold" :class="issue.count > 0 ? 'text-destructive' : ''">
-                          {{ issue.count }}
-                        </p>
-                      </div>
-                    </div>
-                    <div v-if="latestIssue" class="mt-3 rounded-md bg-background/70 p-3 text-sm">
-                      <p class="font-medium">{{ latestIssue.message }}</p>
-                      <p v-if="latestIssue.path" class="mt-1 truncate font-mono text-xs text-muted-foreground">
-                        {{ latestIssue.path }}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div v-if="status" class="grid gap-3 text-sm sm:grid-cols-3">
-                  <div
-                    v-for="tile in statusTiles"
-                    :key="tile.key"
-                    class="rounded-md border border-border bg-muted/60 p-3"
-                  >
-                    <p class="text-xs font-medium text-muted-foreground">{{ tile.label }}</p>
-                    <p class="mt-1 flex items-center gap-1.5 font-semibold" :class="statusTileTone[tile.tone]">
-                      <CircleCheck v-if="tile.tone === 'healthy'" class="size-4 shrink-0" aria-hidden="true" />
-                      <AlertTriangle v-else-if="tile.tone === 'warning'" class="size-4 shrink-0" aria-hidden="true" />
-                      <CircleX v-else class="size-4 shrink-0" aria-hidden="true" />
-                      <span>{{ tile.value }}</span>
-                      <Tooltip v-if="tile.help">
-                        <TooltipTrigger as-child>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            class="-my-1 size-6 text-muted-foreground hover:text-foreground"
-                            aria-label="About available with issues"
-                          >
-                            <Info class="size-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" align="start" class="max-w-[320px] font-normal">
-                          {{ tile.help }}
-                        </TooltipContent>
-                      </Tooltip>
-                    </p>
-                    <p class="mt-1 text-xs text-muted-foreground">{{ tile.detail }}</p>
-                  </div>
-                </div>
-                <LibraryProgressBar v-if="showStatusProgress" :status="status" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card class="gap-0 py-0">
-            <CardContent class="p-5">
-              <div class="space-y-4">
-                <div class="flex items-start justify-between gap-3">
-                  <div>
-                    <div class="flex flex-wrap items-center gap-2">
-                      <h3 class="text-sm font-semibold text-foreground">Generated image cache</h3>
-                      <Badge
-                        v-if="thumbnails?.policy === 'on_demand'"
-                        variant="outline"
-                        class="text-[11px] font-medium text-muted-foreground"
-                      >
-                        On demand
-                      </Badge>
-                    </div>
-                    <p class="mt-1 text-sm text-muted-foreground">
-                      Cached thumbnails and previews used while browsing.
-                    </p>
-                    <p v-if="thumbnails" class="mt-1 text-xs text-muted-foreground">
-                      {{ formatAssetCount(thumbnails.total_assets) }} images ·
-                      {{ formatAssetCount(thumbnails.expected_derivatives) }} generated cache files
-                    </p>
-                  </div>
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        class="size-11"
-                        aria-label="Refresh image cache"
-                        :disabled="generatedImagesQuery.isFetching.value"
-                        @click="generatedImagesQuery.refetch()"
-                      >
-                        <RefreshCw :class="generatedImagesQuery.isFetching.value ? 'animate-spin' : ''" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" align="end" class="max-w-[220px]">
-                      Reload cached, required, coverage, and cache usage counts.
-                    </TooltipContent>
-                  </Tooltip>
                 </div>
 
-                <template v-if="thumbnails">
-                  <div
-                    v-if="derivativeCoverageRows.length"
-                    class="divide-y divide-border rounded-md border border-border bg-muted/60"
-                  >
-                    <div v-for="row in derivativeCoverageRows" :key="row.key" class="space-y-2 p-3">
-                      <div class="flex items-center justify-between gap-3">
-                        <div class="flex min-w-0 items-center gap-2.5">
-                          <ImageIcon class="size-4 shrink-0 text-foreground/70" aria-hidden="true" />
-                          <p class="font-medium text-foreground">{{ row.label }}</p>
-                          <Tooltip>
-                            <TooltipTrigger as-child>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                class="-my-1 size-6 text-muted-foreground hover:text-foreground"
-                                :aria-label="`About ${row.label.toLowerCase()}`"
-                              >
-                                <Info class="size-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" align="start" class="max-w-[280px] font-normal">
-                              {{ row.help }}
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <p class="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                          {{ formatAssetCount(row.ready) }}/{{ formatAssetCount(row.expected) }} {{ row.countUnit }}
-                          cached
-                        </p>
-                      </div>
-                      <Progress
-                        :model-value="Math.round(row.ratio * 100)"
-                        class="h-2 bg-muted"
-                        :indicator-class="row.ratio >= 1 ? 'bg-success' : 'bg-warning'"
-                      />
-                      <dl class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
-                        <div v-if="row.queued > 0" class="flex items-center justify-between gap-2 sm:block">
-                          <dt class="text-muted-foreground">Queued</dt>
-                          <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.queued) }}</dd>
-                        </div>
-                        <div v-if="row.running > 0" class="flex items-center justify-between gap-2 sm:block">
-                          <dt class="text-muted-foreground">Running</dt>
-                          <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.running) }}</dd>
-                        </div>
-                        <div v-if="row.failed > 0" class="flex items-center justify-between gap-2 sm:block">
-                          <dt class="text-muted-foreground">Failed</dt>
-                          <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.failed) }}</dd>
-                        </div>
-                        <div v-if="row.deferred > 0" class="flex items-center justify-between gap-2 sm:block">
-                          <dt class="text-muted-foreground">Deferred</dt>
-                          <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.deferred) }}</dd>
-                        </div>
-                      </dl>
-                    </div>
-                  </div>
-                  <div v-else class="rounded-md border border-border bg-muted/60 p-3">
-                    <p class="font-semibold text-foreground">
-                      {{ formatAssetCount(thumbnailReady) }}/{{ formatAssetCount(thumbnailExpected) }} cached
-                    </p>
-                    <p class="mt-1 text-sm text-muted-foreground">{{ derivativeCoverageLabel }}</p>
-                  </div>
-                  <p v-if="showGenerateMissing" class="text-sm text-muted-foreground">
-                    {{ formatAssetCount(thumbnailMissing || informationalGap) }} image cache files missing
-                  </p>
-                  <dl class="grid gap-3 text-sm sm:grid-cols-3">
-                    <div class="rounded-md border border-border bg-muted/60 p-3">
-                      <dt class="text-xs font-medium text-muted-foreground">This library</dt>
-                      <dd class="mt-1 font-semibold text-foreground">
-                        {{ formatBytes(thumbnails.library_used_bytes) }}
+                <!-- Health details collapse -->
+                <div
+                  v-if="healthSeverity === 'warning' && hasCatalogIssues && healthDetailsOpen"
+                  class="mt-4 border-t pt-4"
+                >
+                  <dl class="grid gap-4 text-sm sm:grid-cols-3">
+                    <div v-for="issue in issueBreakdown" :key="issue.label">
+                      <dt class="text-xs text-muted-foreground">{{ issue.label }}</dt>
+                      <dd class="mt-0.5 text-lg font-semibold" :class="issue.count > 0 ? 'text-destructive' : 'text-foreground'">
+                        {{ issue.count }}
                       </dd>
-                    </div>
-                    <div class="rounded-md border border-border bg-muted/60 p-3">
-                      <dt class="text-xs font-medium text-muted-foreground">All libraries</dt>
-                      <dd class="mt-1 font-semibold text-foreground">
-                        {{ formatBytes(thumbnails.quota_used_bytes) }} / {{ formatBytes(thumbnails.quota_bytes) }}
-                      </dd>
-                    </div>
-                    <div class="rounded-md border border-border bg-muted/60 p-3">
-                      <dt class="text-xs font-medium text-muted-foreground">{{ derivativeCacheState.label }}</dt>
-                      <dd class="mt-1 font-semibold" :class="derivativeCacheState.tone">
-                        {{ derivativeCacheState.value }}
-                      </dd>
-                      <p class="mt-1 text-xs text-muted-foreground">{{ derivativeCacheState.detail }}</p>
                     </div>
                   </dl>
-                  <div
-                    v-if="derivativeWorkerUnavailable"
-                    class="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive"
-                    role="alert"
-                  >
-                    <AlertTriangle class="mt-0.5 size-4 shrink-0" />
-                    <div class="space-y-2">
-                      <p>No image cache worker is available. New image cache jobs cannot progress.</p>
-                      <ButtonLink to="/admin/maintenance" variant="outline" size="sm">Open maintenance</ButtonLink>
-                    </div>
+                  <div v-if="latestIssue" class="mt-3 rounded-lg bg-background/60 p-3 text-sm">
+                    <p class="font-medium">{{ latestIssue.message }}</p>
+                    <p v-if="latestIssue.path" class="mt-1 truncate font-mono text-xs text-muted-foreground">
+                      {{ latestIssue.path }}
+                    </p>
                   </div>
-                  <p
-                    v-if="thumbnails.queued_jobs || thumbnails.running_jobs || thumbnails.failed_jobs"
-                    class="text-sm text-muted-foreground"
-                  >
-                    {{ thumbnails.queued_jobs }} queued · {{ thumbnails.running_jobs }} running ·
-                    {{ thumbnails.failed_jobs }} failed
-                  </p>
-                  <Button
-                    v-if="showGenerateMissing"
-                    variant="outline"
-                    size="sm"
-                    :disabled="warmMutation.isPending.value"
-                    @click="warmMutation.mutate()"
-                  >
-                    <RefreshCw v-if="warmMutation.isPending.value" class="animate-spin" data-icon="inline-start" />
-                    <ImageIcon v-else data-icon="inline-start" />
-                    {{ warmMutation.isPending.value ? "Preparing image cache..." : generateMissingLabel }}
-                  </Button>
-                </template>
-                <div
-                  v-else-if="generatedImagesLoadError"
-                  class="rounded-md border border-destructive/30 bg-destructive/5 p-4"
-                  role="alert"
-                >
-                  <p class="text-sm font-medium">Image cache coverage could not be loaded.</p>
-                  <Button variant="outline" size="sm" class="mt-3" @click="generatedImagesQuery.refetch?.()">
-                    Try again
-                  </Button>
-                </div>
-                <Skeleton v-else-if="generatedImagesQuery.isPending.value" class="h-32 w-full" />
-                <div v-else class="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-                  Image cache coverage has not been measured yet.
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        <Separator />
-
-        <section class="space-y-5">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 class="text-sm font-semibold text-foreground">Configuration</h3>
-              <p class="mt-1 text-sm text-muted-foreground">
-                Source folders and exclusion patterns used when updating this library.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
-              @click="editOpen = true"
-            >
-              <Pencil data-icon="inline-start" />
-              Edit configuration
-            </Button>
-          </div>
-          <div class="grid gap-4 md:grid-cols-2">
-            <Card class="gap-0 py-0">
-              <CardContent class="p-4">
-                <div class="flex items-center justify-between gap-3">
-                  <h4 class="text-sm font-semibold">Source folders</h4>
-                  <span class="text-xs text-muted-foreground">{{ sourceFolderCountLabel }}</span>
+              <!-- Three status tiles -->
+              <div v-if="status" class="grid gap-2 sm:grid-cols-3">
+                <div
+                  v-for="tile in statusTiles"
+                  :key="tile.key"
+                  class="rounded-lg border border-border bg-muted/30 p-3"
+                >
+                  <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{{ tile.label }}</p>
+                  <p class="mt-1.5 flex items-center gap-1 text-sm font-semibold" :class="statusTileTone[tile.tone]">
+                    <CircleCheck v-if="tile.tone === 'healthy'" class="size-3.5 shrink-0" aria-hidden="true" />
+                    <AlertTriangle v-else-if="tile.tone === 'warning'" class="size-3.5 shrink-0" aria-hidden="true" />
+                    <CircleX v-else class="size-3.5 shrink-0" aria-hidden="true" />
+                    <span>{{ tile.value }}</span>
+                    <Tooltip v-if="tile.help">
+                      <TooltipTrigger as-child>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
+                          :aria-label="`About ${tile.label.toLowerCase()}`"
+                        >
+                          <Info class="size-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" align="start" class="max-w-[320px] font-normal">
+                        {{ tile.help }}
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p class="mt-1 text-xs text-muted-foreground">{{ tile.detail }}</p>
                 </div>
-                <div class="mt-3 grid gap-2">
-                  <div
-                    v-for="path in library.import_paths"
-                    :key="path.id"
-                    class="flex min-w-0 items-center gap-2 rounded-md border border-border bg-muted/60 px-3 py-2"
+              </div>
+
+              <LibraryProgressBar v-if="showStatusProgress" :status="status" />
+            </div>
+          </section>
+
+          <!-- ── Image Cache card ── -->
+          <section class="ldp-section-card rounded-xl border border-border bg-card" aria-labelledby="cache-heading">
+            <div class="flex items-start justify-between gap-3 p-5 pb-4">
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <h2 id="cache-heading" class="text-sm font-semibold text-foreground">Image cache</h2>
+                  <Badge
+                    v-if="thumbnails?.policy === 'on_demand'"
+                    variant="outline"
+                    class="text-[11px] font-medium text-muted-foreground"
                   >
-                    <OverflowTooltip :text="path.path" class="min-w-0 flex-1 font-mono text-xs" align="start">
-                      {{ path.path }}
-                    </OverflowTooltip>
-                    <CopyButton
-                      :text="path.path"
-                      copy-id="path"
-                      label="Copy path"
-                      copied-label="Path copied"
-                      variant="ghost"
-                      size="icon-lg"
-                      class="-mr-1 shrink-0 text-muted-foreground hover:text-foreground"
+                    On demand
+                  </Badge>
+                </div>
+                <p class="mt-1 text-xs text-muted-foreground">Cached thumbnails and previews used while browsing.</p>
+                <p v-if="thumbnails" class="mt-0.5 text-xs text-muted-foreground">
+                  {{ formatAssetCount(thumbnails.total_assets) }} images ·
+                  {{ formatAssetCount(thumbnails.expected_derivatives) }} cache files
+                </p>
+              </div>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="size-8 shrink-0 text-muted-foreground"
+                    aria-label="Refresh image cache"
+                    :disabled="generatedImagesQuery.isFetching.value"
+                    @click="generatedImagesQuery.refetch()"
+                  >
+                    <RefreshCw class="size-3.5" :class="generatedImagesQuery.isFetching.value ? 'animate-spin' : ''" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" class="max-w-[220px]">
+                  Reload cached, required, coverage, and cache usage counts.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
+            <div class="space-y-3 px-5 pb-5">
+              <template v-if="thumbnails">
+                <!-- Coverage rows -->
+                <div
+                  v-if="derivativeCoverageRows.length"
+                  class="divide-y divide-border overflow-hidden rounded-lg border border-border"
+                >
+                  <div v-for="row in derivativeCoverageRows" :key="row.key" class="space-y-2.5 bg-muted/30 p-3.5">
+                    <div class="flex items-center justify-between gap-3">
+                      <div class="flex min-w-0 items-center gap-2">
+                        <ImageIcon class="size-3.5 shrink-0 text-foreground/60" aria-hidden="true" />
+                        <p class="text-sm font-medium text-foreground">{{ row.label }}</p>
+                        <Tooltip>
+                          <TooltipTrigger as-child>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
+                              :aria-label="`About ${row.label.toLowerCase()}`"
+                            >
+                              <Info class="size-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" align="start" class="max-w-[280px] font-normal">
+                            {{ row.help }}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <p class="shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">
+                        {{ formatAssetCount(row.ready) }}/{{ formatAssetCount(row.expected) }} cached
+                      </p>
+                    </div>
+                    <Progress
+                      :model-value="Math.round(row.ratio * 100)"
+                      class="h-1.5 bg-muted transition-all duration-500"
+                      :indicator-class="row.ratio >= 1 ? 'bg-success transition-all duration-500' : 'bg-warning transition-all duration-500'"
                     />
+                    <dl v-if="row.queued > 0 || row.running > 0 || row.failed > 0 || row.deferred > 0" class="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                      <div v-if="row.queued > 0" class="flex items-center gap-1.5">
+                        <dt class="text-muted-foreground">Queued</dt>
+                        <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.queued) }}</dd>
+                      </div>
+                      <div v-if="row.running > 0" class="flex items-center gap-1.5">
+                        <dt class="text-muted-foreground">Running</dt>
+                        <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.running) }}</dd>
+                      </div>
+                      <div v-if="row.failed > 0" class="flex items-center gap-1.5">
+                        <dt class="text-muted-foreground">Failed</dt>
+                        <dd class="font-medium tabular-nums text-destructive">{{ formatAssetCount(row.failed) }}</dd>
+                      </div>
+                      <div v-if="row.deferred > 0" class="flex items-center gap-1.5">
+                        <dt class="text-muted-foreground">Deferred</dt>
+                        <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.deferred) }}</dd>
+                      </div>
+                    </dl>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card class="gap-0 py-0">
-              <CardContent class="p-4">
-                <div class="flex items-center justify-between gap-3">
-                  <h4 class="text-sm font-semibold">Exclusion patterns</h4>
-                  <span class="text-xs text-muted-foreground">{{ exclusionPatternCountLabel }}</span>
+                <div v-else class="rounded-lg border border-border bg-muted/30 p-3.5">
+                  <p class="text-sm font-semibold text-foreground">
+                    {{ formatAssetCount(thumbnailReady) }}/{{ formatAssetCount(thumbnailExpected) }} cached
+                  </p>
+                  <p class="mt-1 text-xs text-muted-foreground">{{ derivativeCoverageLabel }}</p>
                 </div>
-                <div v-if="library.exclusion_patterns.length" class="mt-3 flex flex-wrap gap-2">
+
+                <!-- Storage tiles — same anatomy as status tiles above -->
+                <dl class="grid gap-2 text-sm sm:grid-cols-3">
+                  <div class="rounded-lg border border-border bg-muted/30 p-3">
+                    <dt class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">This library</dt>
+                    <dd class="mt-1.5 text-sm font-semibold tabular-nums text-foreground">
+                      {{ formatBytes(thumbnails.library_used_bytes) }}
+                    </dd>
+                  </div>
+                  <div class="rounded-lg border border-border bg-muted/30 p-3">
+                    <dt class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">All libraries</dt>
+                    <dd class="mt-1.5 text-sm font-semibold tabular-nums text-foreground">
+                      {{ formatBytes(thumbnails.quota_used_bytes) }} / {{ formatBytes(thumbnails.quota_bytes) }}
+                    </dd>
+                  </div>
+                  <div class="rounded-lg border border-border bg-muted/30 p-3">
+                    <dt class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {{ derivativeCacheState.label }}
+                    </dt>
+                    <dd class="mt-1.5 text-sm font-semibold" :class="derivativeCacheState.tone">
+                      {{ derivativeCacheState.value }}
+                    </dd>
+                    <p v-if="derivativeCacheState.detail" class="mt-1 text-xs text-muted-foreground">
+                      {{ derivativeCacheState.detail }}
+                    </p>
+                  </div>
+                </dl>
+
+                <!-- Worker alert -->
+
+                <div
+                  v-if="derivativeWorkerUnavailable"
+                  class="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/5 p-3.5 text-sm text-destructive"
+                  role="alert"
+                >
+                  <AlertTriangle class="mt-0.5 size-4 shrink-0" />
+                  <div class="space-y-2">
+                    <p>No image cache worker is available. New image cache jobs cannot progress.</p>
+                    <ButtonLink to="/admin/maintenance" variant="outline" size="sm">Open maintenance</ButtonLink>
+                  </div>
+                </div>
+
+                <!-- Job counts -->
+                <p
+                  v-if="thumbnails.queued_jobs || thumbnails.running_jobs || thumbnails.failed_jobs"
+                  class="text-xs text-muted-foreground"
+                >
+                  {{ thumbnails.queued_jobs }} queued · {{ thumbnails.running_jobs }} running ·
+                  {{ thumbnails.failed_jobs }} failed
+                </p>
+
+                <!-- Missing action -->
+                <p v-if="showGenerateMissing" class="text-xs text-muted-foreground">
+                  {{ formatAssetCount(thumbnailMissing || informationalGap) }} image cache files missing
+                </p>
+                <Button
+                  v-if="showGenerateMissing"
+                  variant="outline"
+                  size="sm"
+                  :disabled="warmMutation.isPending.value"
+                  @click="warmMutation.mutate()"
+                >
+                  <RefreshCw v-if="warmMutation.isPending.value" class="mr-1.5 size-3.5 animate-spin" />
+                  <ImageIcon v-else class="mr-1.5 size-3.5" />
+                  {{ warmMutation.isPending.value ? "Preparing image cache…" : generateMissingLabel }}
+                </Button>
+              </template>
+
+              <div
+                v-else-if="generatedImagesLoadError"
+                class="rounded-lg border border-destructive/30 bg-destructive/5 p-4"
+                role="alert"
+              >
+                <p class="text-sm font-medium">Image cache coverage could not be loaded.</p>
+                <Button variant="outline" size="sm" class="mt-3" @click="generatedImagesQuery.refetch?.()">Try again</Button>
+              </div>
+              <Skeleton v-else-if="generatedImagesQuery.isPending.value" class="h-28 w-full rounded-lg" />
+              <div v-else class="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                Image cache coverage has not been measured yet.
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ═══════════════════════════════════════════
+             CONFIGURATION
+        ════════════════════════════════════════════ -->
+        <section class="mt-8" aria-labelledby="config-heading">
+          <div class="mb-3">
+            <h2 id="config-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuration</h2>
+            <p class="mt-0.5 text-sm text-foreground">Source folders and exclusion patterns used when updating this library.</p>
+          </div>
+
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <!-- Source folders -->
+            <div class="rounded-xl border border-border bg-card">
+              <div class="flex items-center justify-between border-b border-border px-4 py-3">
+                <h3 class="text-sm font-semibold">Source folders</h3>
+                <span class="text-xs text-muted-foreground">{{ sourceFolderCountLabel }}</span>
+              </div>
+              <div class="space-y-1.5 p-3">
+                <div
+                  v-for="path in library.import_paths"
+                  :key="path.id"
+                  class="group flex min-w-0 items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 transition-colors hover:bg-muted/60"
+                >
+                  <Folder class="size-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+                  <OverflowTooltip :text="path.path" class="min-w-0 flex-1 font-mono text-xs" align="start">
+                    {{ path.path }}
+                  </OverflowTooltip>
+                  <CopyButton
+                    :text="path.path"
+                    copy-id="path"
+                    label="Copy path"
+                    copied-label="Path copied"
+                    variant="ghost"
+                    size="icon-lg"
+                    class="-mr-1 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Exclusion patterns -->
+            <div class="rounded-xl border border-border bg-card">
+              <div class="flex items-center justify-between border-b border-border px-4 py-3">
+                <h3 class="text-sm font-semibold">Exclusion patterns</h3>
+                <span class="text-xs text-muted-foreground">{{ exclusionPatternCountLabel }}</span>
+              </div>
+              <div class="p-4">
+                <div v-if="library.exclusion_patterns.length" class="flex flex-wrap gap-2">
                   <code
                     v-for="pattern in library.exclusion_patterns"
                     :key="pattern"
-                    class="rounded bg-muted px-2 py-1 text-xs"
+                    class="rounded-md border border-border bg-muted/60 px-2 py-1 font-mono text-xs"
                   >
                     {{ pattern }}
                   </code>
                 </div>
-                <div v-else class="mt-3 space-y-3">
+                <div v-else class="space-y-3">
                   <div>
                     <p class="text-sm font-medium text-foreground">No exclusion patterns</p>
                     <p class="mt-1 text-sm text-muted-foreground">
                       All files under the source folders are included during library updates.
                     </p>
                   </div>
-                  <Button variant="outline" size="sm" class="border-border bg-card" @click="editOpen = true">
-                    Add exclusion pattern
-                  </Button>
+                  <Button variant="outline" size="sm" @click="editOpen = true">Add exclusion pattern</Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </section>
 
-        <Card class="gap-0 py-0">
-          <CardContent class="p-5">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 class="font-semibold text-foreground">Recent job history</h3>
-                <p class="mt-1 text-sm text-muted-foreground">Latest {{ RECENT_JOB_LIMIT }} jobs for this library.</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <ButtonLink
-                  :to="{ name: 'admin-library-jobs', params: { id: library.id } }"
-                  variant="outline"
-                  size="sm"
-                  class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
-                >
-                  View all jobs
-                </ButtonLink>
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Refresh recent jobs"
-                      :disabled="jobsQuery.isFetching.value"
-                      @click="jobsQuery.refetch()"
-                    >
-                      <RefreshCw :class="jobsQuery.isFetching.value ? 'animate-spin' : ''" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" align="end" class="max-w-[220px]">
-                    Reload this library's recent scan, metadata, and image cache jobs.
-                  </TooltipContent>
-                </Tooltip>
-              </div>
+        <!-- ═══════════════════════════════════════════
+             RECENT JOB HISTORY
+        ════════════════════════════════════════════ -->
+        <section class="mt-8" aria-labelledby="jobs-heading">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 id="jobs-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent jobs</h2>
+              <p class="mt-0.5 text-sm text-foreground">Latest {{ RECENT_JOB_LIMIT }} jobs for this library.</p>
             </div>
-            <JobList class="mt-4" :jobs="jobsQuery.data.value ?? []" />
-          </CardContent>
-        </Card>
+            <div class="flex items-center gap-2">
+              <ButtonLink
+                :to="{ name: 'admin-library-jobs', params: { id: library.id } }"
+                variant="outline"
+                size="sm"
+                class="border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
+              >
+                View all jobs
+              </ButtonLink>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Refresh recent jobs"
+                    :disabled="jobsQuery.isFetching.value"
+                    @click="jobsQuery.refetch()"
+                  >
+                    <RefreshCw class="size-3.5" :class="jobsQuery.isFetching.value ? 'animate-spin' : ''" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" class="max-w-[220px]">
+                  Reload this library's recent scan, metadata, and image cache jobs.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+          <div class="rounded-xl border border-border bg-card px-5">
+            <JobList :jobs="jobsQuery.data.value ?? []" />
+          </div>
+        </section>
 
-        <Card class="gap-0 py-0">
-          <CardContent class="p-5">
-            <h3 class="font-semibold text-foreground">File catalog lifecycle</h3>
-            <Separator class="my-4" />
-            <dl class="grid gap-4 text-sm sm:grid-cols-4">
-              <div>
-                <dt class="text-muted-foreground">Created</dt>
-                <dd class="mt-1 font-medium text-foreground">{{ formatLibraryTimestamp(library.created_at) }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Updated</dt>
-                <dd class="mt-1 font-medium text-foreground">{{ formatLibraryTimestamp(library.updated_at) }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">File catalog updated</dt>
-                <dd class="mt-1 font-medium text-foreground">
-                  {{ formatLibraryTimestamp(status?.last_scan_at ?? library.last_scan_at) }}
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Metadata updated</dt>
-                <dd class="mt-1 font-medium text-foreground">
-                  {{ formatLibraryTimestamp(status?.last_index_at ?? null) }}
-                </dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
+        <!-- ═══════════════════════════════════════════
+             FILE CATALOG LIFECYCLE
+        ════════════════════════════════════════════ -->
+        <section class="mt-8" aria-labelledby="lifecycle-heading">
+          <h2 id="lifecycle-heading" class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Catalog lifecycle</h2>
+          <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="rounded-xl border border-border bg-card p-4">
+              <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Clock class="size-3.5" aria-hidden="true" /> Created
+              </dt>
+              <dd class="mt-2 text-sm font-medium text-foreground">{{ formatLibraryTimestamp(library.created_at) }}</dd>
+            </div>
+            <div class="rounded-xl border border-border bg-card p-4">
+              <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <RefreshCw class="size-3.5" aria-hidden="true" /> Last modified
+              </dt>
+              <dd class="mt-2 text-sm font-medium text-foreground">{{ formatLibraryTimestamp(library.updated_at) }}</dd>
+            </div>
+            <div class="rounded-xl border border-border bg-card p-4">
+              <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Folder class="size-3.5" aria-hidden="true" /> File catalog updated
+              </dt>
+              <dd class="mt-2 text-sm font-medium text-foreground">
+                {{ formatLibraryTimestamp(status?.last_scan_at ?? library.last_scan_at) }}
+              </dd>
+            </div>
+            <div class="rounded-xl border border-border bg-card p-4">
+              <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Info class="size-3.5" aria-hidden="true" /> Metadata updated
+              </dt>
+              <dd class="mt-2 text-sm font-medium text-foreground">
+                {{ formatLibraryTimestamp(status?.last_index_at ?? null) }}
+              </dd>
+            </div>
+          </dl>
+        </section>
 
-        <Card class="gap-0 border-destructive/30 py-0">
-          <CardContent class="flex flex-col items-start gap-3 p-5">
-            <h3 class="text-sm font-semibold uppercase tracking-wide text-destructive">Danger zone</h3>
-            <p class="text-sm text-muted-foreground">
-              Unregistering removes this library from the catalog. Files are not deleted.
-            </p>
-            <Button variant="destructive" @click="deleteOpen = true"><Trash2 /> Unregister library</Button>
-          </CardContent>
-        </Card>
+        <!-- ═══════════════════════════════════════════
+             DANGER ZONE
+        ════════════════════════════════════════════ -->
+        <section class="ldp-danger mt-8 rounded-xl border border-destructive/30 bg-destructive/5 p-5" aria-labelledby="danger-heading">
+          <div class="flex items-center gap-2">
+            <AlertTriangle class="size-4 text-destructive" />
+            <h2 id="danger-heading" class="text-sm font-semibold text-destructive">Destructive actions</h2>
+          </div>
+          <p class="mt-2 text-sm text-muted-foreground">
+            Unregistering removes this library from the catalog. Source files are not deleted.
+          </p>
+          <Button variant="destructive" class="mt-4" @click="deleteOpen = true">
+            <Trash2 class="mr-1.5 size-4" /> Unregister library
+          </Button>
+        </section>
       </template>
     </div>
 
+    <!-- Dialogs -->
     <LibraryEditDialog
       v-model:open="editOpen"
       :library="library"
@@ -1115,3 +1183,31 @@ function estimatedAssets(): number | undefined {
     />
   </main>
 </template>
+
+<style scoped>
+.ldp-main {
+  background-color: var(--background);
+}
+
+.ldp-back {
+  transition: color 150ms ease;
+}
+
+/* Stat card — subtle lift on hover */
+.ldp-stat-card {
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+.ldp-stat-card:hover {
+  box-shadow: var(--gallery-shadow-sm);
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ldp-stat-card { transition: none; transform: none !important; }
+}
+
+/* Lifecycle cards — same hover */
+.ldp-danger {
+  /* ensure border bleed is consistent */
+  background-color: color-mix(in srgb, var(--destructive) 4%, transparent);
+}
+</style>

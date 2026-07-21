@@ -25,6 +25,7 @@ gallery-e2e-backend.log
 index.html
 probe.mjs
 probe*.mjs
+frontend/debug*.mjs
 Thumbs.db
 
 # IDE
@@ -50,6 +51,9 @@ coverage-report/
 
 # Hermes agent scratch, plans, and session artifacts
 .hermes/
+
+# Impeccable agent critique artifacts
+.impeccable/
 
 # Test reports
 frontend/playwright-report/
