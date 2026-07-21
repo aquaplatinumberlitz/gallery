@@ -31,7 +31,7 @@ const emit = defineEmits<{
 <template>
   <SidebarProvider :open="isSidebarOpen" @update:open="emit('update:sidebarOpen', $event)">
     <Sidebar side="left" variant="sidebar" collapsible="icon">
-      <div class="flex h-full w-full flex-col group-data-[collapsible=icon]:items-center">
+      <div class="flex h-full w-full flex-col">
         <GallerySidebarContent
           :tree="tree"
           :is-loading="isLoading"
