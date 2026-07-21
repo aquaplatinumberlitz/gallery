@@ -241,7 +241,7 @@ function created(library: RegisteredLibrary) {
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-border bg-muted/40">
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <th class="w-44 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Library
                 </th>
                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -264,20 +264,26 @@ function created(library: RegisteredLibrary) {
             </thead>
             <tbody class="divide-y divide-border">
               <tr v-for="library in libraries" :key="library.id" class="group transition-colors hover:bg-muted/30">
-                <td class="px-4 py-3">
+                <td class="max-w-[176px] px-4 py-3">
                   <div class="flex items-center gap-2.5">
                     <div
                       class="flex size-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted"
                     >
                       <Folder class="size-3.5 text-foreground/60" aria-hidden="true" />
                     </div>
-                    <div>
-                      <button
-                        class="font-semibold text-foreground hover:underline"
-                        @click="router.push(`/admin/libraries/${library.id}`)"
+                    <div class="min-w-0">
+                      <OverflowTooltip
+                        :text="library.name"
+                        align="start"
+                        class="block"
                       >
-                        {{ library.name }}
-                      </button>
+                        <button
+                          class="w-full truncate text-left font-semibold text-foreground hover:underline"
+                          @click="router.push(`/admin/libraries/${library.id}`)"
+                        >
+                          {{ library.name }}
+                        </button>
+                      </OverflowTooltip>
                       <Tooltip v-if="scanErrorMessage(library)">
                         <TooltipTrigger as-child>
                           <div class="mt-0.5 flex items-center gap-1 text-xs text-destructive">

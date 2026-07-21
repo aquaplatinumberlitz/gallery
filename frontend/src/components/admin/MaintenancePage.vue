@@ -144,81 +144,103 @@ const needsRefreshCount = computed(() => {
             </div>
             <div class="px-5 py-4">
               <p class="text-xs text-muted-foreground">Tracks which source files exist in registered libraries.</p>
-              <div v-if="runtimeQuery.data.value" class="mt-4">
-                <dl class="divide-y divide-border text-sm">
-                  <div class="flex items-center justify-between gap-3 py-2">
-                    <dt class="text-muted-foreground">Watching for changes</dt>
-                    <dd
-                      class="font-medium"
-                      :class="
-                        !runtimeQuery.data.value.global_runtime.watcher_enabled
-                          ? 'text-muted-foreground'
-                          : runtimeQuery.data.value.global_runtime.watcher_healthy
-                            ? 'text-success'
-                            : 'text-destructive'
-                      "
-                    >
-                      {{
-                        runtimeQuery.data.value.global_runtime.watcher_enabled
-                          ? runtimeQuery.data.value.global_runtime.watcher_healthy
-                            ? "Healthy"
-                            : "Unhealthy"
-                          : "Off"
-                      }}
-                    </dd>
+              <template v-if="runtimeQuery.data.value">
+                <!-- Idle: watcher ok, no active/queued jobs, no issues -->
+                <div
+                  v-if="
+                    !runtimeQuery.data.value.global_runtime.watcher_issue &&
+                    (!runtimeQuery.data.value.global_runtime.watcher_enabled || runtimeQuery.data.value.global_runtime.watcher_healthy) &&
+                    runtimeQuery.data.value.global_runtime.catalog_active_jobs === 0 &&
+                    runtimeQuery.data.value.global_runtime.catalog_queue_depth === 0
+                  "
+                  class="mt-4 flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2.5"
+                >
+                  <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-success/15">
+                    <svg class="size-3 text-success" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium text-foreground">Healthy</p>
+                    <p class="text-xs text-muted-foreground">
+                      <span v-if="runtimeQuery.data.value.global_runtime.watcher_enabled">Watching for changes · </span>
+                      <span v-if="runtimeQuery.data.value.global_runtime.scheduled_reconciliation_enabled">Scheduled refresh on · </span>
+                      {{ runtimeQuery.data.value.global_runtime.catalog_worker_count }} worker{{ runtimeQuery.data.value.global_runtime.catalog_worker_count !== 1 ? 's' : '' }} ready · no active jobs
+                    </p>
                   </div>
+                </div>
+
+                <!-- Active or error state -->
+                <template v-else>
+                  <!-- Watcher issue alert -->
                   <div
                     v-if="runtimeQuery.data.value.global_runtime.watcher_issue"
-                    class="flex items-center justify-between gap-3 py-2"
+                    class="mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                    role="alert"
                   >
-                    <dt class="text-muted-foreground">Latest issue</dt>
-                    <dd class="max-w-48 truncate text-right text-xs text-destructive">
-                      {{ runtimeQuery.data.value.global_runtime.watcher_issue }}
-                    </dd>
+                    Watcher issue: {{ runtimeQuery.data.value.global_runtime.watcher_issue }}
                   </div>
-                  <div class="flex items-center justify-between gap-3 py-2">
-                    <dt class="text-muted-foreground">Scheduled refresh</dt>
-                    <dd class="font-medium">
-                      {{ runtimeQuery.data.value.global_runtime.scheduled_reconciliation_enabled ? "On" : "Off" }}
-                    </dd>
-                  </div>
-                  <div class="flex items-center justify-between gap-3 py-2">
-                    <dt class="text-muted-foreground">File catalog workers</dt>
-                    <dd class="font-semibold tabular-nums text-foreground">
-                      {{ runtimeQuery.data.value.global_runtime.catalog_worker_count }}
-                    </dd>
-                  </div>
-                  <div class="flex items-center justify-between gap-3 py-2">
-                    <dt class="text-muted-foreground">Active jobs</dt>
-                    <dd class="font-semibold tabular-nums text-foreground">
-                      {{ runtimeQuery.data.value.global_runtime.catalog_active_jobs }}
-                    </dd>
-                  </div>
-                  <div class="flex items-center justify-between gap-3 py-2">
-                    <dt class="flex items-center gap-1 text-muted-foreground">
-                      Queue depth
-                      <Tooltip>
-                        <TooltipTrigger as-child>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
-                            aria-label="About File catalog queue depth"
-                          >
-                            <Info class="size-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" align="start">
-                          File catalog scan or rebuild jobs waiting to run.
-                        </TooltipContent>
-                      </Tooltip>
-                    </dt>
-                    <dd class="font-semibold tabular-nums text-foreground">
-                      {{ runtimeQuery.data.value.global_runtime.catalog_queue_depth }}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
+
+                  <dl class="mt-4 divide-y divide-border text-sm">
+                    <div class="flex items-center justify-between gap-3 py-2">
+                      <dt class="text-muted-foreground">Watching for changes</dt>
+                      <dd
+                        class="font-medium"
+                        :class="
+                          !runtimeQuery.data.value.global_runtime.watcher_enabled
+                            ? 'text-muted-foreground'
+                            : runtimeQuery.data.value.global_runtime.watcher_healthy
+                              ? 'text-success'
+                              : 'text-destructive'
+                        "
+                      >
+                        {{
+                          runtimeQuery.data.value.global_runtime.watcher_enabled
+                            ? runtimeQuery.data.value.global_runtime.watcher_healthy
+                              ? "Healthy"
+                              : "Unhealthy"
+                            : "Off"
+                        }}
+                      </dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 py-2">
+                      <dt class="text-muted-foreground">Scheduled refresh</dt>
+                      <dd class="font-medium">
+                        {{ runtimeQuery.data.value.global_runtime.scheduled_reconciliation_enabled ? "On" : "Off" }}
+                      </dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 py-2">
+                      <dt class="text-muted-foreground">Workers</dt>
+                      <dd class="font-semibold tabular-nums text-foreground">
+                        {{ runtimeQuery.data.value.global_runtime.catalog_worker_count }}
+                      </dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 py-2">
+                      <dt class="text-muted-foreground">Active jobs</dt>
+                      <dd class="font-semibold tabular-nums text-foreground">
+                        {{ runtimeQuery.data.value.global_runtime.catalog_active_jobs }}
+                      </dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 py-2">
+                      <dt class="flex items-center gap-1 text-muted-foreground">
+                        Queue depth
+                        <Tooltip>
+                          <TooltipTrigger as-child>
+                            <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About File catalog queue depth">
+                              <Info class="size-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" align="start">File catalog scan or rebuild jobs waiting to run.</TooltipContent>
+                        </Tooltip>
+                      </dt>
+                      <dd class="font-semibold tabular-nums text-foreground">
+                        {{ runtimeQuery.data.value.global_runtime.catalog_queue_depth }}
+                      </dd>
+                    </div>
+                  </dl>
+                </template>
+              </template>
+
               <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-32 w-full rounded-lg" />
               <p v-else class="mt-4 text-sm text-muted-foreground">Runtime diagnostics unavailable.</p>
             </div>
@@ -232,174 +254,173 @@ const needsRefreshCount = computed(() => {
             </div>
             <div class="px-5 py-4">
               <p class="text-xs text-muted-foreground">Reads file details after files are cataloged.</p>
-              <div v-if="runtimeQuery.data.value" class="mt-4">
-                <dl class="divide-y divide-border text-sm">
-                  <div class="flex items-center justify-between gap-3 py-2">
-                    <dt class="text-muted-foreground">Workers</dt>
-                    <dd class="font-semibold tabular-nums text-foreground">
-                      {{ runtimeQuery.data.value.global_runtime.metadata_worker_count }}
-                    </dd>
+              <template v-if="runtimeQuery.data.value">
+                <!-- Idle: all counters zero, no failures -->
+                <div
+                  v-if="
+                    runtimeQuery.data.value.global_runtime.metadata_active_jobs === 0 &&
+                    runtimeQuery.data.value.global_runtime.metadata_queue_depth === 0 &&
+                    runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth === 0 &&
+                    (!runtimeQuery.data.value.metadata_lifecycle || (
+                      runtimeQuery.data.value.metadata_lifecycle.running_metadata_jobs === 0 &&
+                      (runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs ?? 0) === 0 &&
+                      needsRefreshCount === 0 &&
+                      (runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets ?? 0) === 0 &&
+                      runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets === 0
+                    ))
+                  "
+                  class="mt-4 flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2.5"
+                >
+                  <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-success/15">
+                    <svg class="size-3 text-success" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium text-foreground">Healthy</p>
+                    <p class="text-xs text-muted-foreground">
+                      {{ runtimeQuery.data.value.global_runtime.metadata_worker_count }} worker{{ runtimeQuery.data.value.global_runtime.metadata_worker_count !== 1 ? 's' : '' }} ready · no active or queued jobs · metadata up to date
+                    </p>
                   </div>
-                  <div class="flex items-center justify-between gap-3 py-2">
-                    <dt class="text-muted-foreground">Active jobs</dt>
-                    <dd class="font-semibold tabular-nums text-foreground">
-                      {{ runtimeQuery.data.value.global_runtime.metadata_active_jobs }}
-                    </dd>
+                </div>
+
+                <!-- Active or error state -->
+                <template v-else>
+                  <!-- Error/warning alert -->
+                  <div
+                    v-if="
+                      runtimeQuery.data.value.metadata_lifecycle && (
+                        (runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs ?? 0) > 0 ||
+                        needsRefreshCount > 0 ||
+                        (runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets ?? 0) > 0
+                      )
+                    "
+                    class="mt-4 space-y-1 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs"
+                    role="alert"
+                  >
+                    <p v-if="(runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs ?? 0) > 0" class="text-destructive">
+                      {{ runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs }} failed extraction job{{ runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs !== 1 ? 's' : '' }}.
+                    </p>
+                    <p v-if="needsRefreshCount > 0" class="text-warning">
+                      {{ needsRefreshCount }} file{{ needsRefreshCount !== 1 ? 's' : '' }} with old or missing metadata.
+                    </p>
+                    <p v-if="(runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets ?? 0) > 0" class="text-warning">
+                      {{ runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets }} asset{{ (runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets ?? 0) !== 1 ? 's' : '' }} can be repaired.
+                    </p>
                   </div>
-                  <div class="flex items-center justify-between gap-3 py-2">
-                    <dt class="flex items-center gap-1 text-muted-foreground">
-                      Queue depth
-                      <Tooltip>
-                        <TooltipTrigger as-child>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
-                            aria-label="About Metadata queue depth"
-                          >
-                            <Info class="size-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" align="start">
-                          Metadata extraction jobs waiting to run.
-                        </TooltipContent>
-                      </Tooltip>
-                    </dt>
-                    <dd class="font-semibold tabular-nums text-foreground">
-                      {{ runtimeQuery.data.value.global_runtime.metadata_queue_depth }}
-                    </dd>
-                  </div>
-                  <div class="flex items-center justify-between gap-3 py-2">
-                    <dt class="flex items-center gap-1 text-muted-foreground">
-                      Staged queue depth
-                      <Tooltip>
-                        <TooltipTrigger as-child>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
-                            aria-label="About Metadata staged queue depth"
-                          >
-                            <Info class="size-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" align="start" class="max-w-[220px]">
-                          Metadata paths staged before they become durable extraction jobs.
-                        </TooltipContent>
-                      </Tooltip>
-                    </dt>
-                    <dd class="font-semibold tabular-nums text-foreground">
-                      {{ runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth }}
-                    </dd>
-                  </div>
-                  <template v-if="runtimeQuery.data.value.metadata_lifecycle">
+
+                  <dl class="mt-4 divide-y divide-border text-sm">
+                    <!-- Workers (always shown in active state) -->
                     <div class="flex items-center justify-between gap-3 py-2">
-                      <dt class="text-muted-foreground">Queued</dt>
+                      <dt class="text-muted-foreground">Workers</dt>
                       <dd class="font-semibold tabular-nums text-foreground">
-                        {{ runtimeQuery.data.value.metadata_lifecycle.queued_metadata_jobs }}
+                        {{ runtimeQuery.data.value.global_runtime.metadata_worker_count }}
                       </dd>
                     </div>
-                    <div class="flex items-center justify-between gap-3 py-2">
-                      <dt class="text-muted-foreground">Running</dt>
-                      <dd class="font-medium tabular-nums">
-                        {{ runtimeQuery.data.value.metadata_lifecycle.running_metadata_jobs }}
+                    <!-- Active jobs (show when > 0) -->
+                    <div v-if="runtimeQuery.data.value.global_runtime.metadata_active_jobs > 0" class="flex items-center justify-between gap-3 py-2">
+                      <dt class="text-muted-foreground">Active jobs</dt>
+                      <dd class="font-semibold tabular-nums text-foreground">
+                        {{ runtimeQuery.data.value.global_runtime.metadata_active_jobs }}
                       </dd>
                     </div>
-                    <div class="flex items-center justify-between gap-3 py-2">
+                    <!-- Queue depth (show when > 0) -->
+                    <div v-if="runtimeQuery.data.value.global_runtime.metadata_queue_depth > 0" class="flex items-center justify-between gap-3 py-2">
                       <dt class="flex items-center gap-1 text-muted-foreground">
-                        Failed jobs
+                        Queue depth
                         <Tooltip>
                           <TooltipTrigger as-child>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
-                              aria-label="About Failed jobs"
-                            >
+                            <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About Metadata queue depth">
                               <Info class="size-3" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" align="start">
-                            Metadata extraction jobs that already failed.
-                          </TooltipContent>
+                          <TooltipContent side="top" align="start">Metadata extraction jobs waiting to run.</TooltipContent>
                         </Tooltip>
                       </dt>
-                      <dd
-                        class="font-medium tabular-nums"
-                        :class="
-                          (runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs ?? 0) > 0
-                            ? 'text-destructive'
-                            : ''
-                        "
-                      >
-                        {{ runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs }}
+                      <dd class="font-semibold tabular-nums text-foreground">
+                        {{ runtimeQuery.data.value.global_runtime.metadata_queue_depth }}
                       </dd>
                     </div>
-                    <div class="flex items-center justify-between gap-3 py-2">
+                    <!-- Staged queue depth (show when > 0) -->
+                    <div v-if="runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth > 0" class="flex items-center justify-between gap-3 py-2">
                       <dt class="flex items-center gap-1 text-muted-foreground">
-                        Old or missing metadata
+                        Staged queue depth
                         <Tooltip>
                           <TooltipTrigger as-child>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
-                              aria-label="About Old or missing metadata"
-                            >
+                            <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About Metadata staged queue depth">
                               <Info class="size-3" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" align="start">
-                            Files whose extracted metadata is stale or missing.
-                          </TooltipContent>
+                          <TooltipContent side="top" align="start" class="max-w-[220px]">Metadata paths staged before they become durable extraction jobs.</TooltipContent>
                         </Tooltip>
                       </dt>
-                      <dd class="font-medium tabular-nums" :class="needsRefreshCount > 0 ? 'text-warning' : ''">
-                        {{ needsRefreshCount }}
+                      <dd class="font-semibold tabular-nums text-foreground">
+                        {{ runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth }}
                       </dd>
                     </div>
-                    <div class="flex items-center justify-between gap-3 py-2">
-                      <dt class="text-muted-foreground">Can be repaired</dt>
-                      <dd
-                        class="font-medium tabular-nums"
-                        :class="
-                          (runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets ?? 0) > 0
-                            ? 'text-warning'
-                            : ''
-                        "
-                      >
-                        {{ runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets }}
-                      </dd>
+                    <template v-if="runtimeQuery.data.value.metadata_lifecycle">
+                      <!-- Running (show when > 0) -->
+                      <div v-if="runtimeQuery.data.value.metadata_lifecycle.running_metadata_jobs > 0" class="flex items-center justify-between gap-3 py-2">
+                        <dt class="text-muted-foreground">Running</dt>
+                        <dd class="font-medium tabular-nums text-foreground">{{ runtimeQuery.data.value.metadata_lifecycle.running_metadata_jobs }}</dd>
+                      </div>
+                      <!-- Failed (show when > 0) -->
+                      <div v-if="(runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs ?? 0) > 0" class="flex items-center justify-between gap-3 py-2">
+                        <dt class="flex items-center gap-1 text-muted-foreground">
+                          Failed jobs
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About Failed jobs">
+                                <Info class="size-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" align="start">Metadata extraction jobs that already failed.</TooltipContent>
+                          </Tooltip>
+                        </dt>
+                        <dd class="font-medium tabular-nums text-destructive">{{ runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs }}</dd>
+                      </div>
+                      <!-- Old or missing (show when > 0) -->
+                      <div v-if="needsRefreshCount > 0" class="flex items-center justify-between gap-3 py-2">
+                        <dt class="flex items-center gap-1 text-muted-foreground">
+                          Old or missing metadata
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About Old or missing metadata">
+                                <Info class="size-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" align="start">Files whose extracted metadata is stale or missing.</TooltipContent>
+                          </Tooltip>
+                        </dt>
+                        <dd class="font-medium tabular-nums text-warning">{{ needsRefreshCount }}</dd>
+                      </div>
+                      <!-- Can be repaired (show when > 0) -->
+                      <div v-if="(runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets ?? 0) > 0" class="flex items-center justify-between gap-3 py-2">
+                        <dt class="text-muted-foreground">Can be repaired</dt>
+                        <dd class="font-medium tabular-nums text-warning">{{ runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets }}</dd>
+                      </div>
+                      <!-- Orphan jobs (show when > 0) -->
+                      <div v-if="runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets > 0" class="flex items-center justify-between gap-3 py-2">
+                        <dt class="flex items-center gap-1 text-muted-foreground">
+                          Jobs without catalog item
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About Jobs without catalog item">
+                                <Info class="size-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" align="start">Metadata index jobs with no matching catalog entry.</TooltipContent>
+                          </Tooltip>
+                        </dt>
+                        <dd class="font-medium tabular-nums text-foreground">{{ runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets }}</dd>
+                      </div>
+                    </template>
+                    <div v-else class="py-2">
+                      <dt class="text-xs text-muted-foreground">Lifecycle data unavailable</dt>
                     </div>
-                    <div class="flex items-center justify-between gap-3 py-2">
-                      <dt class="flex items-center gap-1 text-muted-foreground">
-                        Jobs without catalog item
-                        <Tooltip>
-                          <TooltipTrigger as-child>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
-                              aria-label="About Jobs without catalog item"
-                            >
-                              <Info class="size-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" align="start">
-                            Metadata index jobs with no matching catalog entry.
-                          </TooltipContent>
-                        </Tooltip>
-                      </dt>
-                      <dd class="font-medium tabular-nums">
-                        {{ runtimeQuery.data.value.metadata_lifecycle.metadata_jobs_without_matching_assets }}
-                      </dd>
-                    </div>
-                  </template>
-                  <div v-else class="py-2">
-                    <dt class="text-xs text-muted-foreground">Lifecycle data unavailable</dt>
-                  </div>
-                </dl>
-              </div>
+                  </dl>
+                </template>
+              </template>
               <Skeleton v-else-if="runtimeQuery.isPending.value" class="mt-4 h-40 w-full rounded-lg" />
               <p v-else class="mt-4 text-sm text-muted-foreground">Metadata extraction diagnostics unavailable.</p>
             </div>

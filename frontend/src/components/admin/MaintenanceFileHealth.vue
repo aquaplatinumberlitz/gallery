@@ -1,12 +1,11 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { Bug, Info, Loader2, ShieldCheck } from "lucide-vue-next";
 import type { FileHealthRun } from "@/services/api";
 import Button from "@/components/ui/Button.vue";
-import Separator from "@/components/ui/Separator.vue";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-defineProps<{
+const props = defineProps<{
   run?: FileHealthRun | null;
   pending?: boolean;
 }>();
@@ -85,97 +84,178 @@ const repairKeys = [
     description: "Problems counted in this run that did not need a state change.",
   },
 ] as const;
+
+/** True when zero issues were found in the last run */
+const allClear = computed(() => {
+  if (!props.run) return false;
+  return fileIssueKeys.every((item) => props.run!.issues[item.key] === 0);
+});
+
+/** Issue items with count > 0 */
+const activeIssues = computed(() =>
+  props.run ? fileIssueKeys.filter((item) => props.run!.issues[item.key] > 0) : [],
+);
+
+/** Repair items with count > 0 */
+const activeRepairs = computed(() =>
+  props.run ? repairKeys.filter((item) => props.run!.repairs[item.key] > 0) : [],
+);
+
+/** Total issue count */
+const totalIssues = computed(() =>
+  props.run ? fileIssueKeys.reduce((sum, item) => sum + props.run!.issues[item.key], 0) : 0,
+);
+
+/** Format finished_at as "Today at HH:MM" or "DD MMM at HH:MM" */
+function formatRunTime(ts: number | null | undefined): string {
+  if (!ts) return "Check in progress";
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const isToday =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (isToday) return `Today at ${time}`;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) + ` at ${time}`;
+}
 </script>
 
 <template>
-  <Card class="gap-0 py-0" aria-labelledby="file-health-heading">
-    <CardContent class="p-5">
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div class="min-w-0 space-y-1">
-          <div class="flex items-center gap-2">
-            <ShieldCheck class="size-5 text-foreground/70" aria-hidden="true" />
-            <h3 id="file-health-heading" class="font-semibold text-foreground">File health</h3>
-          </div>
-          <p class="max-w-2xl text-sm text-muted-foreground">
+  <div class="rounded-xl border border-border bg-card" aria-labelledby="file-health-heading">
+    <!-- Header -->
+    <div class="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex min-w-0 items-center gap-2">
+        <ShieldCheck class="size-4 shrink-0 text-foreground/60" aria-hidden="true" />
+        <div>
+          <h3 id="file-health-heading" class="text-sm font-semibold text-foreground">File health</h3>
+          <p class="mt-0.5 text-xs text-muted-foreground">
             Check catalog, metadata, and image cache consistency across all libraries.
           </p>
         </div>
-        <Button variant="outline" size="lg" class="shrink-0 px-4" :disabled="pending" @click="$emit('runChecks')">
-          <Loader2 v-if="pending" class="animate-spin" aria-hidden="true" />
-          <Bug v-else aria-hidden="true" />
-          {{ pending ? "Checking…" : "Run checks" }}
-        </Button>
       </div>
+      <Button
+        variant="outline"
+        class="shrink-0 border-border bg-card text-foreground shadow-sm hover:bg-muted/70"
+        :disabled="pending"
+        @click="$emit('runChecks')"
+      >
+        <Loader2 v-if="pending" class="animate-spin" aria-hidden="true" />
+        <Bug v-else aria-hidden="true" />
+        {{ pending ? "Checking…" : "Run checks" }}
+      </Button>
+    </div>
 
-      <div v-if="run" class="mt-5 grid gap-6 lg:grid-cols-2 lg:gap-8">
-        <section aria-labelledby="current-issues-heading">
-          <div class="flex items-baseline justify-between gap-3">
-            <h4 id="current-issues-heading" class="text-sm font-semibold text-foreground">Issues found</h4>
-            <p class="text-xs text-muted-foreground">
-              {{ run.finished_at ? new Date(run.finished_at * 1000).toLocaleString() : "Check in progress" }}
-            </p>
-          </div>
-          <dl class="mt-3 grid gap-1 text-sm">
-            <div v-for="item in fileIssueKeys" :key="item.key" class="flex min-h-10 items-center justify-between gap-3">
-              <dt class="flex min-w-0 items-center text-muted-foreground">
-                <span>{{ item.label }}</span>
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <Button
-                      variant="ghost"
-                      size="icon-lg"
-                      class="-my-2 shrink-0 text-muted-foreground hover:text-foreground"
-                      :aria-label="`About ${item.label}`"
-                    >
-                      <Info class="size-3.5" aria-hidden="true" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" align="start" class="max-w-[260px]">{{ item.description }}</TooltipContent>
-                </Tooltip>
-              </dt>
-              <dd class="font-semibold tabular-nums text-foreground">{{ run.issues[item.key] }}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section aria-labelledby="repair-results-heading">
-          <h4 id="repair-results-heading" class="text-sm font-semibold text-foreground">Actions taken</h4>
-          <dl class="mt-3 grid gap-1 text-sm sm:grid-cols-2 sm:gap-x-6">
-            <div v-for="item in repairKeys" :key="item.key" class="flex min-h-10 items-center justify-between gap-3">
-              <dt class="flex min-w-0 items-center text-muted-foreground">
-                <span>{{ item.label }}</span>
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <Button
-                      variant="ghost"
-                      size="icon-lg"
-                      class="-my-2 shrink-0 text-muted-foreground hover:text-foreground"
-                      :aria-label="`About ${item.label}`"
-                    >
-                      <Info class="size-3.5" aria-hidden="true" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" align="start" class="max-w-[260px]">{{ item.description }}</TooltipContent>
-                </Tooltip>
-              </dt>
-              <dd class="font-semibold tabular-nums text-foreground">{{ run.repairs[item.key] }}</dd>
-            </div>
-          </dl>
-        </section>
-      </div>
-
-      <div v-else class="mt-5 border-t border-border pt-5">
+    <div class="px-5 py-4">
+      <!-- No run yet -->
+      <div v-if="!run">
         <p class="text-sm font-medium text-foreground">No file-health check has run yet.</p>
-        <p class="mt-1 max-w-2xl text-sm text-muted-foreground">
+        <p class="mt-1 text-xs text-muted-foreground">
           Run a check to find consistency problems and see which records were repaired, requeued, or left unchanged.
         </p>
       </div>
 
-      <Separator class="mt-5" />
-      <p class="mt-3 text-xs text-muted-foreground">
+      <!-- Run exists -->
+      <template v-else>
+        <!-- All clear (no issues) -->
+        <div
+          v-if="allClear"
+          class="flex items-start gap-3"
+        >
+          <span class="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-success/15">
+            <svg class="size-3 text-success" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-foreground">No issues found</p>
+            <p class="mt-0.5 text-xs text-muted-foreground">
+              Last checked: {{ formatRunTime(run.finished_at) }}
+              <template v-if="activeRepairs.length > 0">
+                · {{ activeRepairs.reduce((s, item) => s + run!.repairs[item.key], 0) }} item{{ activeRepairs.reduce((s, item) => s + run!.repairs[item.key], 0) !== 1 ? 's' : '' }} repaired
+              </template>
+              <template v-else>
+                · No repairs needed
+              </template>
+            </p>
+          </div>
+        </div>
+
+        <!-- Issues found -->
+        <template v-else>
+          <!-- Issue count banner -->
+          <div class="mb-4 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/15">
+              <svg class="size-3 text-destructive" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M6 2v4M6 8.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <div class="min-w-0">
+              <p class="text-xs font-medium text-destructive">{{ totalIssues }} issue{{ totalIssues !== 1 ? 's' : '' }} found</p>
+              <p class="text-xs text-muted-foreground">Last checked: {{ formatRunTime(run.finished_at) }}</p>
+            </div>
+          </div>
+
+          <div class="grid gap-6 lg:grid-cols-2">
+            <!-- Issues section: only non-zero rows -->
+            <section aria-labelledby="current-issues-heading">
+              <h4 id="current-issues-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Issues</h4>
+              <dl class="mt-2 divide-y divide-border text-sm">
+                <div
+                  v-for="item in activeIssues"
+                  :key="item.key"
+                  class="flex min-h-9 items-center justify-between gap-3"
+                >
+                  <dt class="flex min-w-0 items-center text-muted-foreground">
+                    <span>{{ item.label }}</span>
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" :aria-label="`About ${item.label}`">
+                          <Info class="size-3" aria-hidden="true" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" align="start" class="max-w-[260px]">{{ item.description }}</TooltipContent>
+                    </Tooltip>
+                  </dt>
+                  <dd class="font-semibold tabular-nums text-destructive">{{ run.issues[item.key] }}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <!-- Actions taken: only non-zero rows, hidden if nothing happened -->
+            <section v-if="activeRepairs.length > 0" aria-labelledby="repair-results-heading">
+              <h4 id="repair-results-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions taken</h4>
+              <dl class="mt-2 divide-y divide-border text-sm">
+                <div
+                  v-for="item in activeRepairs"
+                  :key="item.key"
+                  class="flex min-h-9 items-center justify-between gap-3"
+                >
+                  <dt class="flex min-w-0 items-center text-muted-foreground">
+                    <span>{{ item.label }}</span>
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" :aria-label="`About ${item.label}`">
+                          <Info class="size-3" aria-hidden="true" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" align="start" class="max-w-[260px]">{{ item.description }}</TooltipContent>
+                    </Tooltip>
+                  </dt>
+                  <dd class="font-semibold tabular-nums text-foreground">{{ run.repairs[item.key] }}</dd>
+                </div>
+              </dl>
+            </section>
+            <p v-else class="text-xs text-muted-foreground lg:pt-5">No repairs were made in this run.</p>
+          </div>
+        </template>
+      </template>
+
+      <!-- Footer note -->
+      <p class="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
         Checks may repair confirmed mismatches, requeue stale work, or mark invalid jobs failed. They never delete
         registered libraries or source files.
       </p>
-    </CardContent>
-  </Card>
+    </div>
+  </div>
 </template>

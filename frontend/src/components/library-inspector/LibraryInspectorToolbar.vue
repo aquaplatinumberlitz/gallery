@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Columns3, Search, X } from "lucide-vue-next";
+import { EyeOff, Search, X } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
@@ -105,7 +105,7 @@ const sort = defineModel<SortValue>("sort", { required: true });
           aria-label="Toggle metadata table columns"
         >
           <span class="inline-flex min-w-0 items-center gap-2">
-            <Columns3 class="size-4 opacity-60" aria-hidden="true" />
+            <EyeOff class="size-4 opacity-60" aria-hidden="true" />
             <span class="truncate">View</span>
           </span>
           <span v-if="hiddenColumnIds.length" class="toolbar-count-pill" aria-hidden="true">

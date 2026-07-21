@@ -18,7 +18,7 @@ const props = withDefaults(
   {
     copied: false,
     copiedLabel: "Copied",
-    variant: "secondary",
+    variant: "ghost",
     size: "sm",
     class: undefined,
   },
@@ -34,7 +34,11 @@ const emit = defineEmits<{
     v-bind="$attrs"
     :variant="variant"
     :size="size"
-    :class="['border border-border/60', props.class]"
+    :class="[
+      'border border-transparent text-muted-foreground hover:border-border/60 hover:text-foreground',
+      copied && 'text-foreground',
+      props.class,
+    ]"
     :aria-label="copied ? successAriaLabel : label"
     :data-copied="copied ? 'true' : 'false'"
     @pointerdown.stop
