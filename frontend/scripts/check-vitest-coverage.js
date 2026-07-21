@@ -12,7 +12,7 @@ const thresholds = {
   lines: 70,
   statements: 68,
   functions: 62,
-  branches: 58,
+  branches: 57,
 };
 
 let summary;

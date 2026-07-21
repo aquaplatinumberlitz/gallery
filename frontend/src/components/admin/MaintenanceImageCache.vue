@@ -61,7 +61,8 @@ defineEmits<{
             <!-- Coverage % hero -->
             <div class="flex items-end justify-between gap-2">
               <div>
-                <p class="text-2xl font-semibold tabular-nums leading-none"
+                <p
+                  class="text-2xl font-semibold tabular-nums leading-none"
                   :class="
                     totalReady != null && totalExpected != null && totalExpected > 0
                       ? totalReady >= totalExpected
@@ -74,12 +75,12 @@ defineEmits<{
                 >
                   {{
                     totalReady != null && totalExpected != null && totalExpected > 0
-                      ? Math.min(100, Math.round((totalReady / totalExpected) * 100)) + '%'
-                      : '—'
+                      ? Math.min(100, Math.round((totalReady / totalExpected) * 100)) + "%"
+                      : "—"
                   }}
                 </p>
                 <p class="mt-1 text-xs text-muted-foreground tabular-nums">
-                  {{ totalReady ?? '—' }} / {{ totalExpected ?? '—' }} files cached
+                  {{ totalReady ?? "—" }} / {{ totalExpected ?? "—" }} files cached
                 </p>
               </div>
               <Tooltip>
@@ -94,8 +95,8 @@ defineEmits<{
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top" align="end" class="max-w-[240px]">
-                  Percentage of required thumbnail and preview files that are already cached.
-                  Required = total files needed for all cataloged photos.
+                  Percentage of required thumbnail and preview files that are already cached. Required = total files
+                  needed for all cataloged photos.
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -131,7 +132,6 @@ defineEmits<{
           </div>
           <Skeleton v-else-if="summaryPending" class="mt-3 h-20 w-full" />
           <p v-else class="mt-3 text-sm text-muted-foreground">Image cache coverage is unavailable.</p>
-
         </section>
 
         <section
@@ -153,13 +153,20 @@ defineEmits<{
             >
               <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-success/15">
                 <svg class="size-3 text-success" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                  <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path
+                    d="M2 6l3 3 5-5"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
                 </svg>
               </span>
               <div class="min-w-0">
                 <p class="text-xs font-medium text-foreground">Idle</p>
                 <p class="text-xs text-muted-foreground">
-                  {{ runtime.derivative_worker_count }}/{{ runtime.derivative_configured_worker_count }} workers ready · no active or queued jobs
+                  {{ runtime.derivative_worker_count }}/{{ runtime.derivative_configured_worker_count }} workers ready ·
+                  no active or queued jobs
                 </p>
               </div>
             </div>
@@ -172,8 +179,16 @@ defineEmits<{
                 class="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
                 role="alert"
               >
-                <span v-if="runtime.derivative_failed_jobs > 0">{{ runtime.derivative_failed_jobs }} failed job{{ runtime.derivative_failed_jobs !== 1 ? 's' : '' }}.</span>
-                <span v-if="runtime.derivative_stale_running_jobs > 0"> {{ runtime.derivative_stale_running_jobs }} stale running job{{ runtime.derivative_stale_running_jobs !== 1 ? 's' : '' }}.</span>
+                <span v-if="runtime.derivative_failed_jobs > 0"
+                  >{{ runtime.derivative_failed_jobs }} failed job{{
+                    runtime.derivative_failed_jobs !== 1 ? "s" : ""
+                  }}.</span
+                >
+                <span v-if="runtime.derivative_stale_running_jobs > 0">
+                  {{ runtime.derivative_stale_running_jobs }} stale running job{{
+                    runtime.derivative_stale_running_jobs !== 1 ? "s" : ""
+                  }}.</span
+                >
               </div>
 
               <!-- Metrics grid -->

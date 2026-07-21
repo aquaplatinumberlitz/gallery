@@ -241,7 +241,9 @@ function created(library: RegisteredLibrary) {
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-border bg-muted/40">
-                <th class="w-44 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <th
+                  class="w-44 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                >
                   Library
                 </th>
                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -272,11 +274,7 @@ function created(library: RegisteredLibrary) {
                       <Folder class="size-3.5 text-foreground/60" aria-hidden="true" />
                     </div>
                     <div class="min-w-0">
-                      <OverflowTooltip
-                        :text="library.name"
-                        align="start"
-                        class="block"
-                      >
+                      <OverflowTooltip :text="library.name" align="start" class="block">
                         <button
                           class="w-full truncate text-left font-semibold text-foreground hover:underline"
                           @click="router.push(`/admin/libraries/${library.id}`)"

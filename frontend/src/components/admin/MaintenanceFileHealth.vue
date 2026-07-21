@@ -92,14 +92,10 @@ const allClear = computed(() => {
 });
 
 /** Issue items with count > 0 */
-const activeIssues = computed(() =>
-  props.run ? fileIssueKeys.filter((item) => props.run!.issues[item.key] > 0) : [],
-);
+const activeIssues = computed(() => (props.run ? fileIssueKeys.filter((item) => props.run!.issues[item.key] > 0) : []));
 
 /** Repair items with count > 0 */
-const activeRepairs = computed(() =>
-  props.run ? repairKeys.filter((item) => props.run!.repairs[item.key] > 0) : [],
-);
+const activeRepairs = computed(() => (props.run ? repairKeys.filter((item) => props.run!.repairs[item.key] > 0) : []));
 
 /** Total issue count */
 const totalIssues = computed(() =>
@@ -112,9 +108,7 @@ function formatRunTime(ts: number | null | undefined): string {
   const d = new Date(ts * 1000);
   const now = new Date();
   const isToday =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
+    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
   const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   if (isToday) return `Today at ${time}`;
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) + ` at ${time}`;
@@ -158,13 +152,16 @@ function formatRunTime(ts: number | null | undefined): string {
       <!-- Run exists -->
       <template v-else>
         <!-- All clear (no issues) -->
-        <div
-          v-if="allClear"
-          class="flex items-start gap-3"
-        >
+        <div v-if="allClear" class="flex items-start gap-3">
           <span class="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-success/15">
             <svg class="size-3 text-success" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-              <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path
+                d="M2 6l3 3 5-5"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
             </svg>
           </span>
           <div class="min-w-0">
@@ -172,11 +169,12 @@ function formatRunTime(ts: number | null | undefined): string {
             <p class="mt-0.5 text-xs text-muted-foreground">
               Last checked: {{ formatRunTime(run.finished_at) }}
               <template v-if="activeRepairs.length > 0">
-                · {{ activeRepairs.reduce((s, item) => s + run!.repairs[item.key], 0) }} item{{ activeRepairs.reduce((s, item) => s + run!.repairs[item.key], 0) !== 1 ? 's' : '' }} repaired
+                · {{ activeRepairs.reduce((s, item) => s + run!.repairs[item.key], 0) }} item{{
+                  activeRepairs.reduce((s, item) => s + run!.repairs[item.key], 0) !== 1 ? "s" : ""
+                }}
+                repaired
               </template>
-              <template v-else>
-                · No repairs needed
-              </template>
+              <template v-else> · No repairs needed </template>
             </p>
           </div>
         </div>
@@ -184,14 +182,18 @@ function formatRunTime(ts: number | null | undefined): string {
         <!-- Issues found -->
         <template v-else>
           <!-- Issue count banner -->
-          <div class="mb-4 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+          <div
+            class="mb-4 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5"
+          >
             <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/15">
               <svg class="size-3 text-destructive" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M6 2v4M6 8.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M6 2v4M6 8.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
               </svg>
             </span>
             <div class="min-w-0">
-              <p class="text-xs font-medium text-destructive">{{ totalIssues }} issue{{ totalIssues !== 1 ? 's' : '' }} found</p>
+              <p class="text-xs font-medium text-destructive">
+                {{ totalIssues }} issue{{ totalIssues !== 1 ? "s" : "" }} found
+              </p>
               <p class="text-xs text-muted-foreground">Last checked: {{ formatRunTime(run.finished_at) }}</p>
             </div>
           </div>
@@ -199,7 +201,12 @@ function formatRunTime(ts: number | null | undefined): string {
           <div class="grid gap-6 lg:grid-cols-2">
             <!-- Issues section: only non-zero rows -->
             <section aria-labelledby="current-issues-heading">
-              <h4 id="current-issues-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Issues</h4>
+              <h4
+                id="current-issues-heading"
+                class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                Issues
+              </h4>
               <dl class="mt-2 divide-y divide-border text-sm">
                 <div
                   v-for="item in activeIssues"
@@ -210,11 +217,18 @@ function formatRunTime(ts: number | null | undefined): string {
                     <span>{{ item.label }}</span>
                     <Tooltip>
                       <TooltipTrigger as-child>
-                        <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" :aria-label="`About ${item.label}`">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
+                          :aria-label="`About ${item.label}`"
+                        >
                           <Info class="size-3" aria-hidden="true" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" align="start" class="max-w-[260px]">{{ item.description }}</TooltipContent>
+                      <TooltipContent side="top" align="start" class="max-w-[260px]">
+                        {{ item.description }}
+                      </TooltipContent>
                     </Tooltip>
                   </dt>
                   <dd class="font-semibold tabular-nums text-destructive">{{ run.issues[item.key] }}</dd>
@@ -224,7 +238,12 @@ function formatRunTime(ts: number | null | undefined): string {
 
             <!-- Actions taken: only non-zero rows, hidden if nothing happened -->
             <section v-if="activeRepairs.length > 0" aria-labelledby="repair-results-heading">
-              <h4 id="repair-results-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions taken</h4>
+              <h4
+                id="repair-results-heading"
+                class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                Actions taken
+              </h4>
               <dl class="mt-2 divide-y divide-border text-sm">
                 <div
                   v-for="item in activeRepairs"
@@ -235,11 +254,18 @@ function formatRunTime(ts: number | null | undefined): string {
                     <span>{{ item.label }}</span>
                     <Tooltip>
                       <TooltipTrigger as-child>
-                        <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" :aria-label="`About ${item.label}`">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
+                          :aria-label="`About ${item.label}`"
+                        >
                           <Info class="size-3" aria-hidden="true" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" align="start" class="max-w-[260px]">{{ item.description }}</TooltipContent>
+                      <TooltipContent side="top" align="start" class="max-w-[260px]">
+                        {{ item.description }}
+                      </TooltipContent>
                     </Tooltip>
                   </dt>
                   <dd class="font-semibold tabular-nums text-foreground">{{ run.repairs[item.key] }}</dd>
