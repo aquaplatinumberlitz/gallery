@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Check, FolderOpen, Library } from "lucide-vue-next";
+import { Check, FolderOpen, Plus } from "lucide-vue-next";
+import { RouterLink } from "vue-router";
 import Button from "@/components/ui/Button.vue";
 import ButtonLink from "@/components/ui/ButtonLink.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
@@ -32,13 +33,22 @@ function select(library: RegisteredLibrary, importPath: LibraryImportPath) {
     <Button variant="outline" @click="librariesQuery.refetch()">Retry</Button>
   </div>
 
-  <div v-else-if="!selectableLibraries.length" class="flex flex-col items-center gap-4 py-8 text-center">
-    <Library class="size-8 text-muted-foreground" />
-    <div>
-      <p class="font-medium">No libraries registered</p>
-      <p class="mt-1 text-sm text-muted-foreground">Add a library before browsing the gallery.</p>
-    </div>
-    <ButtonLink to="/admin/libraries" @click="emit('close')">Add Library</ButtonLink>
+  <div v-else-if="!selectableLibraries.length" class="py-6">
+    <RouterLink
+      to="/admin/libraries"
+      class="group flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed border-border px-6 py-8 text-center outline-none transition-all duration-200 hover:border-[#ff6b35]/50 hover:bg-[#ff6b35]/[0.03] focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      @click="emit('close')"
+    >
+      <div
+        class="flex size-11 items-center justify-center rounded-full border-2 border-dashed border-border transition-all duration-200 group-hover:border-[#ff6b35]/60 group-hover:bg-[#ff6b35]/10"
+      >
+        <Plus class="size-4 text-muted-foreground transition-colors duration-200 group-hover:text-[#ff6b35]" />
+      </div>
+      <div>
+        <p class="text-sm font-medium text-foreground">Add your first library</p>
+        <p class="mt-0.5 text-xs text-muted-foreground">Set up an import path to start browsing</p>
+      </div>
+    </RouterLink>
   </div>
 
   <div v-else class="flex flex-col gap-4">

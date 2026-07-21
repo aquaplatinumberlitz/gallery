@@ -1001,9 +1001,9 @@ function estimatedAssets(): number | undefined {
                 role="alert"
               >
                 <p class="text-sm font-medium">Image cache coverage could not be loaded.</p>
-                <Button variant="outline" size="sm" class="mt-3" @click="generatedImagesQuery.refetch?.()"
-                  >Try again</Button
-                >
+                <Button variant="outline" size="sm" class="mt-3" @click="generatedImagesQuery.refetch?.()">
+                  Try again
+                </Button>
               </div>
               <Skeleton v-else-if="generatedImagesQuery.isPending.value" class="h-28 w-full rounded-lg" />
               <div v-else class="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">

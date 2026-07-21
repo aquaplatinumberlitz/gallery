@@ -208,9 +208,9 @@ const needsRefreshCount = computed(() => {
                             <Info class="size-3" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" align="start"
-                          >File catalog scan or rebuild jobs waiting to run.</TooltipContent
-                        >
+                        <TooltipContent side="top" align="start">
+                          File catalog scan or rebuild jobs waiting to run.
+                        </TooltipContent>
                       </Tooltip>
                     </dt>
                     <dd class="font-semibold tabular-nums text-foreground">
@@ -260,9 +260,9 @@ const needsRefreshCount = computed(() => {
                             <Info class="size-3" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" align="start"
-                          >Metadata extraction jobs waiting to run.</TooltipContent
-                        >
+                        <TooltipContent side="top" align="start">
+                          Metadata extraction jobs waiting to run.
+                        </TooltipContent>
                       </Tooltip>
                     </dt>
                     <dd class="font-semibold tabular-nums text-foreground">
@@ -283,9 +283,9 @@ const needsRefreshCount = computed(() => {
                             <Info class="size-3" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" align="start" class="max-w-[220px]"
-                          >Metadata paths staged before they become durable extraction jobs.</TooltipContent
-                        >
+                        <TooltipContent side="top" align="start" class="max-w-[220px]">
+                          Metadata paths staged before they become durable extraction jobs.
+                        </TooltipContent>
                       </Tooltip>
                     </dt>
                     <dd class="font-semibold tabular-nums text-foreground">
@@ -319,9 +319,9 @@ const needsRefreshCount = computed(() => {
                               <Info class="size-3" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" align="start"
-                            >Metadata extraction jobs that already failed.</TooltipContent
-                          >
+                          <TooltipContent side="top" align="start">
+                            Metadata extraction jobs that already failed.
+                          </TooltipContent>
                         </Tooltip>
                       </dt>
                       <dd
@@ -349,9 +349,9 @@ const needsRefreshCount = computed(() => {
                               <Info class="size-3" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" align="start"
-                            >Files whose extracted metadata is stale or missing.</TooltipContent
-                          >
+                          <TooltipContent side="top" align="start">
+                            Files whose extracted metadata is stale or missing.
+                          </TooltipContent>
                         </Tooltip>
                       </dt>
                       <dd class="font-medium tabular-nums" :class="needsRefreshCount > 0 ? 'text-warning' : ''">
@@ -385,9 +385,9 @@ const needsRefreshCount = computed(() => {
                               <Info class="size-3" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" align="start"
-                            >Metadata index jobs with no matching catalog entry.</TooltipContent
-                          >
+                          <TooltipContent side="top" align="start">
+                            Metadata index jobs with no matching catalog entry.
+                          </TooltipContent>
                         </Tooltip>
                       </dt>
                       <dd class="font-medium tabular-nums">

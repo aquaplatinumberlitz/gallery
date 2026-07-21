@@ -116,7 +116,7 @@ const visibleReasons = computed(() => {
   padding: 2px 7px 2px 5px;
   overflow: hidden;
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.3;
   text-overflow: ellipsis;
