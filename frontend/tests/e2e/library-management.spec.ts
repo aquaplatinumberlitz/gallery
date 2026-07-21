@@ -423,14 +423,14 @@ test("runs detail actions, updates settings, and unregisters safely", async ({ p
   await page.goto(`${baseUrl}/admin/libraries/1`);
 
   await expect(page.getByRole("heading", { name: "Family photos" })).toBeVisible();
-  await expect(page.getByText("Recent job history")).toBeVisible();
+  await expect(page.getByText("Recent jobs")).toBeVisible();
   await expect(page.getByText("Scan complete")).toBeVisible();
 
   await page.getByRole("button", { name: "Update library", exact: true }).click();
   await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/1/scan").length).toBe(1);
   await expect(page.getByRole("button", { name: "Repair", exact: true })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await page.getByRole("button", { name: "Edit library", exact: true }).click();
   await page.getByRole("textbox", { name: "Display name" }).fill("Family archive");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("heading", { name: "Family archive" })).toBeVisible();
@@ -451,7 +451,7 @@ test("update-all and use-in-gallery stay available from the list", async ({ page
   const state = await mockLibraryApi(page);
   await page.goto(`${baseUrl}/admin/libraries`);
 
-  await page.getByRole("button", { name: "Update all libraries" }).click();
+  await page.getByRole("button", { name: "Update all", exact: true }).click();
   await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/scan-all").length).toBe(1);
 
   await page.getByRole("button", { name: "Library actions" }).click();

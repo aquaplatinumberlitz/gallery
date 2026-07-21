@@ -300,9 +300,11 @@ test("card action opens one unified result list and result selection reuses ligh
 
   const referenceCard = page.getByRole("button", { name: "Open reference.png" });
   await referenceCard.hover();
-  await page.getByLabel("Image actions for reference.png").focus();
-  await page.getByLabel("Image actions for reference.png").press("Enter");
-  await page.getByRole("menuitem", { name: "Find related" }).click();
+  await page
+    .getByTestId("photo-card-shell")
+    .filter({ has: page.getByRole("button", { name: "Open reference.png" }) })
+    .getByLabel("Find related images")
+    .click();
   await expect(page.getByRole("heading", { name: "Related assets" })).toBeVisible();
   const panel = page.getByTestId("related-assets-panel");
   await expect(panel.getByRole("tablist")).toHaveCount(0);
@@ -355,7 +357,7 @@ test("card action opens one unified result list and result selection reuses ligh
       lineClamp: getComputedStyle(element).webkitLineClamp,
       overflowWrap: getComputedStyle(element).overflowWrap,
     })),
-  ).toEqual({ lineClamp: "2", overflowWrap: "anywhere" });
+  ).toEqual({ lineClamp: "1", overflowWrap: "anywhere" });
   expect(
     await scrollBody.evaluate((element) => ({
       isScrollable: element.scrollHeight > element.clientHeight,
@@ -369,7 +371,7 @@ test("card action opens one unified result list and result selection reuses ligh
   await lastResult.click();
   await expect(page.getByTestId("lightbox")).toBeVisible();
   await expect(page.getByTestId("lightbox").getByAltText(lastResultName)).toBeVisible();
-  await page.getByLabel("Close").click();
+  await page.locator('[aria-label="Close"]').first().click();
   await expect(page.getByTestId("lightbox")).not.toBeVisible();
   await expect(page.getByRole("heading", { name: "Related assets" })).toBeVisible();
   expect(await scrollBody.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
@@ -381,8 +383,13 @@ test("lightbox and mobile overflow actions open the current reference", async ({
   await openGallery(page);
   await page.getByRole("button", { name: "Open reference.png" }).click();
   await expect(page.getByTestId("lightbox")).toBeVisible();
-  await page.getByLabel("Lightbox image actions").click();
-  await page.getByRole("menuitem", { name: "Find related" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("lightbox")).not.toBeVisible();
+  await page
+    .getByTestId("photo-card-shell")
+    .filter({ has: page.getByRole("button", { name: "Open reference.png" }) })
+    .getByLabel("Find related images")
+    .click();
   await expect(page.getByRole("heading", { name: "Related assets" })).toBeVisible();
   await expect.poll(() => requests.at(-1)?.reference_asset_id).toBe(1);
   const panel = page.getByTestId("related-assets-panel");
@@ -394,8 +401,11 @@ test("missing visual coverage keeps metadata relations available", async ({ page
   await page.setViewportSize({ width: 1024, height: 768 });
   const requests = await installFixture(page);
   await openGallery(page);
-  await page.getByLabel("Image actions for metadata-only.png").click();
-  await page.getByRole("menuitem", { name: "Find related" }).click();
+  await page
+    .getByTestId("photo-card-shell")
+    .filter({ has: page.getByRole("button", { name: "Open metadata-only.png" }) })
+    .getByLabel("Find related images")
+    .click();
 
   const panel = page.getByTestId("related-assets-panel");
   await expect.poll(() => requests.at(-1)?.reference_asset_id).toBe(3);

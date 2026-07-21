@@ -144,7 +144,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="photo-card-shell" @mouseenter="onMouseEnter" @mouseleave="onMouseLeave">
+  <div class="photo-card-shell" data-testid="photo-card-shell" @mouseenter="onMouseEnter" @mouseleave="onMouseLeave">
     <div
       data-testid="photo-card"
       class="photo-card"

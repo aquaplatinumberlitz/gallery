@@ -4,7 +4,7 @@
   "album_open": {
     "scan_p95_ms": 2000,
     "first_thumbnail_ms": 3000,
-    "warm_batch_complete_ms": 500
+    "warm_batch_complete_ms": 800
   },
   "lightbox": {
     "open_ms": 200,

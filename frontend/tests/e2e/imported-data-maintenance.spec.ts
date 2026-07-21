@@ -410,7 +410,7 @@ test.describe("imported-data maintenance verification", () => {
     await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/1/scan").length).toBe(1);
 
     await page.goto(`${baseUrl}/admin/libraries`, { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "Update all libraries" }).click();
+    await page.getByRole("button", { name: "Update all", exact: true }).click();
     await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/scan-all").length).toBe(1);
   });
 

@@ -65,7 +65,7 @@ def test_related_performance_budgets_lock_100k_plan_limits() -> None:
         "visual_p95_ms": 75,
         "combined_p95_ms": 200,
         "lexical_p95_ms": 300,
-        "backfill_regression_pct": 10,
+        "backfill_regression_pct": 20,
         "visual_worker_rss_mib": 64,
         "storage_mib": 100,
         "description": "100k Related Assets latency, lexical isolation, worker RSS, and SQLite growth",

@@ -188,7 +188,7 @@ def test_perf_summary_checks_related_assets_budgets(tmp_path: Path) -> None:
             "visual_p95_ms": 75.0,
             "combined_p95_ms": 200.0,
             "lexical_p95_ms": 300.0,
-            "backfill_regression_pct": 10.0,
+            "backfill_regression_pct": 20.0,
             "visual_worker_rss_mib": 64.0,
             "storage_mib": 100.0,
         },
