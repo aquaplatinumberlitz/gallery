@@ -1,7 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { Library, Plus, RefreshCw, AlertTriangle, FolderOpen, Folder, Images, ImageIcon, Film, HardDrive, Briefcase } from "lucide-vue-next";
+import {
+  Library,
+  Plus,
+  RefreshCw,
+  AlertTriangle,
+  FolderOpen,
+  Folder,
+  Images,
+  ImageIcon,
+  Film,
+  HardDrive,
+  Briefcase,
+} from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -103,7 +115,9 @@ function created(library: RegisteredLibrary) {
           </div>
           <div>
             <h1 id="libraries-heading" class="text-2xl font-semibold tracking-tight text-foreground">Libraries</h1>
-            <p class="mt-0.5 text-xs text-muted-foreground">Register folders, monitor imports, and maintain the file catalog.</p>
+            <p class="mt-0.5 text-xs text-muted-foreground">
+              Register folders, monitor imports, and maintain the file catalog.
+            </p>
           </div>
         </div>
         <div class="flex shrink-0 flex-wrap gap-2">
@@ -116,9 +130,7 @@ function created(library: RegisteredLibrary) {
             <RefreshCw class="mr-1.5 size-4" :class="scanAllMutation.isPending.value ? 'animate-spin' : ''" />
             {{ scanAllMutation.isPending.value ? "Queueing…" : "Update all" }}
           </Button>
-          <Button @click="createOpen = true">
-            <Plus class="mr-1.5 size-4" /> Add library
-          </Button>
+          <Button @click="createOpen = true"> <Plus class="mr-1.5 size-4" /> Add library </Button>
         </div>
       </header>
 
@@ -229,24 +241,34 @@ function created(library: RegisteredLibrary) {
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-border bg-muted/40">
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Library</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Folder</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">File catalog</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Catalog updated</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Metadata updated</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Library
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Folder
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Status
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  File catalog
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Catalog updated
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Metadata updated
+                </th>
                 <th class="w-12 px-4 py-3"><span class="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-border">
-              <tr
-                v-for="library in libraries"
-                :key="library.id"
-                class="group transition-colors hover:bg-muted/30"
-              >
+              <tr v-for="library in libraries" :key="library.id" class="group transition-colors hover:bg-muted/30">
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-2.5">
-                    <div class="flex size-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
+                    <div
+                      class="flex size-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted"
+                    >
                       <Folder class="size-3.5 text-foreground/60" aria-hidden="true" />
                     </div>
                     <div>
@@ -288,8 +310,12 @@ function created(library: RegisteredLibrary) {
                 </td>
                 <td class="px-4 py-3"><LibraryStatusBadge :status="statusFor(library)" /></td>
                 <td class="px-4 py-3"><LibrarySummaryPanel :status="statusFor(library)" /></td>
-                <td class="px-4 py-3 text-xs text-muted-foreground">{{ formatLibraryTimestamp(lastScanAt(library)) }}</td>
-                <td class="px-4 py-3 text-xs text-muted-foreground">{{ formatLibraryTimestamp(lastIndexAt(library)) }}</td>
+                <td class="px-4 py-3 text-xs text-muted-foreground">
+                  {{ formatLibraryTimestamp(lastScanAt(library)) }}
+                </td>
+                <td class="px-4 py-3 text-xs text-muted-foreground">
+                  {{ formatLibraryTimestamp(lastIndexAt(library)) }}
+                </td>
                 <td class="px-4 py-3">
                   <LibraryActionMenu
                     :disabled="actionPending"
@@ -307,14 +333,12 @@ function created(library: RegisteredLibrary) {
 
         <!-- Mobile cards -->
         <div class="grid gap-3 lg:hidden">
-          <div
-            v-for="library in libraries"
-            :key="library.id"
-            class="rounded-xl border border-border bg-card p-4"
-          >
+          <div v-for="library in libraries" :key="library.id" class="rounded-xl border border-border bg-card p-4">
             <div class="flex items-start justify-between gap-3">
               <div class="flex min-w-0 items-start gap-3">
-                <div class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted">
+                <div
+                  class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted"
+                >
                   <Folder class="size-4 text-foreground/60" aria-hidden="true" />
                 </div>
                 <div class="min-w-0">
@@ -387,13 +411,18 @@ function created(library: RegisteredLibrary) {
 
 /* Stat card subtle hover lift — same as detail page */
 .llp-stat-card {
-  transition: box-shadow 150ms ease, transform 150ms ease;
+  transition:
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 .llp-stat-card:hover {
   box-shadow: var(--gallery-shadow-sm);
   transform: translateY(-1px);
 }
 @media (prefers-reduced-motion: reduce) {
-  .llp-stat-card { transition: none; transform: none !important; }
+  .llp-stat-card {
+    transition: none;
+    transform: none !important;
+  }
 }
 </style>

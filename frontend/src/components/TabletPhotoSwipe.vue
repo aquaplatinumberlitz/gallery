@@ -79,11 +79,7 @@ watch(
   <div v-if="!metadataOpen" class="tablet-photoswipe-bar">
     <Tooltip v-if="canFindRelated">
       <TooltipTrigger as-child>
-        <button
-          class="lx-ctrl"
-          aria-label="Find related"
-          @click="emit('findRelated')"
-        >
+        <button class="lx-ctrl" aria-label="Find related" @click="emit('findRelated')">
           <ScanSearch :size="22" :stroke-width="2.2" />
         </button>
       </TooltipTrigger>
@@ -91,11 +87,7 @@ watch(
     </Tooltip>
     <Tooltip>
       <TooltipTrigger as-child>
-        <button
-          class="lx-ctrl"
-          aria-label="Close"
-          @click="emit('close')"
-        >
+        <button class="lx-ctrl" aria-label="Close" @click="emit('close')">
           <X :size="22" :stroke-width="2.2" />
         </button>
       </TooltipTrigger>
@@ -103,11 +95,7 @@ watch(
     </Tooltip>
     <Tooltip>
       <TooltipTrigger as-child>
-        <button
-          class="lx-ctrl"
-          :aria-label="isZoomed ? 'Zoom out' : 'Zoom in'"
-          @click="toggleZoom"
-        >
+        <button class="lx-ctrl" :aria-label="isZoomed ? 'Zoom out' : 'Zoom in'" @click="toggleZoom">
           <ZoomOut v-if="isZoomed" :size="22" :stroke-width="2.2" />
           <ZoomIn v-else :size="22" :stroke-width="2.2" />
         </button>
@@ -116,12 +104,7 @@ watch(
     </Tooltip>
     <Tooltip>
       <TooltipTrigger as-child>
-        <button
-          ref="metadataButton"
-          class="lx-ctrl"
-          aria-label="View image info"
-          @click="emit('toggleMetadata')"
-        >
+        <button ref="metadataButton" class="lx-ctrl" aria-label="View image info" @click="emit('toggleMetadata')">
           <Info :size="22" :stroke-width="2.2" />
         </button>
       </TooltipTrigger>

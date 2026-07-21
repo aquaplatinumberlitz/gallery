@@ -32,11 +32,7 @@ const emit = defineEmits<{
 const galleryStore = useGalleryStore();
 const { pageTitle, showBackToGallery } = useRouteChrome();
 
-const {
-  fieldedFilters,
-  removeFilter,
-  clearAll,
-} = useFieldedSearch(() => props.searchQuery);
+const { fieldedFilters, removeFilter, clearAll } = useFieldedSearch(() => props.searchQuery);
 
 function handleRemoveFilter(index: number) {
   emit("update:searchQuery", removeFilter(index));

@@ -101,7 +101,7 @@ defineOptions({ inheritAttrs: false });
     color: #fff;
     box-shadow:
       0 1px 6px rgba(0, 0, 0, 0.28),
-      inset 0 1px 0 rgba(255, 255, 255, 0.10);
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
     /* no transform animations — mobile prefers instant feedback via :active */
     transition: background 100ms ease;
     /* extend touch area without changing visual size */

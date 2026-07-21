@@ -467,7 +467,6 @@ function handleToggleFullscreen() {
   outline: none;
 }
 
-
 /* ── Token-based icon sizes ────────────────────────────────── */
 .gallery-icon-lg {
   width: var(--gallery-icon-lg);

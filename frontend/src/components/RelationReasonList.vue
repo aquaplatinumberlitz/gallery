@@ -67,8 +67,7 @@ const visibleReasons = computed(() => {
   const byLabel = new Map<string, { label: string; description: string; tier: string }>();
   for (const reason of props.reasons) {
     const label = labels[reason];
-    if (!byLabel.has(label))
-      byLabel.set(label, { label, description: descriptions[reason], tier: colorTier[reason] });
+    if (!byLabel.has(label)) byLabel.set(label, { label, description: descriptions[reason], tier: colorTier[reason] });
   }
   return [...byLabel.values()];
 });

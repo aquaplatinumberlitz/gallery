@@ -90,7 +90,9 @@ const needsRefreshCount = computed(() => {
           </div>
           <div>
             <h1 id="maintenance-heading" class="text-2xl font-semibold tracking-tight text-foreground">Maintenance</h1>
-            <p class="mt-0.5 text-xs text-muted-foreground">File health checks, repair tracking, and imported-data diagnostics.</p>
+            <p class="mt-0.5 text-xs text-muted-foreground">
+              File health checks, repair tracking, and imported-data diagnostics.
+            </p>
           </div>
         </div>
         <div class="flex shrink-0 flex-wrap gap-2">
@@ -104,11 +106,7 @@ const needsRefreshCount = computed(() => {
           </Button>
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button
-                variant="destructive"
-                :disabled="clearMutation.isPending.value"
-                @click="clearOpen = true"
-              >
+              <Button variant="destructive" :disabled="clearMutation.isPending.value" @click="clearOpen = true">
                 <Trash2 class="mr-1.5 size-4" aria-hidden="true" /> Clear imported data
               </Button>
             </TooltipTrigger>
@@ -134,7 +132,9 @@ const needsRefreshCount = computed(() => {
            RUNTIME STATUS CARDS
       ════════════════════════════════════════════ -->
       <section aria-labelledby="runtime-heading">
-        <h2 id="runtime-heading" class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Runtime diagnostics</h2>
+        <h2 id="runtime-heading" class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Runtime diagnostics
+        </h2>
         <div class="grid gap-4 md:grid-cols-2">
           <!-- File catalog card -->
           <div class="rounded-xl border border-border bg-card">
@@ -199,11 +199,18 @@ const needsRefreshCount = computed(() => {
                       Queue depth
                       <Tooltip>
                         <TooltipTrigger as-child>
-                          <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About File catalog queue depth">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
+                            aria-label="About File catalog queue depth"
+                          >
                             <Info class="size-3" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" align="start">File catalog scan or rebuild jobs waiting to run.</TooltipContent>
+                        <TooltipContent side="top" align="start"
+                          >File catalog scan or rebuild jobs waiting to run.</TooltipContent
+                        >
                       </Tooltip>
                     </dt>
                     <dd class="font-semibold tabular-nums text-foreground">
@@ -244,11 +251,18 @@ const needsRefreshCount = computed(() => {
                       Queue depth
                       <Tooltip>
                         <TooltipTrigger as-child>
-                          <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About Metadata queue depth">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
+                            aria-label="About Metadata queue depth"
+                          >
                             <Info class="size-3" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" align="start">Metadata extraction jobs waiting to run.</TooltipContent>
+                        <TooltipContent side="top" align="start"
+                          >Metadata extraction jobs waiting to run.</TooltipContent
+                        >
                       </Tooltip>
                     </dt>
                     <dd class="font-semibold tabular-nums text-foreground">
@@ -260,11 +274,18 @@ const needsRefreshCount = computed(() => {
                       Staged queue depth
                       <Tooltip>
                         <TooltipTrigger as-child>
-                          <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About Metadata staged queue depth">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
+                            aria-label="About Metadata staged queue depth"
+                          >
                             <Info class="size-3" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" align="start" class="max-w-[220px]">Metadata paths staged before they become durable extraction jobs.</TooltipContent>
+                        <TooltipContent side="top" align="start" class="max-w-[220px]"
+                          >Metadata paths staged before they become durable extraction jobs.</TooltipContent
+                        >
                       </Tooltip>
                     </dt>
                     <dd class="font-semibold tabular-nums text-foreground">
@@ -289,16 +310,27 @@ const needsRefreshCount = computed(() => {
                         Failed jobs
                         <Tooltip>
                           <TooltipTrigger as-child>
-                            <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About Failed jobs">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
+                              aria-label="About Failed jobs"
+                            >
                               <Info class="size-3" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" align="start">Metadata extraction jobs that already failed.</TooltipContent>
+                          <TooltipContent side="top" align="start"
+                            >Metadata extraction jobs that already failed.</TooltipContent
+                          >
                         </Tooltip>
                       </dt>
                       <dd
                         class="font-medium tabular-nums"
-                        :class="(runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs ?? 0) > 0 ? 'text-destructive' : ''"
+                        :class="
+                          (runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs ?? 0) > 0
+                            ? 'text-destructive'
+                            : ''
+                        "
                       >
                         {{ runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs }}
                       </dd>
@@ -308,11 +340,18 @@ const needsRefreshCount = computed(() => {
                         Old or missing metadata
                         <Tooltip>
                           <TooltipTrigger as-child>
-                            <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About Old or missing metadata">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
+                              aria-label="About Old or missing metadata"
+                            >
                               <Info class="size-3" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" align="start">Files whose extracted metadata is stale or missing.</TooltipContent>
+                          <TooltipContent side="top" align="start"
+                            >Files whose extracted metadata is stale or missing.</TooltipContent
+                          >
                         </Tooltip>
                       </dt>
                       <dd class="font-medium tabular-nums" :class="needsRefreshCount > 0 ? 'text-warning' : ''">
@@ -323,7 +362,11 @@ const needsRefreshCount = computed(() => {
                       <dt class="text-muted-foreground">Can be repaired</dt>
                       <dd
                         class="font-medium tabular-nums"
-                        :class="(runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets ?? 0) > 0 ? 'text-warning' : ''"
+                        :class="
+                          (runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets ?? 0) > 0
+                            ? 'text-warning'
+                            : ''
+                        "
                       >
                         {{ runtimeQuery.data.value.metadata_lifecycle.repairable_metadata_assets }}
                       </dd>
@@ -333,11 +376,18 @@ const needsRefreshCount = computed(() => {
                         Jobs without catalog item
                         <Tooltip>
                           <TooltipTrigger as-child>
-                            <Button variant="ghost" size="icon" class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground" aria-label="About Jobs without catalog item">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
+                              aria-label="About Jobs without catalog item"
+                            >
                               <Info class="size-3" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" align="start">Metadata index jobs with no matching catalog entry.</TooltipContent>
+                          <TooltipContent side="top" align="start"
+                            >Metadata index jobs with no matching catalog entry.</TooltipContent
+                          >
                         </Tooltip>
                       </dt>
                       <dd class="font-medium tabular-nums">
@@ -375,8 +425,12 @@ const needsRefreshCount = computed(() => {
       <section aria-labelledby="jobs-heading">
         <div class="mb-3 flex items-center justify-between gap-3">
           <div>
-            <h2 id="jobs-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent jobs</h2>
-            <p class="mt-0.5 text-sm text-foreground">Latest {{ RECENT_JOB_LIMIT }} file catalog, metadata, and image cache jobs.</p>
+            <h2 id="jobs-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Recent jobs
+            </h2>
+            <p class="mt-0.5 text-sm text-foreground">
+              Latest {{ RECENT_JOB_LIMIT }} file catalog, metadata, and image cache jobs.
+            </p>
           </div>
           <div class="flex items-center gap-2">
             <ButtonLink

@@ -179,8 +179,10 @@ const tierLabel = (item: RelatedSearchResultV1) => {
 /** Maps a result's highest-priority reason to its semantic color tier name */
 const tierColorTier = (item: RelatedSearchResultV1): string => {
   if (item.relation_reasons.includes("same_exact_signature")) return "exact";
-  if (item.relation_reasons.includes("same_recipe") || item.relation_reasons.includes("same_generation_family")) return "recipe";
-  if (item.relation_reasons.includes("same_prompt") || item.relation_reasons.includes("strong_prompt_overlap")) return "prompt";
+  if (item.relation_reasons.includes("same_recipe") || item.relation_reasons.includes("same_generation_family"))
+    return "recipe";
+  if (item.relation_reasons.includes("same_prompt") || item.relation_reasons.includes("strong_prompt_overlap"))
+    return "prompt";
   if (item.relation_reasons.includes("visual_variant")) return "visual";
   return "model";
 };
@@ -203,7 +205,6 @@ const resultNodes = computed<FileNode[]>(() =>
     // reference. Assigning it directly would carry the Proxy into FileNode, causing
     // DataCloneError if structuredClone() is called downstream (e.g. relatedAssets store).
     relation_scope: response.value?.scope ? { ...response.value.scope } : undefined,
-
   })),
 );
 
@@ -576,11 +577,21 @@ watch(
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.65);
 }
-.tier-label[data-tier="exact"]  .tier-dot { background: #818cf8; }
-.tier-label[data-tier="recipe"] .tier-dot { background: #fbbf24; }
-.tier-label[data-tier="prompt"] .tier-dot { background: #7dd3fc; }
-.tier-label[data-tier="model"]  .tier-dot { background: #2dd4bf; }
-.tier-label[data-tier="visual"] .tier-dot { background: #fb7185; }
+.tier-label[data-tier="exact"] .tier-dot {
+  background: #818cf8;
+}
+.tier-label[data-tier="recipe"] .tier-dot {
+  background: #fbbf24;
+}
+.tier-label[data-tier="prompt"] .tier-dot {
+  background: #7dd3fc;
+}
+.tier-label[data-tier="model"] .tier-dot {
+  background: #2dd4bf;
+}
+.tier-label[data-tier="visual"] .tier-dot {
+  background: #fb7185;
+}
 
 /* ── Chip overlay: top of image, revealed on hover ── */
 .chip-overlay {
@@ -590,11 +601,7 @@ watch(
   right: 0;
   z-index: 5;
   padding: 7px 7px 20px;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.50) 0%,
-    transparent 100%
-  );
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.5) 0%, transparent 100%);
   opacity: 0;
   transform: translateY(-4px);
   transition:

@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import AdvancedSearchFacetField from "../AdvancedSearchFacetField.vue";
 
-function createWrapper(options: Partial<{ modelValue: string; statusText: string; options: Array<{ value: string; count: number }> }> = {}) {
+function createWrapper(
+  options: Partial<{ modelValue: string; statusText: string; options: Array<{ value: string; count: number }> }> = {},
+) {
   return mount(AdvancedSearchFacetField, {
     props: {
       id: "test-facet",
       label: "Model",
       modelValue: options.modelValue ?? "",
-      options: options.options ?? [{ value: "PonyXL", count: 42 }, { value: "SDXL", count: 10 }],
+      options: options.options ?? [
+        { value: "PonyXL", count: 42 },
+        { value: "SDXL", count: 10 },
+      ],
       statusText: options.statusText,
       "onUpdate:modelValue": () => {},
     },

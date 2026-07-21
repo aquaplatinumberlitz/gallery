@@ -291,7 +291,7 @@ describe("MaintenancePage", () => {
     const wrapper = mountSubject();
 
     const runtimeSection = wrapper.get('section[aria-labelledby="runtime-heading"]');
-    const runtimeCards = runtimeSection.findAll('.rounded-xl');
+    const runtimeCards = runtimeSection.findAll(".rounded-xl");
     const catalogSection = runtimeCards[0];
     const metadataSection = runtimeCards[1];
     const cards = wrapper.findAll('[data-slot="card"]');

@@ -151,7 +151,7 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
 /* Override scoped CSS padding in collapsed (icon) mode.
    :global is needed because the data-collapsible attribute lives on an ancestor
    outside this component's scope, so group-data-* Tailwind utilities lose to scoped CSS. */
-:global([data-collapsible='icon']) .sidebar-footer-area {
+:global([data-collapsible="icon"]) .sidebar-footer-area {
   padding: 4px;
   padding-bottom: calc(4px + env(safe-area-inset-bottom));
 }

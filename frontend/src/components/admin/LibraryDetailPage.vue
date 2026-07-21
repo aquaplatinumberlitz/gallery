@@ -454,7 +454,11 @@ function estimatedAssets(): number | undefined {
   <main class="ldp-main h-full overflow-y-auto text-foreground" aria-labelledby="library-heading">
     <div class="ldp-container mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
       <!-- breadcrumb -->
-      <ButtonLink to="/admin/libraries" variant="ghost" class="ldp-back -ml-2 mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+      <ButtonLink
+        to="/admin/libraries"
+        variant="ghost"
+        class="ldp-back -ml-2 mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft class="size-3.5" />
         Libraries
       </ButtonLink>
@@ -495,12 +499,18 @@ function estimatedAssets(): number | undefined {
         ════════════════════════════════════════════ -->
         <header class="ldp-header flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div class="flex min-w-0 items-start gap-3.5">
-            <div class="ldp-icon-wrap mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-muted">
+            <div
+              class="ldp-icon-wrap mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg border border-border bg-muted"
+            >
               <FolderOpen class="size-5 text-foreground/60" />
             </div>
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2.5">
-                <h1 id="library-heading" class="truncate text-2xl font-semibold tracking-tight text-foreground" style="text-wrap: balance">
+                <h1
+                  id="library-heading"
+                  class="truncate text-2xl font-semibold tracking-tight text-foreground"
+                  style="text-wrap: balance"
+                >
                   {{ library.name }}
                 </h1>
                 <LibraryStatusBadge :status="status" />
@@ -524,10 +534,7 @@ function estimatedAssets(): number | undefined {
             >
               <Images class="mr-1.5 size-4" /> Open gallery
             </Button>
-            <Button
-              :disabled="busy"
-              @click="scanMutation.mutate({ id: library.id })"
-            >
+            <Button :disabled="busy" @click="scanMutation.mutate({ id: library.id })">
               <RefreshCw class="mr-1.5 size-4" :class="busy ? 'animate-spin' : ''" />
               {{ busy ? "Updating…" : "Update library" }}
             </Button>
@@ -558,10 +565,7 @@ function estimatedAssets(): number | undefined {
         <section class="mt-8" aria-label="Library statistics">
           <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Overview</h2>
 
-          <dl
-            v-if="statsQuery.data.value"
-            class="ldp-stats grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-          >
+          <dl v-if="statsQuery.data.value" class="ldp-stats grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div class="ldp-stat-card rounded-xl border border-border bg-card p-4">
               <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Images class="size-3.5 shrink-0" aria-hidden="true" /> Images
@@ -606,7 +610,9 @@ function estimatedAssets(): number | undefined {
                   </TooltipTrigger>
                   <TooltipContent side="top" align="start" class="max-w-[260px]">
                     <p>Available: indexed images/videos currently available on disk.</p>
-                    <p class="mt-1">Unavailable: cataloged files not available in the latest scan or under unavailable import paths.</p>
+                    <p class="mt-1">
+                      Unavailable: cataloged files not available in the latest scan or under unavailable import paths.
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </dt>
@@ -758,7 +764,10 @@ function estimatedAssets(): number | undefined {
                   <dl class="grid gap-4 text-sm sm:grid-cols-3">
                     <div v-for="issue in issueBreakdown" :key="issue.label">
                       <dt class="text-xs text-muted-foreground">{{ issue.label }}</dt>
-                      <dd class="mt-0.5 text-lg font-semibold" :class="issue.count > 0 ? 'text-destructive' : 'text-foreground'">
+                      <dd
+                        class="mt-0.5 text-lg font-semibold"
+                        :class="issue.count > 0 ? 'text-destructive' : 'text-foreground'"
+                      >
                         {{ issue.count }}
                       </dd>
                     </div>
@@ -883,9 +892,16 @@ function estimatedAssets(): number | undefined {
                     <Progress
                       :model-value="Math.round(row.ratio * 100)"
                       class="h-1.5 bg-muted transition-all duration-500"
-                      :indicator-class="row.ratio >= 1 ? 'bg-success transition-all duration-500' : 'bg-warning transition-all duration-500'"
+                      :indicator-class="
+                        row.ratio >= 1
+                          ? 'bg-success transition-all duration-500'
+                          : 'bg-warning transition-all duration-500'
+                      "
                     />
-                    <dl v-if="row.queued > 0 || row.running > 0 || row.failed > 0 || row.deferred > 0" class="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                    <dl
+                      v-if="row.queued > 0 || row.running > 0 || row.failed > 0 || row.deferred > 0"
+                      class="flex flex-wrap gap-x-4 gap-y-1 text-xs"
+                    >
                       <div v-if="row.queued > 0" class="flex items-center gap-1.5">
                         <dt class="text-muted-foreground">Queued</dt>
                         <dd class="font-medium tabular-nums text-foreground">{{ formatAssetCount(row.queued) }}</dd>
@@ -985,7 +1001,9 @@ function estimatedAssets(): number | undefined {
                 role="alert"
               >
                 <p class="text-sm font-medium">Image cache coverage could not be loaded.</p>
-                <Button variant="outline" size="sm" class="mt-3" @click="generatedImagesQuery.refetch?.()">Try again</Button>
+                <Button variant="outline" size="sm" class="mt-3" @click="generatedImagesQuery.refetch?.()"
+                  >Try again</Button
+                >
               </div>
               <Skeleton v-else-if="generatedImagesQuery.isPending.value" class="h-28 w-full rounded-lg" />
               <div v-else class="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
@@ -1000,10 +1018,13 @@ function estimatedAssets(): number | undefined {
         ════════════════════════════════════════════ -->
         <section class="mt-8" aria-labelledby="config-heading">
           <div class="mb-3">
-            <h2 id="config-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuration</h2>
-            <p class="mt-0.5 text-sm text-foreground">Source folders and exclusion patterns used when updating this library.</p>
+            <h2 id="config-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Configuration
+            </h2>
+            <p class="mt-0.5 text-sm text-foreground">
+              Source folders and exclusion patterns used when updating this library.
+            </p>
           </div>
-
 
           <div class="grid gap-4 md:grid-cols-2">
             <!-- Source folders -->
@@ -1071,7 +1092,9 @@ function estimatedAssets(): number | undefined {
         <section class="mt-8" aria-labelledby="jobs-heading">
           <div class="mb-3 flex items-center justify-between gap-3">
             <div>
-              <h2 id="jobs-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent jobs</h2>
+              <h2 id="jobs-heading" class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Recent jobs
+              </h2>
               <p class="mt-0.5 text-sm text-foreground">Latest {{ RECENT_JOB_LIMIT }} jobs for this library.</p>
             </div>
             <div class="flex items-center gap-2">
@@ -1110,7 +1133,9 @@ function estimatedAssets(): number | undefined {
              FILE CATALOG LIFECYCLE
         ════════════════════════════════════════════ -->
         <section class="mt-8" aria-labelledby="lifecycle-heading">
-          <h2 id="lifecycle-heading" class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Catalog lifecycle</h2>
+          <h2 id="lifecycle-heading" class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Catalog lifecycle
+          </h2>
           <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div class="rounded-xl border border-border bg-card p-4">
               <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -1146,7 +1171,10 @@ function estimatedAssets(): number | undefined {
         <!-- ═══════════════════════════════════════════
              DANGER ZONE
         ════════════════════════════════════════════ -->
-        <section class="ldp-danger mt-8 rounded-xl border border-destructive/30 bg-destructive/5 p-5" aria-labelledby="danger-heading">
+        <section
+          class="ldp-danger mt-8 rounded-xl border border-destructive/30 bg-destructive/5 p-5"
+          aria-labelledby="danger-heading"
+        >
           <div class="flex items-center gap-2">
             <AlertTriangle class="size-4 text-destructive" />
             <h2 id="danger-heading" class="text-sm font-semibold text-destructive">Destructive actions</h2>
@@ -1195,14 +1223,19 @@ function estimatedAssets(): number | undefined {
 
 /* Stat card — subtle lift on hover */
 .ldp-stat-card {
-  transition: box-shadow 150ms ease, transform 150ms ease;
+  transition:
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 .ldp-stat-card:hover {
   box-shadow: var(--gallery-shadow-sm);
   transform: translateY(-1px);
 }
 @media (prefers-reduced-motion: reduce) {
-  .ldp-stat-card { transition: none; transform: none !important; }
+  .ldp-stat-card {
+    transition: none;
+    transform: none !important;
+  }
 }
 
 /* Lifecycle cards — same hover */

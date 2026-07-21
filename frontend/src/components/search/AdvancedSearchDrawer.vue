@@ -1005,7 +1005,11 @@ watch(
               <Trash2 data-icon="inline-start" />
               Clear all
             </Button>
-            <span v-if="validationErrorCount" class="min-w-0 truncate text-xs font-medium text-destructive" role="alert">
+            <span
+              v-if="validationErrorCount"
+              class="min-w-0 truncate text-xs font-medium text-destructive"
+              role="alert"
+            >
               {{ validationErrorCount }} field{{ validationErrorCount === 1 ? "" : "s" }} need attention
             </span>
             <span v-else-if="isDirty" class="min-w-0 truncate text-xs text-muted-foreground">Unsaved changes</span>

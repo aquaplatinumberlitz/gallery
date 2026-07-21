@@ -30,11 +30,7 @@ const emit = defineEmits<{
   "open-advanced-search": [];
 }>();
 
-const {
-  fieldedFilters,
-  removeFilter,
-  clearAll,
-} = useFieldedSearch(() => props.searchQuery);
+const { fieldedFilters, removeFilter, clearAll } = useFieldedSearch(() => props.searchQuery);
 
 function handleRemoveFilter(index: number) {
   emit("update:searchQuery", removeFilter(index));
