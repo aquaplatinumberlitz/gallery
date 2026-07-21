@@ -713,8 +713,10 @@ test.describe("AdvancedSearchDrawer", () => {
     await opTrigger.click();
     await page.getByRole("option", { name: "Between" }).click();
 
-    // Two inputs should appear
-    const inputs = stepsField.locator("..").locator('input[type="text"], input[type="number"]');
+    // Two inputs should appear. Scope by aria-label (a11y contract) instead of
+    // the parent axis (.locator("..")) so the selector survives wrapper DOM
+    // refactors inside AdvancedSearchNumericField.
+    const inputs = drawer.locator('input[aria-label="Steps lower bound"], input[aria-label="Steps upper bound"]');
     await expect(inputs).toHaveCount(2);
 
     // Fill low and high
