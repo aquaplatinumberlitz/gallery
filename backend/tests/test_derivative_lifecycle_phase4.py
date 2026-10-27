@@ -17,7 +17,7 @@ Guarantees:
   outcome states rather than polling by source identity.
 
 Run when:
-Changing derivative_scheduler.py quota/reservation logic, integrity_checker.py
+Changing derivative_scheduler/ quota/reservation logic, integrity_checker.py
 desired-state checks, or thumbnails.py derivative wait lifecycle.
 """
 

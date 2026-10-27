@@ -364,7 +364,7 @@ class MetadataLifecycleWorker:
     def _claim_job(self) -> MetadataIndexJob | None:
         """Claim one queued metadata job from SQLite.
 
-        Mirrors ``DerivativeScheduler._claim_job`` (derivative_scheduler.py:392-420).
+        Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``).
         """
         return claim_next_metadata_job()
 

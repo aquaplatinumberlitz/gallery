@@ -29,17 +29,16 @@ This document records how major third-party libraries are used in the current co
 | Vite                                                            | Frontend build/dev server                                                         | `frontend/vite.config.ts`                                                                             | Uses Vue plugin and Tailwind 4 Vite plugin                                                              |
 | Tailwind CSS 4                                                  | Utility layer and shadcn token bridge                                             | `frontend/src/styles/tailwind.css`, `frontend/src/styles/_shadcn-token-bridge.css`, component classes | Coexists with SCSS lightbox/layout styles                                                               |
 | SCSS / Sass                                                     | Global layout, lightbox, breakpoint styles                                        | `frontend/src/styles/*.scss`                                                                          | Keep breakpoints in sync with `useDevice.ts`                                                            |
-| shadcn-vue-style local components / shadcn-vue package          | Buttons, inputs, menus, sheets, sidebar, popover, tabs, tooltip, skeleton, select | `frontend/src/components/ui/`                                                                         | Local components follow shadcn-vue patterns and are built on Reka UI, CVA, clsx, tailwind-merge, VueUse |
+| shadcn-vue-style local components / shadcn-vue CLI (dev only)   | Buttons, inputs, menus, sheets, sidebar, popover, tabs, tooltip, skeleton, select | `frontend/src/components/ui/`                                                                         | Local components follow shadcn-vue patterns and are built on Reka UI, CVA, clsx, tailwind-merge, VueUse; the `shadcn-vue` package is a code-generation CLI in `devDependencies` with no runtime imports |
 | Reka UI                                                         | Headless primitives for local UI components                                       | `frontend/src/components/ui/`                                                                         | Dialog, sheet, dropdown, select, tooltip, popover, tabs, primitive/sidebar context                      |
 | class-variance-authority / clsx / tailwind-merge                | Variant and class composition                                                     | `frontend/src/components/ui/Button.vue`, `Badge.vue`, `Input.vue`, `frontend/src/lib/utils.ts`        | `cn()` merges Tailwind classes consistently                                                             |
-| Lucide Vue                                                      | Icons                                                                             | Gallery and UI components                                                                             | Both `lucide-vue-next` and `@lucide/vue` are installed; code currently imports `lucide-vue-next`        |
+| Lucide Vue                                                      | Icons                                                                             | Gallery and UI components                                                                             | Only `lucide-vue-next` is installed and imported                                                         |
 | @vueuse/core                                                    | Browser/reactivity mechanics (clipboard, debounce, breakpoints, observers, localStorage) | `frontend/src/composables/useGalleryTheme.ts`, `frontend/src/components/ui/`, `frontend/src/composables/useClipboard.ts`, `frontend/src/composables/useScrollVisibility.ts` | VueUse owns mechanics; Gallery owns policy/UX guards. Used for clipboard, debounce, breakpoints/window size, event listeners, resize/mutation/intersection observers, localStorage, theme helpers. |
 | @tanstack/vue-query                                             | Server-state caching                                                              | `frontend/src/query/`, Query composables                                                              | Owns API data, stale time, retries, GC                                                                  |
 | @tanstack/vue-query-devtools                                    | Development Query inspection                                                      | `frontend/src/App.vue`, `frontend/src/utils/queryDevtoolsGate.ts`, `frontend/package.json`            | Opt-in: `VITE_DEVTOOLS=true` or `?devtools=1` (dev builds)                                              |
 | @tanstack/vue-virtual                                           | Row-based large gallery grid and Library Inspector table body                     | `frontend/src/components/GalleryGrid.vue`, `frontend/src/components/LibraryInspector.vue`             | Desktop/tablet grid virtualization; inspector renders the visible table-row window plus overscan        |
 | @tanstack/vue-form                                              | Advanced fielded search form                                                      | `frontend/src/components/search/AdvancedSearchDrawer.vue`                                             | Active runtime usage                                                                                    |
 | @tanstack/vue-table                                             | Library Inspector data table                                                      | `frontend/src/components/LibraryInspector.vue`                                                        | Active runtime usage                                                                                    |
-| @tanstack/db / @tanstack/vue-db / @tanstack/query-db-collection | Beta local reactive collection foundation                                         | `frontend/src/db/`                                                                                    | Runtime pilot is landing pages only                                                                     |
 | PhotoSwipe 5                                                    | Lightbox image viewer                                                             | `frontend/src/components/Lightbox.vue`, PhotoSwipe wrappers, `usePhotoSwipe.ts`                       | Gallery owns custom metadata UI and controls                                                            |
 | @douxcode/vue-spring-bottom-sheet                               | Mobile lightbox metadata sheet                                                    | `frontend/src/components/LightboxMobileSheet.vue`, `frontend/src/styles/_lightbox-mobile.scss`        | Sheet/motion engine only, non-modal inside PhotoSwipe                                                   |
 | vue-sonner                                                      | Toast rendering/stack/dismiss mechanics                                           | `frontend/src/components/GalleryToaster.vue`, `frontend/src/stores/toast.ts`                           | Gallery keeps the public toast API, durations, variants, and styling; Sonner owns toaster mechanics.    |
@@ -283,6 +282,7 @@ Integration files:
 - `frontend/src/composables/useFolderChildrenQuery.ts`
 - `frontend/src/composables/useUnifiedSearchQuery.ts`
 - `frontend/src/composables/useSearchCapabilitiesQuery.ts`
+- `frontend/src/composables/useLandingPagesQuery.ts`: de-duplicated `/api/landing-pages` list for `SettingsModal.vue`
 - `frontend/src/composables/usePromptUsageQuery.ts`
 - `frontend/src/composables/useSearchIndexStatusQuery.ts`
 - `frontend/src/composables/usePhotoMetadataQuery.ts`
@@ -344,15 +344,6 @@ Do not document this as unused; it is now production runtime code.
 `@tanstack/vue-table` is active in `LibraryInspector.vue`. It builds columns and header/visibility state over rows returned in authoritative backend order by `/api/library/inspector`.
 
 The backend remains responsible for query/model/prompt filtering, cursor pagination, name/date sorting, DB-backed metadata fields, and detail lookup. Columns without a backend sort contract are intentionally non-sortable.
-
-### TanStack DB
-
-TanStack DB is still an incremental beta foundation. Runtime usage is intentionally narrow:
-
-- `frontend/src/db/collections/landingPagesCollection.ts` wraps `/api/landing-pages`.
-- `frontend/src/db/composables/useLandingPagesLiveQuery.ts` exposes a Vue live query for settings/intro UI.
-
-Do not migrate `/api/browse`, infinite loading, folder tree, unified search, lightbox metadata, PhotoSwipe, virtual scrolling, or the Pinia gallery store shape into TanStack DB without a dedicated design for stable keys and complete collection state.
 
 ### PhotoSwipe 5
 
@@ -425,7 +416,7 @@ Keep standard UI component styling neutral and avoid mapping gallery-specific de
 
 ### Lucide Vue
 
-Code imports icons from `lucide-vue-next`. `@lucide/vue` is also installed, but the current source tree uses `lucide-vue-next` in gallery and UI components.
+Code imports icons from `lucide-vue-next`; it is the only Lucide package installed.
 
 Prefer Lucide icon components for buttons and controls where a semantic icon exists.
 
@@ -470,7 +461,6 @@ Eruda is an optional mobile debugging console. `frontend/src/debug/erudaDebug.ts
 
 - Do not run backend docs/examples with the wrong import target; prefer `python3 -m uvicorn backend.main:app` from repo root.
 - Do not move server/API state from TanStack Query into Pinia.
-- Do not move browse/infinite/folder/search/lightbox metadata flows into TanStack DB without a specific collection-state design.
 - Do not enable VSBS `blocking=true` or add a second focus trap inside PhotoSwipe.
 - Do not move VSBS teleported DOM overrides into scoped-only styles.
 - Do not add `stopPropagation()` to mobile sheet outside-tap close.

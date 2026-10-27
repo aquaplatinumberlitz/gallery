@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-import backend.metadata_store._schema as schema_module
+import backend.metadata_store._migrations as migrations_module
 import backend.search_indexer as search_indexer_module
 from backend.generation_signatures import (
     GENERATION_SIGNATURE_EXTRACTOR_VERSION,
@@ -239,7 +239,7 @@ def test_v10_migration_is_transactional_backed_up_and_has_no_inline_backfill(
         conn.execute("DROP TABLE asset_generation_signatures")
         conn.execute("PRAGMA user_version = 8")
         conn.commit()
-        schema_module._migrate_v8_to_v10(conn)
+        migrations_module._migrate_v8_to_v10(conn)
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 10
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
         assert conn.execute("SELECT count(*) FROM asset_generation_signatures").fetchone()[0] == 0
@@ -256,7 +256,7 @@ def test_v10_migration_failure_rolls_back_and_keeps_backup(
         conn.execute("PRAGMA user_version = 8")
         conn.commit()
 
-    original = schema_module._execute_v10_migration_statement
+    original = migrations_module._execute_v10_migration_statement
     calls = 0
 
     def fail_second(conn: sqlite3.Connection, statement: str) -> None:
@@ -266,9 +266,9 @@ def test_v10_migration_failure_rolls_back_and_keeps_backup(
         if calls == 2:
             raise RuntimeError("v10 injected failure")
 
-    monkeypatch.setattr(schema_module, "_execute_v10_migration_statement", fail_second)
+    monkeypatch.setattr(migrations_module, "_execute_v10_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
-        schema_module._migrate_v8_to_v10(conn)
+        migrations_module._migrate_v8_to_v10(conn)
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
         assert (

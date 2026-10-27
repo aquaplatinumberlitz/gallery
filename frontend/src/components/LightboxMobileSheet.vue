@@ -2,20 +2,12 @@
 import { computed, nextTick, onMounted, onUnmounted, shallowRef, useTemplateRef } from "vue";
 import BottomSheet from "@douxcode/vue-spring-bottom-sheet";
 import "@douxcode/vue-spring-bottom-sheet/dist/style.css";
-import { loraHighlighter } from "../utils/loraHighlighter";
 import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
 import { useHaptic } from "../composables/useHaptic";
 import { Loader, TriangleAlert, ChevronDown, ChevronUp } from "lucide-vue-next";
-import {
-  hasCoreParams,
-  hasSecondaryParams,
-  hasModelData,
-  hasAdvancedData,
-  getSecondaryEntries,
-  getExtraParamKeys,
-  EMPTY_SECTION_TEXT,
-} from "../composables/useMetadataSections";
+import { EMPTY_SECTION_TEXT, shortModelHash } from "../composables/useMetadataSections";
+import { useMetadataPanel } from "../composables/useMetadataPanel";
 import CopyStateIcon from "@/components/ui/CopyStateIcon.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -38,7 +30,6 @@ const bottomSheetRef = useTemplateRef<InstanceType<typeof BottomSheet>>("bottomS
 const sheetOpen = shallowRef(true);
 const sheetExpanded = shallowRef(false);
 const activeTab = shallowRef<MetadataTab>("prompt");
-const showAdvanced = shallowRef(false);
 const promptExpanded = shallowRef(false);
 const negPromptExpanded = shallowRef(false);
 const textResetKey = shallowRef(0);
@@ -231,13 +222,21 @@ onUnmounted(() => {
   pendingOutsideTap.value = null;
 });
 
-// Derived
-const hasGenData = computed(() => hasCoreParams(props.meta?.params));
-const hasExtraSettings = computed(() => hasSecondaryParams(props.meta?.params));
-const hasModels = computed(() => hasModelData(props.meta));
-const hasAdv = computed(() => hasAdvancedData(props.meta));
-const extraEntries = computed(() => getSecondaryEntries(props.meta?.params));
-const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
+// Derived and shared with the other metadata panels
+const {
+  showAdvanced,
+  hasGenData,
+  hasExtraSettings,
+  hasModels,
+  hasAdv,
+  extraEntries,
+  extraParamKeys,
+  promptHtml,
+  negativePromptHtml,
+  copyPrompt,
+  copyNegativePrompt,
+  copySeed,
+} = useMetadataPanel(props);
 </script>
 
 <template>
@@ -353,7 +352,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     type="button"
                     class="inline-copy-button"
                     aria-label="Copy prompt"
-                    @click.stop.prevent="props.copyText(props.meta?.prompt, 'prompt')"
+                    @click.stop.prevent="copyPrompt"
                   >
                     <CopyStateIcon
                       :copied="props.copyStatus['prompt']"
@@ -373,7 +372,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 :expanded="promptExpanded"
                 @expanded-change="onPromptExpandedChange"
               >
-                <span v-html="loraHighlighter(props.meta.prompt)" />
+                <span v-html="promptHtml" />
               </ExpandableText>
             </div>
             <p v-else class="empty-text">
@@ -389,7 +388,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     type="button"
                     class="inline-copy-button"
                     aria-label="Copy negative prompt"
-                    @click.stop.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
+                    @click.stop.prevent="copyNegativePrompt"
                   >
                     <CopyStateIcon :copied="props.copyStatus['neg']" class="copy-icon-stack inline-copy-icon" />
                   </button>
@@ -405,7 +404,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                 :expanded="negPromptExpanded"
                 @expanded-change="onNegPromptExpandedChange"
               >
-                <span v-html="loraHighlighter(props.meta.negative_prompt)" />
+                <span v-html="negativePromptHtml" />
               </ExpandableText>
             </div>
             <p v-else class="empty-text">
@@ -442,9 +441,9 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
                     data-testid="seed-row"
                     role="button"
                     tabindex="0"
-                    @click.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
-                    @keydown.enter.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
-                    @keydown.space.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
+                    @click.stop.prevent="copySeed"
+                    @keydown.enter.stop.prevent="copySeed"
+                    @keydown.space.stop.prevent="copySeed"
                   >
                     <span class="label">Seed</span>
                     <span class="value">{{ props.meta.params.Seed }}</span>
@@ -538,7 +537,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
             <div v-for="m in props.meta?.models" :key="m.name">
               <p class="sheet-text">
                 {{ m.name }}
-                <span v-if="m.hash" class="res-hash">#{{ m.hash.substring(0, 8) }}</span>
+                <span v-if="m.hash" class="res-hash">#{{ shortModelHash(m.hash) }}</span>
               </p>
             </div>
 
@@ -639,12 +638,7 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 <style scoped lang="scss">
 @import "../styles/lightbox-shared";
 @import "../styles/lightbox-mobile";
-
-/* LoRA highlighter — penetrate v-html injected spans */
-:deep(.lora-pill) {
-  color: #c084fc;
-  font-weight: 600;
-}
+@import "../styles/lightbox-panel-common";
 
 // ── Empty state overrides ─────────────────────────────────────────
 .is-empty {
@@ -656,10 +650,6 @@ const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
 }
 
 .empty-text {
-  color: #888;
-  font-size: 13px;
-  font-style: italic;
-  margin: 0;
   padding: 4px 0;
 }
 

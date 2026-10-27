@@ -28,7 +28,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-import backend.metadata_store._schema as schema_module
+import backend.metadata_store._migrations as migrations_module
 import backend.search as search_module
 import backend.search_indexer as indexer_module
 import backend.workflow_raw_search as raw_module
@@ -142,7 +142,7 @@ def test_v8_migration_is_additive_transactional_and_has_no_inline_backfill(
 ) -> None:
     with _connect() as conn:
         _drop_v8_schema(conn)
-        schema_module._migrate_v7_to_v8(conn)
+        migrations_module._migrate_v7_to_v8(conn)
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
         assert conn.execute("SELECT count(*) FROM workflow_raw_documents").fetchone()[0] == 0
@@ -158,7 +158,7 @@ def test_v8_migration_failure_rolls_back_and_keeps_backup(
         _drop_v8_schema(conn)
         conn.execute("ALTER TABLE search_index_jobs DROP COLUMN skipped_count")
         conn.execute("ALTER TABLE search_index_states DROP COLUMN skipped_count")
-    original = schema_module._execute_v8_migration_statement
+    original = migrations_module._execute_v8_migration_statement
     calls = 0
 
     def fail_second(conn: sqlite3.Connection, statement: str) -> None:
@@ -168,9 +168,9 @@ def test_v8_migration_failure_rolls_back_and_keeps_backup(
         if calls == 2:
             raise RuntimeError("v8 injected failure")
 
-    monkeypatch.setattr(schema_module, "_execute_v8_migration_statement", fail_second)
+    monkeypatch.setattr(migrations_module, "_execute_v8_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
-        schema_module._migrate_v7_to_v8(conn)
+        migrations_module._migrate_v7_to_v8(conn)
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
         assert (

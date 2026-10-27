@@ -54,6 +54,8 @@
   --gallery-lightbox-prompt-negative: #fca5a5;
   --gallery-lightbox-tool-label: #fb7185;
   --gallery-lightbox-code-text: #d1d5db;
+  --gallery-lightbox-lora: #c084fc;
+  --gallery-lightbox-text-empty: #888;
 
   /* ── Timing ── */
   --gallery-timing-fast: 80ms;

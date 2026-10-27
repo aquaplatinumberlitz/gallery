@@ -16,7 +16,7 @@ Guarantees:
   missing worker slots after an incomplete stop.
 
 Run when:
-Changing derivative_scheduler.py lease/heartbeat, worker lifecycle, or
+Changing derivative_scheduler/ lease/heartbeat, worker lifecycle, or
 start()/stop() thread bookkeeping.
 """
 
@@ -29,7 +29,10 @@ from pathlib import Path
 
 import pytest
 
-import backend.derivative_scheduler as scheduler_module
+import backend.derivative_scheduler._common as scheduler_common_module
+import backend.derivative_scheduler.core as scheduler_core_module
+import backend.derivative_scheduler.execution as scheduler_execution_module
+import backend.derivative_scheduler.lifecycle as scheduler_lifecycle_module
 import backend.thumbnails as thumbnails_module
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler, _LeaseHeartbeat
@@ -57,8 +60,8 @@ def _connect(db_path: Path) -> sqlite3.Connection:
 @pytest.fixture
 def short_lease(monkeypatch: pytest.MonkeyPatch):
     """Use production-shaped short lease/heartbeat intervals for deterministic tests."""
-    monkeypatch.setattr(scheduler_module, "DERIVATIVE_JOB_LEASE_SECONDS", 1)
-    monkeypatch.setattr(scheduler_module, "DERIVATIVE_LEASE_HEARTBEAT_SECONDS", 0.3)
+    monkeypatch.setattr(scheduler_common_module, "DERIVATIVE_JOB_LEASE_SECONDS", 1)
+    monkeypatch.setattr(scheduler_execution_module, "DERIVATIVE_LEASE_HEARTBEAT_SECONDS", 0.3)
     yield
 
 
@@ -257,8 +260,9 @@ def test_start_after_incomplete_stop_restores_workers_and_preserves_jobs(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """A restart after an incomplete stop restores the worker count and keeps jobs."""
-    monkeypatch.setattr(scheduler_module, "DERIVATIVE_RECONCILE_ENABLED", False)
-    monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.3)
+    monkeypatch.setattr(scheduler_core_module, "DERIVATIVE_RECONCILE_ENABLED", False)
+    monkeypatch.setattr(scheduler_lifecycle_module, "DERIVATIVE_RECONCILE_ENABLED", False)
+    monkeypatch.setattr(scheduler_lifecycle_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.3)
 
     _image, asset_id, _library_id = _catalog_image(isolated_gallery_root)
     scheduler = DerivativeScheduler(worker_count=2)
@@ -327,8 +331,9 @@ def test_stop_records_clean_shutdown_when_workers_finish(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """An idle scheduler stop completes cleanly within the bounded timeout."""
-    monkeypatch.setattr(scheduler_module, "DERIVATIVE_RECONCILE_ENABLED", False)
-    monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 5)
+    monkeypatch.setattr(scheduler_core_module, "DERIVATIVE_RECONCILE_ENABLED", False)
+    monkeypatch.setattr(scheduler_lifecycle_module, "DERIVATIVE_RECONCILE_ENABLED", False)
+    monkeypatch.setattr(scheduler_lifecycle_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 5)
     scheduler = DerivativeScheduler(worker_count=2)
     scheduler.start()
     assert scheduler.alive_worker_count() == 2
@@ -342,7 +347,8 @@ def test_start_prunes_stale_dead_threads_before_restoring_slots(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """A stale dead thread object in _threads must not block restart or restore."""
-    monkeypatch.setattr(scheduler_module, "DERIVATIVE_RECONCILE_ENABLED", False)
+    monkeypatch.setattr(scheduler_core_module, "DERIVATIVE_RECONCILE_ENABLED", False)
+    monkeypatch.setattr(scheduler_lifecycle_module, "DERIVATIVE_RECONCILE_ENABLED", False)
     scheduler = DerivativeScheduler(worker_count=2)
 
     class _DeadThread(threading.Thread):

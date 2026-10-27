@@ -45,7 +45,7 @@ from backend.metadata_store import (
     update_job_state,
     update_parent_aggregate_job,
 )
-from backend.metadata_store import _schema as schema_module
+from backend.metadata_store import _migrations as migrations_module
 from backend.metadata_store import file_index as file_index_module
 from backend.metadata_store import job_store as job_store_module
 from backend.metadata_store import metadata_queue as metadata_queue_module
@@ -848,7 +848,7 @@ def test_v3_migration_failure_rolls_back_and_keeps_v2_backup(
             """
         )
     before = _database_dump(isolated_metadata_db)
-    original = schema_module._execute_v3_migration_statement
+    original = migrations_module._execute_v3_migration_statement
     calls = 0
 
     def fail_second(conn: sqlite3.Connection, statement: str) -> None:
@@ -858,11 +858,11 @@ def test_v3_migration_failure_rolls_back_and_keeps_v2_backup(
             raise RuntimeError("v3 injected failure")
         original(conn, statement)
 
-    monkeypatch.setattr(schema_module, "_execute_v3_migration_statement", fail_second)
+    monkeypatch.setattr(migrations_module, "_execute_v3_migration_statement", fail_second)
     with sqlite3.connect(isolated_metadata_db) as conn:
         conn.row_factory = sqlite3.Row
         with pytest.raises(RuntimeError, match="v3 injected failure"):
-            schema_module._migrate_v2_to_v3(conn)
+            migrations_module._migrate_v2_to_v3(conn)
 
     assert _database_dump(isolated_metadata_db) == before
     backup = isolated_metadata_db.with_suffix(f"{isolated_metadata_db.suffix}.v2.bak")

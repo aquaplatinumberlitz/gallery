@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useLandingPagesLiveQuery } from "../db/composables/useLandingPagesLiveQuery";
+import { useLandingPagesQuery } from "../composables/useLandingPagesQuery";
 import { LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY } from "../utils/lightbox";
 import { AlertTriangle, ArrowUpRight, Trash2 } from "lucide-vue-next";
 import { useCatalogResetMutation } from "@/composables/admin/useCatalogResetMutation";
@@ -38,7 +38,7 @@ const selectedTheme = ref("");
 const alwaysLoadOriginal = ref(false);
 const resetConfirmPhrase = "RESET CATALOG DATABASE";
 const resetConfirmInput = ref("");
-const landingPagesQuery = useLandingPagesLiveQuery();
+const landingPagesQuery = useLandingPagesQuery();
 const availableThemes = computed(() => (landingPagesQuery.data.value ?? []).map((page) => page.url));
 const isLoadingThemes = computed(() => landingPagesQuery.isLoading.value);
 const canSubmitReset = computed(() => resetConfirmInput.value === resetConfirmPhrase);

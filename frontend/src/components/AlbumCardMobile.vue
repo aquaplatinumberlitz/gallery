@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { albumCountLabel } from "@/utils/albumCountLabel";
-import { ref } from "vue";
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
 import { FolderOpen } from "lucide-vue-next";
-
-// FA SVG placeholder icon
-const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M128 96L576 96L576 480L128 480L128 96zM80 192L80 528L480 528L480 576L32 576L32 192L80 192zM224 224C241.7 224 256 209.7 256 192C256 174.3 241.7 160 224 160C206.3 160 192 174.3 192 192C192 209.7 206.3 224 224 224zM272 272L176 416L528 416L400 208L318.1 341.1L272 272z"/></svg>`;
+import { useCoverImageLoad } from "../composables/useCoverImageLoad";
+import { ALBUM_PLACEHOLDER_SVG } from "../utils/albumCardPlaceholder";
 
 const emit = defineEmits<{
   (e: "click"): void;
@@ -17,13 +15,7 @@ defineProps<{
 }>();
 
 // Skeleton shimmer shown over the cover until the cover image finishes loading.
-const loaded = ref(false);
-const onCoverLoad = () => {
-  loaded.value = true;
-};
-const onCoverError = () => {
-  loaded.value = true;
-};
+const { loaded, markCoverSettled } = useCoverImageLoad();
 </script>
 
 <template>
@@ -45,11 +37,11 @@ const onCoverError = () => {
         :src="getThumbnailUrl(node.cover_images[0])"
         loading="lazy"
         alt=""
-        @load="onCoverLoad"
-        @error="onCoverError"
+        @load="markCoverSettled"
+        @error="markCoverSettled"
       />
       <div v-else class="placeholder">
-        <span class="fa-placeholder-svg" v-html="placeholderSvg" />
+        <span class="fa-placeholder-svg" v-html="ALBUM_PLACEHOLDER_SVG" />
       </div>
 
       <!-- Bottom gradient scrim — always rendered so the overlay title stays legible -->

@@ -26,7 +26,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-import backend.metadata_store._schema as schema_module
+import backend.metadata_store._migrations as migrations_module
 from backend.metadata_extract import parse_comfy
 from backend.metadata_store import index_directory_tree, register_library
 from backend.metadata_store._db import _connect
@@ -139,7 +139,7 @@ def test_v7_migration_is_additive_transactional_and_has_no_inline_backfill(
 ) -> None:
     with _connect() as conn:
         _drop_v7_tables(conn)
-        schema_module._migrate_v6_to_v7(conn)
+        migrations_module._migrate_v6_to_v7(conn)
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
         assert conn.execute("SELECT count(*) FROM workflow_nodes").fetchone()[0] == 0
@@ -152,7 +152,7 @@ def test_v7_migration_failure_rolls_back_and_keeps_backup(
 ) -> None:
     with _connect() as conn:
         _drop_v7_tables(conn)
-    original = schema_module._execute_v7_migration_statement
+    original = migrations_module._execute_v7_migration_statement
     calls = 0
 
     def fail_second(conn: sqlite3.Connection, statement: str) -> None:
@@ -162,9 +162,9 @@ def test_v7_migration_failure_rolls_back_and_keeps_backup(
         if calls == 2:
             raise RuntimeError("v7 injected failure")
 
-    monkeypatch.setattr(schema_module, "_execute_v7_migration_statement", fail_second)
+    monkeypatch.setattr(migrations_module, "_execute_v7_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
-        schema_module._migrate_v6_to_v7(conn)
+        migrations_module._migrate_v6_to_v7(conn)
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
         assert (

@@ -1,0 +1,29 @@
+// ============================================
+// Lightbox panel icon sizing tokens
+// Shared by LightboxDesktopPanel and LightboxTabletPanel (identical in both).
+// ============================================
+
+.icon-nav {
+  width: var(--gallery-icon-nav);
+  height: var(--gallery-icon-nav);
+}
+
+.icon-lg {
+  width: var(--gallery-icon-lg);
+  height: var(--gallery-icon-lg);
+}
+
+.icon-md {
+  width: var(--gallery-icon-md);
+  height: var(--gallery-icon-md);
+}
+
+.icon-sm {
+  width: var(--gallery-icon-sm);
+  height: var(--gallery-icon-sm);
+}
+
+.icon-xs {
+  width: var(--gallery-icon-xs);
+  height: var(--gallery-icon-xs);
+}

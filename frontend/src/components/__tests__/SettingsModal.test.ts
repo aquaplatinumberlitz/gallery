@@ -7,8 +7,8 @@ import SettingsModal from "../SettingsModal.vue";
 const mutateAsync = vi.fn();
 const isPending = ref(false);
 
-vi.mock("@/db/composables/useLandingPagesLiveQuery", () => ({
-  useLandingPagesLiveQuery: () => ({
+vi.mock("@/composables/useLandingPagesQuery", () => ({
+  useLandingPagesQuery: () => ({
     data: ref([{ url: "/landpage/lunar_newyear/index.html", index: 0 }]),
     isLoading: ref(false),
     isError: ref(false),

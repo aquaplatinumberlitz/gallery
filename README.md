@@ -37,7 +37,6 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 | Server Cache              | @tanstack/vue-query                                                      |
 | Advanced Search Form      | @tanstack/vue-form                                                       |
 | Metadata Table            | @tanstack/vue-table                                                      |
-| Local Reactive DB         | @tanstack/vue-db, @tanstack/query-db-collection                          |
 | UI Components             | Local shadcn-vue-style components, Reka UI, CVA, clsx, tailwind-merge    |
 | Styling                   | Tailwind CSS 4, SCSS, CSS custom properties                              |
 | HTTP Client               | Axios                                                                    |

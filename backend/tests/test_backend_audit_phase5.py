@@ -29,7 +29,7 @@ from fastapi import Request
 from backend import app as app_module
 from backend import metadata_store
 from backend.metadata_store import _DB_LOCK, _connect, index_file, register_library
-from backend.metadata_store import _schema as schema_module
+from backend.metadata_store import _migrations as migrations_module
 from tests.conftest import create_test_png
 
 
@@ -223,7 +223,7 @@ def test_v2_migration_failure_restores_exact_schema_and_data(
         conn.execute("INSERT INTO libraries(name) VALUES ('migration')")
     _mark_nanosecond_columns_as_real(isolated_metadata_db)
     before = _database_dump(isolated_metadata_db)
-    original_execute = schema_module._execute_v2_migration_statement
+    original_execute = migrations_module._execute_v2_migration_statement
     statements = 0
 
     def fail_after_rename(conn: sqlite3.Connection, statement: str) -> None:
@@ -233,11 +233,11 @@ def test_v2_migration_failure_restores_exact_schema_and_data(
             raise RuntimeError("injected migration failure")
         original_execute(conn, statement)
 
-    monkeypatch.setattr(schema_module, "_execute_v2_migration_statement", fail_after_rename)
+    monkeypatch.setattr(migrations_module, "_execute_v2_migration_statement", fail_after_rename)
     with sqlite3.connect(isolated_metadata_db) as conn:
         conn.row_factory = sqlite3.Row
         with pytest.raises(RuntimeError, match="injected migration failure"):
-            schema_module._migrate_v1_to_v2(conn)
+            migrations_module._migrate_v1_to_v2(conn)
 
     assert _database_dump(isolated_metadata_db) == before
     backup = isolated_metadata_db.with_suffix(f"{isolated_metadata_db.suffix}.v1.bak")

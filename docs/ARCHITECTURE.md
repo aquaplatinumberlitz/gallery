@@ -12,7 +12,7 @@ Historical Library Management V1 handoff context is retained in the
 ### Owner: `backend/indexer.py`
 
 The metadata lifecycle owner is `MetadataLifecycleWorker` in `backend/indexer.py`,
-modeled on `DerivativeScheduler` (`backend/derivative_scheduler.py`). It owns
+modeled on `DerivativeScheduler` (`backend/derivative_scheduler/`). It owns
 scheduling, dispatch, worker lifecycle, completion invariants, stale guards,
 and startup recovery.
 
@@ -107,7 +107,29 @@ gate resumes paused producers.
 
 ## Derivative Lifecycle
 
-### Owner: `backend/derivative_scheduler.py`
+### Owner: `backend/derivative_scheduler/`
+
+`backend.derivative_scheduler` is a package whose `__init__.py` re-exports
+`DerivativeScheduler`, the process-wide `scheduler` singleton, `derivative_variant`, and the
+reconcile/repair summary dataclasses, so existing import paths are unchanged. `core.py` composes
+`DerivativeScheduler` from cohesive mixins, each owning one concern:
+
+| Module          | Responsibility                                                                         |
+| --------------- | -------------------------------------------------------------------------------------- |
+| `lifecycle.py`  | `start()`/`stop()` generations, bounded shutdown, reconciler thread, runtime status    |
+| `capacity.py`   | Quota estimates, two-phase eviction reservation, post-render quota enforcement         |
+| `scheduling.py` | Identity coalescing, `schedule_derivative`, consistency repair                         |
+| `lookup.py`     | Ready-file lookup/touch, serving protection, outcome and asset lookups                 |
+| `reconcile.py`  | Desired-state reconciliation for a library, scope, or asset set; `warm_library`        |
+| `status.py`     | Per-library coverage and quota read model (`library_status`)                           |
+| `maintenance.py` | Clearing derivative rows and cache files                                               |
+| `recovery.py`   | Worker/supervisor loops, abandoned-claim recovery, queued-job reconciliation           |
+| `execution.py`  | Claim, lease renewal, render, failure handling, `_LeaseHeartbeat`                      |
+| `_common.py`    | Shared constants, `_lease_days`, `_ensure_database`, `derivative_variant`              |
+| `models.py`     | `DerivativeReconcileSummary`, `DerivativeRepairSummary`, type aliases                  |
+
+Tests that patch module-level settings (for example `DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS`) must patch
+the module that reads them, not the package namespace.
 
 Thumbnail and preview work is a durable SQLite state machine. A queued job is
 claimed with a process/worker owner, unique claim token, and a configurable lease
@@ -264,7 +286,10 @@ Backend modules are mostly flat, with selected domain packages.
 | ------------------------------------ | --------------------------------------------------------- |
 | `metadata_store/`                    | SQLite data access layer: schema, search, CRUD, job queue |
 | `metadata_store/_db.py`              | SQLite connection, init flags, shared constants           |
-| `metadata_store/_schema.py`          | Schema creation, v1 compatibility handling, and additive post-v1 columns/indexes |
+| `metadata_store/_schema.py`          | `initialize_database` entry point and `CATALOG_SCHEMA_VERSION`; orchestrates fresh creation and upgrades |
+| `metadata_store/_schema_ddl.py`      | Fresh-database DDL (`FRESH_DATABASE_DDL`)                 |
+| `metadata_store/_schema_ensure.py`   | Additive post-v1 columns, indexes, and feature-table ensure helpers |
+| `metadata_store/_migrations.py`      | v1 compatibility handling, v1→v12 migrations, and pre-migration backups |
 | `metadata_store/types.py`            | Shared dataclasses and exceptions                         |
 | `metadata_store/path_utils.py`       | Path normalization and overlap helpers                    |
 | `metadata_store/library_store.py`    | Library CRUD                                              |
@@ -522,7 +547,6 @@ Key paths:
 | `frontend/src/components/ui/`                             | shadcn-vue/Reka-inspired local UI primitives                                                                                   |
 | `frontend/src/composables/`                               | Query wrappers including Related Assets, device detection, PhotoSwipe lifecycle, metadata/comparison helpers, theme, haptics  |
 | `frontend/src/query/`                                     | TanStack Query client, normalized query keys, browse prefetch helpers                                                          |
-| `frontend/src/db/`                                        | TanStack DB beta foundation and landing-pages pilot collection                                                                 |
 | `frontend/src/stores/`                                    | Pinia stores for gallery UI/navigation, lightbox, Related Assets session UI, and toasts                                        |
 | `frontend/src/services/api.ts`                            | Axios client, endpoint wrappers, URL helpers, API error mapping                                                                |
 | `frontend/src/styles/`                                    | Tailwind 4 entry, shadcn token bridge, SCSS tokens, breakpoints, lightbox styles                                               |
@@ -532,7 +556,6 @@ Key paths:
 | Layer                | Responsibilities                                                                                                                                      |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TanStack Query       | `/api/browse`, `/api/folders`, `/api/search/query`, `/api/search/related`, `/api/metadata`, `/api/facets`, library status/jobs/stats, generated-image status/actions, Library Inspector rows/details, landing page fetches |
-| TanStack DB          | Beta local reactive collection foundation; currently only the landing-pages collection is a runtime pilot                                             |
 | Pinia gallery store  | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state                                 |
 | Pinia lightbox store | Open image, current index, visible item list, navigation                                                                                              |
 | Pinia related store  | Ephemeral open/reference/scope UI state; no match-type selection, related result payloads, or saved/recent-search persistence                      |
@@ -866,5 +889,4 @@ Mobile sheet contract:
 - Keep mobile outside-tap close non-blocking: no `stopPropagation()`, track `pointerId` and `isPrimary`, require pointerdown and pointerup outside the sheet, use the movement threshold, and handle `pointercancel`.
 - Keep `pswp.currIndex !== index` in the PhotoSwipe index watcher to prevent feedback loops.
 - Keep Query as the owner of server/API data and Pinia as the owner of UI/navigation state.
-- Do not move browse, infinite loading, folder tree, unified search, or lightbox metadata into TanStack DB without a dedicated collection-state design.
 - Keep shadcn-vue Select controls as the metadata toolbar contract for model, prompt, and sort filters. `toolbarTrigger.ts` is a shared dropdown/button trigger class, but `SortSelect.vue` uses the local `SelectTrigger` styling directly.

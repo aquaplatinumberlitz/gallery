@@ -23,14 +23,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-import backend.derivative_scheduler as derivative_scheduler_module
+import backend.derivative_scheduler.maintenance as derivative_scheduler_maintenance_module
 from backend.metadata_store import _DB_LOCK, _connect, create_job, create_library, initialize_database, update_job_state
 from backend.metadata_store.job_store import update_parent_aggregate_job
 from tests.conftest import create_test_png
 
 
 def _seed_imported_data(root: Path, cache_dir: Path, monkeypatch) -> int:
-    monkeypatch.setattr(derivative_scheduler_module, "THUMBNAIL_CACHE_DIR", cache_dir)
+    monkeypatch.setattr(derivative_scheduler_maintenance_module, "THUMBNAIL_CACHE_DIR", cache_dir)
     library = create_library([root], name="Imported", exclusion_patterns=["*.tmp"])
     image = root / "one.png"
     create_test_png(image)

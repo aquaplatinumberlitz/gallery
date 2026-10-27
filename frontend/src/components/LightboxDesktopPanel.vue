@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { loraHighlighter } from "../utils/loraHighlighter";
+import { ref } from "vue";
 import ExpandableText from "./ExpandableText.vue";
 import type { MetadataResponse } from "../types";
 import {
@@ -19,15 +18,8 @@ import {
   Layers,
   TriangleAlert,
 } from "lucide-vue-next";
-import {
-  hasCoreParams,
-  hasSecondaryParams,
-  hasModelData,
-  hasAdvancedData,
-  getSecondaryEntries,
-  getExtraParamKeys,
-  EMPTY_SECTION_TEXT,
-} from "../composables/useMetadataSections";
+import { EMPTY_SECTION_TEXT, shortModelHash } from "../composables/useMetadataSections";
+import { useMetadataPanel } from "../composables/useMetadataPanel";
 import CopyStateIcon from "@/components/ui/CopyStateIcon.vue";
 import OverflowTooltip from "@/components/ui/OverflowTooltip.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -43,42 +35,26 @@ const props = defineProps<{
   copyText: (text: string | undefined, id: string) => Promise<boolean>;
 }>();
 
-// Collapsible states
+// Collapsible states (Advanced is owned by the shared panel state)
 const showGenParams = ref(true);
 const showResources = ref(false);
-const showAdvanced = ref(false);
 
-// Derived flags
-const hasGenData = computed(() => hasCoreParams(props.meta?.params));
-const hasExtraSettings = computed(() => hasSecondaryParams(props.meta?.params));
-const hasModels = computed(() => hasModelData(props.meta));
-const hasAdv = computed(() => hasAdvancedData(props.meta));
-const extraEntries = computed(() => getSecondaryEntries(props.meta?.params));
-const extraParamKeys = computed(() => getExtraParamKeys(props.meta?.params));
-
-// Counts for accordion pills
-const genParamsCount = computed(() => {
-  if (!props.meta?.params) return 0;
-  let c = 0;
-  const p = props.meta.params;
-  if (p.Seed) c++;
-  if (p.Steps) c++;
-  if (p.CFG) c++;
-  if (p.Sampler) c++;
-  if (p.Scheduler) c++;
-  if (p.AspectRatio) c++;
-  return c;
-});
-
-const modelCount = computed(() => {
-  if (!hasModels.value) return 0;
-  let c = 0;
-  const p = props.meta?.params;
-  if (p?.Model) c++;
-  if (p?.Lora) c += p.Lora.length;
-  if (props.meta?.models) c += props.meta.models.length;
-  return c;
-});
+const {
+  showAdvanced,
+  hasGenData,
+  hasExtraSettings,
+  hasModels,
+  hasAdv,
+  extraEntries,
+  extraParamKeys,
+  genParamsCount,
+  modelCount,
+  promptHtml,
+  negativePromptHtml,
+  copyPrompt,
+  copyNegativePrompt,
+  copySeed,
+} = useMetadataPanel(props);
 </script>
 
 <template>
@@ -124,12 +100,7 @@ const modelCount = computed(() => {
             <h4><MessageSquareText :stroke-width="1.5" class="icon-sm" /> Prompt</h4>
             <Tooltip v-if="props.meta?.prompt">
               <TooltipTrigger as-child>
-                <button
-                  type="button"
-                  class="copy-btn"
-                  aria-label="Copy prompt"
-                  @click.stop.prevent="props.copyText(props.meta?.prompt, 'prompt')"
-                >
+                <button type="button" class="copy-btn" aria-label="Copy prompt" @click.stop.prevent="copyPrompt">
                   <CopyStateIcon :copied="props.copyStatus['prompt']" class="copy-icon-stack" />
                 </button>
               </TooltipTrigger>
@@ -138,7 +109,7 @@ const modelCount = computed(() => {
           </div>
           <div v-if="props.meta?.prompt" class="prompt-body">
             <ExpandableText :collapsed-lines="8" :text="props.meta.prompt">
-              <span v-html="loraHighlighter(props.meta.prompt)" />
+              <span v-html="promptHtml" />
             </ExpandableText>
           </div>
           <p v-else class="empty-text">
@@ -156,7 +127,7 @@ const modelCount = computed(() => {
                   type="button"
                   class="copy-btn"
                   aria-label="Copy negative prompt"
-                  @click.stop.prevent="props.copyText(props.meta?.negative_prompt, 'neg')"
+                  @click.stop.prevent="copyNegativePrompt"
                 >
                   <CopyStateIcon :copied="props.copyStatus['neg']" class="copy-icon-stack" />
                 </button>
@@ -166,7 +137,7 @@ const modelCount = computed(() => {
           </div>
           <div v-if="props.meta?.negative_prompt" class="prompt-body">
             <ExpandableText :collapsed-lines="8" :text="props.meta.negative_prompt">
-              <span v-html="loraHighlighter(props.meta.negative_prompt)" />
+              <span v-html="negativePromptHtml" />
             </ExpandableText>
           </div>
           <p v-else class="empty-text">
@@ -200,11 +171,7 @@ const modelCount = computed(() => {
                 <span class="value">{{ props.meta.params.Seed }}</span>
                 <Tooltip>
                   <TooltipTrigger as-child>
-                    <button
-                      class="icon-btn"
-                      aria-label="Copy seed"
-                      @click.stop.prevent="props.copyText(String(props.meta.params.Seed), 'seed')"
-                    >
+                    <button class="icon-btn" aria-label="Copy seed" @click.stop.prevent="copySeed">
                       <CopyStateIcon
                         :copied="props.copyStatus['seed']"
                         :default-icon="Sprout"
@@ -304,7 +271,7 @@ const modelCount = computed(() => {
                     {{ m.name }}
                     <Tooltip v-if="m.hash">
                       <TooltipTrigger as-child>
-                        <span class="res-hash">#{{ m.hash.substring(0, 8) }}</span>
+                        <span class="res-hash">#{{ shortModelHash(m.hash) }}</span>
                       </TooltipTrigger>
                       <TooltipContent class="max-w-[260px] break-all">Hash: {{ m.hash }}</TooltipContent>
                     </Tooltip>
@@ -348,12 +315,8 @@ const modelCount = computed(() => {
 <style scoped lang="scss">
 @import "../styles/lightbox-shared";
 @import "../styles/lightbox-desktop";
-
-/* LoRA highlighter — penetrate v-html injected spans */
-:deep(.lora-pill) {
-  color: #c084fc;
-  font-weight: 600;
-}
+@import "../styles/lightbox-panel-common";
+@import "../styles/lightbox-panel-icons";
 
 // ── Empty state overrides ─────────────────────────────────────────
 .is-empty {
@@ -365,36 +328,6 @@ const modelCount = computed(() => {
 }
 
 .empty-text {
-  color: #888;
-  font-size: 13px;
-  font-style: italic;
-  margin: 0;
   padding: 0 4px;
-}
-
-/* Icon sizing tokens */
-.icon-nav {
-  width: var(--gallery-icon-nav);
-  height: var(--gallery-icon-nav);
-}
-
-.icon-lg {
-  width: var(--gallery-icon-lg);
-  height: var(--gallery-icon-lg);
-}
-
-.icon-md {
-  width: var(--gallery-icon-md);
-  height: var(--gallery-icon-md);
-}
-
-.icon-sm {
-  width: var(--gallery-icon-sm);
-  height: var(--gallery-icon-sm);
-}
-
-.icon-xs {
-  width: var(--gallery-icon-xs);
-  height: var(--gallery-icon-xs);
 }
 </style>
