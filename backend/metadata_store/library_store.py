@@ -348,51 +348,61 @@ def get_gallery_stats() -> dict[str, int]:
         }
 
 
-def list_libraries() -> list[LibraryRecord]:
-    """Return all registered libraries in stable ID order."""
+def list_libraries(*, conn: sqlite3.Connection | None = None) -> list[LibraryRecord]:
+    """Return all registered libraries in stable ID order.
+
+    Pass ``conn`` (a status read snapshot) to read without taking ``_DB_LOCK``.
+    """
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
-        rows = conn.execute("SELECT * FROM libraries ORDER BY id").fetchall()
-        import_paths_by_library: dict[int, list[LibraryImportPathRecord]] = {int(row["id"]): [] for row in rows}
-        for import_path in conn.execute(
-            """
-            SELECT id, library_id, path, position, created_at, updated_at
-            FROM library_import_paths
-            ORDER BY library_id, position, id
-            """
-        ):
-            import_paths_by_library[int(import_path["library_id"])].append(_serialize_import_path(import_path))
+    if conn is not None:
+        return _list_libraries_conn(conn)
+    with _DB_LOCK, _connect() as owned:
+        return _list_libraries_conn(owned)
 
-        patterns_by_library: dict[int, list[str]] = {int(row["id"]): [] for row in rows}
-        for pattern in conn.execute(
-            """
-            SELECT library_id, pattern
-            FROM library_exclusion_patterns
-            ORDER BY library_id, position, id
-            """
-        ):
-            patterns_by_library[int(pattern["library_id"])].append(str(pattern["pattern"]))
 
-        asset_counts = {
-            int(asset_count["library_id"]): int(asset_count["asset_count"])
-            for asset_count in conn.execute(
-                f"""
-                SELECT library_id, count(*) AS asset_count
-                FROM assets
-                WHERE type IN ('image', 'video') AND {_active_asset_where()}
-                GROUP BY library_id
-                """
-            )
-        }
-        return [
-            _serialize_library_row(
-                row,
-                import_paths=import_paths_by_library[int(row["id"])],
-                exclusion_patterns=patterns_by_library[int(row["id"])],
-                asset_count=asset_counts.get(int(row["id"]), 0),
-            )
-            for row in rows
-        ]
+def _list_libraries_conn(conn: sqlite3.Connection) -> list[LibraryRecord]:
+    """Return all registered libraries using the caller's connection."""
+    rows = conn.execute("SELECT * FROM libraries ORDER BY id").fetchall()
+    import_paths_by_library: dict[int, list[LibraryImportPathRecord]] = {int(row["id"]): [] for row in rows}
+    for import_path in conn.execute(
+        """
+        SELECT id, library_id, path, position, created_at, updated_at
+        FROM library_import_paths
+        ORDER BY library_id, position, id
+        """
+    ):
+        import_paths_by_library[int(import_path["library_id"])].append(_serialize_import_path(import_path))
+
+    patterns_by_library: dict[int, list[str]] = {int(row["id"]): [] for row in rows}
+    for pattern in conn.execute(
+        """
+        SELECT library_id, pattern
+        FROM library_exclusion_patterns
+        ORDER BY library_id, position, id
+        """
+    ):
+        patterns_by_library[int(pattern["library_id"])].append(str(pattern["pattern"]))
+
+    asset_counts = {
+        int(asset_count["library_id"]): int(asset_count["asset_count"])
+        for asset_count in conn.execute(
+            f"""
+            SELECT library_id, count(*) AS asset_count
+            FROM assets
+            WHERE type IN ('image', 'video') AND {_active_asset_where()}
+            GROUP BY library_id
+            """
+        )
+    }
+    return [
+        _serialize_library_row(
+            row,
+            import_paths=import_paths_by_library[int(row["id"])],
+            exclusion_patterns=patterns_by_library[int(row["id"])],
+            asset_count=asset_counts.get(int(row["id"]), 0),
+        )
+        for row in rows
+    ]
 
 
 def get_library(library_id: int) -> LibraryRecord | None:

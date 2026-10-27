@@ -44,7 +44,7 @@ export function useCatalogStatusQuery(
       if (isStatusContractError(error)) return false;
       return failureCount < 1;
     },
-    refetchInterval: (q) => statusRefetchInterval(q.state.data?.status, queryEnabled.value),
+    refetchInterval: (q) => statusRefetchInterval(q.state.data?.status, queryEnabled.value, q),
     refetchOnWindowFocus: () => typeof document === "undefined" || document.visibilityState !== "hidden",
   });
 

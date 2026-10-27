@@ -175,6 +175,16 @@ run_json_workload "thumbnail cold/warm benchmark" "thumbnail-benchmark-report.js
     GALLERY_PERF_BENCH_THUMBNAIL_MAX_LONG_EDGE=128 \
     "$PYTHON" "$SCRIPTS_DIR/bench_thumbnail.py"
 
+if [[ "${GALLERY_PERF_WORKER_CONTENTION:-0}" == "1" ]]; then
+    # Opt-in: the worker contention bench builds its own fixture and backend (minutes), so it
+    # does not share the managed backend started above.
+    echo "==> Run worker contention benchmark (opt-in, GALLERY_PERF_WORKER_CONTENTION=1)"
+    if ! "$PYTHON" "$SCRIPTS_DIR/worker_contention_bench.py" --python "$PYTHON" \
+        --output "$PERF_RESULTS_DIR/worker-contention-report.json" >/dev/null; then
+        record_failure "worker contention benchmark"
+    fi
+fi
+
 echo "==> Build production frontend for browser performance tests"
 export VITE_API_URL="$BACKEND_URL"
 export VITE_PORT="$FRONTEND_PORT"

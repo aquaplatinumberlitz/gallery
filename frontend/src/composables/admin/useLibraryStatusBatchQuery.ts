@@ -4,7 +4,7 @@ import { useEventListener } from "@vueuse/core";
 import { queryKeys } from "@/query/keys";
 import { fetchLibraryStatusBatch } from "@/services/api";
 import { assertLibraryStatusBatch, isStatusContractError } from "@/lib/catalog/contractGuard";
-import { ACTIVE_POLL_INTERVAL, STABLE_POLL_INTERVAL, isUnifiedStatusActive } from "@/lib/catalog/polling";
+import { STABLE_POLL_INTERVAL, activePollInterval, isUnifiedStatusActive } from "@/lib/catalog/polling";
 import type { UnifiedStatus } from "@/lib/catalog/status";
 
 function batchHasActiveStatus(items: { status: UnifiedStatus }[] | undefined): boolean {
@@ -30,8 +30,9 @@ export function useLibraryStatusBatchQuery() {
       return failureCount < 1;
     },
     refetchInterval: (q) => {
+      const activeInterval = activePollInterval(q);
       if (!queryEnabled.value) return false;
-      return batchHasActiveStatus(q.state.data?.items) ? ACTIVE_POLL_INTERVAL : STABLE_POLL_INTERVAL;
+      return batchHasActiveStatus(q.state.data?.items) ? activeInterval : STABLE_POLL_INTERVAL;
     },
     refetchOnWindowFocus: () => typeof document === "undefined" || document.visibilityState !== "hidden",
   });

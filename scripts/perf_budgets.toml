@@ -99,3 +99,31 @@ description = "/api/library/inspector/metadata P95 latency"
 cold_p95_ms = 1000
 warm_p95_ms = 50
 description = "Thumbnail generation: cold (no cache) vs warm (cached)"
+
+[worker_contention]
+# Phase 0 exit-gate metrics (docs/plans/WORKER_LIFECYCLE_HARDENING_PLAN.md, H2).
+status_p95_ms = 500
+polling_throughput_ratio = 0.90
+max_write_lock_hold_ms = 1000
+database_locked_log_lines = 0
+lease_loss_failed_scans = 0
+# Phase 1 targets: always measured and reported, enforced only with `--phase 1`.
+orphan_running_metadata_jobs = 0
+superseded_ready_derivatives = 0
+# Workload sizing. An under-sized run fails as an empty workload instead of passing.
+min_derivative_jobs = 36000
+min_metadata_jobs_queued = 1000
+throughput_window_seconds = 120
+phase0_metrics = [
+  "status_p95_ms",
+  "polling_throughput_ratio",
+  "max_write_lock_hold_ms",
+  "database_locked_log_lines",
+  "lease_loss_failed_scans",
+]
+phase1_metrics = ["orphan_running_metadata_jobs", "superseded_ready_derivatives"]
+description = "Worker starvation under status polling: status latency, polling throughput ratio, write-lock hold, lease loss"
+# Baseline-derived from the 2026-10-27 worker audit (1,500 images, 36,000 derivative_jobs rows):
+# the status p95 ceiling reuses the repo-wide 500 ms API budget; the throughput ratio, lock-hold
+# and zero-count budgets are the audit's acceptance criteria (WK-01, WK-02, WK-03), not
+# vendor-published thresholds. Phase 2 tightens max_write_lock_hold_ms to 250.

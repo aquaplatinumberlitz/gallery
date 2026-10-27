@@ -9,8 +9,7 @@ from typing import Any, Literal, TypedDict
 
 from .. import config
 from . import (
-    _DB_LOCK,
-    _connect,
+    _read_snapshot,
     canonicalize_catalog_path,
     catalog_path_contains,
     initialize_database,
@@ -814,8 +813,12 @@ def _build_status(
     }
 
 
-def build_global_runtime() -> GlobalRuntime:
-    """Return process and durable-queue runtime status for one response envelope."""
+def build_global_runtime(conn: Any | None = None) -> GlobalRuntime:
+    """Return process and durable-queue runtime status for one response envelope.
+
+    Durable counters are read from one WAL snapshot without taking ``_DB_LOCK``. Pass
+    ``conn`` to read them from a snapshot owned by an enclosing status build.
+    """
     initialize_database()
     from ..derivative_scheduler import scheduler as derivative_scheduler
     from ..indexer import get_indexer_runtime_status
@@ -826,7 +829,7 @@ def build_global_runtime() -> GlobalRuntime:
     catalog_runtime = runtime_status()
     derivative_reconcile = derivative_scheduler.reconciliation_status()
 
-    with _DB_LOCK, _connect() as conn:
+    with _read_snapshot(conn) as conn:
         catalog_running = int(
             conn.execute(
                 """
@@ -876,9 +879,9 @@ def build_global_runtime() -> GlobalRuntime:
             FROM derivative_jobs WHERE state = 'running' AND started_at IS NOT NULL
             """
         ).fetchone()[0]
+        metadata_runtime = get_indexer_runtime_status(conn=conn)
+        watcher = get_watcher_status(conn)
 
-    metadata_runtime = get_indexer_runtime_status()
-    watcher = get_watcher_status()
     refresh = get_refresh_status()
 
     watcher_enabled = bool(watcher["enabled"])
@@ -932,7 +935,7 @@ def build_catalog_status(library_id: int, scope_path: str | Path | None = None) 
     initialize_database()
     requested_scope = canonicalize_catalog_path(scope_path) if scope_path is not None else None
     generated_at = _now_ms()
-    with _DB_LOCK, _connect() as conn:
+    with _read_snapshot() as conn:
         library = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
         if library is None:
             raise KeyError(library_id)
@@ -988,18 +991,20 @@ def build_catalog_status(library_id: int, scope_path: str | Path | None = None) 
             active_metadata_paths=active_paths,
             import_paths=list(import_paths),
         )
-    # Wire metadata lifecycle diagnostics (lazy import to avoid circular deps)
-    try:
-        from backend.indexer import get_metadata_lifecycle_status
+        # Wire metadata lifecycle diagnostics (lazy import to avoid circular deps)
+        try:
+            from backend.indexer import get_metadata_lifecycle_status
 
-        lifecycle = get_metadata_lifecycle_status(scope_path=requested_scope)
-    except Exception:
-        lifecycle = None
+            lifecycle = get_metadata_lifecycle_status(scope_path=requested_scope, conn=conn)
+        except Exception:
+            lifecycle = None
+
+        global_runtime = build_global_runtime(conn)
 
     return {
         "contract_version": CONTRACT_VERSION,
         "status": status,
-        "global_runtime": build_global_runtime(),
+        "global_runtime": global_runtime,
         "metadata_lifecycle": lifecycle,
     }
 
@@ -1008,7 +1013,7 @@ def build_library_status_batch() -> LibraryStatusBatchResponse:
     """Build admin-list statuses with grouped DB queries and one global runtime."""
     initialize_database()
     generated_at = _now_ms()
-    with _DB_LOCK, _connect() as conn:
+    with _read_snapshot() as conn:
         libraries = conn.execute("SELECT * FROM libraries ORDER BY id").fetchall()
         library_ids = [int(library["id"]) for library in libraries]
         if not library_ids:
@@ -1070,17 +1075,19 @@ def build_library_status_batch() -> LibraryStatusBatchResponse:
                     import_paths=import_paths,
                 )
                 items.append({"library_id": library_id, "status": status})
-    try:
-        from backend.indexer import get_metadata_lifecycle_status
+        try:
+            from backend.indexer import get_metadata_lifecycle_status
 
-        lifecycle = get_metadata_lifecycle_status()
-    except Exception:
-        lifecycle = None
+            lifecycle = get_metadata_lifecycle_status(conn=conn)
+        except Exception:
+            lifecycle = None
+
+        global_runtime = build_global_runtime(conn)
 
     return {
         "contract_version": CONTRACT_VERSION,
         "generated_at": generated_at,
         "items": items,
-        "global_runtime": build_global_runtime(),
+        "global_runtime": global_runtime,
         "metadata_lifecycle": lifecycle,
     }

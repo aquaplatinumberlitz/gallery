@@ -20,6 +20,7 @@ from ._common import (
     _CAPACITY_DEFERRED_AUTOMATIC_REASONS,
     _ensure_database,
 )
+from .capacity import CapacityLedger
 from .models import DerivativeReconcileSummary, PendingCapacity, ReconcileCandidate
 
 
@@ -142,11 +143,17 @@ class ReconcileMixin:
         reason: str,
         summary: DerivativeReconcileSummary,
     ) -> list[PendingCapacity]:
-        """Revalidate identities transactionally and collect capacity-dependent work."""
+        """Revalidate identities transactionally and collect capacity-dependent work.
+
+        The batch holds the SQLite write lock for its whole loop, so the capacity aggregates
+        are evaluated once through a ``CapacityLedger`` and then tracked in memory; decisions
+        are identical to aggregating after every identity.
+        """
         pending_capacity: list[PendingCapacity] = []
         with _connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             estimated_bytes = self._estimate_new_derivative_bytes(conn)
+            ledger = CapacityLedger()
             for asset_id, mtime_ns, size in candidates:
                 current = conn.execute(
                     """
@@ -175,7 +182,7 @@ class ReconcileMixin:
                         "reconsider_deferred_capacity": reason not in _CAPACITY_DEFERRED_AUTOMATIC_REASONS,
                         "estimated_bytes": estimated_bytes,
                     }
-                    _derivative_id, outcome = self._coalesce_derivative_job(conn, **coalesce_args)
+                    _derivative_id, outcome = self._coalesce_derivative_job(conn, **coalesce_args, ledger=ledger)
                     if outcome in {"capacity_needed", "capacity_needed_created"}:
                         pending_capacity.append((coalesce_args, estimated_bytes, outcome == "capacity_needed_created"))
                     else:

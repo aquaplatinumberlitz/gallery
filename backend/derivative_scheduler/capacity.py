@@ -9,6 +9,49 @@ from ..metadata_store import _connect
 from ._common import logger
 
 
+class CapacityLedger:
+    """Running capacity totals for one write transaction (one reconcile batch).
+
+    ``_capacity_available`` needs two full-table aggregates: bytes held by ``ready``
+    derivatives and the count of active jobs whose derivative is not ``ready``. Running
+    them for every identity of a 750-coalesce batch kept the SQLite write lock for seconds.
+    The ledger loads both aggregates once (lazily, on the first capacity check) and then
+    follows the only writes that change them: a ``ready`` row leaving ``ready``, an
+    ``evicted`` row returning to ``ready``, and a new queued job. Callers report each change
+    right after the corresponding SQL; changes that happen before the lazy load are already
+    part of the loaded aggregates and are ignored. The decisions are identical to evaluating
+    the aggregates after every coalesce because the batch owns the write lock, so nothing
+    else can change them.
+    """
+
+    def __init__(self) -> None:
+        """Create an unloaded ledger."""
+        self._ready_used: int | None = None
+        self._active_jobs: int | None = None
+
+    def available(self, conn: sqlite3.Connection, estimated_bytes: int, quota_bytes: int) -> bool:
+        """Return whether one more derivative of ``estimated_bytes`` fits the quota."""
+        if self._ready_used is None or self._active_jobs is None:
+            self._ready_used, self._active_jobs = CapacityMixin._capacity_counts(conn)
+        return self._ready_used + self._active_jobs * estimated_bytes + estimated_bytes <= quota_bytes
+
+    def ready_row_left(self, byte_size: int | None) -> None:
+        """Record that a ``ready`` row stopped being ``ready`` (its bytes no longer count)."""
+        if self._ready_used is not None:
+            self._ready_used -= int(byte_size or 0)
+
+    def ready_row_restored(self, byte_size: int | None, active_jobs: int) -> None:
+        """Record an ``evicted`` row returning to ``ready`` while holding ``active_jobs`` active jobs."""
+        if self._ready_used is not None and self._active_jobs is not None:
+            self._ready_used += int(byte_size or 0)
+            self._active_jobs -= active_jobs
+
+    def job_queued(self) -> None:
+        """Record a new queued job for a derivative that is not ``ready``."""
+        if self._active_jobs is not None:
+            self._active_jobs += 1
+
+
 class CapacityMixin:
     """Capacity estimation, reservation, and quota enforcement for ``DerivativeScheduler``."""
 
@@ -24,8 +67,8 @@ class CapacityMixin:
         return self._ESTIMATED_DERIVATIVE_BYTES_FALLBACK
 
     @staticmethod
-    def _capacity_usage(conn: sqlite3.Connection, estimated_bytes: int) -> tuple[int, int]:
-        """Return persisted ready bytes and estimated bytes reserved by active jobs."""
+    def _capacity_counts(conn: sqlite3.Connection) -> tuple[int, int]:
+        """Return persisted ready bytes and the number of active jobs of non-ready derivatives."""
         ready_used = int(
             conn.execute("SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'").fetchone()[
                 0
@@ -38,9 +81,23 @@ class CapacityMixin:
                    WHERE j.state IN ('queued', 'running') AND d.status != 'ready'"""
             ).fetchone()[0]
         )
+        return ready_used, active_jobs
+
+    @classmethod
+    def _capacity_usage(cls, conn: sqlite3.Connection, estimated_bytes: int) -> tuple[int, int]:
+        """Return persisted ready bytes and estimated bytes reserved by active jobs."""
+        ready_used, active_jobs = cls._capacity_counts(conn)
         return ready_used, active_jobs * estimated_bytes
 
-    def _capacity_available(self, conn: sqlite3.Connection, estimated_bytes: int) -> bool:
+    def _capacity_available(
+        self,
+        conn: sqlite3.Connection,
+        estimated_bytes: int,
+        ledger: CapacityLedger | None = None,
+    ) -> bool:
+        """Return whether one more derivative fits; a batch passes its ``ledger`` to skip re-aggregation."""
+        if ledger is not None:
+            return ledger.available(conn, estimated_bytes, self.quota_bytes)
         ready_used, reserved = self._capacity_usage(conn, estimated_bytes)
         return ready_used + reserved + estimated_bytes <= self.quota_bytes
 

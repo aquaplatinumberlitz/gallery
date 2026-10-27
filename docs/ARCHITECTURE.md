@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-07-13
+Last reviewed: 2026-10-27
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -86,6 +86,29 @@ SQLite is the queue.
 queue depth, inconsistency detection, worker health, and throughput. These are
 included in the status API envelope as `metadata_lifecycle`.
 
+### Status reads never take `_DB_LOCK`
+
+Status is read-only and must never stall a worker. `build_catalog_status`,
+`build_library_status_batch`, `build_global_runtime`,
+`get_indexer_runtime_status`, `get_metadata_lifecycle_status`,
+`DerivativeScheduler.library_status`, and the watcher-root lookup behind
+`get_watcher_status` read through `_read_snapshot()`
+(`backend/metadata_store/_db.py`): a dedicated `query_only` WAL connection with
+one explicit deferred read transaction, rolled back and closed on exit. The
+process-wide `_DB_LOCK` is not acquired, so a slow status query can neither
+queue behind nor block a writer, and every counter in one response (including
+the `global_runtime` and `metadata_lifecycle` blocks of the same envelope) comes
+from one consistent snapshot. Counter semantics are unchanged: only the
+connection and transaction handling differ from the previous locked reads.
+
+`derivative_jobs` carries `idx_derivative_jobs_derivative_id (derivative_id, id)`
+(fresh DDL plus the additive ensure path, no catalog version bump). The global
+runtime and per-library derivative counters pick the latest job per derivative
+with `max(id)`, and reconcile coalescing reads the latest job per derivative;
+without this index each lookup scanned the whole job table (35 s for the
+global runtime query at 36,000 rows). Maintenance runtime reuses one snapshot
+for `global_runtime` and `metadata_lifecycle`.
+
 ### Integrity checker
 
 `backend/integrity_checker.py` runs a periodic background consistency pass when
@@ -155,6 +178,19 @@ attempts. Quota eviction changes a replaceable `ready` row to `evicted` and
 unlinks its cache file. Automatic work that cannot reserve enough quota becomes
 `deferred_capacity` without a runnable job. Derivative job rows separately use
 `queued`, `running`, `done`, `skipped`, and `failed`.
+
+Quota decisions inside a reconcile batch use a `CapacityLedger`
+(`derivative_scheduler/capacity.py`). `_coalesce_reconcile_candidates` holds one
+`BEGIN IMMEDIATE` for up to `GALLERY_DERIVATIVE_RECONCILE_BATCH_SIZE` assets,
+and evaluating `ready bytes + active-job reservations` with two full-table
+aggregates for every identity kept the SQLite write lock for seconds. The
+ledger loads both aggregates once per batch transaction (lazily, at the first
+capacity check) and then follows the only writes that change them (a `ready`
+row leaving `ready`, an `evicted` row returning to `ready`, a new queued job).
+The batch owns the write lock, so the result is identical to re-aggregating after
+every coalesce: quota, eviction, and `deferred_capacity` outcomes are unchanged.
+Callers outside a batch (`schedule_derivative`, the per-identity capacity
+phase, post-render enforcement) keep evaluating the aggregates directly.
 
 Every source-dependent operation, including cache-path calculation, is inside
 the job exception boundary. The worker loop has an additional catch-all, so one
@@ -560,6 +596,13 @@ Key paths:
 | Pinia lightbox store | Open image, current index, visible item list, navigation                                                                                              |
 | Pinia related store  | Ephemeral open/reference/scope UI state; no match-type selection, related result payloads, or saved/recent-search persistence                      |
 | Pinia toast store    | Toast API adapter (Gallery API → Sonner): IDs, variants, durations, dismiss, clear, actions, visible-toast limit; Sonner owns render/dismiss mechanics |
+
+Status polling (`frontend/src/lib/catalog/polling.ts`) uses a 2.5 s active
+interval and a 60 s stable interval. The active interval never drops below
+twice the duration of that query's last completed fetch (capped at the stable
+interval): the interval callback observes each query's fetch start and end, so
+a slow status endpoint is re-requested no faster than it can answer. Rendered
+output is unaffected.
 
 Query keys are centralized in `frontend/src/query/keys.ts`. Paths are normalized by trimming, converting backslashes to forward slashes, collapsing duplicate slashes, and removing a trailing slash except for `/`.
 

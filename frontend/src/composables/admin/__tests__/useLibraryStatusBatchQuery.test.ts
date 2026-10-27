@@ -19,6 +19,7 @@ vi.mock("@/lib/catalog/contractGuard", () => ({
 vi.mock("@/lib/catalog/polling", () => ({
   ACTIVE_POLL_INTERVAL: 2000,
   STABLE_POLL_INTERVAL: 10000,
+  activePollInterval: vi.fn(() => 2000),
   isUnifiedStatusActive: vi.fn(() => false),
 }));
 

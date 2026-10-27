@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from .path_utils import _compare_natural_sql
@@ -75,6 +77,48 @@ def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+def _connect_read() -> sqlite3.Connection:
+    """Open a read-only connection for status snapshots.
+
+    The connection never takes ``_DB_LOCK`` and refuses writes (``query_only``), so a
+    status read cannot queue behind, or block, any worker. Transactions are explicit
+    (``isolation_level=None``) so callers choose exactly when a snapshot starts.
+    """
+    db_path = _gallery_metadata_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, timeout=30, isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA query_only=ON")
+    return conn
+
+
+@contextmanager
+def _read_snapshot(conn: sqlite3.Connection | None = None) -> Iterator[sqlite3.Connection]:
+    """Yield a connection whose reads all come from one consistent WAL snapshot.
+
+    Opens a read connection, starts one deferred read transaction (the snapshot is
+    fixed by the first read), and always rolls back and closes it. ``_DB_LOCK`` is not
+    taken: WAL readers do not block the writer and the writer does not block them.
+    Pass ``conn`` to join a snapshot owned by an outer status build; it is yielded
+    unchanged and left open for its owner.
+    """
+    if conn is not None:
+        yield conn
+        return
+    owned = _connect_read()
+    try:
+        owned.execute("BEGIN")
+        yield owned
+    finally:
+        try:
+            if owned.in_transaction:
+                owned.execute("ROLLBACK")
+        finally:
+            owned.close()
 
 
 def init_db() -> None:

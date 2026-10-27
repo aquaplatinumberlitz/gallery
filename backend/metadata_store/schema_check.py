@@ -116,6 +116,7 @@ _TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
 }
 
 _INDEXES: tuple[str, ...] = (
+    "idx_derivative_jobs_derivative_id",
     "idx_metadata_index_jobs_claim",
     "idx_metadata_index_jobs_library_state",
     "idx_image_metadata_mtime_size",

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/vue-query";
 import { queryKeys } from "@/query/keys";
 import { fetchMaintenanceRuntime } from "@/services/api";
-import { ACTIVE_POLL_INTERVAL, STABLE_POLL_INTERVAL } from "@/lib/catalog/polling";
+import { STABLE_POLL_INTERVAL, activePollInterval } from "@/lib/catalog/polling";
 import type { MaintenanceRuntimeResponse } from "@/services/api";
 
 export function runtimeHasActiveWork(data: MaintenanceRuntimeResponse | undefined): boolean {
@@ -22,6 +22,9 @@ export function useMaintenanceRuntimeQuery() {
     queryKey: queryKeys.maintenanceRuntime(),
     queryFn: fetchMaintenanceRuntime,
     staleTime: 30_000,
-    refetchInterval: (q) => (runtimeHasActiveWork(q.state.data) ? ACTIVE_POLL_INTERVAL : STABLE_POLL_INTERVAL),
+    refetchInterval: (q) => {
+      const activeInterval = activePollInterval(q);
+      return runtimeHasActiveWork(q.state.data) ? activeInterval : STABLE_POLL_INTERVAL;
+    },
   });
 }

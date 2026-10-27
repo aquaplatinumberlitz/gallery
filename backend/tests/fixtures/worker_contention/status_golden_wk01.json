@@ -1,0 +1,315 @@
+{
+  "catalog_status": {
+    "contract_version": 1,
+    "global_runtime": {
+      "catalog_active_jobs": 0,
+      "catalog_queue_depth": 0,
+      "derivative_active_jobs": 5,
+      "derivative_failed_jobs": 5,
+      "derivative_queue_depth": 5,
+      "derivative_skipped_jobs": 4,
+      "derivative_stale_running_jobs": 5,
+      "metadata_active_jobs": 1,
+      "metadata_queue_depth": 2,
+      "metadata_staged_queue_depth": 0
+    },
+    "metadata_lifecycle": {
+      "assets_done_but_metadata_missing_or_stale": 0,
+      "current_image_metadata_with_pending_assets": 0,
+      "done_jobs_with_pending_assets": 0,
+      "done_metadata_jobs": 3,
+      "failed_metadata_jobs": 1,
+      "metadata_jobs_without_matching_assets": 0,
+      "metadata_worker_last_claimed_at": 1700000105.0,
+      "metadata_worker_last_completed_at": 1700000157.0,
+      "queued_metadata_jobs": 2,
+      "repairable_metadata_assets": 0,
+      "running_metadata_jobs": 1,
+      "skipped_metadata_jobs": 0,
+      "stale_metadata_jobs": 1
+    },
+    "status": {
+      "availability": {
+        "available_paths": 1,
+        "state": "available",
+        "total_paths": 1
+      },
+      "contract_version": 1,
+      "issue_count": 1,
+      "issues": {
+        "availability": 0,
+        "metadata": 1,
+        "scan": 0
+      },
+      "last_index_at": 1700000300000,
+      "latest_issue": {
+        "message": "boom",
+        "path": "<root>/seed_00006.png",
+        "source": "metadata"
+      },
+      "metadata": {
+        "failed_assets": 1,
+        "global_active_outside_scope": false,
+        "idle_pending_assets": 0,
+        "not_ready_assets": 4,
+        "progress_percent": 37.5,
+        "queued_assets": 2,
+        "ready_assets": 3,
+        "running_assets": 1,
+        "stale_assets": 1,
+        "state": "indexing",
+        "total_assets": 8
+      },
+      "scan": {
+        "active_job_id": null,
+        "completed_units": 8,
+        "operation": "scan",
+        "progress_percent": 100,
+        "state": "complete",
+        "total_units": 8,
+        "trigger": "manual"
+      },
+      "scope": {
+        "import_path_count": 1,
+        "kind": "library",
+        "library_id": 1,
+        "path": null
+      },
+      "summary_state": "indexing"
+    }
+  },
+  "derivative_library_status": {
+    "actionable_missing_derivatives": 9,
+    "by_kind": {
+      "preview": {
+        "deferred_derivatives": 0,
+        "desired_derivatives": 8,
+        "expected_derivatives": 8,
+        "failed_derivatives": 2,
+        "missing_derivatives": 8,
+        "queued_derivatives": 1,
+        "ready_derivatives": 0,
+        "running_derivatives": 2
+      },
+      "thumbnail": {
+        "deferred_derivatives": 0,
+        "desired_derivatives": 16,
+        "expected_derivatives": 16,
+        "failed_derivatives": 3,
+        "missing_derivatives": 16,
+        "queued_derivatives": 4,
+        "ready_derivatives": 0,
+        "running_derivatives": 3
+      }
+    },
+    "converged": false,
+    "deferred_derivatives": 0,
+    "desired_derivatives": 24,
+    "evicted_derivatives": 0,
+    "expected_derivatives": 24,
+    "failed_jobs": 5,
+    "library_id": 1,
+    "library_used_bytes": 0,
+    "policy": "warm",
+    "queued_jobs": 5,
+    "quota_bytes": 10485760,
+    "quota_used_bytes": 20480,
+    "quota_utilization": 0.001953125,
+    "ready_derivatives": 0,
+    "running_jobs": 5,
+    "skipped_jobs": 4,
+    "terminal_failed_derivatives": 5,
+    "total_assets": 8,
+    "variants": [
+      {
+        "deferred_derivatives": 0,
+        "desired_derivatives": 8,
+        "expected_derivatives": 8,
+        "failed_derivatives": 2,
+        "kind": "thumbnail",
+        "max_long_edge": 128,
+        "missing_derivatives": 8,
+        "queued_derivatives": 2,
+        "ready_derivatives": 0,
+        "running_derivatives": 1,
+        "variant": "thumb_128"
+      },
+      {
+        "deferred_derivatives": 0,
+        "desired_derivatives": 8,
+        "expected_derivatives": 8,
+        "failed_derivatives": 1,
+        "kind": "thumbnail",
+        "max_long_edge": 512,
+        "missing_derivatives": 8,
+        "queued_derivatives": 2,
+        "ready_derivatives": 0,
+        "running_derivatives": 2,
+        "variant": "thumb_512"
+      },
+      {
+        "deferred_derivatives": 0,
+        "desired_derivatives": 8,
+        "expected_derivatives": 8,
+        "failed_derivatives": 2,
+        "kind": "preview",
+        "max_long_edge": 1440,
+        "missing_derivatives": 8,
+        "queued_derivatives": 1,
+        "ready_derivatives": 0,
+        "running_derivatives": 2,
+        "variant": "preview_1440"
+      }
+    ],
+    "warm_enabled": true
+  },
+  "global_runtime": {
+    "catalog_active_jobs": 0,
+    "catalog_queue_depth": 0,
+    "derivative_active_jobs": 5,
+    "derivative_failed_jobs": 5,
+    "derivative_queue_depth": 5,
+    "derivative_skipped_jobs": 4,
+    "derivative_stale_running_jobs": 5,
+    "metadata_active_jobs": 1,
+    "metadata_queue_depth": 2,
+    "metadata_staged_queue_depth": 0
+  },
+  "indexer_runtime": {
+    "active_job_paths": {
+      "<root>/seed_00005.png": {
+        "attempts": 1,
+        "library_id": 1,
+        "started_at": 1700000105.0
+      }
+    },
+    "active_jobs": 1,
+    "active_rebuild_roots": {},
+    "active_scan_requests": 0,
+    "active_scan_roots": {},
+    "coalesced_duplicates": 0,
+    "deprecated": false,
+    "queued_jobs": [
+      {
+        "attempts": 0,
+        "library_id": 1,
+        "path": "<root>/seed_00003.png",
+        "priority": 3,
+        "queued_at": 1700000003.0
+      },
+      {
+        "attempts": 0,
+        "library_id": 1,
+        "path": "<root>/seed_00004.png",
+        "priority": 3,
+        "queued_at": 1700000004.0
+      }
+    ],
+    "runtime_queue_depth": 2,
+    "staged_path_coalesced": 0,
+    "staged_path_failed": 0,
+    "staged_path_flushes_forced": 0,
+    "staged_path_queue_depth": 0,
+    "staged_path_worker_count": 0,
+    "staged_paths": []
+  },
+  "library_status_batch": {
+    "contract_version": 1,
+    "global_runtime": {
+      "catalog_active_jobs": 0,
+      "catalog_queue_depth": 0,
+      "derivative_active_jobs": 5,
+      "derivative_failed_jobs": 5,
+      "derivative_queue_depth": 5,
+      "derivative_skipped_jobs": 4,
+      "derivative_stale_running_jobs": 5,
+      "metadata_active_jobs": 1,
+      "metadata_queue_depth": 2,
+      "metadata_staged_queue_depth": 0
+    },
+    "items": [
+      {
+        "library_id": 1,
+        "status": {
+          "availability": {
+            "available_paths": 1,
+            "state": "available",
+            "total_paths": 1
+          },
+          "contract_version": 1,
+          "issue_count": 1,
+          "issues": {
+            "availability": 0,
+            "metadata": 1,
+            "scan": 0
+          },
+          "last_index_at": 1700000300000,
+          "latest_issue": {
+            "message": "boom",
+            "path": "<root>/seed_00006.png",
+            "source": "metadata"
+          },
+          "metadata": {
+            "failed_assets": 1,
+            "global_active_outside_scope": false,
+            "idle_pending_assets": 0,
+            "not_ready_assets": 4,
+            "progress_percent": 37.5,
+            "queued_assets": 2,
+            "ready_assets": 3,
+            "running_assets": 1,
+            "stale_assets": 1,
+            "state": "indexing",
+            "total_assets": 8
+          },
+          "scan": {
+            "active_job_id": null,
+            "completed_units": 8,
+            "operation": "scan",
+            "progress_percent": 100,
+            "state": "complete",
+            "total_units": 8,
+            "trigger": "manual"
+          },
+          "scope": {
+            "import_path_count": 1,
+            "kind": "library",
+            "library_id": 1,
+            "path": null
+          },
+          "summary_state": "indexing"
+        }
+      }
+    ],
+    "metadata_lifecycle": {
+      "assets_done_but_metadata_missing_or_stale": 0,
+      "current_image_metadata_with_pending_assets": 0,
+      "done_jobs_with_pending_assets": 0,
+      "done_metadata_jobs": 3,
+      "failed_metadata_jobs": 1,
+      "metadata_jobs_without_matching_assets": 0,
+      "metadata_worker_last_claimed_at": 1700000105.0,
+      "metadata_worker_last_completed_at": 1700000157.0,
+      "queued_metadata_jobs": 2,
+      "repairable_metadata_assets": 0,
+      "running_metadata_jobs": 1,
+      "skipped_metadata_jobs": 0,
+      "stale_metadata_jobs": 1
+    }
+  },
+  "metadata_lifecycle": {
+    "assets_done_but_metadata_missing_or_stale": 0,
+    "current_image_metadata_with_pending_assets": 0,
+    "done_jobs_with_pending_assets": 0,
+    "done_metadata_jobs": 3,
+    "failed_metadata_jobs": 1,
+    "metadata_jobs_without_matching_assets": 0,
+    "metadata_worker_last_claimed_at": 1700000105.0,
+    "metadata_worker_last_completed_at": 1700000157.0,
+    "queued_metadata_jobs": 2,
+    "repairable_metadata_assets": 0,
+    "running_metadata_jobs": 1,
+    "skipped_metadata_jobs": 0,
+    "stale_metadata_jobs": 1
+  }
+}
