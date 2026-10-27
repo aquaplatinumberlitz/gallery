@@ -1,0 +1,21 @@
+// ============================================
+// Lightbox panel common styles
+// Rules that were duplicated verbatim in LightboxDesktopPanel, LightboxTabletPanel,
+// and LightboxMobileSheet. Import inside each component's `<style scoped>` block,
+// after the device partial, so selector order and scoping are unchanged.
+// Colours come from the `--gallery-lightbox-*` tokens in tokens.css.
+// ============================================
+
+/* LoRA highlighter — penetrate v-html injected spans */
+:deep(.lora-pill) {
+  color: var(--gallery-lightbox-lora);
+  font-weight: 600;
+}
+
+// Empty-section placeholder text. Components add their own `padding`.
+.empty-text {
+  color: var(--gallery-lightbox-text-empty);
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+}

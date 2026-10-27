@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 from backend.metadata_store import _connect
-from backend.metadata_store import _schema as schema_module
+from backend.metadata_store import _migrations as migrations_module
 from backend.metadata_store.identity import active_catalog_file_sql
 
 
@@ -79,7 +79,7 @@ def test_v4_backfills_only_exactly_one_catalog_owner(isolated_metadata_db: Path)
         conn.execute("PRAGMA user_version = 3")
         conn.commit()
 
-        schema_module._migrate_v3_to_v4(conn)
+        migrations_module._migrate_v3_to_v4(conn)
 
         owners = {
             str(row["path"]): row["library_id"]
@@ -113,15 +113,15 @@ def test_v4_migration_failure_rolls_back_and_keeps_v3_backup(
         conn.commit()
 
     before = _database_dump(isolated_metadata_db)
-    original = schema_module._execute_v4_migration_statement
+    original = migrations_module._execute_v4_migration_statement
 
     def fail_after_update(conn: sqlite3.Connection, statement: str) -> None:
         original(conn, statement)
         raise RuntimeError("v4 injected failure")
 
-    monkeypatch.setattr(schema_module, "_execute_v4_migration_statement", fail_after_update)
+    monkeypatch.setattr(migrations_module, "_execute_v4_migration_statement", fail_after_update)
     with _connect() as conn, pytest.raises(RuntimeError, match="v4 injected failure"):
-        schema_module._migrate_v3_to_v4(conn)
+        migrations_module._migrate_v3_to_v4(conn)
 
     assert _database_dump(isolated_metadata_db) == before
     backup = isolated_metadata_db.with_suffix(f"{isolated_metadata_db.suffix}.v3.bak")

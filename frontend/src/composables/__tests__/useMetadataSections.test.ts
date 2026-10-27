@@ -7,6 +7,9 @@ import {
   getExtraParamKeys,
   hasAdvancedData,
   getSecondaryEntries,
+  countGenerationParams,
+  countModelResources,
+  shortModelHash,
   CORE_PARAMS,
   SECONDARY_PARAMS_MAP,
 } from "../useMetadataSections";
@@ -156,6 +159,51 @@ describe("useMetadataSections", () => {
     it("skips params with empty array values", () => {
       const params = { loras: [] };
       expect(getSecondaryEntries(params)).toEqual([]);
+    });
+  });
+
+  describe("countGenerationParams", () => {
+    it("returns 0 when metadata or params are missing", () => {
+      expect(countGenerationParams(null)).toBe(0);
+      expect(countGenerationParams(undefined)).toBe(0);
+      expect(countGenerationParams({ params: undefined } as unknown as MetadataResponse)).toBe(0);
+    });
+
+    it("counts each populated core param once and ignores empty values", () => {
+      const meta = {
+        params: { Seed: "1", Steps: 20, CFG: 7, Sampler: "Euler", Scheduler: "", AspectRatio: "1:1", Model: "x" },
+      } as unknown as MetadataResponse;
+      expect(countGenerationParams(meta)).toBe(5);
+    });
+  });
+
+  describe("countModelResources", () => {
+    it("returns 0 when there is no model data", () => {
+      expect(countModelResources(null)).toBe(0);
+      expect(countModelResources({ params: { Steps: 1 } } as unknown as MetadataResponse)).toBe(0);
+    });
+
+    it("sums checkpoint, LoRAs, and extra models", () => {
+      const meta = {
+        params: { Model: "sdxl", Lora: ["a", "b"] },
+        models: [{ name: "refiner" }],
+      } as unknown as MetadataResponse;
+      expect(countModelResources(meta)).toBe(4);
+    });
+
+    it("counts models listed without a checkpoint or LoRA", () => {
+      const meta = { params: {}, models: [{ name: "m1" }, { name: "m2" }] } as unknown as MetadataResponse;
+      expect(countModelResources(meta)).toBe(2);
+    });
+  });
+
+  describe("shortModelHash", () => {
+    it("truncates to eight characters", () => {
+      expect(shortModelHash("abcdef0123456789")).toBe("abcdef01");
+    });
+
+    it("keeps short hashes unchanged", () => {
+      expect(shortModelHash("abc")).toBe("abc");
     });
   });
 });

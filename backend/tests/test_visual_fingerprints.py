@@ -23,7 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw, ImageEnhance, ImageOps
 
-import backend.metadata_store._schema as schema_module
+import backend.metadata_store._migrations as migrations_module
 import backend.related_assets as related_module
 import backend.visual_fingerprints as visual_module
 from backend.metadata_store import register_library
@@ -350,7 +350,7 @@ def test_v11_migration_is_transactional_and_has_no_inline_decode(
         conn.execute("DROP TABLE asset_visual_fingerprints")
         conn.execute("PRAGMA user_version = 10")
         conn.commit()
-        schema_module._migrate_v10_to_v11(conn)
+        migrations_module._migrate_v10_to_v11(conn)
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
         assert conn.execute("SELECT count(*) FROM asset_visual_fingerprints").fetchone()[0] == 0
@@ -366,7 +366,7 @@ def test_v11_migration_failure_rolls_back_and_keeps_backup(
         conn.execute("DROP TABLE asset_visual_fingerprints")
         conn.execute("PRAGMA user_version = 10")
         conn.commit()
-    original = schema_module._execute_v11_migration_statement
+    original = migrations_module._execute_v11_migration_statement
     calls = 0
 
     def fail_second(conn: sqlite3.Connection, statement: str) -> None:
@@ -376,9 +376,9 @@ def test_v11_migration_failure_rolls_back_and_keeps_backup(
         if calls == 2:
             raise RuntimeError("v11 injected failure")
 
-    monkeypatch.setattr(schema_module, "_execute_v11_migration_statement", fail_second)
+    monkeypatch.setattr(migrations_module, "_execute_v11_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
-        schema_module._migrate_v10_to_v11(conn)
+        migrations_module._migrate_v10_to_v11(conn)
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 10
         assert (
@@ -455,7 +455,7 @@ def test_v12_migration_compacts_visual_bands_and_preserves_rows(
             (ids["reference"],),
         )
         _downgrade_visual_bands_to_v11(conn)
-        schema_module._migrate_v11_to_v12(conn)
+        migrations_module._migrate_v11_to_v12(conn)
         table_sql = conn.execute(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'asset_visual_hash_bands'"
         ).fetchone()[0]
@@ -487,7 +487,7 @@ def test_v12_migration_failure_rolls_back_and_keeps_backup(
 ) -> None:
     with _connect() as conn:
         _downgrade_visual_bands_to_v11(conn)
-    original = schema_module._execute_v12_migration_statement
+    original = migrations_module._execute_v12_migration_statement
     calls = 0
 
     def fail_second(conn: sqlite3.Connection, statement: str) -> None:
@@ -497,9 +497,9 @@ def test_v12_migration_failure_rolls_back_and_keeps_backup(
         if calls == 2:
             raise RuntimeError("v12 injected failure")
 
-    monkeypatch.setattr(schema_module, "_execute_v12_migration_statement", fail_second)
+    monkeypatch.setattr(migrations_module, "_execute_v12_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
-        schema_module._migrate_v11_to_v12(conn)
+        migrations_module._migrate_v11_to_v12(conn)
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
         table_sql = conn.execute(

@@ -110,14 +110,14 @@ def test_ready_derivative_lookup_warming_and_clear(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    import backend.derivative_scheduler as scheduler_module
+    import backend.derivative_scheduler.maintenance as maintenance_module
 
     image, asset_id = _catalog_image(isolated_gallery_root)
     cache_root = tmp_path / "derivative-cache"
     cache_file = cache_root / "files" / "ready.webp"
     cache_file.parent.mkdir(parents=True)
     cache_file.write_bytes(b"ready derivative")
-    monkeypatch.setattr(scheduler_module, "THUMBNAIL_CACHE_DIR", cache_root)
+    monkeypatch.setattr(maintenance_module, "THUMBNAIL_CACHE_DIR", cache_root)
 
     scheduler = DerivativeScheduler(quota_bytes=1024)
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
@@ -794,12 +794,12 @@ def test_rollback_after_eviction_does_not_cause_stale_unlink(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """Committed file eviction cannot be resurrected by a later transaction rollback."""
-    import backend.derivative_scheduler as scheduler_module
+    import backend.derivative_scheduler.maintenance as maintenance_module
 
     image, asset_id = _catalog_image(isolated_gallery_root)
     cache_root = tmp_path / "derivative-cache"
     cache_root.mkdir()
-    monkeypatch.setattr(scheduler_module, "THUMBNAIL_CACHE_DIR", cache_root)
+    monkeypatch.setattr(maintenance_module, "THUMBNAIL_CACHE_DIR", cache_root)
 
     scheduler = DerivativeScheduler(quota_bytes=300)
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
@@ -848,12 +848,12 @@ def test_insufficient_eligible_bytes_returns_not_reservable(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """Workstream 2: need 250 bytes, only 100 eligible -> not reservable, no eviction."""
-    import backend.derivative_scheduler as scheduler_module
+    import backend.derivative_scheduler.maintenance as maintenance_module
 
     image, asset_id = _catalog_image(isolated_gallery_root)
     cache_root = tmp_path / "derivative-cache"
     cache_root.mkdir()
-    monkeypatch.setattr(scheduler_module, "THUMBNAIL_CACHE_DIR", cache_root)
+    monkeypatch.setattr(maintenance_module, "THUMBNAIL_CACHE_DIR", cache_root)
 
     scheduler = DerivativeScheduler(quota_bytes=200)
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
@@ -1296,14 +1296,14 @@ def test_interrupted_eviction_with_original_file_restores_ready(
 
 class TestStartStopLinearizability:
     def test_overlapping_stops_keep_start_blocked_until_both_finish(self, monkeypatch: pytest.MonkeyPatch):
-        import backend.derivative_scheduler as scheduler_module
+        import backend.derivative_scheduler.lifecycle as lifecycle_module
 
         scheduler = DerivativeScheduler(worker_count=1)
         release_worker = threading.Event()
         existing = threading.Thread(target=release_worker.wait, name="derivative-worker-1", daemon=True)
         existing.start()
         scheduler._threads = [existing]
-        monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 1.0)
+        monkeypatch.setattr(lifecycle_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 1.0)
 
         first_stop = threading.Thread(target=scheduler.stop, daemon=True)
         first_stop.start()
@@ -1329,20 +1329,20 @@ class TestStartStopLinearizability:
         assert scheduler._active_stop_calls == 0
 
     def test_stop_during_hung_cold_start_is_bounded_and_unclean(self, monkeypatch: pytest.MonkeyPatch):
-        import backend.derivative_scheduler as scheduler_module
+        import backend.derivative_scheduler.lifecycle as lifecycle_module
 
         scheduler = DerivativeScheduler(worker_count=2)
         blocker_event = threading.Event()
         recovery_done = threading.Event()
-        original_ensure = scheduler_module._ensure_database
-        monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
+        original_ensure = lifecycle_module._ensure_database
+        monkeypatch.setattr(lifecycle_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
 
         def blocked_ensure():
             recovery_done.set()
             blocker_event.wait()
             original_ensure()
 
-        monkeypatch.setattr(scheduler_module, "_ensure_database", blocked_ensure)
+        monkeypatch.setattr(lifecycle_module, "_ensure_database", blocked_ensure)
 
         start_thread = threading.Thread(target=scheduler.start, daemon=True)
         start_thread.start()
@@ -1360,20 +1360,20 @@ class TestStartStopLinearizability:
         assert scheduler.alive_worker_count() == 0
 
     def test_fresh_start_after_cancelled_generation_works(self, monkeypatch: pytest.MonkeyPatch):
-        import backend.derivative_scheduler as scheduler_module
+        import backend.derivative_scheduler.lifecycle as lifecycle_module
 
         scheduler = DerivativeScheduler(worker_count=1)
         blocker_event = threading.Event()
         recovery_done = threading.Event()
-        original_ensure = scheduler_module._ensure_database
-        monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
+        original_ensure = lifecycle_module._ensure_database
+        monkeypatch.setattr(lifecycle_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
 
         def blocked_ensure():
             recovery_done.set()
             blocker_event.wait()
             original_ensure()
 
-        monkeypatch.setattr(scheduler_module, "_ensure_database", blocked_ensure)
+        monkeypatch.setattr(lifecycle_module, "_ensure_database", blocked_ensure)
 
         start_thread = threading.Thread(target=scheduler.start, daemon=True)
         start_thread.start()
@@ -1390,7 +1390,7 @@ class TestStartStopLinearizability:
         scheduler.stop()
 
     def test_start_invoked_during_stop_cannot_launch_new_slot(self, monkeypatch: pytest.MonkeyPatch):
-        import backend.derivative_scheduler as scheduler_module
+        import backend.derivative_scheduler.lifecycle as lifecycle_module
 
         scheduler = DerivativeScheduler(worker_count=1)
         release_worker = threading.Event()
@@ -1401,7 +1401,7 @@ class TestStartStopLinearizability:
         )
         existing.start()
         scheduler._threads = [existing]
-        monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 1.0)
+        monkeypatch.setattr(lifecycle_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 1.0)
 
         stop_thread = threading.Thread(target=scheduler.stop, daemon=True)
         stop_thread.start()
@@ -1420,20 +1420,20 @@ class TestStartStopLinearizability:
         assert scheduler.alive_worker_count() == 0
 
     def test_two_pre_stop_start_callers_are_both_cancelled(self, monkeypatch: pytest.MonkeyPatch):
-        import backend.derivative_scheduler as scheduler_module
+        import backend.derivative_scheduler.lifecycle as lifecycle_module
 
         scheduler = DerivativeScheduler(worker_count=1)
         recovery_entered = threading.Event()
         release_recovery = threading.Event()
-        original_ensure = scheduler_module._ensure_database
-        monkeypatch.setattr(scheduler_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
+        original_ensure = lifecycle_module._ensure_database
+        monkeypatch.setattr(lifecycle_module, "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
 
         def blocked_ensure():
             recovery_entered.set()
             release_recovery.wait()
             original_ensure()
 
-        monkeypatch.setattr(scheduler_module, "_ensure_database", blocked_ensure)
+        monkeypatch.setattr(lifecycle_module, "_ensure_database", blocked_ensure)
         first = threading.Thread(target=scheduler.start, daemon=True)
         second = threading.Thread(target=scheduler.start, daemon=True)
         first.start()
@@ -1574,3 +1574,59 @@ def test_repair_consistency_creates_job(
             (did,),
         ).fetchone()
         assert job["state"] == "queued"
+
+
+# ---------------------------------------------------------------------------
+# Package layout: the historical import surface must survive the module split
+# ---------------------------------------------------------------------------
+
+
+def test_package_reexports_public_surface_without_shadowing_settings():
+    import backend.derivative_scheduler as package
+    from backend.derivative_scheduler import (
+        DerivativeReconcileSummary,
+        DerivativeRepairSummary,
+        _DerivativeSkip,
+        _LeaseHeartbeat,
+        derivative_variant,
+        scheduler,
+    )
+
+    assert isinstance(scheduler, DerivativeScheduler)
+    assert package.scheduler is scheduler
+    assert issubclass(_DerivativeSkip, Exception)
+    assert callable(_LeaseHeartbeat) and callable(derivative_variant)
+    assert DerivativeReconcileSummary().as_dict()["assets_considered"] == 0
+    assert DerivativeRepairSummary().jobs_created == 0
+
+    public_api = [
+        "start",
+        "stop",
+        "last_shutdown_clean",
+        "is_running",
+        "alive_worker_count",
+        "reconciliation_status",
+        "repair_derivative_consistency",
+        "schedule_derivative",
+        "get_derivative_status",
+        "run_once",
+        "get_ready_derivative",
+        "acquire_ready_derivative",
+        "get_derivative_outcome",
+        "find_asset_id",
+        "get_asset_path",
+        "acquire_serving",
+        "release_serving",
+        "reconcile_desired_derivatives",
+        "warm_library",
+        "library_status",
+        "clear_database_rows",
+        "clear_cache_files",
+        "clear_all",
+    ]
+    assert [name for name in public_api if not callable(getattr(DerivativeScheduler, name, None))] == []
+
+    # Settings are read by the module that uses them. Re-exporting a copy here would make
+    # ``monkeypatch.setattr(package, ...)`` silently ineffective, so the package must not define them.
+    for name in ("THUMBNAIL_CACHE_DIR", "DERIVATIVE_SHUTDOWN_TIMEOUT_SECONDS", "_ensure_database"):
+        assert not hasattr(package, name)

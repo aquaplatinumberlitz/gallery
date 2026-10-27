@@ -547,7 +547,7 @@ def claim_next_metadata_job(
 ) -> MetadataIndexJob | None:
     """Claim one queued metadata job from SQLite in a short BEGIN IMMEDIATE transaction.
 
-    Mirrors ``DerivativeScheduler._claim_job`` (derivative_scheduler.py:392-420).
+    Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``).
     Returns ``None`` when no queued job is available.
     """
     _initialize_database()
@@ -786,8 +786,8 @@ def reset_running_jobs_to_queued(
 ) -> None:
     """Atomically reset running metadata jobs to queued (preserves attempts/queued_at).
 
-    Mirrors ``DerivativeScheduler.start()`` recovery pattern at
-    derivative_scheduler.py:71-79.
+    Mirrors the ``DerivativeScheduler`` start/recovery pattern in
+    ``derivative_scheduler/lifecycle.py`` and ``derivative_scheduler/recovery.py``.
     """
     now = time.time()
     for path, mtime, size, mtime_ns in job_paths:

@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-import backend.metadata_store._schema as schema_module
+import backend.metadata_store._migrations as migrations_module
 from backend.metadata_store import index_directory_tree, list_libraries
 from backend.metadata_store._db import _connect
 from backend.metadata_store.search_index_store import (
@@ -117,7 +117,7 @@ def test_v6_migration_is_additive_and_has_no_inline_backfill(
 ) -> None:
     with _connect() as conn:
         _drop_v6_tables(conn)
-        schema_module._migrate_v5_to_v6(conn)
+        migrations_module._migrate_v5_to_v6(conn)
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
         assert conn.execute("SELECT count(*) FROM asset_prompt_values").fetchone()[0] == 0
@@ -130,7 +130,7 @@ def test_v6_migration_failure_rolls_back_and_keeps_backup(
 ) -> None:
     with _connect() as conn:
         _drop_v6_tables(conn)
-    original = schema_module._execute_v6_migration_statement
+    original = migrations_module._execute_v6_migration_statement
     calls = 0
 
     def fail_second(conn: sqlite3.Connection, statement: str) -> None:
@@ -140,9 +140,9 @@ def test_v6_migration_failure_rolls_back_and_keeps_backup(
         if calls == 2:
             raise RuntimeError("v6 injected failure")
 
-    monkeypatch.setattr(schema_module, "_execute_v6_migration_statement", fail_second)
+    monkeypatch.setattr(migrations_module, "_execute_v6_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
-        schema_module._migrate_v5_to_v6(conn)
+        migrations_module._migrate_v5_to_v6(conn)
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 5
         assert (

@@ -79,6 +79,36 @@ export function hasAdvancedData(meta: MetadataResponse | null | undefined): bool
   return getExtraParamKeys(meta.params).length > 0;
 }
 
+/** Number of populated generation params, shown in the "Generation Data" accordion pill */
+export function countGenerationParams(meta: MetadataResponse | null | undefined): number {
+  const params = meta?.params;
+  if (!params) return 0;
+  let count = 0;
+  if (params.Seed) count++;
+  if (params.Steps) count++;
+  if (params.CFG) count++;
+  if (params.Sampler) count++;
+  if (params.Scheduler) count++;
+  if (params.AspectRatio) count++;
+  return count;
+}
+
+/** Number of checkpoint, LoRA, and extra-model entries, shown in the "Model & Resources" pill */
+export function countModelResources(meta: MetadataResponse | null | undefined): number {
+  if (!hasModelData(meta)) return 0;
+  let count = 0;
+  const params = meta?.params;
+  if (params?.Model) count++;
+  if (params?.Lora) count += params.Lora.length;
+  if (meta?.models) count += meta.models.length;
+  return count;
+}
+
+/** First eight characters of a model hash, as displayed next to model names */
+export function shortModelHash(hash: string): string {
+  return hash.substring(0, 8);
+}
+
 /** Build secondary param entries for rendering */
 export function getSecondaryEntries(
   params: Record<string, unknown> | null | undefined,

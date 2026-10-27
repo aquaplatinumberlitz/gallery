@@ -139,6 +139,8 @@ Mobile:
 - Preserve the collapsed prompt fade overlay and "Show more" behavior.
 - Preserve `expanded-change` events so mobile sheet height and reset behavior remain accurate.
 - When the mobile chevron collapses an expanded sheet, reset prompt expansion state through the keyed `ExpandableText` remount behavior.
+- `LightboxDesktopPanel.vue`, `LightboxTabletPanel.vue`, and `LightboxMobileSheet.vue` each own their markup, scoped styles, and device-specific interaction. Logic they share lives in `composables/useMetadataPanel.ts` (section flags, counts, LoRA-highlighted prompt HTML, copy actions, Advanced toggle) on top of the pure helpers in `composables/useMetadataSections.ts`. Add shared behavior there; do not re-derive it inside a panel.
+- Prefer extracting logic over extracting markup. Moving markup into a child component changes the scoped-style `data-v-*` attribute on those elements and can break `:deep()` rules for `v-html` content (`.lora-pill`) and the VSBS overrides.
 - Planned, not yet implemented: show an EXIF tab only when backend metadata includes `exif.hasData`. The EXIF panel should be a compact grouped summary with human-readable labels, hidden empty rows, single-column mobile layout, and one- or two-column tablet/desktop layout. Do not show an empty EXIF tab, a raw EXIF dump, a GPS map, or a Copy EXIF action in v1.
 
 ## Mobile Lightbox Sheet
@@ -193,6 +195,28 @@ Icon rules:
 - Use `:deep()` where scoped component styles must reach Lucide SVGs.
 - Set `flex-shrink: 0` for icons inside flex or grid layouts.
 - Avoid hardcoded Lucide `:size` values unless a component has a specific reason.
+
+### Styling Convention
+
+Pick the layer by what the declaration expresses:
+
+| Concern                                              | Use                                                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Layout and spacing (flex/grid, gaps, padding, sizes) | Tailwind utility classes in the template                                             |
+| Colour, theme, shadows, radii, motion timing         | CSS custom-property design tokens (`--gallery-*`, `--brand-*`) from `tokens.css`     |
+| Anything utilities cannot express                    | SCSS in the component's `<style scoped lang="scss">`                                 |
+
+SCSS is needed for `:deep()` reach into `v-html`/third-party DOM, teleported library overrides (VSBS, PhotoSwipe), complex selectors and keyframes, the shared `styles/_lightbox-*.scss` partials, and breakpoint mixins from `_breakpoints.scss`.
+
+Rules:
+
+- New components start with Tailwind for layout and tokens for colour. Do not introduce a hard-coded hex/rgba colour that already has, or deserves, a token; add the token to `tokens.css` and reference it with `var(...)`.
+- Existing SCSS is migrated gradually: convert a component's styles only when that component is being changed for another reason. Do not mass-convert untouched components.
+- A conversion must be pixel-identical: the computed values at desktop, tablet, and mobile widths must match before and after. Introducing a token for an existing literal is allowed only when the token resolves to exactly the same value.
+- Do not rename or drop existing class names, `data-testid`, or ARIA attributes as part of a style migration; e2e specs and scoped selectors depend on them.
+- Keep `:deep()` rules next to the scoped block that needs them and never move teleported/VSBS overrides into scoped-only styles.
+- Lightbox panel styling that was duplicated across the three panels now lives in `styles/_lightbox-panel-common.scss` (LoRA highlight, empty-section text) and `styles/_lightbox-panel-icons.scss` (icon sizes, desktop/tablet), imported inside each panel's scoped block after its device partial. Their colours come from the `--gallery-lightbox-lora` and `--gallery-lightbox-text-empty` tokens.
+- Album cards (`AlbumCard.vue`, `AlbumCardTablet.vue`, `AlbumCardMobile.vue`) already style through `--brand-album-*` tokens and keep their per-device SCSS; their shared cover-load state and placeholder glyph live in `composables/useCoverImageLoad.ts` and `utils/albumCardPlaceholder.ts`.
 
 ## Mobile Interaction Rules
 
