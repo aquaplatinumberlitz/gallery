@@ -4,6 +4,10 @@ import { useGalleryTheme } from "@/composables/useGalleryTheme";
 import "vue-sonner/style.css";
 
 const { resolvedTheme } = useGalleryTheme();
+
+// Keep phone toasts above the floating bottom dock (56px bar + 10px gap + breathing room).
+// Sonner adds env(safe-area-inset-bottom) to the mobile offset itself.
+const MOBILE_TOAST_BOTTOM_OFFSET = 82;
 </script>
 
 <template>
@@ -13,7 +17,7 @@ const { resolvedTheme } = useGalleryTheme();
     :visible-toasts="3"
     :gap="12"
     :offset="{ right: 24, bottom: 24 }"
-    :mobile-offset="{ right: 16, bottom: 16, left: 16 }"
+    :mobile-offset="{ right: 16, bottom: MOBILE_TOAST_BOTTOM_OFFSET, left: 16 }"
     close-button
     class="gallery-toaster"
     :toast-options="{

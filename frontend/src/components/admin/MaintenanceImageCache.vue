@@ -51,7 +51,7 @@ defineEmits<{
         </Tooltip>
       </div>
 
-      <div class="image-cache-sections mt-5 grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div class="image-cache-sections mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <section
           class="image-cache-section rounded-lg border border-border bg-muted/30 p-4"
           aria-labelledby="image-cache-coverage-heading"

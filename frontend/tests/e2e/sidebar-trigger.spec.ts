@@ -148,6 +148,7 @@ async function openStubbedGallery(page: Page) {
     localStorage.setItem("gallery-active-library-id", "1");
     localStorage.setItem("gallery-active-import-path-id", "10");
     localStorage.setItem("gallery-sidebar-open", "true");
+    localStorage.setItem("gallery-sidebar-overlay-open", "true");
   });
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
@@ -307,7 +308,9 @@ test.describe("Mobile sidebar close control", () => {
 
     await expect(page.locator(".mh-context-title")).toHaveText("Folder A");
     await expect(sidebar).toBeVisible();
-    await expect.poll(async () => page.evaluate(() => localStorage.getItem("gallery-sidebar-open"))).toBe("true");
+    await expect
+      .poll(async () => page.evaluate(() => localStorage.getItem("gallery-sidebar-overlay-open")))
+      .toBe("true");
   });
 
   test("closes the sidebar when the backdrop is tapped", async ({ page }) => {
@@ -321,3 +324,60 @@ test.describe("Mobile sidebar close control", () => {
     await expect(sidebar).not.toBeVisible({ timeout: 3_000 });
   });
 });
+
+for (const viewport of [
+  { name: "phone", width: 375, height: 667 },
+  { name: "tablet", width: 768, height: 1024 },
+]) {
+  test.describe(`First visit overlay sidebar on ${viewport.name}`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    test("starts closed and ignores the persisted desktop rail state", async ({ page }) => {
+      await installStubbedGallery(page);
+      await page.addInitScript(() => {
+        localStorage.setItem("intro_mode", "disabled");
+        localStorage.setItem("gallery-active-library-id", "1");
+        localStorage.setItem("gallery-active-import-path-id", "10");
+        // A desktop session left the rail open; it must not cover the gallery on a touch layout.
+        localStorage.setItem("gallery-sidebar-open", "true");
+      });
+      await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+
+      const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
+      await expect(sidebar).toBeHidden();
+
+      await page.getByRole("button", { name: "Toggle sidebar" }).first().click();
+      await expect(sidebar).toBeVisible();
+      // App-level destinations that only the desktop header exposes are reachable from the sheet.
+      await expect(sidebar.getByRole("link", { name: "Maintenance" })).toBeVisible();
+      await expect(sidebar.getByRole("button", { name: "Settings" })).toBeVisible();
+      expect(await page.evaluate(() => localStorage.getItem("gallery-sidebar-open"))).toBe("true");
+    });
+
+    test("sheet footer opens Settings and navigates to Maintenance", async ({ page, monitoredErrors }) => {
+      // Only navigation is under test; the stub does not serve the Maintenance page's own APIs.
+      monitoredErrors.allowConsoleError("404 (Not Found)");
+      await installStubbedGallery(page);
+      await page.addInitScript(() => {
+        localStorage.setItem("intro_mode", "disabled");
+        localStorage.setItem("gallery-active-library-id", "1");
+        localStorage.setItem("gallery-active-import-path-id", "10");
+      });
+      await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
+      const sidebar = page.locator('[data-sidebar="sidebar"][data-mobile="true"]');
+
+      await page.getByRole("button", { name: "Toggle sidebar" }).first().click();
+      await sidebar.getByRole("button", { name: "Settings" }).click();
+      await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+      await expect(sidebar).toBeHidden();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
+
+      await page.getByRole("button", { name: "Toggle sidebar" }).first().click();
+      await sidebar.getByRole("link", { name: "Maintenance" }).click();
+      await expect(page).toHaveURL(/\/admin\/maintenance$/);
+    });
+  });
+}

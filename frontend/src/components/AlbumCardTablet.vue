@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { albumCountLabel } from "@/utils/albumCountLabel";
 import { ref } from "vue";
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
@@ -58,9 +59,7 @@ const onCoverError = () => {
       <div class="album-meta">
         <FolderOpen class="gallery-icon-meta album-meta-icon" />
         <span class="album-count-badge"
-          >Album<span v-if="node.image_count !== undefined && node.image_count !== null">
-            · {{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span
-          ></span
+          >Album<span v-if="albumCountLabel(node)"> · {{ albumCountLabel(node) }}</span></span
         >
       </div>
     </div>

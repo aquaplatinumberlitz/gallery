@@ -33,6 +33,8 @@ const { pswp } = usePhotoSwipe({
   currentIndex: toRef(props, "currentIndex"),
   isOpen: toRef(props, "isOpen"),
   photoSwipeOptions: {
+    // The wrapper renders its own counter; PhotoSwipe's built-in one would duplicate it.
+    counter: false,
     closeOnVerticalDrag: true,
     allowPanToNext: true,
     trapFocus: false,

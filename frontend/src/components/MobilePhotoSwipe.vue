@@ -30,6 +30,8 @@ usePhotoSwipe({
   currentIndex: toRef(props, "currentIndex"),
   isOpen: toRef(props, "isOpen"),
   photoSwipeOptions: {
+    // The wrapper renders its own counter; PhotoSwipe's built-in one would duplicate it.
+    counter: false,
     closeOnVerticalDrag: true,
     allowPanToNext: true,
     trapFocus: false,
@@ -52,7 +54,7 @@ watch(
 
 <template>
   <div ref="container" class="mobile-photoswipe-container" />
-  <div class="mobile-photoswipe-counter">
+  <div class="mobile-photoswipe-counter" data-testid="mobile-photo-counter">
     {{ counter }}
   </div>
   <button class="lx-ctrl mobile-photoswipe-close" aria-label="Close" @click="emit('close')">

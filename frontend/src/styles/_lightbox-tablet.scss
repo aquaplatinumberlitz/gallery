@@ -245,10 +245,19 @@
   margin-left: 4px;
 }
 
-/* Override shared meta-tag for tablet — more compact */
+/* Tablet meta tags. The base .meta-tag rule lives in the desktop stylesheet, which the tablet
+   panel does not import, so define the full chip here; otherwise it inherits the page's
+   light-theme foreground and becomes near-invisible on the always-dark panel. */
 .tablet-header .meta-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   font-size: 11px;
   padding: 3px 6px;
+  border-radius: 4px;
+  color: var(--gallery-lightbox-text-secondary, #999);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* Tablet landscape: wider margins, slightly taller */
@@ -269,6 +278,18 @@
 
     &.tablet-expanded {
       max-height: 72dvh;
+    }
+  }
+}
+
+/* Short landscape viewports (phones in landscape): leave at least half the screen for the image */
+@media (max-height: 500px) {
+  .tablet-panel {
+    max-height: 50dvh;
+    min-height: 0;
+
+    &.tablet-expanded {
+      max-height: 85dvh;
     }
   }
 }

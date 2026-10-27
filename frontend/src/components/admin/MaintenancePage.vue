@@ -135,7 +135,7 @@ const needsRefreshCount = computed(() => {
         <h2 id="runtime-heading" class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Runtime diagnostics
         </h2>
-        <div class="grid gap-4 md:grid-cols-2">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <!-- File catalog card -->
           <div class="rounded-xl border border-border bg-card">
             <div class="flex items-center gap-2 border-b border-border px-5 py-4">

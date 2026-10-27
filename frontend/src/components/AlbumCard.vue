@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { albumCountLabel } from "@/utils/albumCountLabel";
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
 import { FolderOpen } from "lucide-vue-next";
@@ -65,9 +66,7 @@ const props = withDefaults(
       <div class="album-meta">
         <FolderOpen class="gallery-icon-meta album-meta-icon" />
         <span
-          >Album<span v-if="node.image_count !== undefined && node.image_count !== null">
-            · {{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span
-          ></span
+          >Album<span v-if="albumCountLabel(node)"> · {{ albumCountLabel(node) }}</span></span
         >
       </div>
     </div>

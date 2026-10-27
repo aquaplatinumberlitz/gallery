@@ -487,7 +487,7 @@ function estimatedAssets(): number | undefined {
             <Skeleton class="h-4 w-72" />
           </div>
         </div>
-        <div class="grid gap-3 sm:grid-cols-4"><Skeleton v-for="i in 4" :key="i" class="h-24" /></div>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4"><Skeleton v-for="i in 4" :key="i" class="h-24" /></div>
         <Skeleton class="h-52" />
         <Skeleton class="h-40" />
       </div>
@@ -565,7 +565,7 @@ function estimatedAssets(): number | undefined {
         <section class="mt-8" aria-label="Library statistics">
           <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Overview</h2>
 
-          <dl v-if="statsQuery.data.value" class="ldp-stats grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <dl v-if="statsQuery.data.value" class="ldp-stats grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div class="ldp-stat-card rounded-xl border border-border bg-card p-4">
               <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Images class="size-3.5 shrink-0" aria-hidden="true" /> Images
@@ -636,7 +636,7 @@ function estimatedAssets(): number | undefined {
             <p class="text-sm font-medium">Overview data could not be loaded.</p>
             <Button variant="outline" size="sm" class="mt-3" @click="statsQuery.refetch?.()">Try again</Button>
           </div>
-          <div v-else class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div v-else class="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Skeleton v-for="i in 4" :key="i" class="h-24 rounded-xl" />
           </div>
         </section>
@@ -644,7 +644,7 @@ function estimatedAssets(): number | undefined {
         <!-- ═══════════════════════════════════════════
              STATUS + IMAGE CACHE  (two-column)
         ════════════════════════════════════════════ -->
-        <div class="mt-8 grid gap-5 xl:grid-cols-2 xl:items-start">
+        <div class="mt-8 grid grid-cols-1 gap-5 xl:grid-cols-2 xl:items-start">
           <!-- ── Status card ── -->
           <section class="ldp-section-card rounded-xl border border-border bg-card" aria-labelledby="status-heading">
             <div class="flex items-start justify-between gap-3 p-5 pb-4">
@@ -761,7 +761,7 @@ function estimatedAssets(): number | undefined {
                   v-if="healthSeverity === 'warning' && hasCatalogIssues && healthDetailsOpen"
                   class="mt-4 border-t pt-4"
                 >
-                  <dl class="grid gap-4 text-sm sm:grid-cols-3">
+                  <dl class="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
                     <div v-for="issue in issueBreakdown" :key="issue.label">
                       <dt class="text-xs text-muted-foreground">{{ issue.label }}</dt>
                       <dd
@@ -782,7 +782,7 @@ function estimatedAssets(): number | undefined {
               </div>
 
               <!-- Three status tiles -->
-              <div v-if="status" class="grid gap-2 sm:grid-cols-3">
+              <div v-if="status" class="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <div
                   v-for="tile in statusTiles"
                   :key="tile.key"
@@ -929,7 +929,7 @@ function estimatedAssets(): number | undefined {
                 </div>
 
                 <!-- Storage tiles — same anatomy as status tiles above -->
-                <dl class="grid gap-2 text-sm sm:grid-cols-3">
+                <dl class="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
                   <div class="rounded-lg border border-border bg-muted/30 p-3">
                     <dt class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">This library</dt>
                     <dd class="mt-1.5 text-sm font-semibold tabular-nums text-foreground">
@@ -1026,7 +1026,7 @@ function estimatedAssets(): number | undefined {
             </p>
           </div>
 
-          <div class="grid gap-4 md:grid-cols-2">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <!-- Source folders -->
             <div class="rounded-xl border border-border bg-card">
               <div class="flex items-center justify-between border-b border-border px-4 py-3">
@@ -1136,7 +1136,7 @@ function estimatedAssets(): number | undefined {
           <h2 id="lifecycle-heading" class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Catalog lifecycle
           </h2>
-          <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <dl class="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div class="rounded-xl border border-border bg-card p-4">
               <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <Clock class="size-3.5" aria-hidden="true" /> Created

@@ -845,7 +845,12 @@ for (const viewport of [
   { name: "mobile", width: 390, height: 844 },
 ]) {
   test.describe(`AdvancedSearchDrawer ${viewport.name}`, () => {
-    test.use({ viewport: { width: viewport.width, height: viewport.height }, locale: "en-US" });
+    test.use({
+      viewport: { width: viewport.width, height: viewport.height },
+      locale: "en-US",
+      hasTouch: true,
+      isMobile: true,
+    });
 
     test("opens from compact search and applies filters", async ({ page }) => {
       const requests = await installStubbedGallery(page);
@@ -868,6 +873,16 @@ for (const viewport of [
 
       await drawer.getByRole("button", { name: /Generation settings/ }).click();
       await expectNoHorizontalOverflow(page.getByTestId("advanced-search-scroll-body"));
+
+      // Clickable facet chips grow to the 44px touch height; their label must stay vertically centered.
+      const facetChip = drawer.getByRole("button", { name: /^Filter by / }).first();
+      await expect(facetChip).toBeVisible();
+      const offset = await facetChip.evaluate((button) => {
+        const label = button.querySelector("span")!.getBoundingClientRect();
+        const box = button.getBoundingClientRect();
+        return Math.abs(label.top + label.height / 2 - (box.top + box.height / 2));
+      });
+      expect(offset).toBeLessThanOrEqual(2);
 
       await drawerField(drawer, "advanced-search-prompt").fill(`${viewport.name} search`);
       await drawer.getByRole("button", { name: "Apply 1 filter" }).click();

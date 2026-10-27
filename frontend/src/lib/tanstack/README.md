@@ -10,7 +10,7 @@ This frontend uses TanStack libraries for state management, data display, and fo
 | `@tanstack/vue-virtual` | ^3.x | ✅ Active | Row-based virtual scrolling for desktop/tablet photo grid. Uses `useVirtualizer` in `GalleryGrid.vue`. |
 | `@tanstack/vue-form` | latest | ✅ Active | Advanced fielded search form in `src/components/search/AdvancedSearchDrawer.vue`. See notes below. |
 | `@tanstack/vue-table` | latest | ✅ Active | Sortable metadata table in `LibraryInspector.vue`. Uses `useVueTable`, `createColumnHelper`, `getCoreRowModel`, `getSortedRowModel` with shadcn-vue `<Table>` primitives. Paired with `@tanstack/vue-virtual` for virtual scrolling. See notes below for planned expansions. |
-| `@tanstack/vue-query-devtools` | ^6.x | ✅ Active | Lazy-loaded in dev mode only (`isDev` guard in `App.vue`). Not bundled in production build. Provides Query dev panel for inspecting cache, mutations, and refetch triggers. |
+| `@tanstack/vue-query-devtools` | ^6.x | ✅ Active | Lazy-loaded only when opted in: `VITE_DEVTOOLS=true`, or `?devtools=1` in a dev build (`src/utils/queryDevtoolsGate.ts`). Plain Vite dev mode does not show the floating button because the VPS serves the dev server to phones/tablets, where it covered lightbox controls. Not bundled in production builds unless `VITE_DEVTOOLS=true`. Provides Query dev panel for inspecting cache, mutations, and refetch triggers. |
 
 ## @tanstack/vue-form — Active in Advanced Search
 

@@ -416,9 +416,6 @@ function handleToggleFullscreen() {
             @toggle-metadata="toggleSheet"
           />
           <template v-if="isMobile">
-            <div class="mobile-photo-counter" data-testid="mobile-photo-counter">
-              {{ lightbox.currentIndex + 1 }} / {{ lightbox.galleryItems.length }}
-            </div>
             <LightboxMobileSheet
               v-if="showSheet && !isFullscreen"
               :meta="meta"
@@ -476,28 +473,6 @@ function handleToggleFullscreen() {
 .gallery-icon-xl {
   width: var(--gallery-icon-xl);
   height: var(--gallery-icon-xl);
-}
-
-/* Mobile photo counter (shown on non-desktop) */
-.mobile-photo-counter {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: white;
-  font-size: 13px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  padding: 4px 12px;
-  border-radius: 100px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  pointer-events: none;
-  white-space: nowrap;
-  user-select: none;
-  z-index: 2000;
 }
 
 /* Desktop image counter — top-center of image viewport */

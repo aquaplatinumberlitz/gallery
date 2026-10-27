@@ -198,7 +198,7 @@ function formatRunTime(ts: number | null | undefined): string {
             </div>
           </div>
 
-          <div class="grid gap-6 lg:grid-cols-2">
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <!-- Issues section: only non-zero rows -->
             <section aria-labelledby="current-issues-heading">
               <h4

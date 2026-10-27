@@ -460,3 +460,78 @@ test("update-all and use-in-gallery stay available from the list", async ({ page
   await expect.poll(() => page.evaluate(() => localStorage.getItem("gallery-active-library-id"))).toBe("1");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("gallery-active-import-path-id"))).toBe("10");
 });
+
+const longPathLibrary = {
+  ...library,
+  name: "Anime AI Library",
+  root_path: "/mnt/storage/stable-diffusion/outputs/txt2img-images/2026-10-27/very-long-session-folder-name",
+  import_paths: [
+    {
+      ...library.import_paths[0],
+      path: "/mnt/storage/stable-diffusion/outputs/txt2img-images/2026-10-27/very-long-session-folder-name",
+    },
+  ],
+};
+
+/** Returns visible elements inside <main> whose right edge leaves the viewport (clipped, unreachable). */
+async function horizontalOverflow(page: Page) {
+  return page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    return [...document.querySelectorAll<HTMLElement>("main *")]
+      .filter((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.right > viewportWidth + 1;
+      })
+      .slice(0, 5)
+      .map(
+        (el) =>
+          `${el.tagName}.${String(el.className).slice(0, 60)} right=${Math.round(el.getBoundingClientRect().right)}`,
+      );
+  });
+}
+
+for (const viewport of [
+  { name: "phone", width: 375, height: 667 },
+  { name: "tablet", width: 768, height: 1024 },
+]) {
+  test(`long library paths stay inside the ${viewport.name} viewport on list and detail pages`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await preparePage(page);
+    await mockLibraryApi(page, { libraries: [longPathLibrary] });
+
+    await page.goto(`${baseUrl}/admin/libraries`);
+    await expect(page.getByRole("button", { name: "Anime AI Library" })).toBeVisible();
+    expect(await horizontalOverflow(page)).toEqual([]);
+    const actions = page.getByRole("button", { name: "Library actions" });
+    await expect(actions).toBeInViewport({ ratio: 1 });
+    await actions.click();
+    await expect(page.getByRole("menuitem", { name: "Use in gallery" })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await page.goto(`${baseUrl}/admin/libraries/1`);
+    await expect(page.getByRole("heading", { name: "Anime AI Library" })).toBeVisible();
+    await expect(page.getByText("Source folders").first()).toBeVisible();
+    expect(await horizontalOverflow(page)).toEqual([]);
+  });
+}
+
+test("phone layout shows mutation feedback toasts above the bottom edge", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await preparePage(page);
+  const state = await mockLibraryApi(page);
+  await page.goto(`${baseUrl}/admin/libraries`);
+
+  await page.getByRole("button", { name: "Update all", exact: true }).click();
+  await expect.poll(() => matchingRequests(state, "POST", "/api/libraries/scan-all").length).toBe(1);
+
+  const toast = page.locator("[data-sonner-toast]").filter({ hasText: "Library updates queued" });
+  await expect(toast).toBeVisible();
+  await expect(toast).toBeInViewport({ ratio: 1 });
+  // Clears the 56px floating dock + 10px gap used by the mobile gallery shell (after the enter animation).
+  await expect
+    .poll(async () => {
+      const box = await toast.boundingBox();
+      return box ? Math.round(box.y + box.height) : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(667 - 66);
+});
