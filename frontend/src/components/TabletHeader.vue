@@ -544,4 +544,17 @@ function openAdvancedSearch() {
     animation: none;
   }
 }
+
+/* Short landscape viewports: keep 44px controls but drop the kicker and vertical padding. */
+@media (max-height: 500px) {
+  .tablet-header {
+    height: 52px;
+    min-height: 52px;
+    padding-block: 4px;
+  }
+
+  .th-context-kicker {
+    display: none;
+  }
+}
 </style>

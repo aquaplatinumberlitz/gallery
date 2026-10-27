@@ -138,7 +138,7 @@ function created(library: RegisteredLibrary) {
            STATS BAR
       ════════════════════════════════════════════ -->
       <section aria-label="Gallery statistics">
-        <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <dl class="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div class="llp-stat-card rounded-xl border border-border bg-card p-4">
             <dt class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Library class="size-3.5 shrink-0" aria-hidden="true" /> Libraries
@@ -336,10 +336,14 @@ function created(library: RegisteredLibrary) {
         </div>
 
         <!-- Mobile cards -->
-        <div class="grid gap-3 lg:hidden">
-          <div v-for="library in libraries" :key="library.id" class="rounded-xl border border-border bg-card p-4">
+        <div class="grid grid-cols-1 gap-3 lg:hidden">
+          <div
+            v-for="library in libraries"
+            :key="library.id"
+            class="min-w-0 rounded-xl border border-border bg-card p-4"
+          >
             <div class="flex items-start justify-between gap-3">
-              <div class="flex min-w-0 items-start gap-3">
+              <div class="flex min-w-0 flex-1 items-start gap-3">
                 <div
                   class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted"
                 >
@@ -347,7 +351,7 @@ function created(library: RegisteredLibrary) {
                 </div>
                 <div class="min-w-0">
                   <button
-                    class="truncate text-left font-semibold text-foreground hover:underline"
+                    class="block max-w-full truncate text-left font-semibold text-foreground hover:underline"
                     @click="router.push(`/admin/libraries/${library.id}`)"
                   >
                     {{ library.name }}

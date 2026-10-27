@@ -100,4 +100,13 @@ const emit = defineEmits<{
     padding-right: 12px;
   }
 }
+
+/* Short landscape viewports (phones in landscape get the tablet layout by width). */
+@media (max-height: 500px) {
+  .content {
+    gap: 4px;
+    padding-top: max(6px, env(safe-area-inset-top));
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+}
 </style>

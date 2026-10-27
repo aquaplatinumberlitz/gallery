@@ -168,3 +168,89 @@ test.describe("Breadcrumb", () => {
     ).toBe(false);
   });
 });
+
+const tabletRoot = "/tmp/scratch-session/fixture-lib/Characters/Miku ver.2 — long album name for truncation testing";
+
+test.describe("Breadcrumb on tablet header", () => {
+  test.use({ viewport: { width: 768, height: 1024 }, hasTouch: true, isMobile: true });
+
+  test("segments stay on one line and the current folder truncates with an ellipsis", async ({ page }) => {
+    const library = {
+      ...stubLibrary,
+      root_path: tabletRoot,
+      import_paths: [{ ...stubLibrary.import_paths[0], path: tabletRoot }],
+    };
+    await page.route("**/api/**", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === "/api/libraries") {
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify([library]) });
+        return;
+      }
+      if (url.pathname === "/api/libraries/1/status") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify(
+            statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? tabletRoot }),
+          ),
+        });
+        return;
+      }
+      if (url.pathname === "/api/browse") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify(
+            browseResponse({
+              libraryId: 1,
+              path: tabletRoot,
+              media: [
+                {
+                  name: "image_1.png",
+                  path: `${tabletRoot}/image_1.png`,
+                  type: "image",
+                  mtime: 1,
+                  width: 1600,
+                  height: 1000,
+                },
+              ],
+            }),
+          ),
+        });
+        return;
+      }
+      if (["/api/thumbnail", "/api/preview", "/api/image"].includes(url.pathname)) {
+        await route.fulfill({ contentType: "image/png", body: png1x1 });
+        return;
+      }
+      await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
+    });
+    await openStubbedGallery(page);
+
+    const breadcrumb = page.locator(".th-context-path .breadcrumb-list");
+    await expect(breadcrumb).toBeVisible();
+    const labels = await breadcrumb.evaluate((list) =>
+      [...list.querySelectorAll<HTMLElement>(".breadcrumb-link, [aria-current='page']")].map((el) => {
+        const style = getComputedStyle(el);
+        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5;
+        return {
+          text: el.textContent?.trim(),
+          lines: Math.round(el.getBoundingClientRect().height / lineHeight),
+          whiteSpace: style.whiteSpace,
+          textOverflow: style.textOverflow,
+          truncated: el.scrollWidth > el.clientWidth,
+          right: el.getBoundingClientRect().right,
+          listRight: list.getBoundingClientRect().right,
+        };
+      }),
+    );
+    expect(labels.length).toBeGreaterThan(1);
+    for (const label of labels) {
+      expect(label.whiteSpace, label.text).toBe("nowrap");
+      expect(label.lines, label.text).toBeLessThanOrEqual(1);
+      expect(label.textOverflow, label.text).toBe("ellipsis");
+      expect(label.right, label.text).toBeLessThanOrEqual(label.listRight + 1);
+    }
+    const current = labels[labels.length - 1];
+    expect(current.text).toContain("Miku ver.2");
+    expect(current.truncated).toBe(true);
+  });
+});

@@ -29,7 +29,7 @@ const stages = [
         <h3 id="imported-data-flow-heading" class="mt-1 font-semibold text-foreground">Imported data flow</h3>
       </div>
 
-      <ol class="mt-4 grid gap-2 md:grid-cols-3" aria-label="Imported data processing stages">
+      <ol class="mt-4 grid grid-cols-1 gap-2 md:grid-cols-3" aria-label="Imported data processing stages">
         <li v-for="(stage, index) in stages" :key="stage.title" class="relative">
           <div class="flex min-h-20 items-center gap-3 rounded-md border border-border bg-muted/40 p-4">
             <span

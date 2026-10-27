@@ -309,6 +309,32 @@ test.describe("Tablet layout (768px)", () => {
   });
 });
 
+test.describe("Tablet layout on a short landscape phone (844x390)", () => {
+  test.use({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
+
+  test("compacts header chrome and leaves half the screen to the lightbox image", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    await expect(page.locator(".tablet-header")).toBeVisible();
+    await expect(page.locator(".th-context-kicker")).toBeHidden();
+    const firstCardTop = await page
+      .getByTestId("photo-card")
+      .first()
+      .evaluate((el) => el.getBoundingClientRect().top);
+    // Header + toolbar used to push the first row to ~185px (47% of the screen).
+    expect(firstCardTop).toBeLessThanOrEqual(160);
+
+    await page.getByTestId("photo-card").first().click();
+    await page.getByRole("button", { name: "View image info" }).click();
+    const panel = page.locator(".tablet-panel");
+    await expect(panel).toBeVisible();
+    await expect
+      .poll(() => panel.evaluate((el) => Math.round(el.getBoundingClientRect().top)))
+      .toBeGreaterThanOrEqual(Math.floor(390 * 0.5) - 1);
+  });
+});
+
 test.describe("Mobile search touch interactions", () => {
   test.use({ viewport: { width: 375, height: 812 }, hasTouch: true });
 

@@ -7,7 +7,7 @@ import IntroScreen from "./components/IntroScreen.vue";
 import { useScrollVisibility } from "./composables/useScrollVisibility";
 import { useDevice } from "./composables/useDevice";
 import { useGalleryTheme } from "./composables/useGalleryTheme";
-import { galleryScrollContainerRefKey } from "./injectionKeys";
+import { galleryScrollContainerRefKey, openSettingsKey } from "./injectionKeys";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useRouter } from "vue-router";
 import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
@@ -17,6 +17,7 @@ import { MotionConfig } from "motion-v";
 import { useFieldedSearch } from "./composables/useFieldedSearch";
 import { useSearchUrlSync } from "./composables/useSearchUrlSync";
 import type { FieldFilter, PersistableSearchRequestV1 } from "./types";
+import { shouldShowQueryDevtools } from "./utils/queryDevtoolsGate";
 
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const RelatedAssetsPanel = defineAsyncComponent(() => import("./components/RelatedAssetsPanel.vue"));
@@ -25,7 +26,8 @@ const TabletLayout = defineAsyncComponent(() => import("./layouts/TabletLayout.v
 const MobileLayout = defineAsyncComponent(() => import("./layouts/MobileLayout.vue"));
 const SettingsModal = defineAsyncComponent(() => import("./components/SettingsModal.vue"));
 const AdvancedSearchDrawer = defineAsyncComponent(() => import("./components/search/AdvancedSearchDrawer.vue"));
-const showDevtools = import.meta.env.DEV || import.meta.env.VITE_DEVTOOLS === "true";
+// The compile-time guard keeps Devtools out of production bundles; inside dev builds they are opt-in.
+const showDevtools = (import.meta.env.DEV || import.meta.env.VITE_DEVTOOLS === "true") && shouldShowQueryDevtools();
 const VueQueryDevtools = showDevtools
   ? defineAsyncComponent(() => import("@tanstack/vue-query-devtools").then((m) => m.VueQueryDevtools))
   : null;
@@ -38,6 +40,9 @@ const { isMetadataRoute, isAdminRoute, isGalleryRoute, showBackToGallery } = use
 const showIntro = ref(!isMobile.value && !isTablet.value && isGalleryRoute.value);
 const introPreviewUrl = ref<string | null>(null);
 const isSettingsOpen = ref(false);
+provide(openSettingsKey, () => {
+  isSettingsOpen.value = true;
+});
 const handleIntroEnter = () => {
   showIntro.value = false;
   introPreviewUrl.value = null;
@@ -140,8 +145,20 @@ useSearchUrlSync(
 const { resolvedTheme, toggleTheme } = useGalleryTheme();
 
 const SIDEBAR_STATE_KEY = "gallery-sidebar-open";
+const OVERLAY_SIDEBAR_STATE_KEY = "gallery-sidebar-overlay-open";
 
-const isSidebarOpen = useStorage(SIDEBAR_STATE_KEY, true);
+// Desktop keeps a persistent rail (open by default). Mobile/tablet use an overlay sheet that
+// covers the gallery, so it starts closed and never inherits the desktop open state.
+const isDesktopSidebarOpen = useStorage(SIDEBAR_STATE_KEY, true);
+const isOverlaySidebarOpen = useStorage(OVERLAY_SIDEBAR_STATE_KEY, false);
+const usesOverlaySidebar = computed(() => isMobile.value || isTablet.value);
+const isSidebarOpen = computed({
+  get: () => (usesOverlaySidebar.value ? isOverlaySidebarOpen.value : isDesktopSidebarOpen.value),
+  set: (open: boolean) => {
+    if (usesOverlaySidebar.value) isOverlaySidebarOpen.value = open;
+    else isDesktopSidebarOpen.value = open;
+  },
+});
 
 watch(
   [isAdminRoute, isMobile, isTablet],
@@ -279,7 +296,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
         @apply="handleAdvancedSearchApply"
         @apply-request="handleCanonicalSearchApply"
       />
-      <GalleryToaster v-if="!isMobile" />
+      <GalleryToaster />
       <SettingsModal
         v-if="isSettingsOpen"
         :is-open="isSettingsOpen"

@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-07-10
+Last reviewed: 2026-10-27
 
 Debug helpers must stay gated and off by default. Prefer these tools before adding new console logging, and remove temporary investigation code once the diagnosis is complete.
 
@@ -147,6 +147,30 @@ Use when:
 - Comparing old reload monitor output with the current black box monitor.
 
 Safety: Keep unwired unless actively investigating. Do not enable in normal production UI.
+
+### `?devtools=1` / `gallery-debug-query-devtools`
+
+Location: `frontend/src/utils/queryDevtoolsGate.ts`, read by `frontend/src/App.vue`.
+
+Purpose: Shows the floating TanStack Query Devtools button and panel for inspecting query cache,
+mutations, and refetch triggers.
+
+Enable (dev builds, persisted in this browser):
+
+```text
+http://localhost:4702/?devtools=1
+```
+
+Disable:
+
+```text
+http://localhost:4702/?devtools=0
+```
+
+`VITE_DEVTOOLS=true` enables it unconditionally (and bundles it into production builds).
+
+Safety: Off by default even on the Vite dev server. The VPS serves the dev server to real phone and
+tablet users, and the floating button covered the lightbox Info button and the mobile bottom dock.
 
 ### `?eruda=1` / `gallery-debug-eruda`
 

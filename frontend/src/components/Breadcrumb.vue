@@ -197,6 +197,29 @@ const expandAll = () => {
   overflow: hidden;
 }
 
+/* Segments share the row: each label stays on one line and truncates with an ellipsis
+   instead of wrapping ("fixture-/lib") or being clipped mid-word by the list overflow. */
+.breadcrumb-list > li {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.breadcrumb-list > li[role="presentation"],
+.breadcrumb-list > li:first-child,
+.breadcrumb-list > li:has(.hidden-folders-trigger) {
+  flex: none;
+}
+
+.breadcrumb-list > li > :deep(.breadcrumb-link),
+.breadcrumb-list > li > :deep([aria-current="page"]) {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .breadcrumb-actions {
   display: inline-flex;
   align-items: center;

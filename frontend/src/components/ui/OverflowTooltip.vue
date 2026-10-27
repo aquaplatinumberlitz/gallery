@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from "vue";
+import {
+  computed,
+  getCurrentInstance,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  type ComponentPublicInstance,
+} from "vue";
 import type { HTMLAttributes } from "vue";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,6 +44,14 @@ const tooltipText = computed(() => (props.text == null ? "" : String(props.text)
 const tooltipEnabled = computed(() => Boolean(tooltipText.value) && isOverflowing.value);
 const triggerClass = computed(() => cn("truncate", props.class));
 const contentClass = computed(() => cn("max-w-[320px] break-words", props.contentClass));
+
+// The Tooltip wrapper renders a fragment, so Vue cannot forward the parent's scoped-style
+// attribute to the trigger element. Forward it explicitly so parent `.foo` scoped rules
+// keep applying whether or not the tooltip is enabled. Without this, enabling the tooltip
+// dropped the truncation styles, the label stopped overflowing, the tooltip disabled
+// itself again, and the cycle repeated forever (search results froze the page).
+const parentScopeId = getCurrentInstance()?.vnode.scopeId ?? null;
+const scopeAttrs: Record<string, string> = parentScopeId ? { [parentScopeId]: "" } : {};
 
 function resolveElement(el: Element | ComponentPublicInstance | null): HTMLElement | null {
   if (el instanceof HTMLElement) return el;
@@ -91,18 +108,15 @@ watch(tooltipText, async () => {
 </script>
 
 <template>
-  <Tooltip v-if="tooltipEnabled">
+  <!-- One stable tree: toggling the tooltip must not remount the measured trigger element. -->
+  <Tooltip :disabled="!tooltipEnabled">
     <TooltipTrigger as-child>
-      <component :is="as" :ref="setTriggerRef" :class="triggerClass" v-bind="$attrs">
+      <component :is="as" :ref="setTriggerRef" :class="triggerClass" v-bind="{ ...$attrs, ...scopeAttrs }">
         <slot>{{ tooltipText }}</slot>
       </component>
     </TooltipTrigger>
-    <TooltipContent :side="side" :align="align" :class="contentClass">
+    <TooltipContent v-if="tooltipEnabled" :side="side" :align="align" :class="contentClass">
       {{ tooltipText }}
     </TooltipContent>
   </Tooltip>
-
-  <component v-else :is="as" :ref="setTriggerRef" :class="triggerClass" v-bind="$attrs">
-    <slot>{{ tooltipText }}</slot>
-  </component>
 </template>

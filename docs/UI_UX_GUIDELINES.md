@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-07-14
+Last reviewed: 2026-10-27
 
 ## Breakpoints
 
@@ -35,18 +35,28 @@ Desktop:
 Tablet:
 
 - Use `TabletLayout.vue`.
-- Keep the 280px sidebar as a transform-based drawer.
-- Keep the drawer in the DOM and apply `inert` plus `aria-hidden` when closed.
+- Use the shared overlay sidebar sheet (`Sidebar.vue` renders a Reka `Sheet` below 1200px) sized by
+  `--gallery-sidebar-mobile-width` (`min(320px, 88vw)`, `92vw` cap below 480px). The sheet is a modal
+  dialog with its own focus management; it is not kept in the DOM when closed.
+- The overlay sidebar starts closed. Its open state is stored under
+  `gallery-sidebar-overlay-open`, separate from the desktop rail key `gallery-sidebar-open`, so a desktop
+  session never opens a sheet that covers the gallery on a touch layout.
+- The sheet footer carries the app destinations that only the desktop header exposes: `Maintenance`
+  (which links on to Jobs) and `Settings`, as 44x44px icon actions next to the catalog status button.
 - Use `TabletHeader` and `TabletGalleryToolbar`.
 - Keep the tablet shell visually flat: the header may use a bounded chrome surface,
   but the gallery content must not be wrapped in an additional desktop-style card.
 - Present browse context in the header and keep navigation, sort, and density in a
   separate compact toolbar below it.
+- Phones in landscape (e.g. 844x390) get the tablet layout by width. Under `max-height: 500px` the
+  tablet chrome compacts: the header drops its kicker and shrinks to 52px, the toolbar to its 44px
+  controls, and the lightbox metadata panel is capped at 50dvh (85dvh expanded) so the image keeps at
+  least half the screen.
 
 Mobile:
 
 - Use `MobileLayout.vue`.
-- Use the 240px overlay sidebar with backdrop close.
+- Use the same overlay sidebar sheet as tablet (320px max width, closed on first visit) with backdrop close.
 - Keep folder-tree expansion and folder navigation inside the open sidebar; only
   explicit close controls, the backdrop, or Escape dismiss the sidebar.
 - Mobile uses native scroll instead of virtual scrolling.
@@ -95,6 +105,8 @@ Tablet:
 
 - Use `TabletPhotoSwipe.vue` for PhotoSwipe plus counter, zoom, close, and info toolbar.
 - Use `LightboxTabletPanel.vue` for metadata.
+- The tablet panel does not import the desktop panel stylesheet; tablet meta chips (`.tablet-header .meta-tag`)
+  define their own colors and must keep at least 4.5:1 contrast on the always-dark panel in both themes.
 - Keep the tablet toolbar owned by the tablet wrapper, not the shared desktop wrapper.
 - Hide the floating PhotoSwipe toolbar while the metadata panel is open so controls never overlap sheet content.
 - Only the 44px handle may expand or collapse the tablet panel. Scrolling or swiping either metadata column must never dismiss it.
@@ -103,6 +115,12 @@ Tablet:
 Mobile:
 
 - Use `MobilePhotoSwipe.vue` with a floating info button.
+- Render exactly one image counter on phone and tablet: the wrapper-owned top counter
+  (`data-testid="mobile-photo-counter"` on phone). PhotoSwipe's built-in counter is disabled with
+  `counter: false` in `MobilePhotoSwipe.vue` and `TabletPhotoSwipe.vue`.
+- No floating debug overlay may cover lightbox controls. TanStack Query Devtools are opt-in
+  (`VITE_DEVTOOLS=true` or `?devtools=1`) even on the Vite dev server, because the VPS serves the
+  dev server to real phone and tablet users.
 - Hide the info button while `LightboxMobileSheet.vue` is open.
 - Use `@douxcode/vue-spring-bottom-sheet` for the mobile metadata sheet.
 - Keep the VSBS snap points at `44%` collapsed and `80%` expanded unless changing the full interaction model.
@@ -184,6 +202,23 @@ Icon rules:
 - Keep mobile glow effects disabled for performance and clipping.
 - Keep safe-area offsets for fixed bars and lightbox controls.
 - Wrap localStorage reads/writes in try/catch for Safari Private Browsing.
+- Toast feedback renders on every layout. Phone toasts use a bottom offset of 82px (plus Sonner's own
+  safe-area inset) so they sit above the floating bottom dock.
+- Truncated labels use `OverflowTooltip`. It keeps one stable element tree (the tooltip is toggled with
+  `disabled`, never by swapping `v-if` branches) and forwards the parent's scoped-style attribute to the
+  trigger, so parent scoped rules keep applying when the tooltip turns on. Do not reintroduce a
+  branch swap: losing the parent styles made labels stop overflowing, which disabled the tooltip again and
+  froze search results in an endless render loop.
+- Admin grids that only declare columns at larger breakpoints must still declare a base template
+  (`grid-cols-1` or `grid-cols-2`, which use `minmax(0, 1fr)`), otherwise long unbroken paths widen the
+  implicit `auto` track and clip cards and their action menus off-screen. Admin stat-card grids use two
+  columns on phones.
+- Breadcrumb segments never wrap. Each segment truncates with an ellipsis inside the header row.
+- Album card counts come from `albumCountLabel()`: `N photo(s)` for direct images, no count for a folder
+  that only holds subfolders or videos (`image_count` is direct-only, so `0 photos` would be misleading),
+  and `Empty` when the folder has no children.
+- Clickable Advanced Search facet chips center their label vertically when the coarse-pointer 44px
+  minimum height applies.
 
 ## Keyboard Focus
 

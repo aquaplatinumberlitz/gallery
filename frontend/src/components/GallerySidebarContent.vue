@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, inject } from "vue";
 import LibrarySidebarHeader from "@/components/LibrarySidebarHeader.vue";
 import FolderTree from "@/components/FolderTree.vue";
-import { Loader } from "lucide-vue-next";
+import { Loader, Settings, Wrench } from "lucide-vue-next";
+import Button from "@/components/ui/Button.vue";
+import ButtonLink from "@/components/ui/ButtonLink.vue";
+import { openSettingsKey } from "@/injectionKeys";
 import {
   SidebarHeader as ShadSidebarHeader,
   SidebarContent,
@@ -22,8 +25,15 @@ defineProps<{
   currentPath: string;
 }>();
 
-const { isMobile, state } = useSidebar();
+const { isMobile, state, setOpenMobile } = useSidebar();
 const isCollapsed = computed(() => state.value === "collapsed");
+const openSettings = inject(openSettingsKey, null);
+
+// Mobile/tablet chrome has no desktop header nav, so the sheet footer carries those entries.
+function handleOpenSettings() {
+  setOpenMobile(false);
+  openSettings?.();
+}
 const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ? "button" : "card"));
 </script>
 
@@ -59,11 +69,60 @@ const indexStatusVariant = computed(() => (isMobile.value || isCollapsed.value ?
   <SidebarFooter
     class="sidebar-footer-area overflow-hidden group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-1"
   >
-    <IndexStatusPanel :path="currentPath" :variant="indexStatusVariant" />
+    <div v-if="isMobile" class="sidebar-footer-row">
+      <IndexStatusPanel :path="currentPath" :variant="indexStatusVariant" />
+      <nav class="sidebar-footer-nav" aria-label="App sections">
+        <ButtonLink
+          to="/admin/maintenance"
+          variant="ghost"
+          size="icon"
+          class="sidebar-footer-action"
+          aria-label="Maintenance"
+        >
+          <Wrench />
+        </ButtonLink>
+        <Button
+          v-if="openSettings"
+          variant="ghost"
+          size="icon"
+          class="sidebar-footer-action"
+          aria-label="Settings"
+          @click="handleOpenSettings"
+        >
+          <Settings />
+        </Button>
+      </nav>
+    </div>
+    <IndexStatusPanel v-else :path="currentPath" :variant="indexStatusVariant" />
   </SidebarFooter>
 </template>
 
 <style scoped>
+.sidebar-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sidebar-footer-nav {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.sidebar-footer-action {
+  width: 44px;
+  height: 44px;
+}
+
+.sidebar-footer-action :deep(svg) {
+  width: var(--gallery-icon-toolbar, 20px);
+  height: var(--gallery-icon-toolbar, 20px);
+  flex-shrink: 0;
+}
+
 .sidebar-content-area {
   border-top: 1px solid color-mix(in srgb, var(--sidebar-border) 45%, transparent);
   padding-top: 4px;

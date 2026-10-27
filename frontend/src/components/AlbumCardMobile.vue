@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { albumCountLabel } from "@/utils/albumCountLabel";
 import { ref } from "vue";
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
@@ -55,9 +56,9 @@ const onCoverError = () => {
       <div class="scrim" aria-hidden="true" />
 
       <!-- Top-right count chip with backdrop blur -->
-      <div v-if="node.image_count !== undefined && node.image_count !== null" class="count-chip">
+      <div v-if="albumCountLabel(node)" class="count-chip">
         <FolderOpen class="count-chip-icon" />
-        <span class="count-chip-text">{{ node.image_count }} {{ node.image_count === 1 ? "photo" : "photos" }}</span>
+        <span class="count-chip-text">{{ albumCountLabel(node) }}</span>
       </div>
 
       <!-- Bottom title block — editorial accent bar + magazine-style title -->

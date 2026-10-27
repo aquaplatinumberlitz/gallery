@@ -365,4 +365,12 @@ const handleDensityOpenChange = (open: boolean) => {
     transition: none;
   }
 }
+
+/* Short landscape viewports: the toolbar shrinks to its 44px controls. */
+@media (max-height: 500px) {
+  .tablet-gallery-toolbar {
+    min-height: 44px;
+    padding-block: 0;
+  }
+}
 </style>

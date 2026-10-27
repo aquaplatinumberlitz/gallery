@@ -115,6 +115,8 @@ test("mobile selector changes import path and persists the registered selection"
   await mockGallery(page);
   await disableIntro(page);
   await page.goto(baseUrl);
+  // The overlay sidebar starts closed on phones; open it to reach the library selector.
+  await page.getByRole("button", { name: "Toggle sidebar" }).first().click();
   await page.getByRole("button", { name: /Photos/ }).click();
   await page.getByRole("button", { name: /registered\/archive/ }).click();
 
