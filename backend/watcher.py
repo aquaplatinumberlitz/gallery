@@ -46,13 +46,16 @@ except ImportError:
     pass
 
 
-def _registered_watcher_roots() -> list[str]:
-    """Return enabled registered roots, optionally constrained by WATCHER_ROOTS."""
+def _registered_watcher_roots(conn: Any | None = None) -> list[str]:
+    """Return enabled registered roots, optionally constrained by WATCHER_ROOTS.
+
+    Pass ``conn`` (a status read snapshot) to resolve the libraries without ``_DB_LOCK``.
+    """
     from .metadata_store import list_libraries
 
     configured = {str(Path(root).resolve()) for root in WATCHER_ROOTS}
     roots: list[str] = []
-    for library in list_libraries():
+    for library in list_libraries() if conn is None else list_libraries(conn=conn):
         if not library["watch_enabled"]:
             continue
         import_paths = library.get("import_paths") or [{"path": library["root_path"]}]
@@ -253,9 +256,12 @@ def reconcile_watcher() -> None:
     start_watcher()
 
 
-def get_watcher_status() -> dict[str, Any]:
-    """Return file watcher configuration and runtime liveness."""
-    roots = _registered_watcher_roots()
+def get_watcher_status(conn: Any | None = None) -> dict[str, Any]:
+    """Return file watcher configuration and runtime liveness.
+
+    Pass ``conn`` (a status read snapshot) to resolve registered roots without ``_DB_LOCK``.
+    """
+    roots = _registered_watcher_roots(conn)
     return {
         "enabled": ENABLE_FILE_WATCHER,
         "alive": bool(_watcher_thread and _watcher_thread.is_alive()),

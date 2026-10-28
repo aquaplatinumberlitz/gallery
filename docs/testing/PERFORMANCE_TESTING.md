@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-07-15
+Last reviewed: 2026-10-27
 
 This document describes how to measure and profile Gallery API performance.
 
@@ -18,6 +18,7 @@ is the canonical source for all numeric budgets consumed by:
 - `scripts/bench_related_assets.py` — `[related_assets]`
 - `scripts/bench_thumbnail.py` — `[thumbnail]`
 - `scripts/bench_preview.py` — `[preview]`
+- `scripts/worker_contention_bench.py` — `[worker_contention]`
 - `frontend/tests/e2e/perf/album-open.perf.spec.ts` — `[album_open]`
 - `frontend/tests/e2e/perf/lightbox.perf.spec.ts` — `[lightbox]`
 - `frontend/tests/e2e/metadata-performance.spec.ts` (env-gated, requires `GALLERY_PERF_METADATA=1`) — `[metadata_nav]`
@@ -283,6 +284,73 @@ latency. Browser specs gate user-perceived visual readiness and batch
 completion, so browser request queueing is not misclassified as backend cache
 service latency.
 
+### Worker Contention Bench
+
+```bash
+backend/.venv_linux/bin/python scripts/worker_contention_bench.py --phase 0 \
+  --output /tmp/worker-contention-report.json
+# budgets: scripts/perf_budgets.toml[worker_contention]; opt-in, ~15-20 minutes
+```
+
+Reproduces the worker-lifecycle audit findings (WK-01..WK-06, see
+`docs/plans/WORKER_LIFECYCLE_HARDENING_PLAN.md`) against a real backend
+subprocess. Unlike the other benchmarks it owns its whole environment:
+
+1. builds a 1,500-image fixture with `scripts/create_perf_fixture.py` in a temp
+   directory and seeds **synthetic** rows so `derivative_jobs` holds at least
+   36,000 rows. The synthetic rows are `ready` derivatives and `done` jobs for
+   six superseded source identities of every real asset; they exist only so
+   status and capacity queries run over a realistically large table, and the
+   report documents them under `synthetic_seed`;
+2. starts `uvicorn` on a free port with isolated `GALLERY_METADATA_DB`,
+   `GALLERY_THUMBNAIL_CACHE_DIR`, `PATH_SAFETY_ROOT`, and
+   `GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED=false`, waits for the startup
+   derivative work to settle, and keeps one external write-lock probe running
+   (`BEGIN IMMEDIATE` with `timeout=0` every 20 ms; continuous blocked spans);
+3. samples the four status endpoints 20 times each (`status_p95_ms` is the worst
+   endpoint p95; an endpoint is cut short after three consecutive samples over
+   5 s and reported as `aborted_early`);
+4. runs two touch + rescan cycles, one without and one with three UI-style
+   pollers (`/api/libraries/{id}/status`, `/api/maintenance/runtime`,
+   `/api/libraries/status`, each re-requested 2.5 s after its previous response),
+   counting metadata jobs completed in a 120 s window (`polling_throughput_ratio`
+   is with ÷ without);
+5. waits 60 s after the queues drain and counts orphaned `running` metadata
+   jobs and superseded `ready` derivatives;
+6. restarts the backend with `GALLERY_CATALOG_JOB_LEASE_SECONDS=30`, polls,
+   touches and rescans, and counts catalog scans failed by lease loss
+   (`lease_loss_failed_scans`);
+7. counts `database is locked` lines in the backend log.
+
+| Metric                                                         | Budget         | Enforced by   |
+| -------------------------------------------------------------- | -------------- | ------------- |
+| `status_p95_ms` (4 endpoints × 20 samples, worst endpoint p95) | ≤ 500          | `--phase 0`   |
+| `polling_throughput_ratio`                                     | ≥ 0.90         | `--phase 0`   |
+| `max_write_lock_hold_ms` (during touch + rescan)               | ≤ 1000         | `--phase 0`   |
+| `database_locked_log_lines`                                    | 0              | `--phase 0`   |
+| `lease_loss_failed_scans`                                      | 0              | `--phase 0`   |
+| `orphan_running_metadata_jobs`                                 | 0              | `--phase 1`   |
+| `superseded_ready_derivatives`                                 | 0              | `--phase 1`   |
+
+`--phase 0` (default) enforces the Phase 0 exit gate; `--phase 1` additionally
+enforces the two Phase 1 targets. Every metric is always measured and reported,
+so a Phase 0 run still shows the Phase 1 numbers (they are expected to fail until
+Phase 1 lands). The report is printed on stdout (progress goes to stderr); the
+process exits `0` when every enforced budget passes, `1` on a budget failure, and
+`2` when a workload did not actually run (for example fewer than 1,000 metadata
+jobs queued or zero jobs completed in the no-poller window). An empty workload is
+never reported as success. The smoke overrides `--images`, `--min-derivative-jobs`,
+`--min-metadata-jobs`, and `--window-seconds` shrink the workload for harness
+debugging; the report lists them under `sizing_overridden` and such runs are not
+gate evidence.
+
+The deterministic regression counterparts that gate every pull request live in
+`backend/tests/test_worker_contention_wk01.py` and
+`backend/tests/test_worker_contention_wk03.py`. To include the benchmark in the
+managed perf runner, set `GALLERY_PERF_WORKER_CONTENTION=1` before
+`./test.sh perf`; it is off by default because it needs minutes and its own
+backend. Its report is `worker-contention-report.json`.
+
 ### Playwright Album Open Perf Test
 
 For the deterministic CI-equivalent browser perf suite, run from the repository root:
@@ -515,3 +583,11 @@ the published-standard-derived limits.
 | `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS`          | `[lightbox].open_ms` (`200`)                            | Max browser-native click-to-overlay-paint p95                                 |
 | `GALLERY_PERF_LIGHTBOX_VISUAL_READY_BUDGET_MS`  | `[lightbox].visual_ready_ms` (`1000`)                   | Max browser-native click-to-decoded-preview p95                               |
 | `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS`    | `[lightbox].transition_ms` (`200`)                      | Max actual-keydown-to-decoded-prefetched-preview p95                          |
+| `GALLERY_PERF_WORKER_CONTENTION`                | unset                                                   | `1` adds the worker contention bench to `./test.sh perf`                      |
+| `GALLERY_PERF_WORKER_STATUS_P95_BUDGET_MS`      | `[worker_contention].status_p95_ms` (`500`)             | Max worst-endpoint status p95 over ≥ 36,000 `derivative_jobs` rows            |
+| `GALLERY_PERF_WORKER_POLLING_RATIO_BUDGET`      | `[worker_contention].polling_throughput_ratio` (`0.90`) | Min metadata throughput with status pollers ÷ without                         |
+| `GALLERY_PERF_WORKER_LOCK_HOLD_BUDGET_MS`       | `[worker_contention].max_write_lock_hold_ms` (`1000`)   | Max continuous SQLite write-lock hold seen by the external probe              |
+| `GALLERY_PERF_WORKER_LOCKED_LINES_BUDGET`       | `[worker_contention].database_locked_log_lines` (`0`)   | Max `database is locked` lines in the backend log                             |
+| `GALLERY_PERF_WORKER_LEASE_LOSS_BUDGET`         | `[worker_contention].lease_loss_failed_scans` (`0`)     | Max catalog scans failed by lease loss with a 30 s lease                      |
+| `GALLERY_PERF_WORKER_ORPHAN_BUDGET`             | `[worker_contention].orphan_running_metadata_jobs` (`0`) | Max `running` metadata jobs 60 s after the queue drained (Phase 1)           |
+| `GALLERY_PERF_WORKER_SUPERSEDED_BUDGET`         | `[worker_contention].superseded_ready_derivatives` (`0`) | Max `ready` derivatives of superseded source identities (Phase 1)            |

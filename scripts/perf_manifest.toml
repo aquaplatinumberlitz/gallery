@@ -81,3 +81,10 @@ budget_sections = ["metadata_nav"]
 consumers = ["frontend/tests/e2e/metadata-performance.spec.ts", "frontend/tests/e2e/perf/perf-utils.ts"]
 budget_tokens = ["GALLERY_PERF_METADATA_API_BUDGET_MS", "GALLERY_PERF_METADATA_TABLE_READY_BUDGET_MS", "GALLERY_PERF_METADATA_NAV_BUDGET_MS", "GALLERY_PERF_METADATA_RESPONSE_RENDER_BUDGET_MS", "GALLERY_PERF_METADATA_RENDER_BUDGET_MS", "GALLERY_PERF_METADATA_SORT_TOTAL_BUDGET_MS", "GALLERY_PERF_METADATA_SORT_RESPONSE_RENDER_BUDGET_MS", "GALLERY_PERF_METADATA_SEARCH_TOTAL_BUDGET_MS", "GALLERY_PERF_METADATA_SEARCH_DEBOUNCE_BUDGET_MS", "GALLERY_PERF_METADATA_SEARCH_RESPONSE_RENDER_BUDGET_MS", "GALLERY_PERF_METADATA_STATE_RESTORE_BUDGET_MS"]
 reports = ["metadata-navigation-report.json", "metadata-sort-report.json", "metadata-search-report.json", "metadata-state-report.json"]
+
+[workloads.worker_contention]
+suite = "diagnostic"
+budget_sections = ["worker_contention"]
+consumers = ["scripts/worker_contention_bench.py"]
+budget_tokens = ["GALLERY_PERF_WORKER_STATUS_P95_BUDGET_MS", "GALLERY_PERF_WORKER_POLLING_RATIO_BUDGET", "GALLERY_PERF_WORKER_LOCK_HOLD_BUDGET_MS", "GALLERY_PERF_WORKER_LOCKED_LINES_BUDGET", "GALLERY_PERF_WORKER_LEASE_LOSS_BUDGET", "GALLERY_PERF_WORKER_ORPHAN_BUDGET", "GALLERY_PERF_WORKER_SUPERSEDED_BUDGET", "budget_for(\"worker_contention\""]
+reports = ["worker-contention-report.json"]

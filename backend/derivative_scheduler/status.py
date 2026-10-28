@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import DERIVATIVE_VARIANTS
-from ..metadata_store import _connect
+from ..metadata_store import _read_snapshot
 from ._common import _ensure_database
 
 
@@ -14,7 +14,10 @@ class StatusMixin:
     """Library derivative status read model for ``DerivativeScheduler``."""
 
     def library_status(self, library_id: int) -> dict[str, Any]:
-        """Return warm coverage and quota utilization for one library."""
+        """Return warm coverage and quota utilization for one library.
+
+        Every counter comes from one WAL snapshot read without ``_DB_LOCK``.
+        """
         _ensure_database()
         configured_variant_specs = [
             (kind, str(variant["name"]), int(variant["max_long_edge"]))
@@ -53,7 +56,7 @@ class StatusMixin:
         ]
         by_variant = {(str(item["kind"]), str(item["variant"])): item for item in variant_statuses}
         expected_derivatives_per_asset = len(configured_variants)
-        with _connect() as conn:
+        with _read_snapshot() as conn:
             library = conn.execute("SELECT warm_enabled FROM libraries WHERE id = ?", (library_id,)).fetchone()
             if library is None:
                 raise KeyError(library_id)

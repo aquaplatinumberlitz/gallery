@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from .imported_data_maintenance import clear_imported_data, rebuild_imported_data, reset_catalog_database
 from .indexer import get_metadata_lifecycle_status
 from .integrity_checker import IntegrityCheckAlreadyRunning, integrity_checker
-from .metadata_store import _DB_LOCK, _connect
+from .metadata_store import _DB_LOCK, _connect, _read_snapshot, initialize_database
 from .metadata_store.maintenance_store import get_latest_run
 from .metadata_store.status_store import build_global_runtime
 
@@ -39,12 +39,14 @@ class ResetCatalogRequest(BaseModel):
 
 @router.get("/runtime")
 def get_maintenance_runtime():
-    """Return global runtime diagnostics and metadata lifecycle counters."""
-    global_runtime = build_global_runtime()
-    try:
-        lifecycle = get_metadata_lifecycle_status()
-    except Exception:  # noqa: BLE001
-        lifecycle = None
+    """Return global runtime diagnostics and metadata lifecycle counters from one read snapshot."""
+    initialize_database()
+    with _read_snapshot() as conn:
+        global_runtime = build_global_runtime(conn)
+        try:
+            lifecycle = get_metadata_lifecycle_status(conn=conn)
+        except Exception:  # noqa: BLE001
+            lifecycle = None
     return MaintenanceRuntimeResponse(global_runtime=global_runtime, metadata_lifecycle=lifecycle)
 
 

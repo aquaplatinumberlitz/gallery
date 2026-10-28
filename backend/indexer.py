@@ -27,6 +27,7 @@ from .metadata_store import (
     MetadataIndexJob,
     _connect,
     _persist_metadata_index_jobs,
+    _read_snapshot,
     assert_catalog_job_claim,
     asset_matches_image_metadata_sql,
     claim_next_metadata_job,
@@ -108,11 +109,15 @@ def _metadata_runtime_scope_sql(
     return path_scope_sql(scope_text, column=column, leading_and=True)
 
 
-def get_indexer_runtime_status(scope_path: str | Path | None = None) -> dict[str, Any]:
-    """Return runtime status from the SQLite metadata queue and worker pool."""
+def get_indexer_runtime_status(scope_path: str | Path | None = None, *, conn: Any | None = None) -> dict[str, Any]:
+    """Return runtime status from the SQLite metadata queue and worker pool.
+
+    Reads one WAL snapshot without taking ``_DB_LOCK``; pass ``conn`` to join the
+    snapshot of an enclosing status build.
+    """
     initialize_database()
     scope_sql, scope_params = _metadata_runtime_scope_sql(scope_path)
-    with _DB_LOCK, _connect() as conn:
+    with _read_snapshot(conn) as conn:
         queued_count = int(
             conn.execute(
                 f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'queued'{scope_sql}",
@@ -515,11 +520,12 @@ def recover_metadata_index_jobs() -> dict[str, int]:
     }
 
 
-def get_metadata_lifecycle_status(scope_path: str | Path | None = None) -> dict[str, Any]:
+def get_metadata_lifecycle_status(scope_path: str | Path | None = None, *, conn: Any | None = None) -> dict[str, Any]:
     """Return metadata lifecycle diagnostics counters from §5.7 of the plan.
 
     Provides 15 counters covering job queue depth, inconsistency detection,
-    worker health, and throughput.
+    worker health, and throughput. Reads one WAL snapshot without taking
+    ``_DB_LOCK``; pass ``conn`` to join the snapshot of an enclosing status build.
     """
     initialize_database()
     now = time.time()
@@ -528,7 +534,7 @@ def get_metadata_lifecycle_status(scope_path: str | Path | None = None) -> dict[
     mj_scope, scope_params = _metadata_runtime_scope_sql(scope_path, "mj.path")
     a_scope, _asset_scope_params = _metadata_runtime_scope_sql(scope_path, "a.path")
 
-    with _DB_LOCK, _connect() as conn:
+    with _read_snapshot(conn) as conn:
         # Job state counts
         for state in ("queued", "running", "done", "stale", "failed", "skipped"):
             row = conn.execute(

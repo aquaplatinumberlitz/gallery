@@ -12,6 +12,7 @@ from ..config import (
 )
 from ..metadata_store import _connect
 from ._common import _ensure_database
+from .capacity import CapacityLedger
 from .models import DerivativeRepairSummary
 
 
@@ -156,6 +157,7 @@ class SchedulingMixin:
         deferrable: bool = False,
         reconsider_deferred_capacity: bool = True,
         estimated_bytes: int | None = None,
+        ledger: CapacityLedger | None = None,
     ) -> tuple[int, str]:
         """Create or repair one identity while the caller owns a write transaction.
 
@@ -167,6 +169,10 @@ class SchedulingMixin:
         ``reconsider_deferred_capacity=False`` so an existing capacity-deferred
         identity does not repeatedly evict a different ready variant; integrity,
         startup, policy, and explicit generation triggers may reconsider it.
+
+        A batch caller passes ``ledger`` so the capacity aggregates are evaluated once per
+        write transaction instead of once per identity; this function reports to the ledger
+        every write that changes them. Without a ledger each capacity check aggregates fresh.
         """
         inserted = (
             conn.execute(
@@ -195,14 +201,22 @@ class SchedulingMixin:
         if derivative["status"] == "ready" and derivative["cache_path"] and Path(derivative["cache_path"]).is_file():
             return derivative_id, "ready"
         if derivative["status"] == "evicted" and derivative["cache_path"] and Path(derivative["cache_path"]).is_file():
-            conn.execute(
+            restored = conn.execute(
                 """
                 UPDATE asset_derivatives
                 SET status = 'ready', last_error = NULL, updated_at = julianday('now')
                 WHERE id = ? AND status = 'evicted' AND cache_path = ?
                 """,
                 (derivative_id, derivative["cache_path"]),
-            )
+            ).rowcount
+            if ledger is not None and restored:
+                active_jobs = int(
+                    conn.execute(
+                        "SELECT count(*) FROM derivative_jobs WHERE derivative_id = ? AND state IN ('queued', 'running')",
+                        (derivative_id,),
+                    ).fetchone()[0]
+                )
+                ledger.ready_row_restored(derivative["byte_size"], active_jobs)
             return derivative_id, "ready"
         latest = conn.execute(
             "SELECT result_code FROM derivative_jobs WHERE derivative_id = ? ORDER BY id DESC LIMIT 1",
@@ -234,7 +248,7 @@ class SchedulingMixin:
             return derivative_id, "deferred_capacity"
         if inserted or derivative["status"] in {"deferred_capacity", "evicted"} or deferrable:
             estimated_bytes = estimated_bytes or self._estimate_new_derivative_bytes(conn)
-            if not self._capacity_available(conn, estimated_bytes):
+            if not self._capacity_available(conn, estimated_bytes, ledger):
                 conn.execute(
                     """
                     UPDATE asset_derivatives
@@ -244,6 +258,8 @@ class SchedulingMixin:
                     """,
                     (derivative_id,),
                 )
+                if ledger is not None and derivative["status"] == "ready":
+                    ledger.ready_row_left(derivative["byte_size"])
                 return derivative_id, "capacity_needed_created" if inserted else "capacity_needed"
         conn.execute(
             "INSERT INTO derivative_jobs (derivative_id, priority, state) VALUES (?, ?, 'queued')",
@@ -258,6 +274,10 @@ class SchedulingMixin:
             """,
             (derivative_id,),
         )
+        if ledger is not None:
+            if derivative["status"] == "ready":
+                ledger.ready_row_left(derivative["byte_size"])
+            ledger.job_queued()
         return derivative_id, "created" if inserted else "requeued"
 
     @maintenance_producer

@@ -316,6 +316,8 @@ FRESH_DATABASE_DDL = """
             CREATE INDEX IF NOT EXISTS idx_derivative_jobs_state ON derivative_jobs(state, priority);
             CREATE INDEX IF NOT EXISTS idx_derivative_jobs_state_lease
               ON derivative_jobs(state, lease_expires_at);
+            CREATE INDEX IF NOT EXISTS idx_derivative_jobs_derivative_id
+              ON derivative_jobs(derivative_id, id);
 
             CREATE TABLE IF NOT EXISTS catalog_rebuild_entries (
               job_id INTEGER NOT NULL REFERENCES library_jobs(id) ON DELETE CASCADE,

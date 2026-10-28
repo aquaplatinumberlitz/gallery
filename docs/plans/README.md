@@ -2,9 +2,13 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-07-19
+Last reviewed: 2026-10-27
 
-There are currently no proposed, active, or blocked implementation plans.
+Active plans:
+
+| Plan | Status | Created |
+|------|--------|---------|
+| [Worker Lifecycle Hardening](WORKER_LIFECYCLE_HARDENING_PLAN.md) | Active | 2026-10-27 |
 
 Completed plans:
 

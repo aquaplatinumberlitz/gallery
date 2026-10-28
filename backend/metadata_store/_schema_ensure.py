@@ -621,6 +621,8 @@ def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_derivative_jobs_state_lease ON derivative_jobs(state, lease_expires_at)"
     )
+    # Latest-job-per-derivative lookups (status aggregates, reconcile coalescing) must seek, not scan.
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_derivative_jobs_derivative_id ON derivative_jobs(derivative_id, id)")
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_claim  ON metadata_index_jobs(state, priority, queued_at)"
     )
