@@ -227,3 +227,18 @@ def set_metadata_job(db_path: Path, path: Path | str, **columns: Any) -> None:
     assignments = ", ".join(f"{name} = ?" for name in columns)
     with sqlite3.connect(db_path) as conn:
         conn.execute(f"UPDATE metadata_index_jobs SET {assignments} WHERE path = ?", (*columns.values(), str(path)))
+
+
+def wait_until(predicate: Callable[[], Any], *, timeout: float = 10.0, interval: float = 0.002) -> bool:
+    """Poll ``predicate`` until it is truthy or ``timeout`` elapses; returns the final truthiness.
+
+    Only used to observe that another thread reached a known state (for example "is blocked in
+    submit"); correctness never depends on how long the wait took.
+    """
+    deadline = time.monotonic() + timeout
+    pause = threading.Event()
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        pause.wait(interval)
+    return bool(predicate())
