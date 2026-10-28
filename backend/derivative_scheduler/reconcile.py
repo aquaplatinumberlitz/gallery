@@ -148,12 +148,21 @@ class ReconcileMixin:
         The batch holds the SQLite write lock for its whole loop, so the capacity aggregates
         are evaluated once through a ``CapacityLedger`` and then tracked in memory; decisions
         are identical to aggregating after every identity.
+
+        Ready rows of an older source identity of these assets are retired first, in the same
+        transaction and reported to the ledger, so their bytes no longer count toward the quota
+        decisions below; their files are unlinked only after the transaction commits.
         """
         pending_capacity: list[PendingCapacity] = []
+        retired_paths: list[str] = []
         with _connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            estimated_bytes = self._estimate_new_derivative_bytes(conn)
             ledger = CapacityLedger()
+            retired = self._retire_superseded_in_txn(
+                conn, [asset_id for asset_id, _mtime_ns, _size in candidates], ledger=ledger
+            )
+            retired_paths = [path for _derivative_id, path in retired if path]
+            estimated_bytes = self._estimate_new_derivative_bytes(conn)
             for asset_id, mtime_ns, size in candidates:
                 current = conn.execute(
                     """
@@ -187,6 +196,7 @@ class ReconcileMixin:
                         pending_capacity.append((coalesce_args, estimated_bytes, outcome == "capacity_needed_created"))
                     else:
                         self._record_reconcile_outcome(summary, outcome)
+        self._discard_retired_files(retired_paths)
         return pending_capacity
 
     def _apply_reconcile_capacity_policy(

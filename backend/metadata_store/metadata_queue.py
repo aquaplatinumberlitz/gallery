@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import sqlite3
 import time
+import uuid
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE
+from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE, METADATA_JOB_LEASE_SECONDS
 from ..files import is_image_path, is_index_excluded_path
 from ..metadata_extract import metadata_sidecar_identity
 from ._db import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect
@@ -20,12 +21,37 @@ from .path_utils import path_scope_sql
 from .types import MetadataIndexJob, MetadataQueueResult
 
 _MIN_REASONABLE_MTIME_NS = 1_000_000_000_000
+# Cleared on every transition out of ``running`` so a stale worker's token can never match again.
+_CLEAR_CLAIM_SQL = "claimed_by=NULL, claim_token=NULL, lease_expires_at=NULL"
+
+
+def metadata_now() -> float:
+    """Return the clock used for metadata job leases, backoff, and recovery (tests replace it)."""
+    return time.time()
 
 
 def _initialize_database() -> None:
     from ._schema import initialize_database
 
     initialize_database()
+
+
+def _claim_fence(job: MetadataIndexJob) -> tuple[str, list[Any]]:
+    """Return the SQL suffix that fences a write to the claim ``job`` was started with.
+
+    A job that carries a claim token (every job from ``claim_next_metadata_job``) may only change a
+    row that is still ``running`` under that same token, so a worker that lost its claim to lease
+    recovery writes zero rows. Token-less jobs (legacy and the already-current shortcut) keep the
+    identity-only behaviour.
+    """
+    if job.claim_token is None:
+        return "", []
+    return " AND state = 'running' AND claim_token = ?", [job.claim_token]
+
+
+def _claim_is_abandoned(row: sqlite3.Row | dict[str, Any], now: float) -> bool:
+    """Return whether a ``running`` row has no live claim: no owner token or an expired/missing lease."""
+    return row["claim_token"] is None or row["lease_expires_at"] is None or float(row["lease_expires_at"]) <= now
 
 
 def _image_metadata_exists_for_job(
@@ -160,6 +186,13 @@ def _update_asset_done(conn: sqlite3.Connection, job: MetadataIndexJob, now: flo
     )
 
 
+_EXISTING_JOB_SQL = """
+    SELECT mtime, mtime_ns, size, state, attempts, priority, library_id, claim_token, lease_expires_at
+    FROM metadata_index_jobs
+    WHERE path = ?
+"""
+
+
 def _persist_metadata_index_job_batch(
     paths: Iterable[str | Path],
     root_path: str | Path | None = None,
@@ -182,7 +215,7 @@ def _persist_metadata_index_job_batch(
     coalesced = 0
     skipped = 0
     failed = 0
-    now = time.time()
+    now = metadata_now()
 
     with _DB_LOCK, _connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -203,14 +236,7 @@ def _persist_metadata_index_job_batch(
             ).fetchone()
             library_id = int(library_row["library_id"]) if library_row else None
 
-            existing = conn.execute(
-                """
-                SELECT mtime, mtime_ns, size, state, attempts, priority, library_id
-                FROM metadata_index_jobs
-                WHERE path = ?
-                """,
-                (job.path,),
-            ).fetchone()
+            existing = conn.execute(_EXISTING_JOB_SQL, (job.path,)).fetchone()
 
             if existing:
                 if existing["mtime_ns"] is not None and job.mtime_ns is not None:
@@ -220,6 +246,11 @@ def _persist_metadata_index_job_batch(
                 if not same_version:
                     existing = None
                 else:
+                    if existing["state"] == "running" and _claim_is_abandoned(existing, now):
+                        # Nobody owns this claim any more: recover it (attempt-aware) instead of
+                        # coalescing into a job that will never finish, then continue with its new state.
+                        recover_running_metadata_jobs(conn, expired_only=True, now=now, paths=[job.path])
+                        existing = conn.execute(_EXISTING_JOB_SQL, (job.path,)).fetchone()
                     state = existing["state"]
                     attempts = int(existing["attempts"] or 0)
                     if state in {"queued", "running"}:
@@ -286,6 +317,10 @@ def _persist_metadata_index_job_batch(
                   started_at=NULL,
                   finished_at=NULL,
                   updated_at=excluded.updated_at,
+                  claimed_by=NULL,
+                  claim_token=NULL,
+                  lease_expires_at=NULL,
+                  next_attempt_at=NULL,
                   priority=CASE
                     WHEN COALESCE(metadata_index_jobs.priority, 3) > ?
                     THEN ?
@@ -544,15 +579,22 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
 def claim_next_metadata_job(
     *,
     max_queue_wait_seconds: int = 600,
+    worker_id: str | None = None,
+    lease_seconds: float | None = None,
+    now: float | None = None,
 ) -> MetadataIndexJob | None:
-    """Claim one queued metadata job from SQLite in a short BEGIN IMMEDIATE transaction.
+    """Claim one due queued metadata job from SQLite in a short BEGIN IMMEDIATE transaction.
 
-    Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``).
-    Returns ``None`` when no queued job is available.
+    Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``): the claim
+    records the owner (``worker_id``), a fresh claim token, and a lease. Rows whose
+    ``next_attempt_at`` (retry backoff) lies in the future are not due and are skipped.
+    Returns ``None`` when no job is available.
     """
     _initialize_database()
+    lease = float(METADATA_JOB_LEASE_SECONDS if lease_seconds is None else lease_seconds)
     with _DB_LOCK, _connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        claimed_at = metadata_now() if now is None else float(now)
         row = conn.execute(
             """
             SELECT path, name, parent_path, folder_path, root_path,
@@ -560,41 +602,39 @@ def claim_next_metadata_job(
                    queued_at, started_at, finished_at, updated_at, library_id, priority
             FROM metadata_index_jobs
             WHERE state = 'queued'
+              AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
             ORDER BY priority ASC, queued_at ASC, path ASC
             LIMIT 1
-            """
+            """,
+            (claimed_at,),
         ).fetchone()
         if row is None:
             return None
         attempts = int(row["attempts"]) + 1
-        now = time.time()
-        if row["mtime_ns"] is not None:
-            conn.execute(
-                """
-                UPDATE metadata_index_jobs
-                SET state='running',
-                    attempts=?,
-                    started_at=?,
-                    finished_at=NULL,
-                    updated_at=?
-                WHERE path=? AND mtime_ns = ? AND size=?
-                """,
-                (attempts, now, now, row["path"], row["mtime_ns"], row["size"]),
-            )
-        else:
-            conn.execute(
-                """
-                UPDATE metadata_index_jobs
-                SET state='running',
-                    attempts=?,
-                    started_at=?,
-                    finished_at=NULL,
-                    updated_at=?
-                WHERE path=? AND mtime=? AND size=?
-                """,
-                (attempts, now, now, row["path"], row["mtime"], row["size"]),
-            )
-        job = MetadataIndexJob(
+        owner = worker_id or "metadata-worker"
+        claim_token = uuid.uuid4().hex
+        identity_sql, identity_params = (
+            ("mtime_ns = ? AND size = ?", (row["mtime_ns"], row["size"]))
+            if row["mtime_ns"] is not None
+            else ("mtime = ? AND size = ?", (row["mtime"], row["size"]))
+        )
+        conn.execute(
+            f"""
+            UPDATE metadata_index_jobs
+            SET state='running',
+                attempts=?,
+                started_at=?,
+                finished_at=NULL,
+                updated_at=?,
+                claimed_by=?,
+                claim_token=?,
+                lease_expires_at=?,
+                next_attempt_at=NULL
+            WHERE path=? AND {identity_sql} AND state='queued'
+            """,
+            (attempts, claimed_at, claimed_at, owner, claim_token, claimed_at + lease, row["path"], *identity_params),
+        )
+        return MetadataIndexJob(
             path=row["path"],
             name=row["name"],
             parent_path=row["parent_path"],
@@ -604,26 +644,67 @@ def claim_next_metadata_job(
             mtime_ns=row["mtime_ns"],
             size=row["size"],
             library_id=row["library_id"],
+            attempts=attempts,
+            claim_token=claim_token,
+            claimed_by=owner,
         )
-        return job
+
+
+def renew_metadata_job_lease(
+    conn: sqlite3.Connection,
+    job: MetadataIndexJob,
+    *,
+    lease_seconds: float | None = None,
+    now: float | None = None,
+) -> bool:
+    """Extend the lease of a still-running, still-owned claim; return whether this claim was renewed."""
+    if job.claim_token is None:
+        return False
+    lease = float(METADATA_JOB_LEASE_SECONDS if lease_seconds is None else lease_seconds)
+    renewed_at = metadata_now() if now is None else float(now)
+    result = conn.execute(
+        """
+        UPDATE metadata_index_jobs SET lease_expires_at = ?
+        WHERE path = ? AND state = 'running' AND claim_token = ?
+        """,
+        (renewed_at + lease, job.path, job.claim_token),
+    )
+    return result.rowcount == 1
+
+
+def owns_metadata_job_claim(conn: sqlite3.Connection, job: MetadataIndexJob) -> bool:
+    """Return whether ``job`` still holds its claim (token-less legacy jobs always do)."""
+    if job.claim_token is None:
+        return True
+    return (
+        conn.execute(
+            "SELECT 1 FROM metadata_index_jobs WHERE path = ? AND state = 'running' AND claim_token = ?",
+            (job.path, job.claim_token),
+        ).fetchone()
+        is not None
+    )
 
 
 def complete_metadata_job(
     conn: sqlite3.Connection,
     job: MetadataIndexJob,
-) -> None:
+) -> bool:
     """Mark one metadata job done and materialize assets.metadata_state='done'.
 
     Enforces the invariant: image_metadata current + job done + asset done.
     If no asset row exists for the path the job is marked skipped.
     If the asset row exists but the version does not match the job is marked stale.
     Verifies that image_metadata exists for the job's identity before marking done.
+
+    Every job write is fenced by the claim token, so a worker whose claim was recovered and
+    reissued changes nothing (no job transition and no asset stamp). Returns whether the
+    transition was applied.
     """
     if not _image_metadata_exists_for_job(conn, job.path, job.mtime, job.size, job.mtime_ns):
-        mark_metadata_job_stale(conn, job)
-        return
+        return mark_metadata_job_stale(conn, job)
 
-    now = time.time()
+    now = metadata_now()
+    fence_sql, fence_params = _claim_fence(job)
 
     # Check whether a matching asset row exists
     # Two branches: assets has no ``mtime`` column, so the seconds bridge
@@ -644,13 +725,13 @@ def complete_metadata_job(
             (job.path,),
         ).fetchone()
         if any_asset is None:
-            conn.execute(
+            skipped = conn.execute(
                 f"""
                 UPDATE metadata_index_jobs
-                SET state='skipped', error=NULL, finished_at=?, updated_at=?
+                SET state='skipped', error=NULL, finished_at=?, updated_at=?, {_CLEAR_CLAIM_SQL}
                 WHERE path=?
                   AND ({image_metadata_params_match_sql()})
-                  AND size=?
+                  AND size=?{fence_sql}
                 """,
                 (
                     now,
@@ -663,92 +744,195 @@ def complete_metadata_job(
                     job.mtime_ns,
                     job.mtime,
                     job.size,
+                    *fence_params,
                 ),
             )
-        else:
-            mark_metadata_job_stale(conn, job)
-        return
+            return skipped.rowcount == 1
+        return mark_metadata_job_stale(conn, job)
 
-    conn.execute(
+    completed = conn.execute(
         f"""
         UPDATE metadata_index_jobs
         SET state='done',
             error=NULL,
             finished_at=?,
-            updated_at=?
+            updated_at=?,
+            next_attempt_at=NULL,
+            {_CLEAR_CLAIM_SQL}
         WHERE path=?
           AND ({image_metadata_params_match_sql()})
-          AND size=?
+          AND size=?{fence_sql}
         """,
-        (now, now, job.path, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime_ns, job.mtime, job.size),
+        (
+            now,
+            now,
+            job.path,
+            job.mtime_ns,
+            job.mtime_ns,
+            job.mtime_ns,
+            job.mtime_ns,
+            job.mtime_ns,
+            job.mtime,
+            job.size,
+            *fence_params,
+        ),
     )
-
-    _update_asset_done(conn, job, now)
+    applied = completed.rowcount == 1
+    if applied or job.claim_token is None:
+        _update_asset_done(conn, job, now)
+    return applied
 
 
 def fail_metadata_job(
     conn: sqlite3.Connection,
     job: MetadataIndexJob,
     error: str,
-) -> None:
-    """Mark one metadata job as failed with a bounded error message."""
-    now = time.time()
-    if job.mtime_ns is not None:
-        conn.execute(
-            """
-            UPDATE metadata_index_jobs
-            SET state='failed',
-                error=?,
-                finished_at=?,
-                updated_at=?
-            WHERE path=? AND mtime_ns = ? AND size=?
-            """,
-            (error[:1000], now, now, job.path, job.mtime_ns, job.size),
-        )
-    else:
-        conn.execute(
-            """
-            UPDATE metadata_index_jobs
-            SET state='failed',
-                error=?,
-                finished_at=?,
-                updated_at=?
-            WHERE path=? AND mtime=? AND size=?
-            """,
-            (error[:1000], now, now, job.path, job.mtime, job.size),
-        )
+) -> bool:
+    """Mark one metadata job as failed with a bounded error message (fenced by the claim token)."""
+    now = metadata_now()
+    fence_sql, fence_params = _claim_fence(job)
+    identity_sql, identity_params = _job_identity_sql(job)
+    result = conn.execute(
+        f"""
+        UPDATE metadata_index_jobs
+        SET state='failed',
+            error=?,
+            finished_at=?,
+            updated_at=?,
+            next_attempt_at=NULL,
+            {_CLEAR_CLAIM_SQL}
+        WHERE path=? AND {identity_sql}{fence_sql}
+        """,
+        (error[:1000], now, now, job.path, *identity_params, *fence_params),
+    )
+    return result.rowcount == 1
+
+
+def requeue_metadata_job(
+    conn: sqlite3.Connection,
+    job: MetadataIndexJob,
+    error: str,
+    *,
+    delay_seconds: float,
+    now: float | None = None,
+) -> bool:
+    """Return a failed-transiently running job to ``queued`` with a retry backoff.
+
+    Stores the earliest next attempt (``next_attempt_at``) so claims ignore the row until it is
+    due, keeps ``attempts`` and ``queued_at`` (priority order), and releases the claim. Fenced by
+    the claim token: a worker that lost its claim cannot requeue the newer one.
+    """
+    ts = metadata_now() if now is None else float(now)
+    fence_sql, fence_params = _claim_fence(job)
+    identity_sql, identity_params = _job_identity_sql(job)
+    result = conn.execute(
+        f"""
+        UPDATE metadata_index_jobs
+        SET state='queued',
+            error=?,
+            started_at=NULL,
+            finished_at=NULL,
+            updated_at=?,
+            next_attempt_at=?,
+            {_CLEAR_CLAIM_SQL}
+        WHERE path=? AND {identity_sql} AND state='running'{fence_sql}
+        """,
+        (error[:1000], ts, ts + max(0.0, float(delay_seconds)), job.path, *identity_params, *fence_params),
+    )
+    return result.rowcount == 1
 
 
 def mark_metadata_job_stale(
     conn: sqlite3.Connection,
     job: MetadataIndexJob,
-) -> None:
-    """Mark one metadata job stale when the file version no longer matches."""
-    now = time.time()
+) -> bool:
+    """Mark one metadata job stale when the file version no longer matches (fenced by the claim token)."""
+    now = metadata_now()
+    fence_sql, fence_params = _claim_fence(job)
+    identity_sql, identity_params = _job_identity_sql(job)
+    result = conn.execute(
+        f"""
+        UPDATE metadata_index_jobs
+        SET state='stale',
+            error=NULL,
+            finished_at=?,
+            updated_at=?,
+            next_attempt_at=NULL,
+            {_CLEAR_CLAIM_SQL}
+        WHERE path=? AND {identity_sql}{fence_sql}
+        """,
+        (now, now, job.path, *identity_params, *fence_params),
+    )
+    return result.rowcount == 1
+
+
+def _job_identity_sql(job: MetadataIndexJob) -> tuple[str, tuple[Any, ...]]:
+    """Return the ``mtime_ns``/``mtime`` + size identity predicate of a job row."""
     if job.mtime_ns is not None:
-        conn.execute(
-            """
-            UPDATE metadata_index_jobs
-            SET state='stale',
-                error=NULL,
-                finished_at=?,
-                updated_at=?
-            WHERE path=? AND mtime_ns = ? AND size=?
-            """,
-            (now, now, job.path, job.mtime_ns, job.size),
-        )
-    else:
-        conn.execute(
-            """
-            UPDATE metadata_index_jobs
-            SET state='stale',
-                error=NULL,
-                finished_at=?,
-                updated_at=?
-            WHERE path=? AND mtime=? AND size=?
-            """,
-            (now, now, job.path, job.mtime, job.size),
-        )
+        return "mtime_ns = ? AND size = ?", (job.mtime_ns, job.size)
+    return "mtime = ? AND size = ?", (job.mtime, job.size)
+
+
+def recover_running_metadata_jobs(
+    conn: sqlite3.Connection,
+    *,
+    expired_only: bool,
+    now: float | None = None,
+    paths: Iterable[str] | None = None,
+) -> dict[str, int]:
+    """Requeue (or fail, when attempts are exhausted) ``running`` jobs nobody owns any more.
+
+    The one recovery policy shared by the metadata supervisor (``expired_only=True``: only rows
+    with no claim token or an expired/missing lease, live claims stay protected), dispatch and the
+    integrity checker (``expired_only=True``, optionally restricted to ``paths``), and startup
+    recovery (``expired_only=False``: after a restart no worker can own any claim). Each row is
+    transitioned with a write fenced by the claim token it was read with (and, when
+    ``expired_only``, by the expiry condition again), so a heartbeat renewal or a completion that
+    lands between the read and the write wins. Returns ``{"reset": n, "failed": n}``.
+    """
+    ts = metadata_now() if now is None else float(now)
+    expiry_sql = "(claim_token IS NULL OR lease_expires_at IS NULL OR lease_expires_at <= ?)"
+    clauses = ["state = 'running'"]
+    params: list[Any] = []
+    if expired_only:
+        clauses.append(expiry_sql)
+        params.append(ts)
+    path_list = None if paths is None else list(paths)
+    if path_list is not None:
+        if not path_list:
+            return {"reset": 0, "failed": 0}
+        clauses.append(f"path IN ({','.join('?' for _ in path_list)})")
+        params.extend(path_list)
+    rows = conn.execute(
+        f"SELECT path, attempts, claim_token FROM metadata_index_jobs WHERE {' AND '.join(clauses)}",
+        params,
+    ).fetchall()
+    reset = failed = 0
+    guard_sql = f" AND {expiry_sql}" if expired_only else ""
+    guard_params: list[Any] = [ts] if expired_only else []
+    for row in rows:
+        if int(row["attempts"] or 0) >= MAX_METADATA_JOB_ATTEMPTS:
+            result = conn.execute(
+                f"""
+                UPDATE metadata_index_jobs
+                SET state='failed', error=?, finished_at=?, updated_at=?, next_attempt_at=NULL, {_CLEAR_CLAIM_SQL}
+                WHERE path=? AND state='running' AND claim_token IS ?{guard_sql}
+                """,
+                ("exhausted recovery attempts", ts, ts, row["path"], row["claim_token"], *guard_params),
+            )
+            failed += result.rowcount
+        else:
+            result = conn.execute(
+                f"""
+                UPDATE metadata_index_jobs
+                SET state='queued', started_at=NULL, finished_at=NULL, updated_at=?, next_attempt_at=NULL,
+                    {_CLEAR_CLAIM_SQL}
+                WHERE path=? AND state='running' AND claim_token IS ?{guard_sql}
+                """,
+                (ts, row["path"], row["claim_token"], *guard_params),
+            )
+            reset += result.rowcount
+    return {"reset": reset, "failed": failed}
 
 
 def list_recoverable_metadata_jobs(
@@ -789,7 +973,7 @@ def reset_running_jobs_to_queued(
     Mirrors the ``DerivativeScheduler`` start/recovery pattern in
     ``derivative_scheduler/lifecycle.py`` and ``derivative_scheduler/recovery.py``.
     """
-    now = time.time()
+    now = metadata_now()
     for path, mtime, size, mtime_ns in job_paths:
         if mtime_ns is not None:
             conn.execute(
@@ -798,7 +982,9 @@ def reset_running_jobs_to_queued(
                 SET state='queued',
                     started_at=NULL,
                     finished_at=NULL,
-                    updated_at=?
+                    updated_at=?,
+                    next_attempt_at=NULL,
+                    claimed_by=NULL, claim_token=NULL, lease_expires_at=NULL
                 WHERE path=? AND mtime_ns = ? AND size=? AND state='running'
                 """,
                 (now, path, mtime_ns, size),
@@ -810,7 +996,9 @@ def reset_running_jobs_to_queued(
                 SET state='queued',
                     started_at=NULL,
                     finished_at=NULL,
-                    updated_at=?
+                    updated_at=?,
+                    next_attempt_at=NULL,
+                    claimed_by=NULL, claim_token=NULL, lease_expires_at=NULL
                 WHERE path=? AND mtime=? AND size=? AND state='running'
                 """,
                 (now, path, mtime, size),

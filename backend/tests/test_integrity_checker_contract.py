@@ -332,10 +332,13 @@ class TestCheckDerivativeReadyNoFile:
         existing.write_bytes(b"fake")
         missing = str(tmp_path / "missing.webp")
         with _DB_LOCK, _connect() as conn:
-            _asset_row(conn, str(tmp_path / "asset.png"))
-            asset_id = conn.execute("SELECT id FROM assets").fetchone()[0]
-            good_id = _derivative_row(conn, asset_id, cache_path=str(existing), status="ready", source_mtime_ns=1)
-            bad_id = _derivative_row(conn, asset_id, cache_path=missing, status="ready", source_mtime_ns=2)
+            # Each row describes the *current* identity of its own asset: an old-identity ready row is
+            # retired by the superseded-derivative repair (WK-06), which is not what this test covers.
+            _asset_row(conn, str(tmp_path / "asset.png"), mtime_ns=1)
+            _asset_row(conn, str(tmp_path / "asset_missing_cache.png"), mtime_ns=2)
+            good_asset_id, bad_asset_id = [row[0] for row in conn.execute("SELECT id FROM assets ORDER BY id")]
+            good_id = _derivative_row(conn, good_asset_id, cache_path=str(existing), status="ready", source_mtime_ns=1)
+            bad_id = _derivative_row(conn, bad_asset_id, cache_path=missing, status="ready", source_mtime_ns=2)
         count = integrity_checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 0
         with _DB_LOCK, _connect() as conn:
@@ -569,6 +572,9 @@ class TestRunAllChecks:
             "derivative_policy_deferred",
             "derivative_policy_deferred_requeued",
             "derivative_unsupported_terminalized",
+            # WK-04 / WK-06 repairs: expired metadata claims requeued, superseded ready derivatives retired.
+            "metadata_running_recovered",
+            "derivative_superseded_retired",
         }
         assert set(results.keys()) == expected_keys
         for val in results.values():

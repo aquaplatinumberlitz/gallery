@@ -27,6 +27,9 @@ class MetadataIndexJob:
     root_path: str
     mtime_ns: int | None = None
     library_id: int | None = None
+    attempts: int = 0
+    claim_token: str | None = None
+    claimed_by: str | None = None
 
     @property
     def key(self) -> tuple[str, float, int]:

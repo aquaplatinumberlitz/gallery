@@ -305,10 +305,22 @@ from .metadata_queue import (
     mark_metadata_jobs_stale as mark_metadata_jobs_stale,
 )
 from .metadata_queue import (
+    owns_metadata_job_claim as owns_metadata_job_claim,
+)
+from .metadata_queue import (
+    recover_running_metadata_jobs as recover_running_metadata_jobs,
+)
+from .metadata_queue import (
+    renew_metadata_job_lease as renew_metadata_job_lease,
+)
+from .metadata_queue import (
     repair_inconsistent_asset_states as repair_inconsistent_asset_states,
 )
 from .metadata_queue import (
     repair_legacy_asset_mtime_ns as repair_legacy_asset_mtime_ns,
+)
+from .metadata_queue import (
+    requeue_metadata_job as requeue_metadata_job,
 )
 from .metadata_queue import (
     reset_running_jobs_to_queued as reset_running_jobs_to_queued,

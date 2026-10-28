@@ -53,6 +53,10 @@ _TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
         "queued_at",
         "finished_at",
         "updated_at",
+        "claimed_by",
+        "claim_token",
+        "lease_expires_at",
+        "next_attempt_at",
     ),
     "asset_derivatives": (
         "id",
@@ -119,6 +123,7 @@ _INDEXES: tuple[str, ...] = (
     "idx_derivative_jobs_derivative_id",
     "idx_metadata_index_jobs_claim",
     "idx_metadata_index_jobs_library_state",
+    "idx_metadata_index_jobs_state_lease",
     "idx_image_metadata_mtime_size",
     "idx_image_metadata_mtime_ns_name",
     "idx_image_metadata_inspector_date",

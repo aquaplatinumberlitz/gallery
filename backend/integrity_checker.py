@@ -193,12 +193,25 @@ class IntegrityChecker:
         derivative_abandoned_failed, derivative_done_not_ready,
         derivative_done_repaired, derivative_done_failed.
         """
+        from .derivative_scheduler import scheduler
+        from .indexer import recover_running_metadata_jobs
+
         total = {}
+        # Pre-existing ``ready`` derivatives of superseded source identities are retired first, in
+        # bounded transactions of their own, so the checks below only see current rows and the
+        # checker never resurrects or fails a retired row.
+        total["derivative_superseded_retired"] = scheduler.retire_superseded_derivatives()
+        if total["derivative_superseded_retired"]:
+            logger.info("Integrity: retired %s superseded ready derivative(s)", total["derivative_superseded_retired"])
         # All checks that mutate metadata/catalog rows finish before desired
         # derivative reconciliation starts.  The reconciler opens its own
         # BEGIN IMMEDIATE transaction; calling it while this connection owns
         # pending writes self-deadlocks SQLite.
         with _DB_LOCK, _connect() as conn:
+            # Metadata jobs stay ``running`` only while a live, unexpired claim owns them. Expired or
+            # ownerless claims (for example after a lost failure write) are requeued, attempt-aware.
+            recovered = recover_running_metadata_jobs(conn, expired_only=True)
+            total["metadata_running_recovered"] = recovered["reset"] + recovered["failed"]
             total["file_index_ownership_mismatch"] = self._check_file_index_ownership_mismatch(conn)
             total["asset_done_but_no_metadata"] = self._check_asset_done_no_metadata(conn)
             total["job_done_asset_not_done"] = self._check_job_done_asset_not_done(conn)
@@ -270,8 +283,6 @@ class IntegrityChecker:
             total["job_active_no_file"] = self._check_job_active_no_file(
                 conn, rows=active_file_rows, file_exists=active_file_exists
             )
-
-        from .derivative_scheduler import scheduler
 
         expected_summary = (
             scheduler.reconcile_desired_derivatives(asset_ids=expected_ids, reason="integrity")

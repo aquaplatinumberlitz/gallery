@@ -12,6 +12,7 @@ from PIL import UnidentifiedImageError
 
 from ..config import DERIVATIVE_LEASE_HEARTBEAT_SECONDS
 from ..errors import APIError
+from ..lease_heartbeat import LeaseHeartbeat
 from ..metadata_store import _connect
 from ._common import (
     _MAX_ATTEMPTS,
@@ -246,43 +247,26 @@ class JobExecutionMixin:
             logger.warning("Derivative job %s failed permanently (%s): %s", job["job_id"], result_code, exc)
 
 
-class _LeaseHeartbeat:
-    """Lightweight lease renewal owned by one claimed derivative job.
+class _LeaseHeartbeat(LeaseHeartbeat):
+    """Lease renewal owned by one claimed derivative job.
 
-    The heartbeat runs on its own daemon thread and renews ``lease_expires_at``
-    at most every ``interval_seconds`` (bounded to one third of the lease). It
-    only updates a row that is still ``running`` with the same claim token, so a
-    long render cannot be duplicated by expired-claim recovery while the heartbeat
-    is healthy. The heartbeat stops before the worker persists its terminal
-    outcome; a failed renewal is logged, not used to overwrite render state.
+    The generic ``LeaseHeartbeat`` (``backend/lease_heartbeat.py``) runs on its own daemon thread
+    and renews ``lease_expires_at`` at most every ``interval_seconds``. ``_renew_lease`` only
+    updates a row that is still ``running`` with the same claim token, so a long render cannot be
+    duplicated by expired-claim recovery while the heartbeat is healthy. The heartbeat stops before
+    the worker persists its terminal outcome; a failed renewal is logged, not used to overwrite
+    render state.
     """
 
     def __init__(self, scheduler: DerivativeScheduler, job_id: int, claim_token: str, interval_seconds: float):
         self._scheduler = scheduler
         self._job_id = job_id
         self._claim_token = claim_token
-        self._interval = max(0.05, float(interval_seconds))
-        self._stop_event = threading.Event()
-        self._thread = threading.Thread(
-            target=self._loop,
+        super().__init__(
+            lambda: self._scheduler._renew_lease(self._job_id, self._claim_token),
+            interval_seconds,
             name=f"derivative-lease-{job_id}",
-            daemon=True,
         )
-
-    def start(self) -> None:
-        self._thread.start()
-
-    def stop(self) -> None:
-        self._stop_event.set()
-        if self._thread.is_alive():
-            # Renewal writes are bounded DB operations, but under contention a
-            # in-flight renewal can outlast a short join. Wait generously so the
-            # caller can safely persist terminal state without a heartbeat race.
-            self._thread.join(timeout=max(2.0, self._interval + 2.0))
-
-    def _loop(self) -> None:
-        while not self._stop_event.wait(self._interval):
-            self._scheduler._renew_lease(self._job_id, self._claim_token)
 
 
 class _DerivativeSkip(Exception):

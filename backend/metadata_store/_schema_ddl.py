@@ -118,11 +118,17 @@ FRESH_DATABASE_DDL = """
               queued_at REAL,
               started_at REAL,
               finished_at REAL,
-              updated_at REAL NOT NULL
+              updated_at REAL NOT NULL,
+              claimed_by TEXT,
+              claim_token TEXT,
+              lease_expires_at REAL,
+              next_attempt_at REAL
             );
 
             CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_state
               ON metadata_index_jobs(state);
+            CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_state_lease
+              ON metadata_index_jobs(state, lease_expires_at);
             CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_folder_path
               ON metadata_index_jobs(folder_path);
             CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_root_path

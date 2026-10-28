@@ -16,12 +16,14 @@ from .reconcile import ReconcileMixin
 from .recovery import RecoveryMixin
 from .scheduling import SchedulingMixin
 from .status import StatusMixin
+from .supersede import SupersedeMixin
 
 
 class DerivativeScheduler(
     LifecycleMixin,
     CapacityMixin,
     SchedulingMixin,
+    SupersedeMixin,
     LookupMixin,
     ReconcileMixin,
     StatusMixin,
@@ -48,6 +50,7 @@ class DerivativeScheduler(
         self._file_lock = threading.RLock()
         self._generating_paths: set[str] = set()
         self._served_paths: set[str] = set()
+        self._deferred_unlinks: set[str] = set()
         self._threads: list[threading.Thread] = []
         self._supervisor_thread: threading.Thread | None = None
         self._reconciler_thread: threading.Thread | None = None
