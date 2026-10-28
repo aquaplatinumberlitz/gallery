@@ -109,6 +109,7 @@ if "GALLERY_ROOT" in os.environ and "PATH_SAFETY_ROOT" not in os.environ:
 PATH_SAFETY_ROOT = Path(_raw).resolve()
 
 METADATA_INDEXER_ENABLED = _env_flag("GALLERY_METADATA_INDEXER_ENABLED", default=True)
+METADATA_CLAIM_BATCH_SIZE = max(1, min(int(os.getenv("GALLERY_METADATA_CLAIM_BATCH_SIZE", "1")), 16))
 METADATA_INDEXER_BATCH_SIZE = max(1, min(int(os.getenv("GALLERY_METADATA_INDEXER_BATCH_SIZE", "8")), 64))
 METADATA_JOB_LEASE_SECONDS = max(5.0, float(os.getenv("GALLERY_METADATA_JOB_LEASE_SECONDS", "300")))
 METADATA_SUPERVISOR_INTERVAL_SECONDS = max(1.0, float(os.getenv("GALLERY_METADATA_SUPERVISOR_INTERVAL_SECONDS", "30")))
@@ -188,6 +189,16 @@ GALLERY_TRUSTED_PROXY_SECRET = os.getenv("GALLERY_TRUSTED_PROXY_SECRET", "")
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
 OPEN_FOLDER_ENABLED = os.getenv("GALLERY_OPEN_FOLDER", "false").lower() == "true"
+
+# Single database writer (Phase 2 of the worker lifecycle hardening plan). The flag stays until the
+# global write lock is retired so each migrated write path can fall back to its direct transaction.
+DB_WRITER_ENABLED = _env_flag("GALLERY_DB_WRITER_ENABLED", default=True)
+DB_WRITER_BATCH_MAX = max(1, int(os.getenv("GALLERY_DB_WRITER_BATCH_MAX", "50")))
+DB_WRITER_BATCH_MS = max(1.0, float(os.getenv("GALLERY_DB_WRITER_BATCH_MS", "100")))
+DB_WRITER_QUEUE_MAX = max(1, int(os.getenv("GALLERY_DB_WRITER_QUEUE_MAX", "1000")))
+DB_WRITER_SUBMIT_TIMEOUT_SECONDS = max(0.0, float(os.getenv("GALLERY_DB_WRITER_SUBMIT_TIMEOUT_SECONDS", "30")))
+DB_WRITER_RESULT_TIMEOUT_SECONDS = max(1.0, float(os.getenv("GALLERY_DB_WRITER_RESULT_TIMEOUT_SECONDS", "120")))
+DB_WRITER_SHUTDOWN_TIMEOUT_SECONDS = max(0.0, float(os.getenv("GALLERY_DB_WRITER_SHUTDOWN_TIMEOUT_SECONDS", "10")))
 
 _metadata_db_env = os.getenv("GALLERY_METADATA_DB")
 if _metadata_db_env:
