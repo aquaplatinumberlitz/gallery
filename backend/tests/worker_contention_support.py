@@ -15,6 +15,7 @@ import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -242,3 +243,143 @@ def wait_until(predicate: Callable[[], Any], *, timeout: float = 10.0, interval:
             return True
         pause.wait(interval)
     return bool(predicate())
+
+
+# ---------------------------------------------------------------------------
+# Database writer observation (Phase 2 modules)
+# ---------------------------------------------------------------------------
+
+WRITER_THREAD_NAME = "gallery-db-writer"
+_WRITE_VERBS = ("INSERT", "UPDATE", "DELETE", "REPLACE")
+
+
+def install_submit_spy(monkeypatch: pytest.MonkeyPatch) -> list[SimpleNamespace]:
+    """Record every external submission to the shared writer: caller thread, lane, `_DB_LOCK` ownership."""
+    import backend.metadata_store.db_writer as db_writer
+    from backend.metadata_store import _DB_LOCK
+
+    writer = db_writer.database_writer
+    writer.start()
+    log: list[SimpleNamespace] = []
+    real_submit = writer.submit
+
+    def spy(op: Callable[[sqlite3.Connection], Any], *, lane: str = "normal", **kwargs: Any) -> Any:
+        if not writer.in_writer_thread():
+            log.append(
+                SimpleNamespace(
+                    thread=threading.current_thread().name,
+                    lane=lane,
+                    holds_db_lock=_DB_LOCK.is_owned(),
+                    op=getattr(op, "__qualname__", repr(op)),
+                )
+            )
+        return real_submit(op, lane=lane, **kwargs)
+
+    monkeypatch.setattr(writer, "submit", spy)
+    return log
+
+
+class RecordingConnection:
+    """Delegate to a real writer connection and record the statements of every writer op.
+
+    Statements between ``SAVEPOINT gw_op`` and its release or rollback form one op; ``executemany``
+    contributes one entry per row so "rows written by one op" can be bounded. ``commits`` counts
+    ``COMMIT`` statements. ``fail_commit`` (a callable returning an exception or ``None``) injects
+    commit failures.
+    """
+
+    def __init__(self, real: sqlite3.Connection, owner: RecordingWriter) -> None:
+        self._real = real
+        self._owner = owner
+
+    def execute(self, sql: str, *params: Any) -> sqlite3.Cursor:
+        text = sql.strip()
+        upper = text.upper()
+        if upper == "COMMIT":
+            error = self._owner.commit_error()
+            if error is not None:
+                raise error
+            self._owner.commits += 1
+        self._owner.record(text)
+        return self._real.execute(sql, *params)
+
+    def executemany(self, sql: str, seq: Any) -> sqlite3.Cursor:
+        rows = list(seq)
+        for _ in rows:
+            self._owner.record(sql.strip())
+        return self._real.executemany(sql, rows)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._real, name)
+
+
+class RecordingWriter:
+    """A private ``DatabaseWriter`` whose connection records statements per op (see ``RecordingConnection``)."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, *, batch_max: int | None = None) -> None:
+        import backend.metadata_store.db_writer as db_writer
+        from backend.metadata_store._db import _connect
+
+        self.ops: list[list[str]] = []
+        self.commits = 0
+        self.commit_failures: list[BaseException] = []
+        self._current: list[str] | None = None
+
+        def connect() -> RecordingConnection:
+            conn = _connect()
+            conn.isolation_level = None
+            return RecordingConnection(conn, self)
+
+        kwargs: dict[str, Any] = {} if batch_max is None else {"batch_max": batch_max}
+        self.writer = db_writer.DatabaseWriter(connect=connect, retry_delays=(), sleep=lambda _s: None, **kwargs)
+        self.writer.start()
+        monkeypatch.setattr(db_writer, "database_writer", self.writer)
+
+    def commit_error(self) -> BaseException | None:
+        return self.commit_failures.pop(0) if self.commit_failures else None
+
+    def record(self, text: str) -> None:
+        upper = text.upper()
+        if upper == "SAVEPOINT GW_OP":
+            self._current = []
+            self.ops.append(self._current)
+        elif upper in {"RELEASE GW_OP", "ROLLBACK TO GW_OP"}:
+            self._current = None
+        elif self._current is not None:
+            self._current.append(text)
+
+    def writes_per_op(self, *needles: str) -> list[int]:
+        """Return, per op, the number of write statements whose text contains every needle."""
+        return [
+            sum(
+                1
+                for statement in statements
+                if statement.upper().startswith(_WRITE_VERBS) and all(needle in statement for needle in needles)
+            )
+            for statements in self.ops
+        ]
+
+    def stop(self) -> None:
+        self.writer.stop(timeout=5)
+
+
+@contextmanager
+def capture_write_threads(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[tuple[str, str]]]:
+    """Record ``(thread name, statement)`` for every write statement run on a connection opened meanwhile."""
+    writes: list[tuple[str, str]] = []
+    real_connect = sqlite3.connect
+
+    def traced_connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+        conn = real_connect(*args, **kwargs)
+
+        def trace(statement: str) -> None:
+            text = statement.strip()
+            if text.upper().startswith(_WRITE_VERBS):
+                writes.append((threading.current_thread().name, text))
+
+        conn.set_trace_callback(trace)
+        return conn
+
+    with monkeypatch.context() as patch:
+        patch.setattr(sqlite3, "connect", traced_connect)
+        yield writes
