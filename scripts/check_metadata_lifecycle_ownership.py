@@ -28,6 +28,10 @@ LIFECYCLE_SYMBOLS = (
     "list_recoverable_metadata_jobs",
     "reset_running_jobs_to_queued",
     "repair_inconsistent_asset_states",
+    "requeue_metadata_job",
+    "recover_running_metadata_jobs",
+    "renew_metadata_job_lease",
+    "owns_metadata_job_claim",
 )
 
 # Old public names that must NOT be imported (removed/alised in Phase 5)

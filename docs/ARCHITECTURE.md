@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-10-27
+Last reviewed: 2026-10-28
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -32,16 +32,26 @@ metadata_worker._worker_loop
   → claim_next_metadata_job()
     → BEGIN IMMEDIATE
     → SELECT metadata_index_jobs WHERE state='queued'
+        AND (next_attempt_at IS NULL OR next_attempt_at <= now)
       ORDER BY priority ASC, queued_at ASC LIMIT 1
-    → UPDATE state='running', attempts+1, started_at=now
+    → UPDATE state='running', attempts+1, started_at=now,
+        claimed_by=<worker>, claim_token=<uuid>, lease_expires_at=now+lease
     → COMMIT
+  → LeaseHeartbeat renews lease_expires_at while the job runs
   → extract_metadata(path)  [outside any DB transaction]
   → upsert_metadata_batch([metadata])  [short transaction]
-  → complete_metadata_job(conn, job)
+  → complete_metadata_job(conn, job)  [fenced by claim_token]
     → verify image_metadata current for job identity
     → verify matching asset row exists
-    → UPDATE metadata_index_jobs state='done'
+    → UPDATE metadata_index_jobs state='done', claim cleared
     → UPDATE assets metadata_state='done'
+  → on failure: transient → requeue_metadata_job (backoff, next_attempt_at)
+                otherwise → fail_metadata_job
+
+metadata_worker supervisor (every GALLERY_METADATA_SUPERVISOR_INTERVAL_SECONDS)
+  → restore dead worker threads
+  → recover_abandoned_metadata_jobs(expired_only=True)
+    → requeue (or fail, attempts exhausted) running jobs with an expired or missing lease
 ```
 
 ### Invariants
@@ -66,6 +76,40 @@ metadata_worker._worker_loop
    and read from one descriptor with a limit-plus-one bounded read. `library_id`
    is a secondary diagnostic field.
 
+5. **A `running` job has a live claim or it is recoverable.** `claim_next_metadata_job`
+   records `claimed_by`, a unique `claim_token`, and `lease_expires_at`
+   (`GALLERY_METADATA_JOB_LEASE_SECONDS`, default 300). A heartbeat (the shared
+   `LeaseHeartbeat` in `backend/lease_heartbeat.py`, also used by
+   `DerivativeScheduler`) renews the lease at one third of its length while the
+   job extracts; renewal uses its own connection and never takes `_DB_LOCK`.
+   Completion, failure, stale, requeue, and renewal writes only change a row that
+   is still `running` under the worker's claim token, so a worker whose claim was
+   recovered and reissued writes zero rows (and neither stamps the asset nor
+   rewrites the newer claim). A `running` row with no token, no lease, or an
+   expired lease is an orphan, for example when the failure write itself hit
+   `database is locked`.
+
+6. **Transient errors retry, parse errors do not.** `sqlite3.OperationalError`
+   locked/busy errors and `OSError` with `EAGAIN`/`EBUSY`/`EINTR` requeue the job
+   with exponential backoff (`GALLERY_METADATA_RETRY_BASE_SECONDS` x 2^(attempts-1),
+   capped at 60 s) stored in `next_attempt_at`; claims ignore rows that are not
+   yet due, and a rescan that coalesces into the queued retry does not reset it.
+   After `MAX_METADATA_JOB_ATTEMPTS` the job fails. Parse and format errors
+   (unreadable image, oversized sidecar, vanished file) fail immediately. The
+   failure or requeue write is itself retried a bounded number of times (0.1, 0.5,
+   1 s) so one locked write cannot orphan the job; if it still fails, the lease
+   recovers the job.
+
+7. **A supervisor recovers orphans without a restart.** `MetadataLifecycleWorker`
+   owns a `gallery-metadata-supervisor` thread (30 s by default,
+   `GALLERY_METADATA_SUPERVISOR_INTERVAL_SECONDS`) that restores dead worker
+   threads (never starting a worker that was not started) and calls
+   `recover_abandoned_metadata_jobs(expired_only=True)`: expired or ownerless
+   `running` rows go back to `queued`, or to `failed` once their attempts are
+   exhausted, while live unexpired claims are never touched. The supervisor is
+   stopped by `MetadataLifecycleWorker.stop()` inside its existing bounded join, so
+   the app lifespan needs no extra registration.
+
 ### Legacy fallback
 
 For rows created before `mtime_ns` was populated, the system falls back to
@@ -78,7 +122,9 @@ tolerance.
 fails jobs whose attempts have been exhausted, and repairs `done` jobs whose
 asset state never materialised. It also demotes `done` jobs whose sidecar
 identity changed. Queued jobs are left claimable — they survive restart because
-SQLite is the queue.
+SQLite is the queue. The `running` reset is the same function the supervisor uses
+(`recover_running_metadata_jobs`), called with `expired_only=False` because after a
+restart no worker can own a claim; claim columns are cleared by every recovery.
 
 ### Diagnostics
 
@@ -120,6 +166,13 @@ ownerless/mismatched media rows in `file_index` that search cannot safely
 authorize. Each daemon or manual run persists a summary into
 `integrity_check_runs`, which backs the Maintenance file-health API.
 
+The metadata checks do not preserve `running` rows forever: a pass first requeues
+(attempt-aware) every `running` metadata job whose claim is expired or ownerless,
+and metadata dispatch does the same for the path it is about to coalesce. A live,
+unexpired claim stays protected and is coalesced as before. Changing a file while
+its job runs requeues the row and clears the claim, which fences the old worker.
+The same pass retires superseded `ready` derivatives (see Derivative Lifecycle).
+
 Destructive imported-data maintenance holds a shared producer gate across the
 operation. Metadata dispatch, metadata workers, derivative scheduling and
 reconciliation, integrity repair, and catalog queue producers cannot create new
@@ -144,6 +197,7 @@ reconcile/repair summary dataclasses, so existing import paths are unchanged. `c
 | `scheduling.py` | Identity coalescing, `schedule_derivative`, consistency repair                         |
 | `lookup.py`     | Ready-file lookup/touch, serving protection, outcome and asset lookups                 |
 | `reconcile.py`  | Desired-state reconciliation for a library, scope, or asset set; `warm_library`        |
+| `supersede.py`  | Retiring `ready` rows of superseded source identities; unlink-after-commit with serving protection |
 | `status.py`     | Per-library coverage and quota read model (`library_status`)                           |
 | `maintenance.py` | Clearing derivative rows and cache files                                               |
 | `recovery.py`   | Worker/supervisor loops, abandoned-claim recovery, queued-job reconciliation           |
@@ -191,6 +245,29 @@ The batch owns the write lock, so the result is identical to re-aggregating afte
 every coalesce: quota, eviction, and `deferred_capacity` outcomes are unchanged.
 Callers outside a batch (`schedule_derivative`, the per-identity capacity
 phase, post-render enforcement) keep evaluating the aggregates directly.
+
+Superseded derivatives leave the ready set. A `ready` row whose source identity
+(`source_mtime_ns`/`source_size`) no longer equals its active asset's `mtime_ns`/
+`size` can never be served again, yet it used to stay `ready`: it counted toward
+the quota and its file stayed on disk. `SupersedeMixin`
+(`derivative_scheduler/supersede.py`) moves such rows to `skipped`, clears
+`cache_path`/`byte_size`, and marks their jobs (queued, running, and `done`
+history) `skipped` with `result_code='source_superseded'` (a row without such a
+latest job gets one). A source that later returns to the old identity is
+recognized as retriable through that code and regenerated instead of staying
+terminally skipped. Retirement runs (1) at the start of every reconcile batch
+transaction, before the batch's capacity estimate, and reports each retired row to
+that batch's `CapacityLedger` (`ready_row_left`) so quota decisions later in the
+batch see the bytes gone and equal an oracle that retires first; (2) after every
+successful catalog scan or rebuild commit, independent of the library warm policy,
+through `retire_superseded_derivatives`, which works in bounded transactions of
+500 rows; and (3) at the start of every integrity pass for pre-existing rows. Only
+assets that are active and have a known identity are considered. Cache files are
+unlinked only after the retiring transaction commits (a rolled-back batch keeps
+rows and files). A file under a serving lease (`_served_paths`) is not unlinked:
+its path is remembered and `release_serving` removes it once the lease is
+released; a file that is being generated, or that any row references again, is
+never removed.
 
 Every source-dependent operation, including cache-path calculation, is inside
 the job exception boundary. The worker loop has an additional catch-all, so one

@@ -611,6 +611,11 @@ def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "metadata_index_jobs", "root_path", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "metadata_index_jobs", "library_id", "INTEGER")
     _ensure_column(conn, "metadata_index_jobs", "priority", "INTEGER NOT NULL DEFAULT 3")
+    # Claim fencing, lease, and retry-backoff columns for the DB-claim metadata worker.
+    _ensure_column(conn, "metadata_index_jobs", "claimed_by", "TEXT")
+    _ensure_column(conn, "metadata_index_jobs", "claim_token", "TEXT")
+    _ensure_column(conn, "metadata_index_jobs", "lease_expires_at", "REAL")
+    _ensure_column(conn, "metadata_index_jobs", "next_attempt_at", "REAL")
     _ensure_catalog_schema(conn)
     _ensure_column(conn, "libraries", "config_revision", "INTEGER NOT NULL DEFAULT 1")
     _ensure_column(conn, "library_jobs", "config_revision", "INTEGER")
@@ -628,6 +633,10 @@ def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_library_state  ON metadata_index_jobs(library_id, state)"
+    )
+    # Supervisor recovery looks up expired or ownerless ``running`` rows by (state, lease).
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_metadata_index_jobs_state_lease ON metadata_index_jobs(state, lease_expires_at)"
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_metadata_state  ON assets(metadata_state)")
     conn.execute(

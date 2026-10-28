@@ -1,15 +1,17 @@
 """Shared seeding and capture helpers for the worker-contention regression modules.
 
 Not a test module: pytest does not collect it (name does not start with ``test_``).
-Used by ``test_worker_contention_wk01.py`` and ``test_worker_contention_wk03.py``.
-Everything here is deterministic: rows are seeded with explicit values and SQL
-is observed through ``sqlite3.Connection.set_trace_callback``, never through sleeps.
+Used by the ``test_worker_contention_wk0*.py`` modules. Everything here is
+deterministic: rows are seeded with explicit values, SQL is observed through
+``sqlite3.Connection.set_trace_callback``, and time is a controllable fake clock,
+never a sleep.
 """
 
 from __future__ import annotations
 
 import sqlite3
 import threading
+import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
@@ -165,3 +167,63 @@ def run_while_db_lock_held(fn: Callable[[], Any], *, timeout: float = 2.0) -> tu
     holder_thread.join(10)
     runner_thread.join(30)
     return completed_in_time, outcome.get("result"), outcome.get("error")
+
+
+class FakeClock:
+    """Controllable replacement for the metadata queue clock (seconds since the epoch)."""
+
+    def __init__(self, start: float | None = None) -> None:
+        """Start at ``start`` (default: the real current time, so rows stay plausible)."""
+        self.now = time.time() if start is None else float(start)
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> float:
+        """Move the clock forward and return the new time."""
+        self.now += seconds
+        return self.now
+
+
+def install_metadata_clock(monkeypatch: pytest.MonkeyPatch, start: float | None = None) -> FakeClock:
+    """Replace ``metadata_queue.metadata_now`` so leases, backoff, and recovery are time-controlled."""
+    import backend.metadata_store.metadata_queue as metadata_queue
+
+    clock = FakeClock(start)
+    monkeypatch.setattr(metadata_queue, "metadata_now", clock)
+    return clock
+
+
+def seed_queued_metadata_jobs(root: Path, count: int, *, library_name: str = "Contention") -> tuple[int, list[Path]]:
+    """Create a library over ``root``, ``count`` indexed PNGs, and one queued metadata job per image."""
+    from backend.metadata_store import _persist_metadata_index_jobs, create_library, index_file
+    from tests.conftest import create_test_png
+
+    root.mkdir(parents=True, exist_ok=True)
+    library_id = int(create_library([root], name=library_name)["id"])
+    images: list[Path] = []
+    for index in range(count):
+        image = root / f"job_{index:03d}.png"
+        create_test_png(image, size=(16, 16))
+        stat = image.stat()
+        assert index_file(image, image.name, image.parent, "image", stat.st_mtime, stat.st_size, 16, 16)
+        images.append(image.resolve())
+    result = _persist_metadata_index_jobs(images, root)
+    assert len(result.enqueued) == count
+    return library_id, images
+
+
+def metadata_job_row(db_path: Path, path: Path | str) -> dict[str, Any]:
+    """Return the ``metadata_index_jobs`` row for ``path`` as a plain dict."""
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM metadata_index_jobs WHERE path = ?", (str(path),)).fetchone()
+    assert row is not None, f"no metadata_index_jobs row for {path}"
+    return dict(row)
+
+
+def set_metadata_job(db_path: Path, path: Path | str, **columns: Any) -> None:
+    """Overwrite columns of one ``metadata_index_jobs`` row (test seeding only)."""
+    assignments = ", ".join(f"{name} = ?" for name in columns)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(f"UPDATE metadata_index_jobs SET {assignments} WHERE path = ?", (*columns.values(), str(path)))

@@ -14,6 +14,7 @@ from ..metadata_store import _connect
 from ._common import _ensure_database
 from .capacity import CapacityLedger
 from .models import DerivativeRepairSummary
+from .supersede import SUPERSEDED_RESULT_CODE
 
 
 class SchedulingMixin:
@@ -226,7 +227,10 @@ class SchedulingMixin:
         if (
             derivative["status"] in {"failed", "skipped"}
             and not retry_failed
-            and not (derivative["status"] == "skipped" and result_code in {"source_missing", "asset_inactive"})
+            and not (
+                derivative["status"] == "skipped"
+                and result_code in {"source_missing", "asset_inactive", SUPERSEDED_RESULT_CODE}
+            )
         ):
             return derivative_id, str(derivative["status"])
         job = conn.execute(

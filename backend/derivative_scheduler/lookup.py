@@ -178,6 +178,10 @@ class LookupMixin:
             self._served_paths.add(cache_path)
 
     def release_serving(self, cache_path: str) -> None:
-        """Release a derivative file after a response completes."""
+        """Release a derivative file after a response completes.
+
+        A superseded file whose unlink was deferred while it was being served is removed now.
+        """
         with self._file_lock:
             self._served_paths.discard(cache_path)
+        self._finish_deferred_unlink(cache_path)

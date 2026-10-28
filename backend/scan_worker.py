@@ -325,10 +325,11 @@ def _reconcile_derivatives_after_catalog_commit(job: dict[str, Any], library_id:
 
     try:
         scope_path = job.get("scope_path")
-        scheduler.reconcile_desired_derivatives(
-            **({"scope_path": scope_path} if scope_path else {"library_id": library_id}),
-            reason=f"catalog_{job['type']}",
-        )
+        scope = {"scope_path": scope_path} if scope_path else {"library_id": library_id}
+        # Source identities may just have changed: old-identity ready derivatives leave the ready
+        # set regardless of the library's warm policy (which only governs creating new work).
+        scheduler.retire_superseded_derivatives(**scope)
+        scheduler.reconcile_desired_derivatives(**scope, reason=f"catalog_{job['type']}")
     except Exception:  # noqa: BLE001
         LOGGER.exception("Derivative reconciliation failed after catalog job %s", job["id"])
 
