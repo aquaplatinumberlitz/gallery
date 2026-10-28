@@ -133,9 +133,11 @@ fallbacks for `GALLERY_DB_WRITER_ENABLED=false`:
 | `release_metadata_job_claims` (a stopping worker's unstarted batch claims)       | requeue without consuming an attempt                   | `priority` |
 | `recover_abandoned_metadata_jobs` (supervisor)                                   | `recover_running_metadata_jobs(expired_only=True)`     | `normal`   |
 
-Not migrated (still direct `_DB_LOCK` transactions, scheduled for later Phase 2
-tasks and Phase 3): `dispatch_metadata_index_paths` job creation, startup recovery,
-the integrity checker, and the catalog and derivative write paths.
+Still direct `_DB_LOCK` transactions (Phase 3): startup recovery, the integrity
+checker's repair passes, library management, search-index and fingerprint stores,
+and destructive maintenance. Derivative and catalog writes (including the metadata
+job creation a scan performs through `dispatch_metadata_index_paths`) are writer ops
+too; see the Database Writer section.
 
 `GALLERY_METADATA_CLAIM_BATCH_SIZE` (default 1) lets one claim op take several jobs
 in single-claim order. The extra jobs wait in the claiming worker's buffer; the
@@ -209,7 +211,8 @@ The metadata checks do not preserve `running` rows forever: a pass first requeue
 and metadata dispatch does the same for the path it is about to coalesce. A live,
 unexpired claim stays protected and is coalesced as before. Changing a file while
 its job runs requeues the row and clears the claim, which fences the old worker.
-The same pass retires superseded `ready` derivatives (see Derivative Lifecycle).
+The same pass retires superseded `ready` derivatives (see Derivative Lifecycle) and
+recomputes the runtime counters, repairing any drift (see Database Writer).
 
 Destructive imported-data maintenance holds a shared producer gate across the
 operation. Metadata dispatch, metadata workers, derivative scheduling and
@@ -293,6 +296,88 @@ owner may still write.
 Both `_DB_LOCK` holders and the writer serialize on SQLite's own write lock while
 `_DB_LOCK` is still in use (Phase 3 retires it); `busy_timeout` plus the batch retry
 cover that contention.
+
+### Derivative writes through the writer
+
+Every write of `backend/derivative_scheduler/` is a writer op (the package never took
+`_DB_LOCK`; each write used to be its own `BEGIN IMMEDIATE`). The bodies are functions
+of a connection, so the flag-off fallback runs the same code in a direct transaction.
+
+| Call path                                                                 | Lane       | Notes |
+| ------------------------------------------------------------------------- | ---------- | ----- |
+| `_claim_job` (one op per claim)                                           | `priority` | the idle queued-job reconciliation reads first and only writes when it finds work |
+| `_renew_lease` (the `_LeaseHeartbeat`)                                    | `priority` | never depends on `_DB_LOCK`, also with the flag off |
+| completion (`_run_job`) and failure/retry/skip (`_handle_failure`)        | `priority` | fenced by claim token: a stale claim changes 0 rows inside the op |
+| `schedule_derivative` with job priority 0-1 (interactive HTTP request)    | `priority` | awaited: the request needs the derivative id |
+| `schedule_derivative` with job priority 2-3, `repair_derivative_consistency` | `normal` | |
+| `reconcile_desired_derivatives` batches, capacity-deferred coalesce       | `normal`   | one op per batch of at most 50 assets (`RECONCILE_OP_ASSETS`), each with its own `CapacityLedger`; superseded rows retired in the same op, their files unlinked only after the Future resolved |
+| `retire_superseded_derivatives` (500 rows per op)                         | `normal`   | unlink after the op resolved; serving protection unchanged |
+| `_reserve_capacity` / quota enforcement                                   | caller's lane | two ops (select + evict, finalize) with the unlink between them |
+| `_recover_running_jobs`, `_reconcile_queued_jobs` (supervisor, startup)   | `normal`   | candidates and file stats are read outside the op; the fenced updates are one op |
+| `thumbnails._render_derivative_impl` -> `upsert_image_dimensions`         | `priority` | awaited; was a hidden `_DB_LOCK` write on every render |
+| `last_accessed_at` touch on a warm ready-file lookup                      | `normal`, fire-and-forget | see below |
+
+**HTTP request path.** Thumbnail, preview and image requests keep their reads on plain
+connections and never wait for a batch to commit: the only write of a warm hit, the
+`last_accessed_at` touch (at most once per 60 s per file), is queued with
+`db_writer.post_write` (normal lane, no `.result()`, errors logged, dropped while
+maintenance holds the gate or the lane is full, applied inline with the flag off). It
+only orders LRU eviction. The queued Future is remembered per cache path and
+`release_serving` (a background task after the response completed) waits up to 2 s for
+it, so the touch is durable before the serving lease is released. A cold request's
+interactive `schedule_derivative` is the one awaited priority op.
+
+### Catalog writes through the writer
+
+The catalog scan and rebuild pipeline (`backend/scan_worker.py` and the store modules
+it calls) writes only through writer ops. Each store function is split into a body
+`op(conn)` without transaction control and a `run_write(op, lane=, fallback=)` call; the
+fallback (`_db.run_direct_immediate`, or the previous inline transaction) is the only
+place `_DB_LOCK` is taken, so no migrated catalog path ever holds `_DB_LOCK` while
+waiting for the writer (`get_active_writer()` would silently route such a caller to the
+direct path).
+
+| Call path                                                                    | Lane       | Notes |
+| ---------------------------------------------------------------------------- | ---------- | ----- |
+| `claim_next_catalog_job`                                                      | `priority` | one op |
+| `update_job_state` (progress, terminal state, library state)                  | `priority` | claim-fenced |
+| `renew_catalog_job_lease` (`_CatalogLeaseHeartbeat`)                           | `priority` | no `_DB_LOCK` with the flag off either (WK-02 root cause) |
+| `fail_abandoned_catalog_job_claim`, `update_parent_aggregate_job`              | `priority` | |
+| `create_or_coalesce_catalog_job` (queue scan/rebuild)                          | `priority` | cancellation events are published after the op committed |
+| `_bulk_index_records` (scan upserts: `file_index`, FTS, `assets`)              | `normal`   | claim assertion + upserts + claim refresh per op, at most 250 rows (`db_writer.SCAN_OP_ROWS`) |
+| `reconcile_library_assets`                                                    | `normal`   | |
+| `_persist_metadata_index_job_batch` (metadata jobs of a scan)                  | `normal`   | at most 250 paths per op |
+| `enumerate_to_rebuild_staging` flushes, `delete_rebuild_staging*`              | `normal`   | |
+| `activate_rebuild_staging`                                                    | `normal`   | one atomic op by contract (a failed activation leaves the canonical generation and staging untouched), so a very large library holds the write lock for the whole merge |
+| `recover_stale_jobs` (supervisor, startup)                                     | `normal`   | candidates read on a plain connection; fenced failure writes are one op |
+
+`assert_catalog_job_claim` is a plain WAL read. Reads such as `get_library` still take
+`_DB_LOCK` until Phase 3; they delay a scan thread, never its lease renewal.
+
+### Runtime counters
+
+`runtime_counters(name, value)` holds the status counts that used to be recomputed by
+aggregate queries on every poll: `metadata_jobs.<state>` for the six metadata job states
+and `derivative_ready_bytes`. They are maintained by **SQLite triggers** on
+`metadata_index_jobs` and `asset_derivatives` (`_schema_ddl.RUNTIME_COUNTERS_STATEMENTS`)
+rather than by writer ops: the counted rows are changed from dozens of sites (writer ops,
+the flag-off direct transactions, recovery, the integrity checker, destructive
+maintenance, migrations), and a trigger is part of the changing statement, so it is exact
+for all of them and rolls back with a failed op's savepoint. `INSERT OR REPLACE` with
+recursive triggers off would bypass them (no production code uses it), a database
+written by an older release has no triggers, and a bug could drift a value, so
+`runtime_counters.verify_runtime_counters` recomputes them from the source tables: the
+additive ensure backfills a database that lacks the table, a counter row or a trigger
+(no catalog version bump), and every integrity pass repairs drift
+(`run_all_checks()["runtime_counters_repaired"]`; detection reads a snapshot, only a
+drifted database runs a repair op). Readers (`get_indexer_runtime_status` and
+`get_metadata_lifecycle_status` for an unscoped read, `DerivativeScheduler.library_status`
+for `quota_used_bytes`) read the counters inside their existing `_read_snapshot` and fall
+back to the aggregate query when a counter is missing or negative, so status responses
+are identical for the same database state. Scoped reads, per-library coverage joins, the
+diagnostic mismatch counters, and the `build_global_runtime` derivative/catalog queries
+keep their aggregates (the latter are pinned by the WK-01 regression tests and are index
+backed).
 
 ## Derivative Lifecycle
 

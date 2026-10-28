@@ -299,6 +299,9 @@ def test_recovery_update_allows_concurrent_heartbeat_to_win(
     isolated_metadata_db: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Asserts direct-transaction internals (connection per batch): pinned to the flag-off path; the writer
+    # path is covered in test_worker_contention_phase2_catalog.py.
+    monkeypatch.setattr("backend.metadata_store.db_writer.DB_WRITER_ENABLED", False)
     _queued_job(isolated_gallery_root, "heartbeat-race")
     job = claim_next_catalog_job(worker_id="live-worker", lease_seconds=60)
     assert job is not None
@@ -569,6 +572,9 @@ def test_scan_batches_release_lock_and_refresh_claim_before_each_commit(
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Asserts direct-transaction internals (connection per batch): pinned to the flag-off path; the writer
+    # path is covered in test_worker_contention_phase2_catalog.py.
+    monkeypatch.setattr("backend.metadata_store.db_writer.DB_WRITER_ENABLED", False)
     library_id, _queued = _queued_job(isolated_gallery_root, "bounded-scan")
     claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=1)
     assert claimed is not None
@@ -691,6 +697,9 @@ def test_metadata_enqueue_batches_and_refreshes_catalog_claim(
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Asserts direct-transaction internals (connection per batch): pinned to the flag-off path; the writer
+    # path is covered in test_worker_contention_phase2_catalog.py.
+    monkeypatch.setattr("backend.metadata_store.db_writer.DB_WRITER_ENABLED", False)
     library_id, _queued = _queued_job(isolated_gallery_root, "metadata-enqueue")
     claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=1)
     assert claimed is not None

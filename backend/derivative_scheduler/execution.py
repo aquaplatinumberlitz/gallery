@@ -14,6 +14,7 @@ from ..config import DERIVATIVE_LEASE_HEARTBEAT_SECONDS
 from ..errors import APIError
 from ..lease_heartbeat import LeaseHeartbeat
 from ..metadata_store import _connect
+from ..metadata_store.db_writer import LANE_PRIORITY, DatabaseWriterUnavailable, run_write
 from ._common import (
     _MAX_ATTEMPTS,
     _ensure_database,
@@ -37,10 +38,11 @@ class JobExecutionMixin:
         return True
 
     def _claim_job(self, worker_id: str | None = None) -> sqlite3.Row | None:
+        """Claim the next runnable job in one priority-lane writer op (a direct transaction with the flag off)."""
         _ensure_database()
         worker_id = worker_id or f"{self._instance_id}:{threading.current_thread().name}"
-        with _connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
+
+        def claim(conn: sqlite3.Connection) -> sqlite3.Row | None:
             row = conn.execute(
                 """
                 SELECT j.id AS job_id, j.attempts AS job_attempts, d.*, a.path AS source_path
@@ -54,8 +56,6 @@ class JobExecutionMixin:
                 """
             ).fetchone()
             if row is None:
-                conn.commit()
-                self._reconcile_queued_jobs()
                 return None
             attempts = int(row["job_attempts"]) + 1
             claim_token = uuid.uuid4().hex
@@ -84,6 +84,16 @@ class JobExecutionMixin:
                 (row["job_id"], claim_token),
             ).fetchone()
 
+        def claim_directly() -> sqlite3.Row | None:
+            with _connect() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                return claim(conn)
+
+        job = run_write(claim, lane=LANE_PRIORITY, fallback=claim_directly)
+        if job is None:
+            self._reconcile_queued_jobs()
+        return job
+
     def _renew_lease(self, job_id: int, claim_token: str) -> bool:
         """Extend the lease of a still-running, still-owned derivative claim.
 
@@ -94,18 +104,27 @@ class JobExecutionMixin:
         recovery arbitrates instead.
         """
         _ensure_database()
-        try:
-            with _connect() as conn:
-                result = conn.execute(
+
+        def renew(conn: sqlite3.Connection) -> bool:
+            return (
+                conn.execute(
                     """
                     UPDATE derivative_jobs
                     SET lease_expires_at = julianday('now') + ?
                     WHERE id = ? AND state = 'running' AND claim_token = ?
                     """,
                     (_lease_days(), job_id, claim_token),
-                )
-                renewed = result.rowcount == 1
-        except sqlite3.Error:
+                ).rowcount
+                == 1
+            )
+
+        def renew_directly() -> bool:
+            with _connect() as conn:  # never takes ``_DB_LOCK``: unrelated readers cannot starve a renewal
+                return renew(conn)
+
+        try:
+            renewed = run_write(renew, lane=LANE_PRIORITY, fallback=renew_directly)
+        except (sqlite3.Error, DatabaseWriterUnavailable):
             logger.warning("Derivative lease renewal failed for job %s", job_id)
             with self._lifecycle_lock:
                 self._lease_renewal_failures += 1
@@ -146,7 +165,8 @@ class JobExecutionMixin:
             )
             heartbeat.stop()
             self._validate_claimed_source(job, source)
-            with self._eviction_lock, _connect() as conn:
+
+            def complete(conn: sqlite3.Connection) -> bool:
                 completed = conn.execute(
                     """
                         UPDATE derivative_jobs SET state = 'done', error = NULL, completed_at = julianday('now'),
@@ -156,8 +176,7 @@ class JobExecutionMixin:
                     (job["job_id"], job["claim_token"]),
                 )
                 if completed.rowcount != 1:
-                    logger.info("Ignored stale completion for derivative job %s", job["job_id"])
-                    return
+                    return False  # stale claim: nothing is written
                 conn.execute(
                     """
                         UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = ?,
@@ -166,6 +185,17 @@ class JobExecutionMixin:
                         """,
                     (cache_path, len(derivative_bytes), job["id"]),
                 )
+                return True
+
+            def complete_directly() -> bool:
+                with _connect() as conn:
+                    return complete(conn)
+
+            with self._eviction_lock:
+                applied = run_write(complete, lane=LANE_PRIORITY, fallback=complete_directly)
+            if not applied:
+                logger.info("Ignored stale completion for derivative job %s", job["job_id"])
+                return
             succeeded = True
         except Exception as exc:  # noqa: BLE001
             heartbeat.stop()
@@ -213,13 +243,14 @@ class JobExecutionMixin:
         elif isinstance(exc, UnidentifiedImageError) or (isinstance(exc, APIError) and exc.status_code < 500):
             state, result_code, retry = "failed", "invalid_source", False
         else:
-            transient = isinstance(exc, (OSError, sqlite3.OperationalError))
+            transient = isinstance(exc, (OSError, sqlite3.OperationalError, DatabaseWriterUnavailable))
             retry = transient and attempts < _MAX_ATTEMPTS and not self._stop_event.is_set()
             state = "queued" if retry else "failed"
             result_code = None if retry else ("attempts_exhausted" if transient else "internal_error")
         if retry:
             self._stop_event.wait(2 ** (attempts - 1))
-        with _connect() as conn:
+
+        def fail(conn: sqlite3.Connection) -> bool:
             transitioned = conn.execute(
                 """
                 UPDATE derivative_jobs SET state = ?, error = ?, result_code = ?,
@@ -231,14 +262,21 @@ class JobExecutionMixin:
                 """,
                 (state, str(exc), result_code, state, state, job["job_id"], job["claim_token"]),
             )
-            if transitioned.rowcount == 1:
-                conn.execute(
-                    "UPDATE asset_derivatives SET status = ?, last_error = ?, updated_at = julianday('now') WHERE id = ?",
-                    (state, str(exc), job["id"]),
-                )
-            else:
-                logger.info("Ignored stale failure for derivative job %s", job["job_id"])
-                return
+            if transitioned.rowcount != 1:
+                return False  # stale claim: nothing is written
+            conn.execute(
+                "UPDATE asset_derivatives SET status = ?, last_error = ?, updated_at = julianday('now') WHERE id = ?",
+                (state, str(exc), job["id"]),
+            )
+            return True
+
+        def fail_directly() -> bool:
+            with _connect() as conn:
+                return fail(conn)
+
+        if not run_write(fail, lane=LANE_PRIORITY, fallback=fail_directly):
+            logger.info("Ignored stale failure for derivative job %s", job["job_id"])
+            return
         if retry:
             self._wake_event.set()
         elif state == "skipped":

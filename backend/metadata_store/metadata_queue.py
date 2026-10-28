@@ -13,7 +13,7 @@ from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE, METADATA_JOB_LEASE_SECOND
 from ..files import is_image_path, is_index_excluded_path
 from ..metadata_extract import metadata_sidecar_identity
 from ._db import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect
-from .db_writer import LANE_PRIORITY, run_write
+from .db_writer import LANE_NORMAL, LANE_PRIORITY, SCAN_OP_ROWS, get_active_writer, run_write
 from .identity import (
     asset_params_match_sql,
     image_metadata_params_match_sql,
@@ -212,14 +212,13 @@ def _persist_metadata_index_job_batch(
         return MetadataQueueResult(enqueued=[])
 
     _initialize_database()
-    enqueued: list[MetadataIndexJob] = []
-    coalesced = 0
-    skipped = 0
-    failed = 0
     now = metadata_now()
 
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
+    def persist(conn: sqlite3.Connection) -> MetadataQueueResult:
+        enqueued: list[MetadataIndexJob] = []
+        coalesced = 0
+        skipped = 0
+        failed = 0
         if catalog_claim_job_id is not None and catalog_claim_token is not None:
             from .job_store import assert_catalog_job_claim_conn
 
@@ -358,7 +357,15 @@ def _persist_metadata_index_job_batch(
                 lease_seconds=catalog_claim_lease_seconds,
             )
 
-    return MetadataQueueResult(enqueued=enqueued, coalesced=coalesced, skipped=skipped, failed=failed)
+        return MetadataQueueResult(enqueued=enqueued, coalesced=coalesced, skipped=skipped, failed=failed)
+
+    def persist_directly() -> MetadataQueueResult:
+        with _DB_LOCK, _connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            return persist(conn)
+
+    # A scan's metadata-job batch: one fenced normal-lane writer op (claim assertion, coalescing, claim refresh).
+    return run_write(persist, lane=LANE_NORMAL, fallback=persist_directly)
 
 
 def _persist_metadata_index_jobs(
@@ -379,6 +386,8 @@ def _persist_metadata_index_jobs(
     skipped = 0
     failed = 0
     batch_size = max(1, GALLERY_CATALOG_WRITE_BATCH_SIZE)
+    if get_active_writer() is not None:
+        batch_size = min(batch_size, SCAN_OP_ROWS)  # one writer op per batch stays inside the write budget
     for start in range(0, len(path_list), batch_size):
         result = _persist_metadata_index_job_batch(
             path_list[start : start + batch_size],

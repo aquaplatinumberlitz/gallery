@@ -16,12 +16,19 @@ from ..config import (
     DERIVATIVE_VARIANTS,
 )
 from ..metadata_store import _connect
+from ..metadata_store.db_writer import LANE_NORMAL, run_write
 from ._common import (
     _CAPACITY_DEFERRED_AUTOMATIC_REASONS,
     _ensure_database,
 )
 from .capacity import CapacityLedger
 from .models import DerivativeReconcileSummary, PendingCapacity, ReconcileCandidate
+
+# Assets coalesced by one database writer op. ``reconcile_desired_derivatives`` cuts its batches
+# (``DERIVATIVE_RECONCILE_BATCH_SIZE``, 250 by default) down to at most this many assets (x 3 variants) so no
+# op holds the SQLite write lock longer than the Phase 2 budget; each op is one transaction with its own
+# ``CapacityLedger``.
+RECONCILE_OP_ASSETS = 50
 
 
 class ReconcileMixin:
@@ -153,10 +160,10 @@ class ReconcileMixin:
         transaction and reported to the ledger, so their bytes no longer count toward the quota
         decisions below; their files are unlinked only after the transaction commits.
         """
-        pending_capacity: list[PendingCapacity] = []
-        retired_paths: list[str] = []
-        with _connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
+        part = DerivativeReconcileSummary()
+
+        def coalesce(conn: sqlite3.Connection) -> tuple[list[PendingCapacity], list[str]]:
+            pending: list[PendingCapacity] = []
             ledger = CapacityLedger()
             retired = self._retire_superseded_in_txn(
                 conn, [asset_id for asset_id, _mtime_ns, _size in candidates], ledger=ledger
@@ -173,7 +180,7 @@ class ReconcileMixin:
                     (asset_id, mtime_ns, size),
                 ).fetchone()
                 if current is None:
-                    summary.source_unavailable += len(variants)
+                    part.source_unavailable += len(variants)
                     continue
                 for kind, variant in variants:
                     coalesce_args: dict[str, Any] = {
@@ -193,10 +200,23 @@ class ReconcileMixin:
                     }
                     _derivative_id, outcome = self._coalesce_derivative_job(conn, **coalesce_args, ledger=ledger)
                     if outcome in {"capacity_needed", "capacity_needed_created"}:
-                        pending_capacity.append((coalesce_args, estimated_bytes, outcome == "capacity_needed_created"))
+                        pending.append((coalesce_args, estimated_bytes, outcome == "capacity_needed_created"))
                     else:
-                        self._record_reconcile_outcome(summary, outcome)
+                        self._record_reconcile_outcome(part, outcome)
+            return pending, retired_paths
+
+        def coalesce_directly() -> tuple[list[PendingCapacity], list[str]]:
+            with _connect() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                return coalesce(conn)
+
+        # One writer op (one transaction, one ledger). ``reconcile_desired_derivatives`` hands this method
+        # batches of at most ``RECONCILE_OP_ASSETS`` assets, which keeps each op inside the write budget.
+        pending_capacity, retired_paths = run_write(coalesce, lane=LANE_NORMAL, fallback=coalesce_directly)
+        # The op committed (its Future resolved): only now are the retired files unlinked.
         self._discard_retired_files(retired_paths)
+        for field, value in vars(part).items():
+            setattr(summary, field, getattr(summary, field) + value)
         return pending_capacity
 
     def _apply_reconcile_capacity_policy(
@@ -214,9 +234,16 @@ class ReconcileMixin:
             if not self._reserve_capacity(estimated_bytes):
                 self._record_reconcile_outcome(summary, pending_outcome)
                 continue
-            with _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                _derivative_id, outcome = self._coalesce_derivative_job(conn, **coalesce_args)
+
+            def coalesce_pending(conn: sqlite3.Connection, coalesce_args=coalesce_args) -> tuple[int, str]:
+                return self._coalesce_derivative_job(conn, **coalesce_args)
+
+            def coalesce_pending_directly(coalesce_pending=coalesce_pending) -> tuple[int, str]:
+                with _connect() as conn:
+                    conn.execute("BEGIN IMMEDIATE")
+                    return coalesce_pending(conn)
+
+            _derivative_id, outcome = run_write(coalesce_pending, lane=LANE_NORMAL, fallback=coalesce_pending_directly)
             if created_pending and outcome == "requeued":
                 outcome = "created"
             self._record_reconcile_outcome(summary, outcome)
@@ -251,13 +278,14 @@ class ReconcileMixin:
         candidates = self._validated_reconcile_candidates(assets, len(variants), summary)
         summary.desired_derivatives = len(candidates) * len(variants)
 
-        for offset in range(0, len(candidates), DERIVATIVE_RECONCILE_BATCH_SIZE):
+        batch_size = min(DERIVATIVE_RECONCILE_BATCH_SIZE, RECONCILE_OP_ASSETS)
+        for offset in range(0, len(candidates), batch_size):
             if cancel_event is not None and cancel_event.is_set():
                 break
             jobs_before = summary.created_jobs
             with self._eviction_lock:
                 pending_capacity = self._coalesce_reconcile_candidates(
-                    candidates[offset : offset + DERIVATIVE_RECONCILE_BATCH_SIZE],
+                    candidates[offset : offset + batch_size],
                     variants,
                     priority=priority,
                     retry_failed=retry_failed,
@@ -267,7 +295,7 @@ class ReconcileMixin:
                 self._apply_reconcile_capacity_policy(pending_capacity, summary, cancel_event)
             if summary.created_jobs > jobs_before:
                 self._wake_event.set()
-            if offset + DERIVATIVE_RECONCILE_BATCH_SIZE < len(candidates):
+            if offset + batch_size < len(candidates):
                 if cancel_event is not None:
                     if cancel_event.wait(DERIVATIVE_RECONCILE_YIELD_SECONDS):
                         break

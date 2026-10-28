@@ -11,6 +11,7 @@ from ..config import (
     DERIVATIVE_VARIANTS,
 )
 from ..metadata_store import _connect
+from ..metadata_store.db_writer import LANE_NORMAL, LANE_PRIORITY, run_write
 from ._common import _ensure_database
 from .capacity import CapacityLedger
 from .models import DerivativeRepairSummary
@@ -39,8 +40,9 @@ class SchedulingMixin:
         _ensure_database()
         for offset in range(0, len(derivative_ids), DERIVATIVE_RECONCILE_BATCH_SIZE):
             batch = derivative_ids[offset : offset + DERIVATIVE_RECONCILE_BATCH_SIZE]
-            with _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
+
+            def repair(conn: sqlite3.Connection, batch: list[int] = batch) -> DerivativeRepairSummary:
+                part = DerivativeRepairSummary()
                 for did in batch:
                     row = conn.execute(
                         """
@@ -54,17 +56,17 @@ class SchedulingMixin:
                         (did,),
                     ).fetchone()
                     if row is None:
-                        summary.unchanged += 1
+                        part.unchanged += 1
                         continue
                     if row["status"] != "queued":
-                        summary.unchanged += 1
+                        part.unchanged += 1
                         continue
                     latest_job = conn.execute(
                         "SELECT state FROM derivative_jobs WHERE derivative_id = ? ORDER BY id DESC LIMIT 1",
                         (did,),
                     ).fetchone()
                     if latest_job is not None and latest_job["state"] in ("queued", "running"):
-                        summary.already_active += 1
+                        part.already_active += 1
                         continue
                     if row["a_id"] is None or row["type"] != "image" or row["deleted_at"] is not None or row["offline"]:
                         self._terminalize_derivative(
@@ -75,7 +77,7 @@ class SchedulingMixin:
                             "asset_inactive",
                             "integrity: derivative asset is inactive",
                         )
-                        summary.terminal_skipped += 1
+                        part.terminal_skipped += 1
                         continue
                     try:
                         stat = Path(
@@ -90,7 +92,7 @@ class SchedulingMixin:
                             "source_missing",
                             "integrity: derivative source file is missing",
                         )
-                        summary.terminal_skipped += 1
+                        part.terminal_skipped += 1
                         continue
                     if (
                         stat.st_mtime_ns != int(row["source_mtime_ns"])
@@ -106,13 +108,23 @@ class SchedulingMixin:
                             "source_changed",
                             "integrity: derivative source identity changed",
                         )
-                        summary.terminal_skipped += 1
+                        part.terminal_skipped += 1
                         continue
                     conn.execute(
                         "INSERT INTO derivative_jobs (derivative_id, priority, state) VALUES (?, 3, 'queued')",
                         (did,),
                     )
-                    summary.jobs_created += 1
+                    part.jobs_created += 1
+                return part
+
+            def repair_directly(batch: list[int] = batch) -> DerivativeRepairSummary:
+                with _connect() as conn:
+                    conn.execute("BEGIN IMMEDIATE")
+                    return repair(conn, batch)
+
+            part = run_write(repair, lane=LANE_NORMAL, fallback=repair_directly)
+            for field in vars(part):
+                setattr(summary, field, getattr(summary, field) + getattr(part, field))
             self._wake_event.set()
         return summary
 
@@ -326,29 +338,41 @@ class SchedulingMixin:
             "retry_failed": True,
             "deferrable": False,
         }
-        with self._eviction_lock:
+        # Interactive requests (job priority 0-1: thumbnails and previews a person is waiting for) use the
+        # priority lane; background scheduling the normal lane.
+        lane = LANE_PRIORITY if priority <= 1 else LANE_NORMAL
+
+        def coalesce(conn: sqlite3.Connection, known_estimate: int | None = None) -> tuple[int, str, int]:
+            current = conn.execute(
+                "SELECT 1 FROM assets WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
+                (asset_id,),
+            ).fetchone()
+            if current is None:
+                raise KeyError(asset_id)
+            estimated = known_estimate if known_estimate is not None else self._estimate_new_derivative_bytes(conn)
+            coalesced_id, coalesced_outcome = self._coalesce_derivative_job(
+                conn,
+                **coalesce_args,
+                estimated_bytes=estimated,
+            )
+            return coalesced_id, coalesced_outcome, estimated
+
+        def coalesce_directly(known_estimate: int | None = None) -> tuple[int, str, int]:
             with _connect() as conn:
                 conn.execute("BEGIN IMMEDIATE")
-                current = conn.execute(
-                    "SELECT 1 FROM assets WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
-                    (asset_id,),
-                ).fetchone()
-                if current is None:
-                    raise KeyError(asset_id)
-                estimated_bytes = self._estimate_new_derivative_bytes(conn)
-                derivative_id, outcome = self._coalesce_derivative_job(
-                    conn,
-                    **coalesce_args,
-                    estimated_bytes=estimated_bytes,
+                return coalesce(conn, known_estimate)
+
+        with self._eviction_lock:
+            derivative_id, outcome, estimated_bytes = run_write(coalesce, lane=lane, fallback=coalesce_directly)
+            if outcome in {"capacity_needed", "capacity_needed_created"} and self._reserve_capacity(
+                estimated_bytes, lane=lane
+            ):
+                known = estimated_bytes
+                derivative_id, outcome, estimated_bytes = run_write(
+                    lambda conn: coalesce(conn, known),
+                    lane=lane,
+                    fallback=lambda: coalesce_directly(known),
                 )
-            if outcome in {"capacity_needed", "capacity_needed_created"} and self._reserve_capacity(estimated_bytes):
-                with _connect() as conn:
-                    conn.execute("BEGIN IMMEDIATE")
-                    derivative_id, outcome = self._coalesce_derivative_job(
-                        conn,
-                        **coalesce_args,
-                        estimated_bytes=estimated_bytes,
-                    )
         if outcome in {"created", "requeued", "active"}:
             self._wake_event.set()
         return derivative_id

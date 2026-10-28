@@ -15,7 +15,7 @@ from ..metadata_extract import ExtractedMetadata, metadata_sidecar_identity, par
 from ._asset_store import _upsert_asset_conn
 from ._db import _DB_LOCK, _connect
 from ._resources import _replace_image_resources_conn
-from .db_writer import LANE_NORMAL, current_writer, run_write
+from .db_writer import LANE_NORMAL, LANE_PRIORITY, current_writer, run_write
 from .identity import image_metadata_params_match_sql
 from .metadata_queue import _mark_current_metadata_done, _metadata_job_from_path
 from .types import CachedDimensions
@@ -460,7 +460,8 @@ def upsert_image_dimensions(
     alpha_value = None if has_alpha is None else int(bool(has_alpha))
     now = time.time()
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+
+    def upsert(conn: sqlite3.Connection) -> None:
         conn.execute(
             """
             INSERT INTO image_metadata (
@@ -514,6 +515,13 @@ def upsert_image_dimensions(
             expected_mtime_ns=stat.st_mtime_ns,
             expected_size=stat.st_size,
         )
+
+    def upsert_directly() -> None:
+        with _DB_LOCK, _connect() as conn:
+            upsert(conn)
+
+    # Part of a derivative render (a worker thread, or the request when no scheduler runs): a small priority op.
+    run_write(upsert, lane=LANE_PRIORITY, fallback=upsert_directly)
     return True
 
 

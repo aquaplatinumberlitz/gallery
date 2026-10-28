@@ -10,7 +10,9 @@ from typing import Any
 
 from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE
 from ..files import asset_type_for_path, is_asset_path, is_index_excluded_path
-from ._db import _DB_LOCK, _active_asset_where, _connect
+from ._db import _active_asset_where
+from ._db import run_direct_immediate as _run_direct
+from .db_writer import LANE_NORMAL, run_write
 from .library_store import get_library
 from .path_utils import canonicalize_catalog_path, catalog_path_contains, path_scope_sql
 
@@ -54,46 +56,41 @@ def enumerate_to_rebuild_staging(
         rows = batch
         batch = []
         _initialize_database()
-        with _DB_LOCK, _connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            try:
-                from .job_store import assert_catalog_job_claim_conn
 
-                assert_catalog_job_claim_conn(conn, job_id, claim_token, library_id=library_id)
-                conn.executemany(
-                    """
-                INSERT INTO catalog_rebuild_entries (
-                  job_id, library_id, path, parent_path, name, type,
-                  mtime_ns, size, width, height, mime_type, duration_ms,
-                  codec, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(job_id, path) DO UPDATE SET
-                  parent_path=excluded.parent_path,
-                  name=excluded.name,
-                  type=excluded.type,
-                  mtime_ns=excluded.mtime_ns,
-                  size=excluded.size,
-                  width=excluded.width,
-                  height=excluded.height,
-                  mime_type=excluded.mime_type,
-                  duration_ms=excluded.duration_ms,
-                  codec=excluded.codec
-                """,
-                    rows,
-                )
-                from .job_store import refresh_catalog_job_claim_before_commit_conn
+        def write(conn: sqlite3.Connection) -> None:
+            from .job_store import assert_catalog_job_claim_conn, refresh_catalog_job_claim_before_commit_conn
 
-                refresh_catalog_job_claim_before_commit_conn(
-                    conn,
-                    job_id,
-                    claim_token,
-                    lease_seconds=claim_lease_seconds,
-                    library_id=library_id,
-                )
-                conn.execute("COMMIT")
-            except Exception:
-                conn.execute("ROLLBACK")
-                raise
+            assert_catalog_job_claim_conn(conn, job_id, claim_token, library_id=library_id)
+            conn.executemany(
+                """
+            INSERT INTO catalog_rebuild_entries (
+              job_id, library_id, path, parent_path, name, type,
+              mtime_ns, size, width, height, mime_type, duration_ms,
+              codec, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id, path) DO UPDATE SET
+              parent_path=excluded.parent_path,
+              name=excluded.name,
+              type=excluded.type,
+              mtime_ns=excluded.mtime_ns,
+              size=excluded.size,
+              width=excluded.width,
+              height=excluded.height,
+              mime_type=excluded.mime_type,
+              duration_ms=excluded.duration_ms,
+              codec=excluded.codec
+            """,
+                rows,
+            )
+            refresh_catalog_job_claim_before_commit_conn(
+                conn,
+                job_id,
+                claim_token,
+                lease_seconds=claim_lease_seconds,
+                library_id=library_id,
+            )
+
+        run_write(write, lane=LANE_NORMAL, fallback=lambda: _run_direct(write))
 
     def stage_entry(
         *,
@@ -207,176 +204,179 @@ def activate_rebuild_staging(
     _initialize_database()
     now = time.time()
     scope_text = canonicalize_catalog_path(scope_path) if scope_path is not None else None
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            from .job_store import assert_catalog_job_claim_conn
 
-            assert_catalog_job_claim_conn(conn, job_id, claim_token, library_id=library_id)
-            staged = conn.execute(
-                """
-                SELECT path, parent_path, name, type, mtime_ns, size, mime_type,
-                       duration_ms, codec
-                FROM catalog_rebuild_entries
-                WHERE job_id = ? AND library_id = ?
-                """,
-                (job_id, library_id),
-            ).fetchall()
-            staged_paths = {row["path"] for row in staged}
-            created = 0
-            updated = 0
-            metadata_reset = 0
-            for row in staged:
-                existing = conn.execute(
-                    "SELECT mtime_ns, size, metadata_state FROM assets WHERE library_id = ? AND path = ?",
-                    (library_id, row["path"]),
-                ).fetchone()
-                normalized_type = (
-                    "image"
-                    if row["type"] in {"image", "photo", "file"}
-                    else "video"
-                    if row["type"] == "video"
-                    else "folder"
-                )
-                metadata_state = None
-                if existing is None:
-                    created += 1
-                    metadata_state = "pending"
-                else:
-                    updated += 1
-                    if existing["mtime_ns"] != row["mtime_ns"] or existing["size"] != row["size"]:
-                        metadata_state = "pending"
-                        metadata_reset += 1
-                conn.execute(
-                    """
-                    INSERT INTO file_index (
-                      path, name, parent_path, type, mtime, mtime_ns, size,
-                      indexed_at, library_id, last_seen_scan_job_id
-                    ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
-                    ON CONFLICT(path) DO UPDATE SET
-                      name=excluded.name,
-                      parent_path=excluded.parent_path,
-                      type=excluded.type,
-                      mtime_ns=excluded.mtime_ns,
-                      size=excluded.size,
-                      indexed_at=excluded.indexed_at,
-                      library_id=excluded.library_id,
-                      last_seen_scan_job_id=excluded.last_seen_scan_job_id
-                    """,
-                    (
-                        row["path"],
-                        row["name"],
-                        row["parent_path"],
-                        normalized_type,
-                        row["mtime_ns"],
-                        row["size"],
-                        now,
-                        library_id,
-                        job_id,
-                    ),
-                )
-                conn.execute(
-                    """
-                    INSERT INTO assets (
-                      library_id, path, parent_path, name, type, mtime_ns, size,
-                      width, height, indexed_at, metadata_state, offline, deleted_at,
-                      mime_type, duration_ms, codec, last_seen_scan_job_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, 0, NULL, ?, ?, ?, ?)
-                    ON CONFLICT(library_id, path) DO UPDATE SET
-                      parent_path=excluded.parent_path,
-                      name=excluded.name,
-                      type=excluded.type,
-                      mtime_ns=excluded.mtime_ns,
-                      size=excluded.size,
-                      indexed_at=excluded.indexed_at,
-                      metadata_state=COALESCE(excluded.metadata_state, assets.metadata_state),
-                      mime_type=COALESCE(excluded.mime_type, assets.mime_type),
-                      duration_ms=COALESCE(excluded.duration_ms, assets.duration_ms),
-                      codec=COALESCE(excluded.codec, assets.codec),
-                      offline=0,
-                      deleted_at=NULL,
-                      last_seen_scan_job_id=excluded.last_seen_scan_job_id
-                    """,
-                    (
-                        library_id,
-                        row["path"],
-                        row["parent_path"],
-                        row["name"],
-                        normalized_type,
-                        row["mtime_ns"],
-                        row["size"],
-                        now,
-                        metadata_state,
-                        row["mime_type"],
-                        row["duration_ms"],
-                        row["codec"],
-                        job_id,
-                    ),
-                )
-                conn.execute("DELETE FROM file_index_fts WHERE path = ?", (row["path"],))
-                conn.execute(
-                    "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
-                    (row["name"], row["path"], normalized_type, row["parent_path"]),
-                )
+    def activate(conn: sqlite3.Connection) -> dict[str, int]:
+        from .job_store import assert_catalog_job_claim_conn
 
-            scope_sql = ""
-            params: list[Any] = [library_id]
-            if scope_text is not None:
-                scope_sql, scope_params = path_scope_sql(scope_text, leading_and=True)
-                params.extend(scope_params)
-            in_scope = conn.execute(
-                f"""
-                SELECT path FROM assets
-                WHERE library_id = ? AND offline = 0 AND deleted_at IS NULL
-                  {scope_sql}
-                """,
-                params,
-            ).fetchall()
-            missing = [row["path"] for row in in_scope if row["path"] not in staged_paths]
-            if missing:
-                conn.executemany(
-                    "UPDATE assets SET offline = 1, indexed_at = ? WHERE library_id = ? AND path = ?",
-                    ((now, library_id, path) for path in missing),
-                )
-            conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
-            from .job_store import refresh_catalog_job_claim_before_commit_conn
-
-            refresh_catalog_job_claim_before_commit_conn(
-                conn,
-                job_id,
-                claim_token,
-                lease_seconds=claim_lease_seconds,
-                library_id=library_id,
+        assert_catalog_job_claim_conn(conn, job_id, claim_token, library_id=library_id)
+        staged = conn.execute(
+            """
+            SELECT path, parent_path, name, type, mtime_ns, size, mime_type,
+                   duration_ms, codec
+            FROM catalog_rebuild_entries
+            WHERE job_id = ? AND library_id = ?
+            """,
+            (job_id, library_id),
+        ).fetchall()
+        staged_paths = {row["path"] for row in staged}
+        created = 0
+        updated = 0
+        metadata_reset = 0
+        for row in staged:
+            existing = conn.execute(
+                "SELECT mtime_ns, size, metadata_state FROM assets WHERE library_id = ? AND path = ?",
+                (library_id, row["path"]),
+            ).fetchone()
+            normalized_type = (
+                "image"
+                if row["type"] in {"image", "photo", "file"}
+                else "video"
+                if row["type"] == "video"
+                else "folder"
             )
-            conn.execute("COMMIT")
-            return {
-                "discovered": len(staged),
-                "created": created,
-                "updated": updated,
-                "offline": len(missing),
-                "metadata_reset": metadata_reset,
-            }
-        except Exception:
-            conn.execute("ROLLBACK")
-            raise
+            metadata_state = None
+            if existing is None:
+                created += 1
+                metadata_state = "pending"
+            else:
+                updated += 1
+                if existing["mtime_ns"] != row["mtime_ns"] or existing["size"] != row["size"]:
+                    metadata_state = "pending"
+                    metadata_reset += 1
+            conn.execute(
+                """
+                INSERT INTO file_index (
+                  path, name, parent_path, type, mtime, mtime_ns, size,
+                  indexed_at, library_id, last_seen_scan_job_id
+                ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
+                ON CONFLICT(path) DO UPDATE SET
+                  name=excluded.name,
+                  parent_path=excluded.parent_path,
+                  type=excluded.type,
+                  mtime_ns=excluded.mtime_ns,
+                  size=excluded.size,
+                  indexed_at=excluded.indexed_at,
+                  library_id=excluded.library_id,
+                  last_seen_scan_job_id=excluded.last_seen_scan_job_id
+                """,
+                (
+                    row["path"],
+                    row["name"],
+                    row["parent_path"],
+                    normalized_type,
+                    row["mtime_ns"],
+                    row["size"],
+                    now,
+                    library_id,
+                    job_id,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO assets (
+                  library_id, path, parent_path, name, type, mtime_ns, size,
+                  width, height, indexed_at, metadata_state, offline, deleted_at,
+                  mime_type, duration_ms, codec, last_seen_scan_job_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, 0, NULL, ?, ?, ?, ?)
+                ON CONFLICT(library_id, path) DO UPDATE SET
+                  parent_path=excluded.parent_path,
+                  name=excluded.name,
+                  type=excluded.type,
+                  mtime_ns=excluded.mtime_ns,
+                  size=excluded.size,
+                  indexed_at=excluded.indexed_at,
+                  metadata_state=COALESCE(excluded.metadata_state, assets.metadata_state),
+                  mime_type=COALESCE(excluded.mime_type, assets.mime_type),
+                  duration_ms=COALESCE(excluded.duration_ms, assets.duration_ms),
+                  codec=COALESCE(excluded.codec, assets.codec),
+                  offline=0,
+                  deleted_at=NULL,
+                  last_seen_scan_job_id=excluded.last_seen_scan_job_id
+                """,
+                (
+                    library_id,
+                    row["path"],
+                    row["parent_path"],
+                    row["name"],
+                    normalized_type,
+                    row["mtime_ns"],
+                    row["size"],
+                    now,
+                    metadata_state,
+                    row["mime_type"],
+                    row["duration_ms"],
+                    row["codec"],
+                    job_id,
+                ),
+            )
+            conn.execute("DELETE FROM file_index_fts WHERE path = ?", (row["path"],))
+            conn.execute(
+                "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
+                (row["name"], row["path"], normalized_type, row["parent_path"]),
+            )
+
+        scope_sql = ""
+        params: list[Any] = [library_id]
+        if scope_text is not None:
+            scope_sql, scope_params = path_scope_sql(scope_text, leading_and=True)
+            params.extend(scope_params)
+        in_scope = conn.execute(
+            f"""
+            SELECT path FROM assets
+            WHERE library_id = ? AND offline = 0 AND deleted_at IS NULL
+              {scope_sql}
+            """,
+            params,
+        ).fetchall()
+        missing = [row["path"] for row in in_scope if row["path"] not in staged_paths]
+        if missing:
+            conn.executemany(
+                "UPDATE assets SET offline = 1, indexed_at = ? WHERE library_id = ? AND path = ?",
+                ((now, library_id, path) for path in missing),
+            )
+        conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
+        from .job_store import refresh_catalog_job_claim_before_commit_conn
+
+        refresh_catalog_job_claim_before_commit_conn(
+            conn,
+            job_id,
+            claim_token,
+            lease_seconds=claim_lease_seconds,
+            library_id=library_id,
+        )
+        return {
+            "discovered": len(staged),
+            "created": created,
+            "updated": updated,
+            "offline": len(missing),
+            "metadata_reset": metadata_reset,
+        }
+
+    # One atomic op by contract: a failed activation leaves the canonical generation and the staging rows
+    # untouched, so it is never split. (A very large library holds the write lock for the whole merge.)
+    return run_write(activate, lane=LANE_NORMAL, fallback=lambda: _run_direct(activate))
 
 
 def delete_rebuild_staging(job_id: int, *, claim_token: str | None = None) -> None:
     """Remove orphaned rebuild staging rows for a failed/cancelled job."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+
+    def delete(conn: sqlite3.Connection) -> None:
         if claim_token is not None:
             from .job_store import assert_catalog_job_claim_conn
 
             assert_catalog_job_claim_conn(conn, job_id, claim_token)
         conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
 
+    run_write(delete, lane=LANE_NORMAL, fallback=lambda: _run_direct(delete))
+
 
 def delete_rebuild_staging_for_lost_claim(job_id: int, claim_token: str) -> bool:
     """Delete stale staging unless the job has already gained a newer live claim."""
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def delete(conn: sqlite3.Connection) -> bool:
         row = conn.execute(
             "SELECT state, claim_token, lease_expires_at FROM library_jobs WHERE id = ?",
             (job_id,),
@@ -393,6 +393,8 @@ def delete_rebuild_staging_for_lost_claim(job_id: int, claim_token: str) -> bool
             return False
         conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
         return True
+
+    return run_write(delete, lane=LANE_NORMAL, fallback=lambda: _run_direct(delete))
 
 
 def _reconcile_assets_conn(
@@ -445,26 +447,23 @@ def reconcile_library_assets(
     if (claim_job_id is None) != (claim_token is None):
         raise ValueError("Catalog claim job id and token must be provided together")
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            if claim_job_id is not None and claim_token is not None:
-                from .job_store import assert_catalog_job_claim_conn
 
-                assert_catalog_job_claim_conn(conn, claim_job_id, claim_token, library_id=library_id)
-            reconciled = _reconcile_assets_conn(conn, library_id, normalized, scope_path=scope_path)
-            if claim_job_id is not None and claim_token is not None:
-                from .job_store import refresh_catalog_job_claim_before_commit_conn
+    def reconcile(conn: sqlite3.Connection) -> int:
+        if claim_job_id is not None and claim_token is not None:
+            from .job_store import assert_catalog_job_claim_conn
 
-                refresh_catalog_job_claim_before_commit_conn(
-                    conn,
-                    claim_job_id,
-                    claim_token,
-                    lease_seconds=claim_lease_seconds,
-                    library_id=library_id,
-                )
-            conn.execute("COMMIT")
-            return reconciled
-        except Exception:
-            conn.execute("ROLLBACK")
-            raise
+            assert_catalog_job_claim_conn(conn, claim_job_id, claim_token, library_id=library_id)
+        reconciled = _reconcile_assets_conn(conn, library_id, normalized, scope_path=scope_path)
+        if claim_job_id is not None and claim_token is not None:
+            from .job_store import refresh_catalog_job_claim_before_commit_conn
+
+            refresh_catalog_job_claim_before_commit_conn(
+                conn,
+                claim_job_id,
+                claim_token,
+                lease_seconds=claim_lease_seconds,
+                library_id=library_id,
+            )
+        return reconciled
+
+    return run_write(reconcile, lane=LANE_NORMAL, fallback=lambda: _run_direct(reconcile))

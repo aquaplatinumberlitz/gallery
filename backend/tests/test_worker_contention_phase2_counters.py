@@ -28,7 +28,6 @@ from __future__ import annotations
 import random
 import sqlite3
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -60,14 +59,17 @@ def stored_counters(db_path: Path) -> dict[str, int]:
 def aggregate_counters(db_path: Path) -> dict[str, int]:
     """The source of truth: the aggregate queries the status builds ran before the counters existed."""
     with _connect(db_path) as conn:
-        counts = {state: 0 for state in METADATA_STATES}
+        counts = dict.fromkeys(METADATA_STATES, 0)
         for row in conn.execute("SELECT state, count(*) AS n FROM metadata_index_jobs GROUP BY state"):
             if row["state"] in counts:
                 counts[row["state"]] = int(row["n"])
         ready = conn.execute(
             "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"
         ).fetchone()[0]
-    return {**{f"metadata_jobs.{state}": counts[state] for state in METADATA_STATES}, "derivative_ready_bytes": int(ready)}
+    return {
+        **{f"metadata_jobs.{state}": counts[state] for state in METADATA_STATES},
+        "derivative_ready_bytes": int(ready),
+    }
 
 
 def assert_counters_exact(db_path: Path, label: str = "") -> None:
@@ -95,10 +97,14 @@ def mode(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str
 
 def test_a_fresh_database_has_the_runtime_counters_table_triggers_and_zero_values(isolated_metadata_db: Path) -> None:
     with sqlite3.connect(isolated_metadata_db) as conn:
-        table = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'runtime_counters'").fetchone()
+        table = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'runtime_counters'"
+        ).fetchone()
         triggers = {
             row[0]
-            for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%'")
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%'"
+            )
         }
     assert table is not None, "runtime_counters is missing from a freshly initialized database"
     assert {"name", "value"} <= set(table[0].replace("(", " ").replace(")", " ").replace(",", " ").split())
@@ -134,7 +140,9 @@ def test_an_existing_database_gains_the_table_and_triggers_with_backfilled_value
         ).lastrowid
         assert derivative_id
         # An older database: no counters table and none of its triggers.
-        for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%'").fetchall():
+        for (name,) in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%'"
+        ).fetchall():
             conn.execute(f"DROP TRIGGER {name}")
         conn.execute("DROP TABLE runtime_counters")
     monkeypatch.setattr(ms._db, "_DB_INITIALIZED", False)
@@ -144,7 +152,12 @@ def test_an_existing_database_gains_the_table_and_triggers_with_backfilled_value
 
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 12, "no catalog version bump"
-        assert conn.execute("SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%'").fetchone()[0] >= 6
+        assert (
+            conn.execute(
+                "SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%'"
+            ).fetchone()[0]
+            >= 6
+        )
     counters = stored_counters(db_path)
     assert counters["metadata_jobs.queued"] == 2 and counters["metadata_jobs.running"] == 2
     assert counters["metadata_jobs.done"] == 2 and counters["derivative_ready_bytes"] == 4096
@@ -160,7 +173,9 @@ def test_schema_check_reports_a_missing_counters_table_or_trigger(isolated_metad
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert check_catalog_schema(conn) == []
-        trigger = conn.execute("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%' LIMIT 1").fetchone()[0]
+        trigger = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%' LIMIT 1"
+        ).fetchone()[0]
         conn.execute(f"DROP TRIGGER {trigger}")
         assert f"Missing trigger: {trigger}" in check_catalog_schema(conn)
         conn.execute("DROP TABLE runtime_counters")
@@ -180,9 +195,17 @@ def test_counters_equal_the_aggregate_queries_after_randomized_transitions(seede
     states = (*METADATA_STATES, "queued", "running")  # weighted towards the active states
     derivative_status = ("queued", "running", "ready", "ready", "failed", "skipped", "evicted", "deferred_capacity")
     derivative_ids: list[int] = []
-    variants = [(kind, variant, edge) for kind, variant, edge in (("thumbnail", "thumb_128", 128), ("thumbnail", "thumb_512", 512), ("preview", "preview_1440", 1440))]
+    variants = [
+        (kind, variant, edge)
+        for kind, variant, edge in (
+            ("thumbnail", "thumb_128", 128),
+            ("thumbnail", "thumb_512", 512),
+            ("preview", "preview_1440", 1440),
+        )
+    ]
     seen: set[tuple[int, str]] = set()
     visited_states: set[str] = set()
+    peak_ready_bytes = 0
     with _connect(db_path) as conn:
         for step in range(900):
             action = rng.randrange(14)
@@ -202,12 +225,19 @@ def test_counters_equal_the_aggregate_queries_after_randomized_transitions(seede
             elif action <= 4:  # change one job's state (including to the same value)
                 conn.execute("UPDATE metadata_index_jobs SET state = ? WHERE path = ?", (rng.choice(states), path))
             elif action == 5:  # an update that does not touch the state
-                conn.execute("UPDATE metadata_index_jobs SET attempts = attempts + 1, error = NULL WHERE path = ?", (path,))
+                conn.execute(
+                    "UPDATE metadata_index_jobs SET attempts = attempts + 1, error = NULL WHERE path = ?", (path,)
+                )
             elif action == 6:  # bulk transitions and deletes
                 if rng.random() < 0.5:
-                    conn.execute("UPDATE metadata_index_jobs SET state = ? WHERE state = ?", (rng.choice(states), rng.choice(states)))
+                    conn.execute(
+                        "UPDATE metadata_index_jobs SET state = ? WHERE state = ?",
+                        (rng.choice(states), rng.choice(states)),
+                    )
                 else:
-                    conn.execute("DELETE FROM metadata_index_jobs WHERE state = ? AND rowid % 2 = 0", (rng.choice(states),))
+                    conn.execute(
+                        "DELETE FROM metadata_index_jobs WHERE state = ? AND rowid % 2 = 0", (rng.choice(states),)
+                    )
             elif action == 7:
                 conn.execute("DELETE FROM metadata_index_jobs WHERE path = ?", (path,))
             elif action <= 9:  # insert a derivative
@@ -226,18 +256,36 @@ def test_counters_equal_the_aggregate_queries_after_randomized_transitions(seede
                                                            max_long_edge, status, byte_size)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                             """,
-                            (asset_id, kind, variant, mtime_ns, size, edge, status, rng.choice([None, 0, 500, 2048, 9000])),
+                            (
+                                asset_id,
+                                kind,
+                                variant,
+                                mtime_ns,
+                                size,
+                                edge,
+                                status,
+                                rng.choice([None, 0, 500, 2048, 9000]),
+                            ),
                         ).lastrowid
                     )
                 )
             elif derivative_ids and action == 10:  # status transition
-                conn.execute("UPDATE asset_derivatives SET status = ? WHERE id = ?", (rng.choice(derivative_status), rng.choice(derivative_ids)))
+                conn.execute(
+                    "UPDATE asset_derivatives SET status = ? WHERE id = ?",
+                    (rng.choice(derivative_status), rng.choice(derivative_ids)),
+                )
             elif derivative_ids and action == 11:  # byte size change, and a touch that changes neither
                 target = rng.choice(derivative_ids)
-                conn.execute("UPDATE asset_derivatives SET byte_size = ? WHERE id = ?", (rng.choice([None, 1, 777, 4096]), target))
+                conn.execute(
+                    "UPDATE asset_derivatives SET byte_size = ? WHERE id = ?",
+                    (rng.choice([None, 1, 777, 4096]), target),
+                )
                 conn.execute("UPDATE asset_derivatives SET last_accessed_at = 5.0 WHERE id = ?", (target,))
             elif derivative_ids and action == 12:  # bulk transition
-                conn.execute("UPDATE asset_derivatives SET status = ?, byte_size = COALESCE(byte_size, 10) WHERE status = ?", (rng.choice(derivative_status), rng.choice(derivative_status)))
+                conn.execute(
+                    "UPDATE asset_derivatives SET status = ?, byte_size = COALESCE(byte_size, 10) WHERE status = ?",
+                    (rng.choice(derivative_status), rng.choice(derivative_status)),
+                )
             elif derivative_ids:  # delete a derivative (its jobs first, as the production code does)
                 target = derivative_ids.pop(rng.randrange(len(derivative_ids)))
                 conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (target,))
@@ -252,10 +300,12 @@ def test_counters_equal_the_aggregate_queries_after_randomized_transitions(seede
             if step % 20 == 0:
                 conn.commit()
                 assert_counters_exact(db_path, f"at step {step}")
+                peak_ready_bytes = max(peak_ready_bytes, stored_counters(db_path)["derivative_ready_bytes"])
         conn.commit()
     assert_counters_exact(db_path, "at the end")
     final = aggregate_counters(db_path)
-    assert sum(final[f"metadata_jobs.{state}"] for state in METADATA_STATES) > 0 and final["derivative_ready_bytes"] > 0
+    assert sum(final[f"metadata_jobs.{state}"] for state in METADATA_STATES) > 0
+    assert peak_ready_bytes > 0, "the walk never held any ready bytes"
     assert visited_states == set(METADATA_STATES), "the walk never visited every job state"
 
 
@@ -290,7 +340,9 @@ def test_a_rolled_back_writer_op_leaves_the_counters_untouched(seeded) -> None:
     good.result(timeout=10)
 
     after = stored_counters(db_path)
-    assert after["metadata_jobs.done"] == 0 and after["metadata_jobs.running"] == 1 and after["metadata_jobs.queued"] == 0
+    assert (
+        after["metadata_jobs.done"] == 0 and after["metadata_jobs.running"] == 1 and after["metadata_jobs.queued"] == 0
+    )
     assert_counters_exact(db_path)
 
 
@@ -340,8 +392,10 @@ def test_counters_stay_exact_through_the_real_scan_metadata_derivative_and_integ
     assert after_metadata["metadata_jobs.done"] >= 5 and after_metadata["metadata_jobs.failed"] == 1
 
     scheduler = DerivativeScheduler(worker_count=1, quota_bytes=1024 * 1024 * 1024)
-    summary = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="manual_generate", respect_warm_policy=False)
-    assert summary.created_jobs > 0
+    summary = scheduler.reconcile_desired_derivatives(
+        library_id=library_id, reason="manual_generate", respect_warm_policy=False
+    )
+    assert summary.desired_derivatives > 0  # the scan's own reconcile already queued them
     for _ in range(8):
         claimed = scheduler._claim_job("worker")
         assert claimed is not None
@@ -451,7 +505,14 @@ def test_the_unscoped_status_reads_come_from_the_counters_and_scoped_reads_still
     with capture_sql(monkeypatch) as statements:
         get_metadata_lifecycle_status()
         get_indexer_runtime_status()
-    aggregates = [s for s in statements if "count(*)" in s.lower() and "FROM metadata_index_jobs" in s and "state = ?" in s]
+    aggregates = [
+        s
+        for s in statements
+        if "count(*)" in s.lower()
+        and "from metadata_index_jobs" in s.lower()
+        and "join" not in s.lower()
+        and "state" in s.lower()
+    ]
     assert not aggregates, f"unscoped status still aggregates metadata job states: {aggregates[:2]}"
     assert any("runtime_counters" in s for s in statements)
 
@@ -491,7 +552,9 @@ def test_counters_and_rows_are_read_from_one_snapshot(seeded) -> None:
                 """,
                 (assets[0][1], str(root), str(root), str(root)),
             )
-        counted = snapshot.execute("SELECT value FROM runtime_counters WHERE name = 'metadata_jobs.queued'").fetchone()[0]
+        counted = snapshot.execute("SELECT value FROM runtime_counters WHERE name = 'metadata_jobs.queued'").fetchone()[
+            0
+        ]
         rows = snapshot.execute("SELECT count(*) FROM metadata_index_jobs WHERE state = 'queued'").fetchone()[0]
     assert first == counted == rows == 0
     assert stored_counters(db_path)["metadata_jobs.queued"] == 1

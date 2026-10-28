@@ -31,6 +31,7 @@ from ._schema_ensure import (
     _ensure_post_v1_additive_columns,
     _ensure_prompt_discovery_schema,
     _ensure_raw_workflow_schema,
+    _ensure_runtime_counters,
     _ensure_search_index_schema,
     _ensure_v3_schema,
     _ensure_visual_fingerprint_schema,
@@ -118,6 +119,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         _ensure_file_index_trigram_schema(conn)
         _ensure_generation_signature_schema(conn)
         _ensure_visual_fingerprint_schema(conn)
+        _ensure_runtime_counters(conn)
         return
 
     if current_version == 0 and has_application_tables:
@@ -136,6 +138,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     _ensure_file_index_trigram_schema(conn)
     _ensure_generation_signature_schema(conn)
     _ensure_visual_fingerprint_schema(conn)
+    _ensure_runtime_counters(conn)
 
     conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")
     _cleanup_ignored_index_conn(conn)

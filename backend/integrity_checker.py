@@ -12,7 +12,8 @@ from typing import Any
 
 from .catalog_maintenance_gate import maintenance_producer
 from .config import DERIVATIVE_RECONCILE_BATCH_SIZE, DERIVATIVE_VARIANTS
-from .metadata_store import _DB_LOCK, _connect
+from .metadata_store import _DB_LOCK, _connect, _read_snapshot
+from .metadata_store.db_writer import LANE_NORMAL, run_write
 from .metadata_store.identity import (
     asset_matches_image_metadata_sql,
     asset_owns_file_index_sql,
@@ -197,6 +198,8 @@ class IntegrityChecker:
         from .indexer import recover_running_metadata_jobs
 
         total = {}
+        # The runtime counters behind the status reads are recomputed first; any drift is repaired.
+        total["runtime_counters_repaired"] = self._repair_runtime_counters()
         # Pre-existing ``ready`` derivatives of superseded source identities are retired first, in
         # bounded transactions of their own, so the checks below only see current rows and the
         # checker never resurrects or fails a retired row.
@@ -319,6 +322,33 @@ class IntegrityChecker:
             (deferred_summary.created_jobs + deferred_summary.requeued_without_job) if deferred_summary else 0
         )
         return total
+
+    @staticmethod
+    def _repair_runtime_counters() -> int:
+        """Recompute the runtime counters from the source tables and repair drift; return how many drifted.
+
+        Drift is detected on a read snapshot so a clean database costs the writer nothing; only a drifted
+        one runs a repair op (a normal-lane writer op, or a direct transaction with the flag off), which
+        recomputes inside the write transaction so no writer can change the counted rows in between.
+        """
+        from .metadata_store.runtime_counters import verify_runtime_counters
+
+        with _read_snapshot() as snapshot:
+            if not verify_runtime_counters(snapshot):
+                return 0
+
+        def repair(conn: sqlite3.Connection) -> int:
+            return len(verify_runtime_counters(conn, repair=True))
+
+        def repair_directly() -> int:
+            with _DB_LOCK, _connect() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                return repair(conn)
+
+        repaired = run_write(repair, lane=LANE_NORMAL, fallback=repair_directly)
+        if repaired:
+            logger.warning("Integrity: repaired %s drifted runtime counter(s)", repaired)
+        return repaired
 
     @staticmethod
     def _check_file_index_ownership_mismatch(conn: sqlite3.Connection) -> int:

@@ -334,7 +334,9 @@ def test_a_running_scans_lease_is_renewed_while_another_thread_holds_the_db_lock
 
     assert finished and error is None
     alive, expiry = result
-    assert alive, f"the claim's lease lapsed while _DB_LOCK was held elsewhere (expiry {expiry}, started {original_expiry})"
+    assert alive, (
+        f"the claim's lease lapsed while _DB_LOCK was held elsewhere (expiry {expiry}, started {original_expiry})"
+    )
     assert update_job_state(job_id, "running", claim_token=token, lease_seconds=1.0, progress_current=1) is not None
     if mode == "writer":
         renewals = [entry for entry in submit_log if entry.lane == "priority"]
@@ -353,8 +355,8 @@ def test_a_stale_catalog_claim_writes_zero_rows_and_its_ops_raise_inside_the_op(
     from backend.metadata_store import (
         activate_rebuild_staging,
         enumerate_to_rebuild_staging,
-        recover_stale_jobs,
         reconcile_library_assets,
+        recover_stale_jobs,
     )
     from backend.metadata_store.file_index import _bulk_index_records
 
@@ -439,6 +441,123 @@ def test_a_conflict_raised_inside_the_op_surfaces_unchanged_and_writes_nothing(s
 
     assert conflict.value.args and _count(db_path, "library_jobs") == jobs_before
     assert _job(db_path, int(running["id"]))["state"] == "running"
+
+
+# ---------------------------------------------------------------------------
+# Writer-path equivalents of the direct-transaction fencing/batching internals
+# ---------------------------------------------------------------------------
+
+
+@needs_writer
+def test_a_heartbeat_landing_between_the_recovery_read_and_its_write_wins(
+    scan_env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The fenced recovery write re-validates the lease inside the op (candidates are read earlier)."""
+    import backend.metadata_store.job_store as job_store
+    from backend.metadata_store import get_job, recover_stale_jobs
+
+    db_path, library_id, _root, _images = scan_env
+    scan_worker.queue_scan(library_id, trigger="manual")
+    job = claim_next_catalog_job(worker_id="live-worker", lease_seconds=60)
+    assert job is not None
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, job["id"]))
+    real_run_write = job_store.run_write
+
+    def racing_run_write(op, **kwargs):
+        with sqlite3.connect(db_path) as raw:  # the heartbeat renews after the candidates were read
+            raw.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() + 60, job["id"]))
+        return real_run_write(op, **kwargs)
+
+    monkeypatch.setattr(job_store, "run_write", racing_run_write)
+    assert recover_stale_jobs(live_worker_ids={"live-worker"}) == []
+    assert get_job(job["id"])["state"] == "running"
+
+
+@needs_writer
+def test_scan_batches_commit_separately_and_refresh_the_claim_inside_each_op(
+    scan_env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import backend.metadata_store.file_index as file_index_module
+
+    db_path, library_id, root, _images = scan_env
+    scan_worker.queue_scan(library_id, trigger="manual")
+    claimed = claim_next_catalog_job(worker_id="w", lease_seconds=5)
+    assert claimed is not None
+    records = [
+        (
+            str(root / f"batch_{index}.png"), f"batch_{index}.png", str(root), "image", 1.0, FIXED_MTIME_NS + index,
+            10, 4, 4, time.time(), "image/png", None, None,
+        )
+        for index in range(3)
+    ]  # fmt: skip
+    monkeypatch.setattr(file_index_module, "_INDEX_WRITE_BATCH_SIZE", 1)
+    recording = RecordingWriter(monkeypatch)
+    try:
+        before_expiry = float(_job(db_path, int(claimed["id"]))["lease_expires_at"])
+        file_index_module._bulk_index_records(
+            records, library_id, claim_job_id=int(claimed["id"]), claim_token=str(claimed["claim_token"]),
+            claim_lease_seconds=60,
+        )  # fmt: skip
+    finally:
+        recording.stop()
+
+    assert len(recording.ops) == 3 and recording.commits >= 1
+    for statements in recording.ops:  # every op asserts the claim first and refreshes it before it ends
+        assert statements[0].startswith("SELECT id, library_id, claim_token")
+        assert statements[-1].lstrip().startswith("UPDATE library_jobs")
+    assert float(_job(db_path, int(claimed["id"]))["lease_expires_at"]) > before_expiry + 30
+
+
+@needs_writer
+def test_metadata_job_batches_are_one_op_each_and_refresh_the_claim(scan_env, monkeypatch: pytest.MonkeyPatch) -> None:
+    import backend.metadata_store.metadata_queue as metadata_queue_module
+    from backend.indexer import dispatch_metadata_index_paths
+
+    db_path, library_id, root, images = scan_env
+    scan_worker.queue_scan(library_id, trigger="manual")
+    claimed = claim_next_catalog_job(worker_id="w", lease_seconds=5)
+    assert claimed is not None
+    from backend.metadata_store import index_directory_tree
+
+    index_directory_tree(root)
+    monkeypatch.setattr(metadata_queue_module, "GALLERY_CATALOG_WRITE_BATCH_SIZE", 3)
+    recording = RecordingWriter(monkeypatch)
+    try:
+        result = dispatch_metadata_index_paths(
+            images, root, catalog_claim_job_id=int(claimed["id"]), catalog_claim_token=str(claimed["claim_token"]),
+            catalog_claim_lease_seconds=60,
+        )  # fmt: skip
+    finally:
+        recording.stop()
+
+    assert result["queued"] == len(images)
+    assert len(recording.ops) == 3  # 8 images in batches of 3
+    for statements in recording.ops:
+        assert statements[0].startswith("SELECT id, library_id, claim_token")
+        assert any(s.lstrip().startswith("UPDATE library_jobs") for s in statements[-2:])
+    assert _count(db_path, "metadata_index_jobs") == len(images)
+
+
+@needs_writer
+def test_a_directory_scan_writes_through_one_shared_writer_connection(
+    scan_env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.metadata_store import index_directory_tree
+
+    _db_path, _library_id, root, images = scan_env
+    _writer_module().database_writer.reset()
+    opened: list[str] = []
+    real_connect = sqlite3.connect
+
+    def counting_connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+        opened.append(threading.current_thread().name)
+        return real_connect(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(sqlite3, "connect", counting_connect)
+        assert index_directory_tree(root) == len(images) + 3  # images, the root and two album folders
+    assert opened.count(WRITER_THREAD_NAME) == 1, f"the scan opened connections on {opened}"
 
 
 # ---------------------------------------------------------------------------
@@ -545,10 +664,10 @@ def test_scan_and_rebuild_results_are_identical_through_the_writer_and_directly(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import shutil
+
     import backend.config as cfg
     import backend.metadata_store as ms
-
-    import shutil
 
     root = isolated_gallery_root / "photos"
     results: dict[str, list[dict[str, list[tuple[Any, ...]]]]] = {}

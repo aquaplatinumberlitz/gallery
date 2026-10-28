@@ -7,6 +7,7 @@ from typing import Any
 
 from ..config import DERIVATIVE_VARIANTS
 from ..metadata_store import _read_snapshot
+from ..metadata_store.runtime_counters import derivative_ready_bytes
 from ._common import _ensure_database
 
 
@@ -155,11 +156,7 @@ class StatusMixin:
                         job_counts[state] = int(row["count"])
                     if state == "running" and row["oldest_age"] is not None:
                         oldest_running_age_seconds = max(0.0, float(row["oldest_age"]))
-            global_used = int(
-                conn.execute(
-                    "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"
-                ).fetchone()[0]
-            )
+            global_used = derivative_ready_bytes(conn)  # O(1) runtime counter of the same snapshot
             alive_workers = self.alive_worker_count()
         desired = total_assets * expected_derivatives_per_asset if warm_enabled else 0
         actionable_missing = 0

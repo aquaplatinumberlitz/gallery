@@ -575,6 +575,8 @@ class TestRunAllChecks:
             # WK-04 / WK-06 repairs: expired metadata claims requeued, superseded ready derivatives retired.
             "metadata_running_recovered",
             "derivative_superseded_retired",
+            # Phase 2.5: drifted runtime counters repaired.
+            "runtime_counters_repaired",
         }
         assert set(results.keys()) == expected_keys
         for val in results.values():

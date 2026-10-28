@@ -6,6 +6,7 @@ import sqlite3
 from collections.abc import Callable
 
 from ._db import _ensure_column
+from ._schema_ddl import RUNTIME_COUNTER_NAMES, RUNTIME_COUNTER_TRIGGER_NAMES, RUNTIME_COUNTERS_STATEMENTS
 
 
 def _ensure_generation_signature_schema(
@@ -662,3 +663,31 @@ def _ensure_v3_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_libraries_scheduled_attempt ON libraries(last_scheduled_attempt_at, id)"
     )
+
+
+def _ensure_runtime_counters(conn: sqlite3.Connection) -> None:
+    """Create the runtime counters table and triggers; backfill the values when they could be stale.
+
+    A database that predates the table, lacks a counter row, or lacks one of the triggers was (or may
+    have been) written without the counters following, so its values are recomputed from the source
+    tables. A complete, current database is left untouched.
+    """
+    from .runtime_counters import read_counters, verify_runtime_counters
+
+    existing_triggers = {
+        row[0]
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%'")
+    }
+    table_exists = (
+        conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'runtime_counters'").fetchone()
+        is not None
+    )
+    needs_backfill = (
+        not table_exists
+        or not set(RUNTIME_COUNTER_NAMES) <= set(read_counters(conn))
+        or not set(RUNTIME_COUNTER_TRIGGER_NAMES) <= existing_triggers
+    )
+    for statement in RUNTIME_COUNTERS_STATEMENTS:
+        conn.execute(statement)
+    if needs_backfill:
+        verify_runtime_counters(conn, repair=True)

@@ -16,6 +16,7 @@ from ..files import asset_type_for_path, is_asset_path, is_index_excluded_path
 from ..metadata_extract import parse_int
 from ._asset_store import _upsert_asset_conn
 from ._db import _DB_LOCK, _connect
+from .db_writer import LANE_NORMAL, SCAN_OP_ROWS, get_active_writer, run_write
 from .library_store import _find_library_for_path_conn, _library_exclusion_patterns_conn, get_library_for_path
 from .metadata_persist import index_images
 from .path_utils import path_scope_sql
@@ -38,111 +39,122 @@ def _bulk_index_records(
     if (claim_job_id is None) != (claim_token is None):
         raise ValueError("Catalog claim job id and token must be provided together")
     _initialize_database()
-    for start in range(0, len(records), _INDEX_WRITE_BATCH_SIZE):
-        batch = records[start : start + _INDEX_WRITE_BATCH_SIZE]
-        with _DB_LOCK, _connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            try:
-                if claim_job_id is not None and claim_token is not None:
-                    from .job_store import assert_catalog_job_claim_conn
+    batch_size = _INDEX_WRITE_BATCH_SIZE
+    if get_active_writer() is not None:
+        batch_size = max(1, min(batch_size, SCAN_OP_ROWS))
+    for start in range(0, len(records), batch_size):
+        batch = records[start : start + batch_size]
 
-                    assert_catalog_job_claim_conn(
-                        conn,
-                        claim_job_id,
-                        claim_token,
-                        library_id=library_id,
-                    )
-                conn.executemany(
-                    """INSERT INTO file_index (
-                         path, name, parent_path, type, mtime, mtime_ns, size, width,
-                         height, indexed_at, library_id
-                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                       ON CONFLICT(path) DO UPDATE SET name=excluded.name,
-                         parent_path=excluded.parent_path, type=excluded.type, mtime=excluded.mtime,
-                         mtime_ns=excluded.mtime_ns, size=excluded.size, width=excluded.width,
-                         height=excluded.height, indexed_at=excluded.indexed_at,
-                         library_id=excluded.library_id""",
-                    (record[:10] + (library_id,) for record in batch),
+        def write(conn: sqlite3.Connection, batch: list[tuple[Any, ...]] = batch) -> None:
+            if claim_job_id is not None and claim_token is not None:
+                from .job_store import assert_catalog_job_claim_conn
+
+                assert_catalog_job_claim_conn(
+                    conn,
+                    claim_job_id,
+                    claim_token,
+                    library_id=library_id,
                 )
+            conn.executemany(
+                """INSERT INTO file_index (
+                     path, name, parent_path, type, mtime, mtime_ns, size, width,
+                     height, indexed_at, library_id
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(path) DO UPDATE SET name=excluded.name,
+                     parent_path=excluded.parent_path, type=excluded.type, mtime=excluded.mtime,
+                     mtime_ns=excluded.mtime_ns, size=excluded.size, width=excluded.width,
+                     height=excluded.height, indexed_at=excluded.indexed_at,
+                     library_id=excluded.library_id""",
+                (record[:10] + (library_id,) for record in batch),
+            )
+            conn.executemany(
+                "DELETE FROM file_index_fts WHERE path = ?",
+                ((record[0],) for record in batch),
+            )
+            conn.executemany(
+                "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
+                ((record[1], record[0], record[3], record[2]) for record in batch),
+            )
+            if library_id is not None:
                 conn.executemany(
-                    "DELETE FROM file_index_fts WHERE path = ?",
-                    ((record[0],) for record in batch),
-                )
-                conn.executemany(
-                    "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
-                    ((record[1], record[0], record[3], record[2]) for record in batch),
-                )
-                if library_id is not None:
-                    conn.executemany(
-                        """INSERT INTO assets (
-                             library_id, path, parent_path, name, type, mtime_ns, size,
-                             width, height, indexed_at, metadata_state, offline, deleted_at,
-                             mime_type, duration_ms, codec
-                           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?, ?)
-                           ON CONFLICT(library_id, path) DO UPDATE SET
-                             parent_path=excluded.parent_path, name=excluded.name, type=excluded.type,
-                             mtime_ns=COALESCE(excluded.mtime_ns, assets.mtime_ns),
-                             size=COALESCE(excluded.size, assets.size),
-                             width=CASE WHEN excluded.type IN ('image', 'video')
-                               AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                               AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                               THEN excluded.width ELSE COALESCE(excluded.width, assets.width) END,
-                             height=CASE WHEN excluded.type IN ('image', 'video')
-                               AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                               AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                               THEN excluded.height ELSE COALESCE(excluded.height, assets.height) END,
-                             orientation=CASE WHEN excluded.type IN ('image', 'video')
-                               AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                               AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                               THEN NULL ELSE assets.orientation END,
-                             metadata_state=CASE WHEN excluded.type = 'image'
-                               AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                               AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                               THEN 'pending' ELSE assets.metadata_state END,
-                             indexed_at=excluded.indexed_at,
-                             mime_type=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                               AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                               THEN excluded.mime_type ELSE COALESCE(excluded.mime_type, assets.mime_type) END,
-                             duration_ms=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                               AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                               THEN excluded.duration_ms ELSE COALESCE(excluded.duration_ms, assets.duration_ms) END,
-                             codec=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                               AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                               THEN excluded.codec ELSE COALESCE(excluded.codec, assets.codec) END,
-                             offline=0, deleted_at=NULL""",
+                    """INSERT INTO assets (
+                         library_id, path, parent_path, name, type, mtime_ns, size,
+                         width, height, indexed_at, metadata_state, offline, deleted_at,
+                         mime_type, duration_ms, codec
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?, ?)
+                       ON CONFLICT(library_id, path) DO UPDATE SET
+                         parent_path=excluded.parent_path, name=excluded.name, type=excluded.type,
+                         mtime_ns=COALESCE(excluded.mtime_ns, assets.mtime_ns),
+                         size=COALESCE(excluded.size, assets.size),
+                         width=CASE WHEN excluded.type IN ('image', 'video')
+                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN excluded.width ELSE COALESCE(excluded.width, assets.width) END,
+                         height=CASE WHEN excluded.type IN ('image', 'video')
+                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN excluded.height ELSE COALESCE(excluded.height, assets.height) END,
+                         orientation=CASE WHEN excluded.type IN ('image', 'video')
+                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN NULL ELSE assets.orientation END,
+                         metadata_state=CASE WHEN excluded.type = 'image'
+                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN 'pending' ELSE assets.metadata_state END,
+                         indexed_at=excluded.indexed_at,
+                         mime_type=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN excluded.mime_type ELSE COALESCE(excluded.mime_type, assets.mime_type) END,
+                         duration_ms=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN excluded.duration_ms ELSE COALESCE(excluded.duration_ms, assets.duration_ms) END,
+                         codec=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                           THEN excluded.codec ELSE COALESCE(excluded.codec, assets.codec) END,
+                         offline=0, deleted_at=NULL""",
+                    (
                         (
-                            (
-                                library_id,
-                                record[0],
-                                record[2],
-                                record[1],
-                                record[3],
-                                record[5],
-                                record[6],
-                                record[7],
-                                record[8],
-                                record[9],
-                                record[10],
-                                record[11],
-                                record[12],
-                            )
-                            for record in batch
-                        ),
-                    )
-                if claim_job_id is not None and claim_token is not None:
-                    from .job_store import refresh_catalog_job_claim_before_commit_conn
+                            library_id,
+                            record[0],
+                            record[2],
+                            record[1],
+                            record[3],
+                            record[5],
+                            record[6],
+                            record[7],
+                            record[8],
+                            record[9],
+                            record[10],
+                            record[11],
+                            record[12],
+                        )
+                        for record in batch
+                    ),
+                )
+            if claim_job_id is not None and claim_token is not None:
+                from .job_store import refresh_catalog_job_claim_before_commit_conn
 
-                    refresh_catalog_job_claim_before_commit_conn(
-                        conn,
-                        claim_job_id,
-                        claim_token,
-                        lease_seconds=claim_lease_seconds,
-                        library_id=library_id,
-                    )
+                refresh_catalog_job_claim_before_commit_conn(
+                    conn,
+                    claim_job_id,
+                    claim_token,
+                    lease_seconds=claim_lease_seconds,
+                    library_id=library_id,
+                )
+
+        def write_directly(batch: list[tuple[Any, ...]] = batch, write=write) -> None:
+            with _DB_LOCK, _connect() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    write(conn, batch)
+                except Exception:
+                    conn.execute("ROLLBACK")
+                    raise
                 conn.execute("COMMIT")
-            except Exception:
-                conn.execute("ROLLBACK")
-                raise
+
+        # A scan batch: one fenced normal-lane writer op (claim assertion, upserts, claim refresh).
+        run_write(write, lane=LANE_NORMAL, fallback=write_directly)
 
 
 def _initialize_database() -> None:

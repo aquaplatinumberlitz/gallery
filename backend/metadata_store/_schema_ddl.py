@@ -2,6 +2,61 @@
 
 from __future__ import annotations
 
+# Runtime counters (Phase 2.5): O(1) status counts maintained by triggers on the counted tables, so every
+# write path (database writer ops, flag-off direct transactions, destructive maintenance, migrations)
+# keeps them exact. ``runtime_counters.py`` owns reading, recomputing, and repairing them.
+RUNTIME_COUNTER_METADATA_STATES = ("queued", "running", "done", "stale", "failed", "skipped")
+RUNTIME_COUNTER_NAMES = (
+    *(f"metadata_jobs.{state}" for state in RUNTIME_COUNTER_METADATA_STATES),
+    "derivative_ready_bytes",
+)
+_COUNTER_BUMP = "UPDATE runtime_counters SET value = value {op} {amount} WHERE name = {name};"
+_RUNTIME_COUNTER_TRIGGERS: dict[str, str] = {
+    "trg_runtime_counters_mij_insert": (
+        "AFTER INSERT ON metadata_index_jobs BEGIN "
+        + _COUNTER_BUMP.format(op="+", amount="1", name="'metadata_jobs.' || NEW.state")
+        + " END"
+    ),
+    "trg_runtime_counters_mij_delete": (
+        "AFTER DELETE ON metadata_index_jobs BEGIN "
+        + _COUNTER_BUMP.format(op="-", amount="1", name="'metadata_jobs.' || OLD.state")
+        + " END"
+    ),
+    "trg_runtime_counters_mij_state": (
+        "AFTER UPDATE OF state ON metadata_index_jobs WHEN OLD.state IS NOT NEW.state BEGIN "
+        + _COUNTER_BUMP.format(op="-", amount="1", name="'metadata_jobs.' || OLD.state")
+        + " "
+        + _COUNTER_BUMP.format(op="+", amount="1", name="'metadata_jobs.' || NEW.state")
+        + " END"
+    ),
+    "trg_runtime_counters_ready_insert": (
+        "AFTER INSERT ON asset_derivatives WHEN NEW.status = 'ready' BEGIN "
+        + _COUNTER_BUMP.format(op="+", amount="COALESCE(NEW.byte_size, 0)", name="'derivative_ready_bytes'")
+        + " END"
+    ),
+    "trg_runtime_counters_ready_delete": (
+        "AFTER DELETE ON asset_derivatives WHEN OLD.status = 'ready' BEGIN "
+        + _COUNTER_BUMP.format(op="-", amount="COALESCE(OLD.byte_size, 0)", name="'derivative_ready_bytes'")
+        + " END"
+    ),
+    "trg_runtime_counters_ready_update": (
+        "AFTER UPDATE OF status, byte_size ON asset_derivatives "
+        "WHEN OLD.status IS NOT NEW.status OR OLD.byte_size IS NOT NEW.byte_size BEGIN "
+        "UPDATE runtime_counters SET value = value "
+        "- CASE WHEN OLD.status = 'ready' THEN COALESCE(OLD.byte_size, 0) ELSE 0 END "
+        "+ CASE WHEN NEW.status = 'ready' THEN COALESCE(NEW.byte_size, 0) ELSE 0 END "
+        "WHERE name = 'derivative_ready_bytes'; END"
+    ),
+}
+RUNTIME_COUNTER_TRIGGER_NAMES = tuple(_RUNTIME_COUNTER_TRIGGERS)
+RUNTIME_COUNTERS_STATEMENTS: tuple[str, ...] = (
+    "CREATE TABLE IF NOT EXISTS runtime_counters ("
+    "name TEXT PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID",
+    "INSERT OR IGNORE INTO runtime_counters(name, value) VALUES "
+    + ", ".join(f"('{name}', 0)" for name in RUNTIME_COUNTER_NAMES),
+    *(f"CREATE TRIGGER IF NOT EXISTS {name} {body}" for name, body in _RUNTIME_COUNTER_TRIGGERS.items()),
+)
+
 FRESH_DATABASE_DDL = """
             CREATE TABLE IF NOT EXISTS image_metadata (
               id INTEGER PRIMARY KEY,
@@ -346,4 +401,4 @@ FRESH_DATABASE_DDL = """
               ON catalog_rebuild_entries(library_id, job_id);
             CREATE INDEX IF NOT EXISTS idx_catalog_rebuild_entries_parent
               ON catalog_rebuild_entries(library_id, parent_path);
-            """
+            """ + "\n".join(f"{statement};" for statement in RUNTIME_COUNTERS_STATEMENTS)

@@ -11,6 +11,7 @@ from pathlib import Path
 from ..catalog_maintenance_gate import maintenance_producer
 from ..config import DERIVATIVE_RECONCILE_YIELD_SECONDS
 from ..metadata_store import _connect
+from ..metadata_store.db_writer import LANE_NORMAL, run_write
 from ._common import _ensure_database, logger
 from .capacity import CapacityLedger
 
@@ -164,18 +165,27 @@ class SupersedeMixin:
         selected_assets = None if asset_ids is None else [int(asset_id) for asset_id in asset_ids]
         self._flush_deferred_unlinks()
         retired_total = 0
+
+        def retire(conn: sqlite3.Connection) -> list[_Retired]:
+            return self._retire_superseded_in_txn(
+                conn,
+                selected_assets,
+                limit=_STANDALONE_ROW_LIMIT,
+                library_id=library_id,
+                scope_clause=scope_clause,
+                scope_params=scope_params,
+            )
+
+        def retire_directly() -> list[_Retired]:
+            with _connect() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                return retire(conn)
+
         while True:
             with self._eviction_lock:
-                with _connect() as conn:
-                    conn.execute("BEGIN IMMEDIATE")
-                    retired = self._retire_superseded_in_txn(
-                        conn,
-                        selected_assets,
-                        limit=_STANDALONE_ROW_LIMIT,
-                        library_id=library_id,
-                        scope_clause=scope_clause,
-                        scope_params=scope_params,
-                    )
+                # One bounded writer op per batch; the files are unlinked only after its Future resolved
+                # (the batch committed), never when the op failed.
+                retired = run_write(retire, lane=LANE_NORMAL, fallback=retire_directly)
                 self._discard_retired_files(path for _id, path in retired if path)
             retired_total += len(retired)
             if len(retired) < _STANDALONE_ROW_LIMIT:

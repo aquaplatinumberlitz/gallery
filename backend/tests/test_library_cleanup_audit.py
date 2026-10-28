@@ -123,6 +123,9 @@ def test_directory_scan_uses_one_shared_write_connection(
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Asserts direct-transaction internals (connection per batch): pinned to the flag-off path; the writer
+    # path is covered in test_worker_contention_phase2_catalog.py.
+    monkeypatch.setattr("backend.metadata_store.db_writer.DB_WRITER_ENABLED", False)
     create_library([isolated_gallery_root])
     for index in range(8):
         create_test_png(isolated_gallery_root / f"{index}.png")

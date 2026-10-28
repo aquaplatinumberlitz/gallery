@@ -112,6 +112,11 @@ def seed_derivative_corpus(
 @contextmanager
 def capture_sql(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[str]]:
     """Record every statement executed on connections opened while the context is active."""
+    from backend.metadata_store.db_writer import database_writer
+
+    # The shared writer keeps one long-lived connection; restart it so the connection it opens next is traced
+    # (a test's own setup may already have used the writer, which is not what is being observed).
+    database_writer.reset()
     statements: list[str] = []
     real_connect = sqlite3.connect
 

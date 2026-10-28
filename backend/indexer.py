@@ -69,6 +69,7 @@ from .metadata_store.db_writer import (
     run_write,
 )
 from .metadata_store.path_utils import path_scope_sql
+from .metadata_store.runtime_counters import metadata_job_state_counts
 
 try:  # prometheus-fastapi-instrumentator depends on prometheus_client.
     from prometheus_client import Counter, Gauge, Histogram
@@ -142,18 +143,22 @@ def get_indexer_runtime_status(scope_path: str | Path | None = None, *, conn: An
     initialize_database()
     scope_sql, scope_params = _metadata_runtime_scope_sql(scope_path)
     with _read_snapshot(conn) as conn:
-        queued_count = int(
-            conn.execute(
-                f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'queued'{scope_sql}",
-                scope_params,
-            ).fetchone()[0]
-        )
-        running_count = int(
-            conn.execute(
-                f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'running'{scope_sql}",
-                scope_params,
-            ).fetchone()[0]
-        )
+        if scope_sql:
+            queued_count = int(
+                conn.execute(
+                    f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'queued'{scope_sql}",
+                    scope_params,
+                ).fetchone()[0]
+            )
+            running_count = int(
+                conn.execute(
+                    f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'running'{scope_sql}",
+                    scope_params,
+                ).fetchone()[0]
+            )
+        else:  # unscoped: O(1) runtime counters read from the same snapshot
+            state_counts = metadata_job_state_counts(conn)
+            queued_count, running_count = state_counts["queued"], state_counts["running"]
         queued_rows = conn.execute(
             f"""
             SELECT path, priority, attempts, queued_at, updated_at, library_id
@@ -847,13 +852,19 @@ def get_metadata_lifecycle_status(scope_path: str | Path | None = None, *, conn:
     a_scope, _asset_scope_params = _metadata_runtime_scope_sql(scope_path, "a.path")
 
     with _read_snapshot(conn) as conn:
-        # Job state counts
+        # Job state counts (unscoped reads use the O(1) runtime counters of the same snapshot)
+        if mj_scope:
+            state_counts = {}
+            for state in ("queued", "running", "done", "stale", "failed", "skipped"):
+                row = conn.execute(
+                    f"SELECT count(*) AS cnt FROM metadata_index_jobs mj WHERE mj.state = ? {mj_scope}",
+                    [state, *scope_params],
+                ).fetchone()
+                state_counts[state] = int(row["cnt"])
+        else:
+            state_counts = metadata_job_state_counts(conn)
         for state in ("queued", "running", "done", "stale", "failed", "skipped"):
-            row = conn.execute(
-                f"SELECT count(*) AS cnt FROM metadata_index_jobs mj WHERE mj.state = ? {mj_scope}",
-                [state, *scope_params],
-            ).fetchone()
-            result[f"{state}_metadata_jobs"] = int(row["cnt"])
+            result[f"{state}_metadata_jobs"] = state_counts[state]
 
         # oldest_queued_metadata_job_age
         row = conn.execute(

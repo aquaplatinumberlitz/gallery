@@ -43,7 +43,8 @@ import backend.config as config
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler
 from backend.derivative_scheduler.execution import _LeaseHeartbeat
-from backend.metadata_store import _DB_LOCK, index_file
+from backend.metadata_store import index_file
+from backend.visual_fingerprints import notify_derivative_ready as real_notify_derivative_ready
 from tests.conftest import create_test_png
 from tests.test_db_writer import Blocker
 from tests.worker_contention_support import (
@@ -130,7 +131,9 @@ def _job_rows(db_path: Path, derivative_id: int) -> list[dict[str, Any]]:
         conn.row_factory = sqlite3.Row
         return [
             dict(row)
-            for row in conn.execute("SELECT * FROM derivative_jobs WHERE derivative_id = ? ORDER BY id", (derivative_id,))
+            for row in conn.execute(
+                "SELECT * FROM derivative_jobs WHERE derivative_id = ? ORDER BY id", (derivative_id,)
+            )
         ]
 
 
@@ -301,7 +304,9 @@ def test_a_stale_claims_completion_and_failure_apply_zero_rows(
     old = scheduler._claim_job("worker-old")
     assert old is not None
     with sqlite3.connect(db_path) as conn:
-        conn.execute("UPDATE derivative_jobs SET lease_expires_at = julianday('now') - 1 WHERE id = ?", (old["job_id"],))
+        conn.execute(
+            "UPDATE derivative_jobs SET lease_expires_at = julianday('now') - 1 WHERE id = ?", (old["job_id"],)
+        )
     assert scheduler._recover_running_jobs(expired_only=True) == 1
     new = scheduler._claim_job("worker-new")
     assert new is not None and new["claim_token"] != old["claim_token"] and new["job_id"] == old["job_id"]
@@ -341,7 +346,8 @@ def test_the_lease_heartbeat_renews_through_the_writer_while_another_thread_hold
     assert job is not None
     with sqlite3.connect(db_path) as conn:
         conn.execute(
-            "UPDATE derivative_jobs SET lease_expires_at = julianday('now') + 1.0 / 86400 WHERE id = ?", (job["job_id"],)
+            "UPDATE derivative_jobs SET lease_expires_at = julianday('now') + 1.0 / 86400 WHERE id = ?",
+            (job["job_id"],),
         )
 
     def renewed() -> bool:
@@ -367,7 +373,9 @@ def test_the_lease_heartbeat_renews_through_the_writer_while_another_thread_hold
     assert finished and error is None
     assert result is True, "the heartbeat could not renew while another thread held _DB_LOCK"
     if mode == "writer":
-        assert submit_log and {entry.lane for entry in submit_log} == {"priority"}
+        renewals = [entry for entry in submit_log if entry.thread.startswith("derivative-lease")]
+        assert renewals and {entry.lane for entry in renewals} == {"priority"}
+        assert not [entry for entry in renewals if entry.holds_db_lock]
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +399,10 @@ def test_the_derivative_workers_drain_every_job_through_the_writer_without_holdi
 
         def all_ready() -> bool:
             with sqlite3.connect(db_path) as conn:
-                return conn.execute("SELECT count(*) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0] == expected
+                return (
+                    conn.execute("SELECT count(*) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0]
+                    == expected
+                )
 
         assert wait_until(all_ready, timeout=60), "the workers did not finish every derivative"
     finally:
@@ -436,7 +447,9 @@ def test_a_derivative_lifecycle_writes_only_on_the_writer_thread(
     db_path, library_id, images = library
     with capture_write_threads(monkeypatch) as writes:
         scheduler.schedule_derivative(images[0][0], "thumbnail", THUMB_VARIANT, 0)
-        scheduler.reconcile_desired_derivatives(library_id=library_id, reason="manual_generate", respect_warm_policy=False)
+        scheduler.reconcile_desired_derivatives(
+            library_id=library_id, reason="manual_generate", respect_warm_policy=False
+        )
         job = scheduler._claim_job("worker")
         assert job is not None
         scheduler._run_job(job)  # render (dimension upsert), completion, quota enforcement
@@ -451,10 +464,41 @@ def test_a_derivative_lifecycle_writes_only_on_the_writer_thread(
         scheduler.quota_bytes = 1
         scheduler._reserve_capacity(1)
 
-    off_writer = [(thread, text.split("(")[0][:50]) for thread, text in writes if thread != WRITER_THREAD_NAME]
+    test_setup = ("UPDATE derivative_jobs SET lease_expires_at = julianday('now') - 1", "UPDATE assets SET offline = 1")
+    off_writer = [
+        (thread, text.split("(")[0][:50])
+        for thread, text in writes
+        if thread != WRITER_THREAD_NAME and not text.startswith(test_setup)
+    ]
     assert not off_writer, f"derivative writes outside the database writer: {off_writer[:12]}"
     assert any("derivative_jobs" in text for thread, text in writes if thread == WRITER_THREAD_NAME)
     assert any("image_metadata" in text for thread, text in writes if thread == WRITER_THREAD_NAME)
+
+
+@needs_writer
+def test_the_derivative_ready_hook_invalidates_through_the_writer_and_schedules_after_the_op(
+    library, submit_log, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``notify_derivative_ready`` (called by a derivative worker per completed derivative) was a direct write."""
+    import backend.visual_fingerprints as visual_fingerprints
+
+    _db_path, library_id, images = library
+    monkeypatch.setattr(visual_fingerprints, "GALLERY_RELATED_VISUAL_ENABLED", True)
+    scheduled: list[tuple[int, str]] = []
+    monkeypatch.setattr(
+        visual_fingerprints,
+        "schedule_visual_fingerprint_backfill",
+        lambda lib: scheduled.append((lib, threading.current_thread().name)),
+    )
+    start = len(submit_log)
+
+    real_notify_derivative_ready(images[0][0])
+
+    entries = submit_log[start:]
+    assert entries and {entry.lane for entry in entries} == {"normal"}
+    assert not [entry for entry in entries if entry.holds_db_lock]
+    assert len(scheduled) == 1 and scheduled[0][0] == library_id
+    assert scheduled[0][1] != WRITER_THREAD_NAME, "the backfill scheduling takes _DB_LOCK: never inside the op"
 
 
 # ---------------------------------------------------------------------------
@@ -477,7 +521,9 @@ def _seed_superseded_ready(db_path: Path, asset_id: int, cache_file: Path) -> in
                 (asset_id, THUMB_VARIANT, mtime_ns - 7, size, str(cache_file)),
             ).lastrowid
         )
-        conn.execute("INSERT INTO derivative_jobs (derivative_id, priority, state) VALUES (?, 3, 'done')", (derivative_id,))
+        conn.execute(
+            "INSERT INTO derivative_jobs (derivative_id, priority, state) VALUES (?, 3, 'done')", (derivative_id,)
+        )
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_bytes(b"stale")
     return derivative_id

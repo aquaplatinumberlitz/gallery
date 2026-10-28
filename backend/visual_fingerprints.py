@@ -13,6 +13,7 @@ from PIL import Image, ImageOps
 
 from .config import GALLERY_RELATED_VISUAL_ENABLED
 from .metadata_store._db import _DB_LOCK, _connect
+from .metadata_store.db_writer import LANE_NORMAL, run_write
 from .metadata_store.path_utils import canonicalize_catalog_path, named_path_scope_sql
 from .models import RelatedSearchResultV1
 from .search_scope import SearchScopeContext
@@ -215,16 +216,22 @@ def schedule_visual_fingerprint_backfill(library_id: int) -> None:
 
 
 def notify_derivative_ready(asset_id: int) -> None:
-    """Invalidate a pending visual extraction and queue durable retry work."""
+    """Invalidate a pending visual extraction and queue durable retry work.
+
+    Called by a derivative worker right after a derivative became ``ready``. The invalidation is a
+    normal-lane database writer op (a direct ``_DB_LOCK`` transaction with the flag off); the backfill
+    scheduling takes ``_DB_LOCK``, so it runs after the op resolved, never inside it.
+    """
     if not GALLERY_RELATED_VISUAL_ENABLED:
         return
-    with _DB_LOCK, _connect() as conn:
+
+    def invalidate(conn: sqlite3.Connection) -> int | None:
         asset = conn.execute(
             "SELECT library_id FROM assets WHERE id = ? AND type = 'image' AND offline = 0 AND deleted_at IS NULL",
             (asset_id,),
         ).fetchone()
         if asset is None:
-            return
+            return None
         current = conn.execute(
             """
             SELECT 1 FROM asset_visual_fingerprints AS fingerprint
@@ -238,15 +245,22 @@ def notify_derivative_ready(asset_id: int) -> None:
             (asset_id, VISUAL_DERIVATIVE_VERSION, VISUAL_FINGERPRINT_ALGORITHM_VERSION),
         ).fetchone()
         if current is not None:
-            return
+            return None
         conn.execute("DELETE FROM asset_visual_fingerprints WHERE asset_id = ?", (asset_id,))
         conn.execute("DELETE FROM asset_visual_hash_bands WHERE asset_id = ?", (asset_id,))
         conn.execute(
             "DELETE FROM asset_search_extractions WHERE asset_id = ? AND index_name = 'visual_fingerprints'",
             (asset_id,),
         )
-        library_id = int(asset["library_id"])
-    schedule_visual_fingerprint_backfill(library_id)
+        return int(asset["library_id"])
+
+    def invalidate_directly() -> int | None:
+        with _DB_LOCK, _connect() as conn:
+            return invalidate(conn)
+
+    library_id = run_write(invalidate, lane=LANE_NORMAL, fallback=invalidate_directly)
+    if library_id is not None:
+        schedule_visual_fingerprint_backfill(library_id)
 
 
 def _scope_sql(context: SearchScopeContext) -> tuple[str, dict[str, Any]]:

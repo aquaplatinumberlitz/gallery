@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 
+from ._schema_ddl import RUNTIME_COUNTER_TRIGGER_NAMES
+
 _TABLES: tuple[str, ...] = (
     "assets",
     "image_metadata",
@@ -19,6 +21,7 @@ _TABLES: tuple[str, ...] = (
     "asset_search_extractions",
     "asset_visual_fingerprints",
     "asset_visual_hash_bands",
+    "runtime_counters",
 )
 
 _TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
@@ -110,6 +113,7 @@ _TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
         "dhash_vertical",
         "color_grid",
     ),
+    "runtime_counters": ("name", "value"),
     "asset_visual_hash_bands": (
         "asset_id",
         "library_id",
@@ -164,5 +168,13 @@ def check_catalog_schema(conn: sqlite3.Connection) -> list[str]:
         ).fetchone()
         if not exists:
             issues.append(f"Missing index: {index}")
+
+    for trigger in RUNTIME_COUNTER_TRIGGER_NAMES:
+        exists = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='trigger' AND name=?",
+            (trigger,),
+        ).fetchone()
+        if not exists:
+            issues.append(f"Missing trigger: {trigger}")
 
     return issues

@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import TypeVar
 
 from .path_utils import _compare_natural_sql
 
 _WRITER_THREAD = threading.local()
+_T = TypeVar("_T")
 
 
 class WriterThreadLockError(RuntimeError):
@@ -169,3 +171,23 @@ def init_db() -> None:
     from ._schema import initialize_database
 
     initialize_database()
+
+
+def run_direct_immediate(
+    op: Callable[[sqlite3.Connection], _T], *, connect: Callable[[], sqlite3.Connection] | None = None
+) -> _T:
+    """Run ``op(conn)`` in one direct ``BEGIN IMMEDIATE`` transaction under ``_DB_LOCK`` (the flag-off path).
+
+    Every catalog write below is a function of a connection (so it can run as a database writer op) plus
+    this wrapper as its ``run_write`` fallback; ``_DB_LOCK`` is only ever taken here, never while waiting
+    for the writer.
+    """
+    with _DB_LOCK, (connect or _connect)() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            result = op(conn)
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+        conn.execute("COMMIT")
+        return result

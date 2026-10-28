@@ -29,7 +29,7 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from ..catalog_maintenance_gate import producer_gate
+from ..catalog_maintenance_gate import producer_gate, release_maintenance_gate, try_acquire_maintenance_gate
 from ..config import (
     DB_WRITER_BATCH_MAX,
     DB_WRITER_BATCH_MS,
@@ -38,12 +38,18 @@ from ..config import (
     DB_WRITER_RESULT_TIMEOUT_SECONDS,
     DB_WRITER_SHUTDOWN_TIMEOUT_SECONDS,
     DB_WRITER_SUBMIT_TIMEOUT_SECONDS,
+    DB_WRITER_YIELD_MS,
 )
 from . import _db
 from ._db import _connect, _gallery_metadata_db_path
 
 _T = TypeVar("_T")
 LOGGER = logging.getLogger(__name__)
+
+# Rows of a catalog scan batch written by one writer op. The scan batch settings (500 by default) bound a
+# claim-refreshing transaction; with the writer each batch is cut into ops of at most this many rows so one
+# op stays well inside the Phase 2 write-lock budget (<= 250 ms).
+SCAN_OP_ROWS = 250
 
 LANE_PRIORITY = "priority"
 LANE_NORMAL = "normal"
@@ -138,6 +144,7 @@ class DatabaseWriter:
         path_provider: Callable[[], object] | None = None,
         batch_max: int | None = None,
         batch_ms: float | None = None,
+        yield_ms: float | None = None,
         queue_max: int | None = None,
         submit_timeout: float | None = None,
         result_timeout: float | None = None,
@@ -158,6 +165,7 @@ class DatabaseWriter:
         self._path_provider = path_provider or _gallery_metadata_db_path
         self._batch_max = max(1, DB_WRITER_BATCH_MAX if batch_max is None else int(batch_max))
         self._batch_ms = max(0.0, DB_WRITER_BATCH_MS if batch_ms is None else float(batch_ms))
+        self._yield_s = max(0.0, DB_WRITER_YIELD_MS if yield_ms is None else float(yield_ms)) / 1000.0
         self._queue_max = max(1, DB_WRITER_QUEUE_MAX if queue_max is None else int(queue_max))
         self._submit_timeout = DB_WRITER_SUBMIT_TIMEOUT_SECONDS if submit_timeout is None else float(submit_timeout)
         self._result_timeout = DB_WRITER_RESULT_TIMEOUT_SECONDS if result_timeout is None else float(result_timeout)
@@ -392,6 +400,7 @@ class DatabaseWriter:
                 if first is None:
                     break
                 self._run_batch(first)
+                self._yield_to_other_writers()
         except BaseException:  # noqa: BLE001 - the thread must leave a consistent, closed writer behind
             LOGGER.exception("The database writer thread crashed")
         finally:
@@ -406,6 +415,28 @@ class DatabaseWriter:
             self._space.notify_all()
         for op in dropped:
             _settle(op.future, False, DatabaseWriterClosed("the database writer stopped before the op ran"))
+
+    def _yield_to_other_writers(self) -> None:
+        """Release SQLite's write lock for ``yield_ms`` after a batch when more ops are already queued.
+
+        A saturated writer would otherwise commit one batch and immediately begin the next, keeping the
+        write lock continuously for seconds: a writer outside this thread (the not yet migrated
+        ``_DB_LOCK`` writers, any other connection) polls the lock with SQLite's sleeping busy handler and
+        could starve however short each batch is. The guaranteed gap makes the longest continuous hold
+        one batch. The pause happens only when work is waiting (an idle writer never lingers), applies to
+        both lanes (priority ops wait at most ``yield_ms`` longer), and is skipped while stopping.
+        """
+        if self._yield_s <= 0:
+            return
+        with self._work:
+            if not any(self._queues[lane] for lane in LANES):
+                return  # nothing queued: the lock is free anyway
+            deadline = self._clock_monotonic() + self._yield_s
+            while self._state == "running":
+                remaining = deadline - self._clock_monotonic()
+                if remaining <= 0:
+                    break
+                self._work.wait(remaining)
 
     def _pop_locked(self) -> _Op | None:
         """Pop the next runnable op, priority lane first, FIFO inside a lane; skips cancelled Futures."""
@@ -625,3 +656,40 @@ def run_write(op: Callable[[sqlite3.Connection], _T], *, lane: str = LANE_NORMAL
         except DatabaseWriterClosed:
             pass
     return fallback()
+
+
+def post_write(
+    op: Callable[[sqlite3.Connection], Any], *, lane: str = LANE_NORMAL, fallback: Callable[[], Any]
+) -> Future | None:
+    """Queue a best-effort ``op`` without waiting for it (HTTP request paths must never wait for a batch).
+
+    Returns the op's Future, or ``None`` when nothing was queued: the op ran directly (``fallback()``, flag
+    off or the caller holds ``_DB_LOCK``), ran inline (writer thread), or was dropped because maintenance
+    holds the gate, the lane is full, or the writer is closed. A dropped op is only acceptable for writes
+    that do not affect correctness (such as the ``last_accessed_at`` touch). The submission is made under
+    the producer gate without blocking on it; a failing op is logged, never raised into the caller.
+    """
+    writer = get_active_writer()
+    if writer is None:
+        fallback()
+        return None
+    if writer.in_writer_thread():
+        writer.run(op, lane=lane)
+        return None
+    if not try_acquire_maintenance_gate():
+        return None
+    try:
+        future = writer.submit(op, lane=lane, timeout=0.0)
+    except DatabaseWriterUnavailable:
+        LOGGER.debug("Best-effort database write dropped: the writer is closed or backed up")
+        return None
+    finally:
+        release_maintenance_gate()
+
+    def log_failure(done: Future) -> None:
+        error = done.exception() if not done.cancelled() else None
+        if error is not None:
+            LOGGER.warning("Best-effort database write failed: %s", error)
+
+    future.add_done_callback(log_failure)
+    return future
