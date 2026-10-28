@@ -11,6 +11,7 @@ from ..catalog_maintenance_gate import MaintenanceGateBusy, maintenance_gate
 from ..config import THUMBNAIL_CACHE_DIR
 from ..files import IMAGE_EXTENSIONS, is_index_excluded_path
 from ._db import _DB_LOCK, _active_asset_where, _connect
+from .db_writer import writer_connection
 from .path_utils import _catalog_paths_overlap, _path_is_within
 from .types import CatalogMaintenanceBusy, LibraryOverlapError
 
@@ -413,18 +414,24 @@ def get_library(library_id: int) -> LibraryRecord | None:
         return _serialize_library_conn(conn, row) if row else None
 
 
+def _library_for_path_conn(conn: sqlite3.Connection, path: str | Path) -> LibraryRecord | None:
+    row = _find_library_for_path_conn(conn, path)
+    if row is None:
+        return None
+    library = _serialize_library_conn(conn, row)
+    library["library_state"] = library["state"]
+    library["matched_import_path_id"] = int(row["matched_import_path_id"])
+    library["matched_import_path"] = str(row["matched_import_path"])
+    return library
+
+
 def get_library_for_path(path: str | Path) -> LibraryRecord | None:
     """Return the most-specific registered library containing path."""
     _initialize_database()
+    if (writer_conn := writer_connection()) is not None:
+        return _library_for_path_conn(writer_conn, path)  # inside a writer op: never take _DB_LOCK
     with _DB_LOCK, _connect() as conn:
-        row = _find_library_for_path_conn(conn, path)
-        if row is None:
-            return None
-        library = _serialize_library_conn(conn, row)
-        library["library_state"] = library["state"]
-        library["matched_import_path_id"] = int(row["matched_import_path_id"])
-        library["matched_import_path"] = str(row["matched_import_path"])
-        return library
+        return _library_for_path_conn(conn, path)
 
 
 def get_asset_state_for_path(path: str | Path) -> dict[str, Any] | None:
@@ -435,17 +442,18 @@ def get_asset_state_for_path(path: str | Path) -> dict[str, Any] | None:
     """
     _initialize_database()
     resolved = str(Path(path).resolve())
-    with _DB_LOCK, _connect() as conn:
-        row = conn.execute(
-            """
-            SELECT a.type, a.offline, a.deleted_at, a.library_id
-            FROM assets AS a
-            JOIN libraries AS l ON l.id = a.library_id
-            WHERE a.path = ?
-            LIMIT 1
-            """,
-            (resolved,),
-        ).fetchone()
+    query = """
+        SELECT a.type, a.offline, a.deleted_at, a.library_id
+        FROM assets AS a
+        JOIN libraries AS l ON l.id = a.library_id
+        WHERE a.path = ?
+        LIMIT 1
+        """
+    if (writer_conn := writer_connection()) is not None:
+        row = writer_conn.execute(query, (resolved,)).fetchone()  # inside a writer op: never take _DB_LOCK
+    else:
+        with _DB_LOCK, _connect() as conn:
+            row = conn.execute(query, (resolved,)).fetchone()
     if row is None:
         return None
     return {

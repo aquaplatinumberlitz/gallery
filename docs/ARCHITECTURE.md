@@ -29,24 +29,26 @@ dispatch_metadata_index_paths(paths, priority)
   → metadata_worker.wake()
 
 metadata_worker._worker_loop
-  → claim_next_metadata_job()
-    → BEGIN IMMEDIATE
+  → claim_next_metadata_job()           [database writer, priority lane; one op]
     → SELECT metadata_index_jobs WHERE state='queued'
         AND (next_attempt_at IS NULL OR next_attempt_at <= now)
-      ORDER BY priority ASC, queued_at ASC LIMIT 1
+      ORDER BY priority ASC, queued_at ASC, path ASC LIMIT K
     → UPDATE state='running', attempts+1, started_at=now,
         claimed_by=<worker>, claim_token=<uuid>, lease_expires_at=now+lease
-    → COMMIT
-  → LeaseHeartbeat renews lease_expires_at while the job runs
+        (one token and lease per claimed job)
+  → LeaseHeartbeat renews lease_expires_at while the job runs  [priority lane]
   → extract_metadata(path)  [outside any DB transaction]
-  → upsert_metadata_batch([metadata])  [short transaction]
-  → complete_metadata_job(conn, job)  [fenced by claim_token]
-    → verify image_metadata current for job identity
-    → verify matching asset row exists
-    → UPDATE metadata_index_jobs state='done', claim cleared
-    → UPDATE assets metadata_state='done'
+  → ONE writer op per job, priority lane (atomic):
+    → verify the claim token still owns the job (else write nothing)
+    → upsert_metadata_batch([metadata])  [joins the op's transaction]
+    → complete_metadata_job(conn, job)  [fenced by claim_token]
+      → verify image_metadata current for job identity
+      → verify matching asset row exists
+      → UPDATE metadata_index_jobs state='done', claim cleared
+      → UPDATE assets metadata_state='done'
+  → after the op resolved: schedule derived-search backfills, reconcile derivatives
   → on failure: transient → requeue_metadata_job (backoff, next_attempt_at)
-                otherwise → fail_metadata_job
+                otherwise → fail_metadata_job      [priority-lane writer ops]
 
 metadata_worker supervisor (every GALLERY_METADATA_SUPERVISOR_INTERVAL_SECONDS)
   → restore dead worker threads
@@ -64,8 +66,12 @@ metadata_worker supervisor (every GALLERY_METADATA_SUPERVISOR_INTERVAL_SECONDS)
    row exists, the job is `skipped`. If the asset version differs, the job is `stale`.
 
 3. **Extraction runs outside DB transactions.** Claim and complete are short
-   `BEGIN IMMEDIATE` transactions. `extract_metadata` (PIL + JSON parsing) runs
-   outside any transaction, matching `DerivativeScheduler._run_job`.
+   writer transactions (see Database Writer; with `GALLERY_DB_WRITER_ENABLED=false`,
+   short direct `BEGIN IMMEDIATE` transactions under `_DB_LOCK`). `extract_metadata`
+   (PIL + JSON parsing) runs outside any transaction, matching
+   `DerivativeScheduler._run_job`. Persisting `image_metadata` and completing the job
+   are one writer op, so either both apply or neither; with the flag off they remain
+   two transactions as before.
 
 4. **Identity is the image plus its optional sidecar.** Image freshness uses
    `path + mtime_ns + size`; completion additionally requires the stored
@@ -81,7 +87,8 @@ metadata_worker supervisor (every GALLERY_METADATA_SUPERVISOR_INTERVAL_SECONDS)
    (`GALLERY_METADATA_JOB_LEASE_SECONDS`, default 300). A heartbeat (the shared
    `LeaseHeartbeat` in `backend/lease_heartbeat.py`, also used by
    `DerivativeScheduler`) renews the lease at one third of its length while the
-   job extracts; renewal uses its own connection and never takes `_DB_LOCK`.
+   job extracts; renewal is a priority-lane writer op (a direct connection that never
+   takes `_DB_LOCK` when the writer flag is off).
    Completion, failure, stale, requeue, and renewal writes only change a row that
    is still `running` under the worker's claim token, so a worker whose claim was
    recovered and reissued writes zero rows (and neither stamps the asset nor
@@ -109,6 +116,37 @@ metadata_worker supervisor (every GALLERY_METADATA_SUPERVISOR_INTERVAL_SECONDS)
    exhausted, while live unexpired claims are never touched. The supervisor is
    stopped by `MetadataLifecycleWorker.stop()` inside its existing bounded join, so
    the app lifespan needs no extra registration.
+
+### Metadata writes through the database writer
+
+Phase 2 of the worker lifecycle hardening plan moves the metadata worker's writes
+onto the single database writer (next section). Every op below is fenced exactly as
+before (claim token, identity) and the functions keep their direct-transaction
+fallbacks for `GALLERY_DB_WRITER_ENABLED=false`:
+
+| Call path                                                                        | Writer op                                              | Lane       |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------ | ---------- |
+| `claim_next_metadata_job` / `claim_next_metadata_jobs(limit)`                    | claim up to K due jobs, one token and lease each       | `priority` |
+| `MetadataLifecycleWorker._renew_lease` (heartbeat)                               | fenced lease renewal of the job and of unstarted claims | `priority` |
+| `MetadataLifecycleWorker._run_job`                                               | claim fence + `upsert_metadata_batch` + `complete_metadata_job` + asset lookup | `priority` |
+| `_persist` for `fail_metadata_job`, `requeue_metadata_job`, `mark_metadata_job_stale` | the fenced terminal write                          | `priority` |
+| `release_metadata_job_claims` (a stopping worker's unstarted batch claims)       | requeue without consuming an attempt                   | `priority` |
+| `recover_abandoned_metadata_jobs` (supervisor)                                   | `recover_running_metadata_jobs(expired_only=True)`     | `normal`   |
+
+Not migrated (still direct `_DB_LOCK` transactions, scheduled for later Phase 2
+tasks and Phase 3): `dispatch_metadata_index_paths` job creation, startup recovery,
+the integrity checker, and the catalog and derivative write paths.
+
+`GALLERY_METADATA_CLAIM_BATCH_SIZE` (default 1) lets one claim op take several jobs
+in single-claim order. The extra jobs wait in the claiming worker's buffer; the
+running job's heartbeat renews their leases, and a stopping worker releases them
+(`release_metadata_job_claims`) without consuming an attempt.
+
+Inside a writer op, `upsert_metadata_batch` joins the op's transaction and does not
+schedule derived-search backfills (scheduling may take `_DB_LOCK`); the worker
+schedules them after the op resolved. `get_library_for_path` and
+`get_asset_state_for_path` (reached from the sidecar identity check inside
+`complete_metadata_job`) read through the writer connection when called from an op.
 
 ### Legacy fallback
 
@@ -180,6 +218,81 @@ work while the gate is held. After in-flight producers are quiescent, durable
 active work is rechecked; derivative and catalog database rows are then deleted
 in one transaction, and cache files are removed only after commit. Releasing the
 gate resumes paused producers.
+
+## Database Writer
+
+### Owner: `backend/metadata_store/db_writer.py`
+
+`DatabaseWriter` is the storage pattern of the single-process deployment: workers do
+their CPU and I/O in parallel, but SQLite writes are handed to one thread that owns
+one write connection (opened like `_connect()`: WAL, `synchronous=NORMAL`,
+`busy_timeout=5000`, `foreign_keys=ON`, in autocommit mode so transactions are
+explicit). Jobs themselves stay in SQLite; the writer buffers pending *writes* only.
+
+```
+worker thread                          gallery-db-writer thread
+  run_write(op, lane=...)  ── Future ──▶  BEGIN IMMEDIATE            (one per batch)
+  (waits for the result)                    SAVEPOINT gw_op; op(conn); RELEASE   (one per op)
+                                            ... more ops while queued, < batch size / time budget
+                                          COMMIT
+                         ◀── result ───   resolve every Future after the commit
+```
+
+* **API.** `submit(op, *, lane="normal") -> Future`; `run(op, ...)` submits and waits;
+  `op(conn)` runs inside the batch transaction under its own savepoint. A failing op
+  rolls back only its savepoint and its exception object is set on its own Future; the
+  other ops of the batch commit. A Future resolves only after its batch committed.
+* **Lanes and order.** `priority` (claims, lease renewals, terminal job writes) is
+  drained before `normal`; FIFO inside a lane. A batch pulls ops in that order and can
+  mix both lanes.
+* **Batching.** A batch holds at most `GALLERY_DB_WRITER_BATCH_MAX` ops (50) and stops
+  taking ops once its transaction has been open `GALLERY_DB_WRITER_BATCH_MS` (100 ms).
+  The writer never waits for more ops when its queue is empty, so batching adds no
+  latency: ops batch up only while the previous batch is committing.
+* **Commit failure.** `database is locked`/`busy` at `BEGIN IMMEDIATE` or `COMMIT`
+  rolls the batch back and re-runs it from scratch after short pauses (0.05, 0.25,
+  1 s); when the retries are exhausted, or the error is not transient, every op of the
+  batch fails with that error. No Future is ever left unresolved, including for a
+  `BaseException` raised by an op (the writer then closes).
+* **Backpressure.** Each lane is bounded (`GALLERY_DB_WRITER_QUEUE_MAX`); `submit`
+  blocks up to `GALLERY_DB_WRITER_SUBMIT_TIMEOUT_SECONDS` and then raises
+  `DatabaseWriterBackpressure`. The priority lane has its own capacity, so a full
+  normal lane never blocks a lease renewal.
+* **Lifecycle.** `_lifespan` registers the writer in `_LifecycleRegistry` before the
+  catalog, metadata, search, integrity and derivative services, so it starts first
+  and, by the registry's reverse unwind, stops after all of them. `stop()` rejects new
+  ops immediately (`DatabaseWriterClosed`), drains queued ops until
+  `GALLERY_DB_WRITER_SHUTDOWN_TIMEOUT_SECONDS`, then fails what is left. After a stop
+  the migrated paths fall back to their direct transaction (a straggler worker thread
+  is never stranded). Outside the lifespan (tests, scripts) the shared writer starts
+  on first use.
+* **Crash safety.** The writer holds no durable state. A writer that dies between
+  batches leaves jobs `running` under their Phase 1 leases; the metadata supervisor
+  requeues them after expiry, and the atomic upsert + completion op means no job is
+  ever `done` without its `image_metadata`.
+* **Feature flag.** With `GALLERY_DB_WRITER_ENABLED=false`, `get_active_writer()`
+  returns `None` and every migrated path runs its previous direct `_DB_LOCK`
+  transaction; the writer thread is never started.
+
+**Deadlock rules.** The writer never takes `_DB_LOCK`, and `_DB_LOCK` is a thin
+`RLock` wrapper (`_DatabaseLock` in `_db.py`) that raises `WriterThreadLockError` when
+the writer thread tries to acquire it. Code inside an op therefore cannot wait on a
+thread that waits on the writer. `submit`/`run` from the writer thread run the op
+inline in the current transaction under a nested savepoint. A thread holding
+`_DB_LOCK` must not wait for the writer: `run` raises `DatabaseWriterDeadlock`, and the
+routing helper `run_write(op, lane=, fallback=)` sends such a caller to its direct
+path. Anything that may take `_DB_LOCK` (scheduling backfills, derivative
+reconciliation) runs in the caller after the Future resolved, never in an op.
+
+**Maintenance gate.** `run_write` submits and waits while holding the shared producer
+gate (`producer_gate()`), so destructive maintenance quiesces writer-backed producers
+exactly like direct ones: an op in flight keeps `maintenance_gate()` from starting
+(`MaintenanceGateBusy`), active maintenance holds new ops back, and the maintenance
+owner may still write.
+
+Both `_DB_LOCK` holders and the writer serialize on SQLite's own write lock while
+`_DB_LOCK` is still in use (Phase 3 retires it); `busy_timeout` plus the batch retry
+cover that contention.
 
 ## Derivative Lifecycle
 

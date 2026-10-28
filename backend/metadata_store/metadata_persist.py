@@ -15,6 +15,7 @@ from ..metadata_extract import ExtractedMetadata, metadata_sidecar_identity, par
 from ._asset_store import _upsert_asset_conn
 from ._db import _DB_LOCK, _connect
 from ._resources import _replace_image_resources_conn
+from .db_writer import LANE_NORMAL, current_writer, run_write
 from .identity import image_metadata_params_match_sql
 from .metadata_queue import _mark_current_metadata_done, _metadata_job_from_path
 from .types import CachedDimensions
@@ -263,22 +264,47 @@ def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: boo
     return True
 
 
+def schedule_derived_search_backfills(library_id: int) -> None:
+    """Schedule the metadata-derived discovery/relation backfills for ``library_id``.
+
+    Callers that persist metadata inside a database writer op run this after the op's Future resolved:
+    scheduling may take ``_DB_LOCK``, which the writer thread must never do.
+    """
+    _schedule_derived_search_backfills(library_id)
+
+
 def upsert_metadata_batch(metadata_items: Iterable[ExtractedMetadata]) -> int:
-    """Write extracted metadata rows in one bounded SQLite transaction."""
+    """Write extracted metadata rows in one bounded SQLite transaction.
+
+    Normally one database writer op (or a direct transaction with the writer flag off); called from
+    inside a writer op it joins that op's transaction. Derived-search backfills are scheduled here,
+    after the commit, except on the writer thread where the caller schedules them after the op resolves.
+    """
     rows = list(metadata_items)
     if not rows:
         return 0
-    _initialize_database()
-    library_ids: set[int] = set()
-    with _DB_LOCK, _connect() as conn:
+    inside_writer_op = current_writer() is not None
+    if not inside_writer_op:
+        _initialize_database()
+
+    def upsert(conn: sqlite3.Connection) -> tuple[int, list[int]]:
         persisted = 0
+        library_ids: set[int] = set()
         for metadata in rows:
             library_id = _upsert_extracted_metadata_conn(conn, metadata)
             if library_id is not None:
                 persisted += 1
                 library_ids.add(library_id)
-    for library_id in sorted(library_ids):
-        _schedule_derived_search_backfills(library_id)
+        return persisted, sorted(library_ids)
+
+    def upsert_directly() -> tuple[int, list[int]]:
+        with _DB_LOCK, _connect() as conn:
+            return upsert(conn)
+
+    persisted, library_ids = run_write(upsert, lane=LANE_NORMAL, fallback=upsert_directly)
+    if not inside_writer_op:
+        for library_id in library_ids:
+            _schedule_derived_search_backfills(library_id)
     return persisted
 
 

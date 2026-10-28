@@ -215,6 +215,15 @@ def isolated_thumbnail_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     return cache_dir
 
 
+@pytest.fixture(autouse=True)
+def _reset_database_writer():
+    """Give every test a never-started shared database writer (it follows the per-test database path)."""
+    yield
+    from backend.metadata_store.db_writer import database_writer
+
+    database_writer.reset()
+
+
 @pytest.fixture
 def disable_background_services(monkeypatch: pytest.MonkeyPatch) -> None:
     """Disable indexer, watcher, refresh, and warm listing for deterministic tests."""

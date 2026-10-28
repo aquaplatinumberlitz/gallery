@@ -740,7 +740,9 @@ def test_get_active_writer_honours_the_flag_the_db_lock_and_the_lifecycle(
         fresh.stop(timeout=5)
 
 
-def test_run_write_falls_back_when_the_writer_closes_underneath_it(make_writer, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_write_falls_back_when_the_writer_closes_underneath_it(
+    make_writer, monkeypatch: pytest.MonkeyPatch
+) -> None:
     module = _module()
     writer = make_writer()
     monkeypatch.setattr(module, "database_writer", writer)

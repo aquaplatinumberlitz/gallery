@@ -24,6 +24,7 @@ LIFECYCLE_SYMBOLS = (
     "complete_metadata_job",
     "mark_metadata_job_stale",
     "claim_next_metadata_job",
+    "claim_next_metadata_jobs",
     "fail_metadata_job",
     "list_recoverable_metadata_jobs",
     "reset_running_jobs_to_queued",
@@ -31,6 +32,7 @@ LIFECYCLE_SYMBOLS = (
     "requeue_metadata_job",
     "recover_running_metadata_jobs",
     "renew_metadata_job_lease",
+    "release_metadata_job_claims",
     "owns_metadata_job_claim",
 )
 

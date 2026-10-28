@@ -500,7 +500,7 @@ def test_claims_renewals_and_terminal_writes_use_the_priority_lane_and_recovery_
     for label in ("claim", "renew", "complete", "fail", "requeue", "stale"):
         assert lanes[label], f"{label} never reached the writer"
         assert set(lanes[label]) == {"priority"}, f"{label} used lanes {lanes[label]}"
-    assert lanes["claim"] == ["priority"] * 1
+    assert len(lanes["claim"]) == 4, "one writer op per claim"
     assert lanes["recover"] and set(lanes["recover"]) == {"normal"}
 
 
@@ -532,9 +532,15 @@ def test_no_metadata_writer_call_is_made_while_holding_the_db_lock(
 
 
 def test_a_whole_job_lifecycle_needs_no_db_lock(seeded, quiet_side_effects, monkeypatch, mode: str) -> None:
-    """Claim, extraction, and completion proceed while some other thread holds `_DB_LOCK` (the WK-02 root cause)."""
-    db_path, _root, _images = seeded
+    """Claim, completion, and the lease write proceed while another thread holds `_DB_LOCK` (the WK-02 root cause).
+
+    Extraction is stubbed with a result computed beforehand: reading the sidecar scope still takes
+    ``_DB_LOCK`` briefly (reads leave `_DB_LOCK` in Phase 3); this test is about the writes.
+    """
+    db_path, _root, images = seeded
     worker = _worker()
+    prepared = {str(image): extract_metadata(image) for image in images}
+    monkeypatch.setattr(indexer, "extract_metadata", lambda path: prepared[str(path)])
     handled: list[str] = []
 
     def lifecycle() -> None:

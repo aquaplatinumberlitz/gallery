@@ -13,6 +13,7 @@ from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE, METADATA_JOB_LEASE_SECOND
 from ..files import is_image_path, is_index_excluded_path
 from ..metadata_extract import metadata_sidecar_identity
 from ._db import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect
+from .db_writer import LANE_PRIORITY, run_write
 from .identity import (
     asset_params_match_sql,
     image_metadata_params_match_sql,
@@ -576,42 +577,38 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
 # ---------------------------------------------------------------------------
 
 
-def claim_next_metadata_job(
+def _claim_metadata_jobs_conn(
+    conn: sqlite3.Connection,
+    limit: int,
     *,
-    max_queue_wait_seconds: int = 600,
-    worker_id: str | None = None,
-    lease_seconds: float | None = None,
-    now: float | None = None,
-) -> MetadataIndexJob | None:
-    """Claim one due queued metadata job from SQLite in a short BEGIN IMMEDIATE transaction.
+    worker_id: str | None,
+    lease_seconds: float,
+    now: float | None,
+) -> list[MetadataIndexJob]:
+    """Claim up to ``limit`` due queued jobs inside the caller's write transaction.
 
-    Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``): the claim
-    records the owner (``worker_id``), a fresh claim token, and a lease. Rows whose
-    ``next_attempt_at`` (retry backoff) lies in the future are not due and are skipped.
-    Returns ``None`` when no job is available.
+    Rows come in the exact order of repeated single claims (``priority``, ``queued_at``, ``path``);
+    rows whose ``next_attempt_at`` (retry backoff) lies in the future are not due. Every claimed job
+    gets its own claim token and ``lease_seconds`` lease, and its attempt count is incremented.
     """
-    _initialize_database()
-    lease = float(METADATA_JOB_LEASE_SECONDS if lease_seconds is None else lease_seconds)
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        claimed_at = metadata_now() if now is None else float(now)
-        row = conn.execute(
-            """
-            SELECT path, name, parent_path, folder_path, root_path,
-                   mtime, mtime_ns, size, state, attempts,
-                   queued_at, started_at, finished_at, updated_at, library_id, priority
-            FROM metadata_index_jobs
-            WHERE state = 'queued'
-              AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
-            ORDER BY priority ASC, queued_at ASC, path ASC
-            LIMIT 1
-            """,
-            (claimed_at,),
-        ).fetchone()
-        if row is None:
-            return None
+    claimed_at = metadata_now() if now is None else float(now)
+    rows = conn.execute(
+        """
+        SELECT path, name, parent_path, folder_path, root_path,
+               mtime, mtime_ns, size, state, attempts,
+               queued_at, started_at, finished_at, updated_at, library_id, priority
+        FROM metadata_index_jobs
+        WHERE state = 'queued'
+          AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+        ORDER BY priority ASC, queued_at ASC, path ASC
+        LIMIT ?
+        """,
+        (claimed_at, limit),
+    ).fetchall()
+    owner = worker_id or "metadata-worker"
+    jobs: list[MetadataIndexJob] = []
+    for row in rows:
         attempts = int(row["attempts"]) + 1
-        owner = worker_id or "metadata-worker"
         claim_token = uuid.uuid4().hex
         identity_sql, identity_params = (
             ("mtime_ns = ? AND size = ?", (row["mtime_ns"], row["size"]))
@@ -632,22 +629,119 @@ def claim_next_metadata_job(
                 next_attempt_at=NULL
             WHERE path=? AND {identity_sql} AND state='queued'
             """,
-            (attempts, claimed_at, claimed_at, owner, claim_token, claimed_at + lease, row["path"], *identity_params),
+            (
+                attempts,
+                claimed_at,
+                claimed_at,
+                owner,
+                claim_token,
+                claimed_at + lease_seconds,
+                row["path"],
+                *identity_params,
+            ),
         )
-        return MetadataIndexJob(
-            path=row["path"],
-            name=row["name"],
-            parent_path=row["parent_path"],
-            folder_path=row["folder_path"],
-            root_path=row["root_path"],
-            mtime=row["mtime"],
-            mtime_ns=row["mtime_ns"],
-            size=row["size"],
-            library_id=row["library_id"],
-            attempts=attempts,
-            claim_token=claim_token,
-            claimed_by=owner,
+        jobs.append(
+            MetadataIndexJob(
+                path=row["path"],
+                name=row["name"],
+                parent_path=row["parent_path"],
+                folder_path=row["folder_path"],
+                root_path=row["root_path"],
+                mtime=row["mtime"],
+                mtime_ns=row["mtime_ns"],
+                size=row["size"],
+                library_id=row["library_id"],
+                attempts=attempts,
+                claim_token=claim_token,
+                claimed_by=owner,
+            )
         )
+    return jobs
+
+
+def claim_next_metadata_jobs(
+    limit: int,
+    *,
+    worker_id: str | None = None,
+    lease_seconds: float | None = None,
+    now: float | None = None,
+) -> list[MetadataIndexJob]:
+    """Claim up to ``limit`` due queued metadata jobs from SQLite in one short write transaction.
+
+    Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``): each claim
+    records the owner (``worker_id``), its own claim token, and a lease. The claim is one priority-lane
+    database writer op (or, with the writer flag off, one direct ``BEGIN IMMEDIATE`` transaction), so
+    claiming K jobs costs one transaction. Returns fewer than ``limit`` jobs when fewer are due.
+    """
+    if limit < 1:
+        return []
+    _initialize_database()
+    lease = float(METADATA_JOB_LEASE_SECONDS if lease_seconds is None else lease_seconds)
+
+    def claim(conn: sqlite3.Connection) -> list[MetadataIndexJob]:
+        return _claim_metadata_jobs_conn(conn, limit, worker_id=worker_id, lease_seconds=lease, now=now)
+
+    def claim_directly() -> list[MetadataIndexJob]:
+        with _DB_LOCK, _connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            return claim(conn)
+
+    return run_write(claim, lane=LANE_PRIORITY, fallback=claim_directly)
+
+
+def claim_next_metadata_job(
+    *,
+    max_queue_wait_seconds: int = 600,
+    worker_id: str | None = None,
+    lease_seconds: float | None = None,
+    now: float | None = None,
+) -> MetadataIndexJob | None:
+    """Claim one due queued metadata job from SQLite in a short write transaction.
+
+    The single-job form of ``claim_next_metadata_jobs``. Returns ``None`` when no job is available.
+    """
+    jobs = claim_next_metadata_jobs(1, worker_id=worker_id, lease_seconds=lease_seconds, now=now)
+    return jobs[0] if jobs else None
+
+
+def release_metadata_job_claims(jobs: Iterable[MetadataIndexJob]) -> int:
+    """Give claimed-but-never-started jobs back to the queue without consuming an attempt.
+
+    Used when a worker that claimed a batch stops before reaching its later jobs. Fenced by each
+    job's claim token (a job whose claim was already recovered is left alone); keeps ``queued_at`` so
+    the queue order is unchanged. Returns how many jobs were released.
+    """
+    claimed = [job for job in jobs if job.claim_token is not None]
+    if not claimed:
+        return 0
+    _initialize_database()
+
+    def release(conn: sqlite3.Connection) -> int:
+        now = metadata_now()
+        released = 0
+        for job in claimed:
+            result = conn.execute(
+                f"""
+                UPDATE metadata_index_jobs
+                SET state='queued',
+                    attempts=MAX(attempts - 1, 0),
+                    started_at=NULL,
+                    finished_at=NULL,
+                    updated_at=?,
+                    next_attempt_at=NULL,
+                    {_CLEAR_CLAIM_SQL}
+                WHERE path=? AND state='running' AND claim_token=?
+                """,
+                (now, job.path, job.claim_token),
+            )
+            released += result.rowcount
+        return released
+
+    def release_directly() -> int:
+        with _DB_LOCK, _connect() as conn:
+            return release(conn)
+
+    return run_write(release, lane=LANE_PRIORITY, fallback=release_directly)
 
 
 def renew_metadata_job_lease(

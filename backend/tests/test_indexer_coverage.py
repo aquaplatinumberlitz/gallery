@@ -171,6 +171,10 @@ def test_worker_run_job_raises_exception(monkeypatch: pytest.MonkeyPatch):
     called = []
     monkeypatch.setattr(indexer, "fail_metadata_job", lambda conn, j, err: called.append((j.path, err)))
     monkeypatch.setattr(indexer, "_connect", lambda **kw: (_ for _ in ()).throw(RuntimeError("db fail")))
+    # The database writer opens its own connection through its module's ``_connect``.
+    monkeypatch.setattr(
+        "backend.metadata_store.db_writer._connect", lambda **kw: (_ for _ in ()).throw(RuntimeError("db fail"))
+    )
     worker._run_job(job)
     assert len(called) == 0  # DB connect failed inside the except
 

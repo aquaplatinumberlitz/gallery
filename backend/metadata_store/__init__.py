@@ -254,6 +254,9 @@ from .metadata_persist import (
     get_lightbox_metadata as get_lightbox_metadata,
 )
 from .metadata_persist import (
+    schedule_derived_search_backfills as schedule_derived_search_backfills,
+)
+from .metadata_persist import (
     upsert_extracted_metadata as upsert_extracted_metadata,
 )
 from .metadata_persist import (
@@ -276,6 +279,9 @@ from .metadata_queue import (
 )
 from .metadata_queue import (
     claim_next_metadata_job as claim_next_metadata_job,
+)
+from .metadata_queue import (
+    claim_next_metadata_jobs as claim_next_metadata_jobs,
 )
 from .metadata_queue import (
     complete_metadata_job as complete_metadata_job,
@@ -309,6 +315,9 @@ from .metadata_queue import (
 )
 from .metadata_queue import (
     recover_running_metadata_jobs as recover_running_metadata_jobs,
+)
+from .metadata_queue import (
+    release_metadata_job_claims as release_metadata_job_claims,
 )
 from .metadata_queue import (
     renew_metadata_job_lease as renew_metadata_job_lease,

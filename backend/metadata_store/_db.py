@@ -10,7 +10,51 @@ from pathlib import Path
 
 from .path_utils import _compare_natural_sql
 
-_DB_LOCK = threading.RLock()
+_WRITER_THREAD = threading.local()
+
+
+class WriterThreadLockError(RuntimeError):
+    """Raised when the database writer thread tries to take ``_DB_LOCK``.
+
+    Code running on the writer thread (inside a writer op) must never wait for the global lock: a
+    thread that holds it may itself be waiting for the writer, and the two would deadlock. The error
+    turns that hang into an immediate, attributable failure of the one op.
+    """
+
+
+def mark_writer_thread(active: bool) -> None:
+    """Flag the calling thread as the database writer thread (set once, when the thread starts)."""
+    _WRITER_THREAD.active = active
+
+
+class _DatabaseLock:
+    """The process-wide reentrant write lock, refusing to be taken by the database writer thread."""
+
+    __slots__ = ("_lock",)
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+
+    def acquire(self, blocking: bool = True, timeout: float = -1) -> bool:
+        if getattr(_WRITER_THREAD, "active", False):
+            raise WriterThreadLockError("the database writer thread must not acquire _DB_LOCK")
+        return self._lock.acquire(blocking, timeout)
+
+    def release(self) -> None:
+        self._lock.release()
+
+    def __enter__(self) -> bool:
+        return self.acquire()
+
+    def __exit__(self, *_exc: object) -> None:
+        self._lock.release()
+
+    def is_owned(self) -> bool:
+        """Return whether the calling thread currently holds the lock."""
+        return bool(self._lock._is_owned())  # type: ignore[attr-defined]
+
+
+_DB_LOCK = _DatabaseLock()
 _DB_INITIALIZED = False
 _DB_INITIALIZED_PATH: Path | None = None
 METADATA_JOB_STATES = ("queued", "running", "done", "failed", "stale", "skipped")

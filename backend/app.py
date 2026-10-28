@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from . import indexer as metadata_indexer
 from .browse import router as browse_router
 from .config import (
+    DB_WRITER_ENABLED,
     ENABLE_METRICS,
     ENABLE_PROFILER,
     GALLERY_CATALOG_SERVICE_ENABLED,
@@ -35,6 +36,7 @@ from .libraries import router as libraries_router
 from .maintenance import router as maintenance_router
 from .metadata_parse import router as metadata_parse_router
 from .metadata_store import recover_stale_jobs
+from .metadata_store.db_writer import database_writer
 from .paths import InvalidPathError
 from .refresh import start_refresh as _start_refresh
 from .refresh import stop_refresh as _stop_refresh
@@ -120,6 +122,9 @@ async def _lifespan(_app: FastAPI):
         recover_stale_jobs()
         if metadata_indexer.METADATA_INDEXER_ENABLED:
             recover_metadata_index_jobs()
+        if DB_WRITER_ENABLED:
+            # First to start and last to stop: every worker below may hand writes to it.
+            lifecycle.start("db-writer", database_writer.start, database_writer.stop)
         if GALLERY_CATALOG_SERVICE_ENABLED:
             lifecycle.start("catalog", start, stop)
             if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:
