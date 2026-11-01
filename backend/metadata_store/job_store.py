@@ -7,13 +7,15 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
-from ._db import _DB_LOCK, LIBRARY_JOB_TERMINAL_STATES, _connect
+from ._db import LIBRARY_JOB_TERMINAL_STATES, _connect_read
+from .db_writer import LANE_NORMAL, LANE_PRIORITY, run_write
 from .library_store import list_libraries
 from .path_utils import canonicalize_catalog_path, catalog_path_contains
 from .types import CatalogJobConflict
 
+_T = TypeVar("_T")
 CATALOG_WORK_JOB_TYPES = ("scan", "rebuild")
 CATALOG_PARENT_JOB_TYPES = ("scan_all", "rebuild_imported_data")
 
@@ -54,7 +56,7 @@ def assert_catalog_job_claim_conn(
 def assert_catalog_job_claim(job_id: int, claim_token: str, *, library_id: int | None = None) -> None:
     """Require a live matching catalog claim in a short read transaction."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:  # a plain WAL read
         assert_catalog_job_claim_conn(conn, job_id, claim_token, library_id=library_id)
 
 
@@ -147,7 +149,8 @@ def create_job(
     """Create one queued library-management job."""
     now = time.time()
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+
+    def create(conn: sqlite3.Connection) -> dict[str, Any]:
         config_revision = None
         if library_id is not None and job_type in CATALOG_WORK_JOB_TYPES:
             library = conn.execute("SELECT config_revision FROM libraries WHERE id = ?", (library_id,)).fetchone()
@@ -175,6 +178,8 @@ def create_job(
         )
         row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
         return _serialize_library_job(row)
+
+    return run_write(create, lane=LANE_PRIORITY)
 
 
 def _job_scope_covers(existing_scope: str | None, requested_scope: str | None) -> bool:
@@ -214,131 +219,127 @@ def create_or_coalesce_catalog_job(
     requested_scope = canonicalize_catalog_path(scope_path) if scope_path is not None else None
     now = time.time()
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            library = conn.execute("SELECT config_revision FROM libraries WHERE id = ?", (library_id,)).fetchone()
-            if library is None:
-                raise KeyError(library_id)
-            config_revision = int(library["config_revision"])
 
-            def _link_parent(child_job_id: int) -> None:
-                if parent_job_id is not None:
-                    conn.execute(
-                        "INSERT OR IGNORE INTO catalog_job_dependencies "
-                        "(parent_job_id, child_job_id, created_at) VALUES (?, ?, ?)",
-                        (parent_job_id, child_job_id, now),
-                    )
+    def create(conn: sqlite3.Connection) -> tuple[dict[str, Any], bool, list[dict[str, Any]]]:
+        library = conn.execute("SELECT config_revision FROM libraries WHERE id = ?", (library_id,)).fetchone()
+        if library is None:
+            raise KeyError(library_id)
+        config_revision = int(library["config_revision"])
+        cancelled: list[dict[str, Any]] = []
 
-            active_rows = conn.execute(
-                """
-                SELECT * FROM library_jobs
-                WHERE library_id = ? AND type IN ('scan', 'rebuild')
-                  AND state IN ('queued', 'running')
-                ORDER BY CASE state WHEN 'queued' THEN 0 ELSE 1 END, priority DESC, created_at, id
-                """,
-                (library_id,),
-            ).fetchall()
-
-            def _cancel_job(job_id: int, reason: str = "Superseded by broader catalog job") -> None:
+        def _link_parent(child_job_id: int) -> None:
+            if parent_job_id is not None:
                 conn.execute(
-                    """
-                    UPDATE library_jobs
-                    SET state = 'cancelled',
-                        message = COALESCE(message, ?),
-                        error = ?,
-                        updated_at = ?,
-                        finished_at = COALESCE(finished_at, ?)
-                    WHERE id = ?
-                    """,
-                    (reason, reason, now, now, job_id),
+                    "INSERT OR IGNORE INTO catalog_job_dependencies "
+                    "(parent_job_id, child_job_id, created_at) VALUES (?, ?, ?)",
+                    (parent_job_id, child_job_id, now),
                 )
 
-            def _emit_cancelled(job_id: int) -> None:
-                from ..library_events import event_payload, publish
+        active_rows = conn.execute(
+            """
+            SELECT * FROM library_jobs
+            WHERE library_id = ? AND type IN ('scan', 'rebuild')
+              AND state IN ('queued', 'running')
+            ORDER BY CASE state WHEN 'queued' THEN 0 ELSE 1 END, priority DESC, created_at, id
+            """,
+            (library_id,),
+        ).fetchall()
 
-                cancelled = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
-                if cancelled is not None:
-                    publish(event_payload("job.cancelled", _serialize_library_job(cancelled)))
+        def _cancel_job(job_id: int, reason: str = "Superseded by broader catalog job") -> None:
+            conn.execute(
+                """
+                UPDATE library_jobs
+                SET state = 'cancelled',
+                    message = COALESCE(message, ?),
+                    error = ?,
+                    updated_at = ?,
+                    finished_at = COALESCE(finished_at, ?)
+                WHERE id = ?
+                """,
+                (reason, reason, now, now, job_id),
+            )
+            cancelled_row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
+            if cancelled_row is not None:
+                cancelled.append(_serialize_library_job(cancelled_row))
 
-            if operation == "rebuild":
-                for row in active_rows:
-                    if row["state"] == "running":
-                        raise CatalogJobConflict(_serialize_library_job(row))
-                for row in active_rows:
-                    if row["type"] == "rebuild" and _job_scope_covers(row["scope_path"], requested_scope):
-                        raise CatalogJobConflict(_serialize_library_job(row))
-                for row in active_rows:
+        if operation == "rebuild":
+            for row in active_rows:
+                if row["state"] == "running":
+                    raise CatalogJobConflict(_serialize_library_job(row))
+            for row in active_rows:
+                if row["type"] == "rebuild" and _job_scope_covers(row["scope_path"], requested_scope):
+                    raise CatalogJobConflict(_serialize_library_job(row))
+            for row in active_rows:
+                if (
+                    row["type"] == "scan"
+                    and row["state"] == "queued"
+                    and _job_scope_covers(requested_scope, row["scope_path"])
+                ):
+                    _cancel_job(int(row["id"]), "Superseded by rebuild")
+        else:
+            active_rebuilds = [row for row in active_rows if row["type"] == "rebuild"]
+            if active_rebuilds:
+                if trigger == "manual":
+                    raise CatalogJobConflict(_serialize_library_job(active_rebuilds[0]))
+            else:
+                scan_rows = [row for row in active_rows if row["type"] == "scan"]
+                for row in scan_rows:
+                    if _job_scope_covers(row["scope_path"], requested_scope):
+                        if row["state"] == "running" and trigger == "watcher":
+                            continue
+                        if row["state"] == "queued" and priority > int(row["priority"]):
+                            conn.execute(
+                                """
+                                UPDATE library_jobs
+                                SET priority = ?, trigger = ?, updated_at = ?
+                                WHERE id = ?
+                                """,
+                                (priority, trigger, now, int(row["id"])),
+                            )
+                            row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (int(row["id"]),)).fetchone()
+                        _link_parent(int(row["id"]))
+                        return _serialize_library_job(row), False, cancelled
+
+                for row in scan_rows:
                     if (
-                        row["type"] == "scan"
-                        and row["state"] == "queued"
+                        row["state"] == "queued"
+                        and priority >= int(row["priority"])
                         and _job_scope_covers(requested_scope, row["scope_path"])
                     ):
-                        _cancel_job(int(row["id"]), "Superseded by rebuild")
-                        _emit_cancelled(int(row["id"]))
-            else:
-                active_rebuilds = [row for row in active_rows if row["type"] == "rebuild"]
-                if active_rebuilds:
-                    if trigger == "manual":
-                        raise CatalogJobConflict(_serialize_library_job(active_rebuilds[0]))
-                else:
-                    scan_rows = [row for row in active_rows if row["type"] == "scan"]
-                    for row in scan_rows:
-                        if _job_scope_covers(row["scope_path"], requested_scope):
-                            if row["state"] == "running" and trigger == "watcher":
-                                continue
-                            if row["state"] == "queued" and priority > int(row["priority"]):
-                                conn.execute(
-                                    """
-                                    UPDATE library_jobs
-                                    SET priority = ?, trigger = ?, updated_at = ?
-                                    WHERE id = ?
-                                    """,
-                                    (priority, trigger, now, int(row["id"])),
-                                )
-                                row = conn.execute(
-                                    "SELECT * FROM library_jobs WHERE id = ?", (int(row["id"]),)
-                                ).fetchone()
-                            _link_parent(int(row["id"]))
-                            conn.execute("COMMIT")
-                            return _serialize_catalog_enqueue_result(row, False)
+                        _cancel_job(int(row["id"]))
 
-                    for row in scan_rows:
-                        if (
-                            row["state"] == "queued"
-                            and priority >= int(row["priority"])
-                            and _job_scope_covers(requested_scope, row["scope_path"])
-                        ):
-                            _cancel_job(int(row["id"]))
-                            _emit_cancelled(int(row["id"]))
+        cursor = conn.execute(
+            """
+            INSERT INTO library_jobs (
+              library_id, parent_job_id, config_revision, type, state, scope_path, trigger, priority,
+              progress_current, progress_total, message, counters, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, 0, NULL, ?, '{}', ?, ?)
+            """,
+            (
+                library_id,
+                parent_job_id,
+                config_revision,
+                operation,
+                requested_scope,
+                trigger,
+                priority,
+                message or "Catalog update queued",
+                now,
+                now,
+            ),
+        )
+        row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        _link_parent(int(row["id"]))
+        return _serialize_library_job(row), True, cancelled
 
-            cursor = conn.execute(
-                """
-                INSERT INTO library_jobs (
-                  library_id, parent_job_id, config_revision, type, state, scope_path, trigger, priority,
-                  progress_current, progress_total, message, counters, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, 0, NULL, ?, '{}', ?, ?)
-                """,
-                (
-                    library_id,
-                    parent_job_id,
-                    config_revision,
-                    operation,
-                    requested_scope,
-                    trigger,
-                    priority,
-                    message or "Catalog update queued",
-                    now,
-                    now,
-                ),
-            )
-            row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
-            _link_parent(int(row["id"]))
-            conn.execute("COMMIT")
-            return _serialize_catalog_enqueue_result(row, True)
-        except Exception:
-            conn.execute("ROLLBACK")
-            raise
+    # A user-visible job transition: priority lane. Cancellation events are published once the op committed.
+    job, created, cancelled_jobs = run_write(create, lane=LANE_PRIORITY)
+    if cancelled_jobs:
+        from ..library_events import event_payload, publish
+
+        for cancelled_job in cancelled_jobs:
+            publish(event_payload("job.cancelled", cancelled_job))
+    return job, created
 
 
 def claim_next_catalog_job(
@@ -350,82 +351,78 @@ def claim_next_catalog_job(
     """Mark the next runnable catalog job running and return it."""
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            conn.execute(
-                """UPDATE library_jobs
-                   SET state = 'cancelled', error = 'Library configuration changed before activation',
-                       message = 'Catalog job cancelled because library configuration changed',
-                       updated_at = ?, finished_at = ?
-                   WHERE state = 'queued' AND type IN ('scan', 'rebuild')
-                     AND library_id IS NOT NULL AND config_revision IS NOT NULL
-                     AND config_revision != (
-                       SELECT config_revision FROM libraries WHERE id = library_jobs.library_id
-                     )""",
-                (now, now),
-            )
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM library_jobs AS queued
-                WHERE queued.state = 'queued'
-                  AND queued.type IN ('scan', 'rebuild')
-                  AND queued.library_id IS NOT NULL
-                  AND (
-                    queued.config_revision IS NULL OR queued.config_revision = (
-                      SELECT config_revision FROM libraries WHERE id = queued.library_id
-                    )
-                  )
-                  AND NOT EXISTS (
-                    SELECT 1 FROM library_jobs AS running
-                    WHERE running.library_id = queued.library_id
-                      AND running.state = 'running'
-                      AND running.type IN ('scan', 'rebuild')
-                  )
-                ORDER BY
-                  CASE
-                    WHEN (? - queued.created_at) >= ? THEN 100
-                    ELSE queued.priority
-                  END DESC,
-                  queued.created_at ASC,
-                  queued.id ASC
-                LIMIT 1
-                """,
-                (now, max_queue_wait_seconds),
-            ).fetchall()
-            if not rows:
-                conn.execute("COMMIT")
-                return None
-            job_id = int(rows[0]["id"])
-            claim_token = uuid.uuid4().hex
-            conn.execute(
-                """
-                UPDATE library_jobs
-                SET state = 'running',
-                    config_revision = COALESCE(
-                      config_revision, (SELECT config_revision FROM libraries WHERE id = library_jobs.library_id)
-                    ),
-                    started_at = COALESCE(started_at, ?),
-                    updated_at = ?,
-                    message = COALESCE(message, 'Catalog job running'),
-                    claimed_by = ?,
-                    claim_token = ?,
-                    lease_expires_at = ?
-                WHERE id = ? AND state = 'queued'
-                """,
-                (now, now, worker_id, claim_token, now + max(1.0, lease_seconds), job_id),
-            )
-            row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
-            conn.execute("COMMIT")
-            job = _serialize_library_job(row)
-            job["claimed_by"] = str(row["claimed_by"])
-            job["claim_token"] = str(row["claim_token"])
-            job["lease_expires_at"] = float(row["lease_expires_at"])
-            return job
-        except Exception:
-            conn.execute("ROLLBACK")
-            raise
+
+    def claim(conn: sqlite3.Connection) -> dict[str, Any] | None:
+        conn.execute(
+            """UPDATE library_jobs
+               SET state = 'cancelled', error = 'Library configuration changed before activation',
+                   message = 'Catalog job cancelled because library configuration changed',
+                   updated_at = ?, finished_at = ?
+               WHERE state = 'queued' AND type IN ('scan', 'rebuild')
+                 AND library_id IS NOT NULL AND config_revision IS NOT NULL
+                 AND config_revision != (
+                   SELECT config_revision FROM libraries WHERE id = library_jobs.library_id
+                 )""",
+            (now, now),
+        )
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM library_jobs AS queued
+            WHERE queued.state = 'queued'
+              AND queued.type IN ('scan', 'rebuild')
+              AND queued.library_id IS NOT NULL
+              AND (
+                queued.config_revision IS NULL OR queued.config_revision = (
+                  SELECT config_revision FROM libraries WHERE id = queued.library_id
+                )
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM library_jobs AS running
+                WHERE running.library_id = queued.library_id
+                  AND running.state = 'running'
+                  AND running.type IN ('scan', 'rebuild')
+              )
+            ORDER BY
+              CASE
+                WHEN (? - queued.created_at) >= ? THEN 100
+                ELSE queued.priority
+              END DESC,
+              queued.created_at ASC,
+              queued.id ASC
+            LIMIT 1
+            """,
+            (now, max_queue_wait_seconds),
+        ).fetchall()
+        if not rows:
+            return None
+        job_id = int(rows[0]["id"])
+        claim_token = uuid.uuid4().hex
+        conn.execute(
+            """
+            UPDATE library_jobs
+            SET state = 'running',
+                config_revision = COALESCE(
+                  config_revision, (SELECT config_revision FROM libraries WHERE id = library_jobs.library_id)
+                ),
+                started_at = COALESCE(started_at, ?),
+                updated_at = ?,
+                message = COALESCE(message, 'Catalog job running'),
+                claimed_by = ?,
+                claim_token = ?,
+                lease_expires_at = ?
+            WHERE id = ? AND state = 'queued'
+            """,
+            (now, now, worker_id, claim_token, now + max(1.0, lease_seconds), job_id),
+        )
+        row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
+        job = _serialize_library_job(row)
+        job["claimed_by"] = str(row["claimed_by"])
+        job["claim_token"] = str(row["claim_token"])
+        job["lease_expires_at"] = float(row["lease_expires_at"])
+        return job
+
+    return run_write(claim, lane=LANE_PRIORITY)
 
 
 def enqueue_startup_catalog_scans(*, priority: int = 10) -> list[dict[str, Any]]:
@@ -448,7 +445,7 @@ def order_library_ids_for_scheduled_refresh(library_ids: list[int]) -> list[int]
         return []
     _initialize_database()
     placeholders = ",".join("?" for _ in library_ids)
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         rows = conn.execute(
             f"""
             SELECT l.id, l.last_scheduled_attempt_at
@@ -470,13 +467,16 @@ def mark_scheduled_refresh_attempt(library_id: int, *, attempted_at: float | Non
     """Persist one scheduled attempt even when queueing later coalesces or fails."""
     _initialize_database()
     timestamp = time.time() if attempted_at is None else float(attempted_at)
-    with _DB_LOCK, _connect() as conn:
+
+    def mark(conn: sqlite3.Connection) -> None:
         cursor = conn.execute(
             "UPDATE libraries SET last_scheduled_attempt_at = ? WHERE id = ?",
             (timestamp, library_id),
         )
         if cursor.rowcount != 1:
             raise KeyError(library_id)
+
+    run_write(mark, lane=LANE_NORMAL)
     return timestamp
 
 
@@ -500,7 +500,8 @@ def update_job_state(
     if state not in allowed_states:
         raise ValueError(f"Invalid library job state: {state}")
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+
+    def update(conn: sqlite3.Connection) -> dict[str, Any] | None:
         if claim_token is None:
             row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
         else:
@@ -599,12 +600,20 @@ def update_job_state(
         updated = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
         return _serialize_library_job(updated)
 
+    # A job transition (progress, terminal state, library state): priority lane.
+    return run_write(update, lane=LANE_PRIORITY)
+
 
 def renew_catalog_job_lease(job_id: int, claim_token: str, *, lease_seconds: float = 900) -> bool:
-    """Renew one still-owned catalog claim, including after lock-delayed expiry."""
+    """Renew one still-owned catalog claim, including after lock-delayed expiry.
+
+    A priority-lane writer op, drained before any bulk write: no unrelated reader or writer can starve a
+    running scan's heartbeat (the WK-02 root cause).
+    """
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def renew(conn: sqlite3.Connection) -> bool:
         cursor = conn.execute(
             """
             UPDATE library_jobs
@@ -614,6 +623,8 @@ def renew_catalog_job_lease(job_id: int, claim_token: str, *, lease_seconds: flo
             (now + max(1.0, lease_seconds), now, job_id, claim_token),
         )
         return cursor.rowcount == 1
+
+    return run_write(renew, lane=LANE_PRIORITY)
 
 
 def _mark_catalog_job_library_error_conn(
@@ -644,7 +655,8 @@ def fail_abandoned_catalog_job_claim(
     """Fence-fail a claim left running after its executor and heartbeat stop."""
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def fail(conn: sqlite3.Connection) -> dict[str, Any] | None:
         row = conn.execute(
             """SELECT library_id FROM library_jobs
                WHERE id = ? AND state = 'running' AND claim_token = ?""",
@@ -673,11 +685,13 @@ def fail_abandoned_catalog_job_claim(
         updated = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
         return _serialize_library_job(updated)
 
+    return run_write(fail, lane=LANE_PRIORITY)
+
 
 def get_job(job_id: int) -> dict[str, Any] | None:
     """Return one library-management job."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
         return _serialize_library_job(row) if row else None
 
@@ -685,7 +699,7 @@ def get_job(job_id: int) -> dict[str, Any] | None:
 def get_library_jobs(library_id: int, *, limit: int = 50) -> list[dict[str, Any]]:
     """Return recent jobs for one library, newest first."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         rows = conn.execute(
             "SELECT * FROM library_jobs WHERE library_id = ? ORDER BY id DESC LIMIT ?",
             (library_id, limit),
@@ -696,7 +710,7 @@ def get_library_jobs(library_id: int, *, limit: int = 50) -> list[dict[str, Any]
 def list_jobs(*, limit: int = 100) -> list[dict[str, Any]]:
     """Return recent library-management jobs, newest first."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         return [
             _serialize_library_job(row)
             for row in conn.execute("SELECT * FROM library_jobs ORDER BY id DESC LIMIT ?", (limit,))
@@ -706,7 +720,7 @@ def list_jobs(*, limit: int = 100) -> list[dict[str, Any]]:
 def list_active_jobs(library_id: int | None = None) -> list[dict[str, Any]]:
     """Return queued/running jobs, optionally scoped to one library."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         query = "SELECT * FROM library_jobs WHERE state IN ('queued', 'running')"
         params: tuple[Any, ...] = ()
         if library_id is not None:
@@ -720,7 +734,8 @@ def update_parent_aggregate_job(parent_job_id: int) -> dict[str, Any] | None:
     """Refresh aggregate parent job progress from child terminal states."""
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def refresh(conn: sqlite3.Connection) -> dict[str, Any] | None:
         parent = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (parent_job_id,)).fetchone()
         if parent is None or parent["type"] not in CATALOG_PARENT_JOB_TYPES:
             return None
@@ -817,11 +832,13 @@ def update_parent_aggregate_job(parent_job_id: int) -> dict[str, Any] | None:
         row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (parent_job_id,)).fetchone()
         return _serialize_library_job(row)
 
+    return run_write(refresh, lane=LANE_PRIORITY)
+
 
 def list_parent_aggregate_job_ids(child_job_id: int) -> list[int]:
     """Return every aggregate parent linked to a catalog child."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         rows = conn.execute(
             """SELECT parent_job_id FROM catalog_job_dependencies WHERE child_job_id = ?
                UNION SELECT parent_job_id FROM library_jobs
@@ -839,7 +856,7 @@ def create_or_get_active_scan_job(
     """Atomically return an existing active scan job or create a queued one.
 
     The check for an existing active scan job and the insert of a new queued
-    job happen inside a single ``_DB_LOCK`` critical section, eliminating the
+    job happen inside a single writer op, eliminating the
     TOCTOU race that existed when ``_queue_scan`` performed the lookup and the
     insert as separate calls. Returns ``(job, created)`` where ``created`` is
     ``True`` when a new job was inserted and ``False`` when an existing active
@@ -874,7 +891,8 @@ def recover_stale_jobs(
     live_workers = set(live_worker_ids or ())
     live_claims = set(live_claim_tokens or ())
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+    # Candidates are read on a plain connection (the fenced writes below re-validate owner and expiry).
+    with _connect_read() as conn:
         candidates = list(
             conn.execute(
                 """
@@ -912,9 +930,10 @@ def recover_stale_jobs(
                     CATALOG_PARENT_JOB_TYPES,
                 )
             }
-    recovered: list[dict[str, Any]] = []
-    touched_parent_ids: set[int] = set()
-    with _DB_LOCK, _connect() as conn:
+
+    def fail_orphans(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], set[int]]:
+        failed: list[dict[str, Any]] = []
+        touched: set[int] = set()
         for row, require_expired in running_rows:
             expiry_sql = " AND (lease_expires_at IS NULL OR lease_expires_at <= ?)" if require_expired else ""
             params: tuple[Any, ...] = (reason, reason, now, now, int(row["id"]), row["claim_token"])
@@ -939,7 +958,7 @@ def recover_stale_jobs(
                 reason,
                 now,
             )
-            touched_parent_ids.update(
+            touched.update(
                 int(parent["parent_job_id"])
                 for parent in conn.execute(
                     """
@@ -955,7 +974,13 @@ def recover_stale_jobs(
                 )
             )
             updated = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (int(row["id"]),)).fetchone()
-            recovered.append(_serialize_library_job(updated))
+            failed.append(_serialize_library_job(updated))
+        return failed, touched
+
+    recovered: list[dict[str, Any]] = []
+    touched_parent_ids: set[int] = set()
+    if running_rows:
+        recovered, touched_parent_ids = run_write(fail_orphans, lane=LANE_NORMAL)
     seen_ids = {int(job["id"]) for job in recovered}
     for parent_id in sorted(parent_ids | touched_parent_ids):
         job = update_parent_aggregate_job(parent_id)

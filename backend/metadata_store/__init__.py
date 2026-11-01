@@ -38,9 +38,6 @@ from ..models import VideoFileNode as VideoFileNode
 from . import _db as _db
 from . import path_utils as path_utils
 from ._db import (
-    _DB_LOCK as _DB_LOCK,
-)
-from ._db import (
     MAX_METADATA_JOB_ATTEMPTS as MAX_METADATA_JOB_ATTEMPTS,
 )
 from ._db import (
@@ -48,6 +45,9 @@ from ._db import (
 )
 from ._db import (
     _connect_read as _connect_read,
+)
+from ._db import (
+    _connect_readonly as _connect_readonly,
 )
 from ._db import (
     _read_snapshot as _read_snapshot,
@@ -254,6 +254,9 @@ from .metadata_persist import (
     get_lightbox_metadata as get_lightbox_metadata,
 )
 from .metadata_persist import (
+    schedule_derived_search_backfills as schedule_derived_search_backfills,
+)
+from .metadata_persist import (
     upsert_extracted_metadata as upsert_extracted_metadata,
 )
 from .metadata_persist import (
@@ -266,6 +269,9 @@ from .metadata_persist import (
     upsert_metadata_result as upsert_metadata_result,
 )
 from .metadata_queue import (
+    RECOVERY_OP_ROWS as RECOVERY_OP_ROWS,
+)
+from .metadata_queue import (
     _current_metadata_is_complete as _current_metadata_is_complete,
 )
 from .metadata_queue import (
@@ -275,7 +281,16 @@ from .metadata_queue import (
     _persist_metadata_index_jobs as _persist_metadata_index_jobs,
 )
 from .metadata_queue import (
+    apply_inconsistent_asset_repairs as apply_inconsistent_asset_repairs,
+)
+from .metadata_queue import (
+    apply_legacy_asset_mtime_repairs as apply_legacy_asset_mtime_repairs,
+)
+from .metadata_queue import (
     claim_next_metadata_job as claim_next_metadata_job,
+)
+from .metadata_queue import (
+    claim_next_metadata_jobs as claim_next_metadata_jobs,
 )
 from .metadata_queue import (
     complete_metadata_job as complete_metadata_job,
@@ -308,7 +323,16 @@ from .metadata_queue import (
     owns_metadata_job_claim as owns_metadata_job_claim,
 )
 from .metadata_queue import (
+    plan_inconsistent_asset_repairs as plan_inconsistent_asset_repairs,
+)
+from .metadata_queue import (
+    plan_legacy_asset_mtime_repairs as plan_legacy_asset_mtime_repairs,
+)
+from .metadata_queue import (
     recover_running_metadata_jobs as recover_running_metadata_jobs,
+)
+from .metadata_queue import (
+    release_metadata_job_claims as release_metadata_job_claims,
 )
 from .metadata_queue import (
     renew_metadata_job_lease as renew_metadata_job_lease,

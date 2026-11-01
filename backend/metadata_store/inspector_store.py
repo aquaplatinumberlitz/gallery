@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ._db import _DB_LOCK, _connect
+from ._db import _connect_read
 from ._resources import _iter_metadata_loras, _lora_summary, _split_lora_text
 from ._schema import initialize_database
 from .identity import current_file_metadata_sql
@@ -206,7 +206,7 @@ def list_library_inspector_rows(
     display_root = root if root is not None else Path(os.sep)
     scope_cond, scope_params = _build_scope_named(normalized_scope, root, "fi")
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         parsed = parse_fielded_query(trimmed)
         field_conditions: list[str] = []
         field_params: dict[str, Any] = {}
@@ -374,7 +374,7 @@ def get_library_inspector_metadata(path: str | Path) -> dict[str, Any] | None:
     """Read full inspector metadata from indexed DB rows only."""
     resolved = str(Path(path).resolve())
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             f"""
             SELECT

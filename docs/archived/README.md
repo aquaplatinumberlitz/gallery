@@ -2,7 +2,7 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-07-13
+Last reviewed: 2026-11-01
 
 This directory retains completed or superseded plans, historical contracts,
 and dated reports. These files preserve implementation context but do not
@@ -24,6 +24,7 @@ Notable groups include:
   SQLite claims, controlled skipped outcomes, lease/dead-worker recovery,
   worker supervision, active/current integrity predicates, and admin
   generated-image queue health.
+- Completed Worker Lifecycle Hardening plan (2026-11-01) — status reads off the write lock, metadata leases and retry, superseded-derivative retirement, a single SQLite database writer for every write path with O(1) runtime counters, and retirement of the process-global `_DB_LOCK` with a write-ownership check.
 - Completed Imported Data Maintenance UX Refactor plan — Admin update labels now keep scan endpoints behind update vocabulary, while imported-data clear/rebuild and catalog reset live under maintenance endpoints.
 - Utility Library Migration — 12-item, 6-phase migration (clipboard, debounce, device breakpoints, focus trap → Reka FocusScope, column resize, natural sort, Axios interceptor, event listeners, localStorage, formatBytes), plus follow-up deferred cleanups for GalleryGrid intersection observer and scroll visibility mechanics.
 - Historical performance comparison and deprecated testing strategy.

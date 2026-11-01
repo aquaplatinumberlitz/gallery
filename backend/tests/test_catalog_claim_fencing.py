@@ -28,7 +28,6 @@ import pytest
 from backend import scan_worker
 from backend.indexer import dispatch_metadata_index_paths, rebuild_index_scope
 from backend.metadata_store import (
-    _DB_LOCK,
     CatalogJobClaimLost,
     _connect,
     activate_rebuild_staging,
@@ -52,6 +51,7 @@ from backend.metadata_store import metadata_queue as metadata_queue_module
 from backend.metadata_store import rebuild_store as rebuild_store_module
 
 from .conftest import create_test_png
+from .worker_contention_support import count_direct_transactions
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +86,7 @@ def test_partial_worker_death_recovers_only_dead_owner(
         live_worker_ids={"worker-b"},
     )
     assert [job["id"] for job in recovered] == [first["id"]]
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         states = {
             int(row["id"]): row["state"]
             for row in conn.execute(
@@ -105,7 +105,7 @@ def test_heartbeat_renewal_wins_until_lease_truly_expires(
     assert renew_catalog_job_lease(job["id"], job["claim_token"], lease_seconds=60)
     assert recover_stale_jobs(live_worker_ids={"live-worker"}) == []
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, job["id"]))
     recovered = recover_stale_jobs(live_worker_ids={"live-worker"})
     assert [item["id"] for item in recovered] == [job["id"]]
@@ -117,7 +117,7 @@ def test_expired_claim_can_be_renewed_before_recovery_but_not_completed_first(
     _queued_job(isolated_gallery_root, "expired")
     job = claim_next_catalog_job(worker_id="worker", lease_seconds=60)
     assert job is not None
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, job["id"]))
 
     assert update_job_state(job["id"], "succeeded", claim_token=job["claim_token"]) is None
@@ -132,7 +132,7 @@ def test_run_once_closes_claim_renewed_by_late_heartbeat(
     library_id, queued = _queued_job(isolated_gallery_root, "late-heartbeat")
 
     def abort_after_expiry(job: dict) -> bool:
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             conn.execute(
                 "UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?",
                 (time.time() - 1, job["id"]),
@@ -160,7 +160,7 @@ def test_run_once_closes_claim_renewed_by_late_heartbeat(
     assert job["state"] == "failed"
     assert job["finished_at"] is not None
     assert get_library(library_id)["state"] == "error"
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         claim = conn.execute(
             "SELECT claimed_by, claim_token, lease_expires_at FROM library_jobs WHERE id = ?",
             (queued["id"],),
@@ -185,7 +185,7 @@ def test_runtime_recovery_closes_unregistered_claim_after_close_failure(
             )
             is not None
         )
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             conn.execute(
                 "UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?",
                 (time.time() - 1, job["id"]),
@@ -259,7 +259,7 @@ def test_run_once_closes_claim_when_heartbeat_start_fails(
     assert job is not None
     assert job["state"] == "failed"
     assert get_library(library_id)["state"] == "error"
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         claim = conn.execute(
             "SELECT claimed_by, claim_token, lease_expires_at FROM library_jobs WHERE id = ?",
             (queued["id"],),
@@ -294,32 +294,36 @@ def test_run_once_closes_claim_when_initial_event_emit_fails(
         assert not scan_worker._active_catalog_claims
 
 
+@pytest.mark.usefixtures("no_active_writer")
 def test_recovery_update_allows_concurrent_heartbeat_to_win(
     isolated_gallery_root: Path,
     isolated_metadata_db: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Asserts direct-transaction internals (connection per batch): pinned to the no-active-writer path; the
+    # writer path is covered in test_worker_contention_phase2_catalog.py.
     _queued_job(isolated_gallery_root, "heartbeat-race")
     job = claim_next_catalog_job(worker_id="live-worker", lease_seconds=60)
     assert job is not None
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, job["id"]))
 
-    original_connect = job_store_module._connect
+    real_run_write = job_store_module.run_write
     calls = 0
 
-    def racing_connect(*args, **kwargs):
+    def racing_run_write(op, **kwargs):
+        # The candidates were read on a plain connection; a heartbeat renews the lease before the fenced write.
         nonlocal calls
         calls += 1
-        if calls == 2:
+        if calls == 1:
             with sqlite3.connect(isolated_metadata_db) as raw:
                 raw.execute(
                     "UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?",
                     (time.time() + 60, job["id"]),
                 )
-        return original_connect(*args, **kwargs)
+        return real_run_write(op, **kwargs)
 
-    monkeypatch.setattr(job_store_module, "_connect", racing_connect)
+    monkeypatch.setattr(job_store_module, "run_write", racing_run_write)
     assert recover_stale_jobs(live_worker_ids={"live-worker"}) == []
     assert get_job(job["id"])["state"] == "running"
 
@@ -331,7 +335,7 @@ def test_stale_completion_cannot_overwrite_newer_claim(
     first = claim_next_catalog_job(worker_id="worker-a", lease_seconds=60)
     assert first is not None
     recover_stale_jobs(reason="worker died", live_worker_ids=set())
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute(
             "UPDATE library_jobs SET state = 'queued', finished_at = NULL, error = NULL WHERE id = ?",
             (first["id"],),
@@ -340,7 +344,7 @@ def test_stale_completion_cannot_overwrite_newer_claim(
     assert second is not None and second["id"] == first["id"]
 
     assert update_job_state(first["id"], "succeeded", claim_token=first["claim_token"]) is None
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         row = conn.execute(
             "SELECT state, claim_token FROM library_jobs WHERE id = ?",
             (first["id"],),
@@ -390,7 +394,7 @@ def test_supervisor_recovery_with_one_live_worker(
 
     status = scan_worker.ensure_running(service_enabled=True)
     assert status["recovered_jobs"] == 1
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         states = {
             int(row["id"]): row["state"]
             for row in conn.execute(
@@ -410,7 +414,7 @@ def test_stale_scan_claim_cannot_write_catalog(
     create_test_png(image)
     claimed = claim_next_catalog_job(worker_id="worker-a", lease_seconds=60)
     assert claimed is not None
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, claimed["id"]))
 
     with pytest.raises(CatalogJobClaimLost):
@@ -419,7 +423,7 @@ def test_stale_scan_claim_cannot_write_catalog(
             claim_job_id=int(claimed["id"]),
             claim_token=str(claimed["claim_token"]),
         )
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert conn.execute("SELECT count(*) FROM file_index WHERE path = ?", (str(image),)).fetchone()[0] == 0
         assert conn.execute("SELECT count(*) FROM assets WHERE library_id = ?", (library_id,)).fetchone()[0] == 0
 
@@ -441,7 +445,7 @@ def test_stale_rebuild_activation_is_fenced_and_recovery_cleans_staging(
     claimed = claim_next_catalog_job(worker_id="worker-a", lease_seconds=60)
     assert claimed is not None and claimed["id"] == queued["id"]
     enumerate_to_rebuild_staging(claimed["id"], library_id, [root], claimed["claim_token"])
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert (
             conn.execute("SELECT count(*) FROM catalog_rebuild_entries WHERE job_id = ?", (claimed["id"],)).fetchone()[
                 0
@@ -452,12 +456,12 @@ def test_stale_rebuild_activation_is_fenced_and_recovery_cleans_staging(
 
     with pytest.raises(CatalogJobClaimLost):
         activate_rebuild_staging(claimed["id"], library_id, None, claimed["claim_token"])
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(image),)).fetchone()[0] == 0
 
     recovered = recover_stale_jobs(live_worker_ids={"worker-a"})
     assert [job["id"] for job in recovered] == [claimed["id"]]
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert (
             conn.execute("SELECT count(*) FROM catalog_rebuild_entries WHERE job_id = ?", (claimed["id"],)).fetchone()[
                 0
@@ -482,7 +486,7 @@ def test_terminal_job_and_library_state_commit_atomically(
     )
     claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=60)
     assert claimed is not None and claimed["id"] == queued["id"]
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute(
             """
             CREATE TRIGGER reject_ready_library
@@ -517,12 +521,12 @@ def test_runtime_recovery_does_not_rewrite_healthy_aggregate_parent(
     claimed = claim_next_catalog_job(worker_id="live-worker", lease_seconds=60)
     assert claimed is not None and claimed["id"] == child["id"]
     assert update_parent_aggregate_job(parent["id"])["state"] == "running"
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         before = conn.execute("SELECT updated_at FROM library_jobs WHERE id = ?", (parent["id"],)).fetchone()[0]
 
     assert recover_stale_jobs(live_worker_ids={"live-worker"}) == []
     assert recover_stale_jobs(live_worker_ids={"live-worker"}) == []
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         after = conn.execute("SELECT updated_at FROM library_jobs WHERE id = ?", (parent["id"],)).fetchone()[0]
     assert after == before
 
@@ -542,7 +546,7 @@ def test_runtime_recovery_updates_dependency_only_aggregate_parent(
         parent_job_id=parent["id"],
     )
     assert not created and coalesced["id"] == child["id"]
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         child_row = conn.execute(
             "SELECT parent_job_id FROM library_jobs WHERE id = ?",
             (child["id"],),
@@ -565,10 +569,13 @@ def test_runtime_recovery_updates_dependency_only_aggregate_parent(
     assert updated_parent["finished_at"] is not None
 
 
+@pytest.mark.usefixtures("no_active_writer")
 def test_scan_batches_release_lock_and_refresh_claim_before_each_commit(
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Asserts direct-transaction internals (connection per batch): pinned to the no-active-writer path; the
+    # writer path is covered in test_worker_contention_phase2_catalog.py.
     library_id, _queued = _queued_job(isolated_gallery_root, "bounded-scan")
     claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=1)
     assert claimed is not None
@@ -597,15 +604,7 @@ def test_scan_batches_release_lock_and_refresh_claim_before_each_commit(
         )
 
     monkeypatch.setattr(file_index_module, "_INDEX_WRITE_BATCH_SIZE", 1)
-    original_connect = file_index_module._connect
-    connection_count = 0
-
-    def counting_connect(*args, **kwargs):
-        nonlocal connection_count
-        connection_count += 1
-        return original_connect(*args, **kwargs)
-
-    monkeypatch.setattr(file_index_module, "_connect", counting_connect)
+    transactions = count_direct_transactions(monkeypatch)
     original_refresh = job_store_module.refresh_catalog_job_claim_before_commit_conn
 
     def slow_refresh(*args, **kwargs):
@@ -622,7 +621,7 @@ def test_scan_batches_release_lock_and_refresh_claim_before_each_commit(
         claim_lease_seconds=1,
     )
 
-    assert connection_count == 2
+    assert len(transactions) == 2
     assert time.monotonic() - started >= 1.2
     assert (
         update_job_state(
@@ -683,14 +682,17 @@ def test_rebuild_activation_refreshes_claim_inside_long_transaction(
         )
         is not None
     )
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(image),)).fetchone()[0] == 1
 
 
+@pytest.mark.usefixtures("no_active_writer")
 def test_metadata_enqueue_batches_and_refreshes_catalog_claim(
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Asserts direct-transaction internals (connection per batch): pinned to the no-active-writer path; the
+    # writer path is covered in test_worker_contention_phase2_catalog.py.
     library_id, _queued = _queued_job(isolated_gallery_root, "metadata-enqueue")
     claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=1)
     assert claimed is not None
@@ -714,15 +716,7 @@ def test_metadata_enqueue_batches_and_refreshes_catalog_claim(
         images.append(image)
 
     monkeypatch.setattr(metadata_queue_module, "GALLERY_CATALOG_WRITE_BATCH_SIZE", 1)
-    original_connect = metadata_queue_module._connect
-    connection_count = 0
-
-    def counting_connect(*args, **kwargs):
-        nonlocal connection_count
-        connection_count += 1
-        return original_connect(*args, **kwargs)
-
-    monkeypatch.setattr(metadata_queue_module, "_connect", counting_connect)
+    transactions = count_direct_transactions(monkeypatch)
     original_refresh = job_store_module.refresh_catalog_job_claim_before_commit_conn
 
     def slow_refresh(*args, **kwargs):
@@ -738,7 +732,7 @@ def test_metadata_enqueue_batches_and_refreshes_catalog_claim(
         catalog_claim_lease_seconds=1,
     )
     assert result["queued"] == 2
-    assert connection_count == 2
+    assert len(transactions) == 2
     assert (
         update_job_state(
             claimed["id"],
@@ -794,7 +788,7 @@ def test_live_claim_survives_other_workers_long_activation(
         claimed_a["claim_token"],
         claim_lease_seconds=1,
     )
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         lease_b = conn.execute(
             "SELECT lease_expires_at FROM library_jobs WHERE id = ?",
             (claimed_b["id"],),

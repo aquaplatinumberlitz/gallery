@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from ..models import FileNode, VideoFileNode
-from ._db import _DB_LOCK, _active_asset_where, _connect
+from ._db import _active_asset_where, _connect_read
 from .identity import catalog_direct_child_sql, catalog_import_path_owns_sql
 from .library_store import _find_library_for_path_conn
 from .path_utils import canonicalize_catalog_path, catalog_path_contains
@@ -406,7 +406,7 @@ def get_catalog_browse_listing(
 ) -> dict[str, Any]:
     """Return a read-only catalog listing for a library virtual root or folder."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         library = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
         if library is None:
             raise KeyError(library_id)
@@ -438,7 +438,7 @@ def get_asset_folder_listing(
     """Return direct children from the authoritative assets catalog."""
     resolved = str(Path(folder_path).resolve())
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         library = _find_library_for_path_conn(conn, resolved)
         if library is None:
             return None

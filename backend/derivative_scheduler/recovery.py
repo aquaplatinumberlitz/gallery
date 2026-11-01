@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from ..catalog_maintenance_gate import maintenance_producer, producer_gate
-from ..metadata_store import _connect
+from ..metadata_store import _connect_read
+from ..metadata_store.db_writer import LANE_NORMAL, run_write
 from ._common import (
     _MAX_ATTEMPTS,
     _SUPERVISOR_INTERVAL_SECONDS,
@@ -75,8 +76,12 @@ class RecoveryMixin:
             self._wake_event.set()
 
     def _reconcile_queued_jobs(self) -> None:
-        """Terminalize queued work that no longer references an active/current source."""
-        with _connect() as conn:
+        """Terminalize queued work that no longer references an active/current source.
+
+        Candidates are found on a plain read connection (this runs every idle claim, so a clean queue must
+        cost the writer nothing); the fenced updates run as one normal-lane writer op.
+        """
+        with _connect_read() as conn:
             rows = conn.execute(
                 """
                 SELECT j.id AS job_id, d.id AS derivative_id, d.source_mtime_ns, d.source_size,
@@ -92,6 +97,10 @@ class RecoveryMixin:
                   )
                 """
             ).fetchall()
+        if not rows:
+            return
+
+        def terminalize(conn: sqlite3.Connection) -> None:
             for row in rows:
                 result_code = (
                     "asset_inactive"
@@ -117,11 +126,17 @@ class RecoveryMixin:
                         (message, row["derivative_id"]),
                     )
 
+        run_write(terminalize, lane=LANE_NORMAL)
+
     def _recover_running_jobs(self, *, claimed_by: str | None = None, expired_only: bool = False) -> int:
-        """Recover abandoned claims using the same policy at startup and runtime."""
+        """Recover abandoned claims using the same policy at startup and runtime.
+
+        The candidate rows and their source checks (file stats) are read outside the write transaction; the
+        transitions are fenced by claim token (and by expiry for the runtime policy), so a claim renewed or
+        finished in the meantime is left alone. All transitions are one normal-lane writer op.
+        """
         _ensure_database()
-        recovered = 0
-        with _connect() as conn:
+        with _connect_read() as conn:
             clauses = ["j.state = 'running'"]
             params: list[Any] = []
             if claimed_by is not None:
@@ -142,18 +157,25 @@ class RecoveryMixin:
                 """,
                 params,
             ).fetchall()
-            for row in rows:
-                result_code = self._inapplicable_result(row)
-                if result_code is not None:
-                    state = "skipped"
-                elif int(row["job_attempts"]) >= _MAX_ATTEMPTS:
-                    state, result_code = "failed", "attempts_exhausted"
-                else:
-                    state = "queued"
-                message = f"recovered abandoned derivative claim: {result_code or 'retry'}"
-                expiry_guard = (
-                    " AND (lease_expires_at IS NULL OR lease_expires_at <= julianday('now'))" if expired_only else ""
-                )
+        if not rows:
+            return 0
+        decisions: list[tuple[sqlite3.Row, str, str | None, str]] = []
+        for row in rows:
+            result_code = self._inapplicable_result(row)
+            if result_code is not None:
+                state = "skipped"
+            elif int(row["job_attempts"]) >= _MAX_ATTEMPTS:
+                state, result_code = "failed", "attempts_exhausted"
+            else:
+                state = "queued"
+            decisions.append(
+                (row, state, result_code, f"recovered abandoned derivative claim: {result_code or 'retry'}")
+            )
+        expiry_guard = " AND (lease_expires_at IS NULL OR lease_expires_at <= julianday('now'))" if expired_only else ""
+
+        def recover(conn: sqlite3.Connection) -> int:
+            recovered = 0
+            for row, state, result_code, message in decisions:
                 transitioned = conn.execute(
                     f"""
                     UPDATE derivative_jobs SET state = ?, result_code = ?, error = ?,
@@ -172,6 +194,9 @@ class RecoveryMixin:
                         (state, message, row["derivative_id"]),
                     )
                     recovered += 1
+            return recovered
+
+        recovered = run_write(recover, lane=LANE_NORMAL)
         if recovered:
             self._wake_event.set()
         return recovered

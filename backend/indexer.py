@@ -9,7 +9,9 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections import deque
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -17,25 +19,33 @@ from fastapi import APIRouter
 
 from .catalog_maintenance_gate import maintenance_producer, producer_gate
 from .config import (
+    METADATA_CLAIM_BATCH_SIZE,
+    METADATA_JOB_LEASE_SECONDS,
+    METADATA_RETRY_BASE_SECONDS,
+    METADATA_SUPERVISOR_INTERVAL_SECONDS,
+)
+from .config import (
     METADATA_INDEXER_ENABLED as METADATA_INDEXER_ENABLED,  # noqa: F401 — monkeypatched by tests
 )
 from .config import (
     METADATA_INDEXER_WORKER_SLEEP_SECONDS as METADATA_INDEXER_WORKER_SLEEP_SECONDS,  # noqa: F401 — monkeypatched by tests
 )
-from .config import METADATA_JOB_LEASE_SECONDS, METADATA_RETRY_BASE_SECONDS, METADATA_SUPERVISOR_INTERVAL_SECONDS
 from .lease_heartbeat import LeaseHeartbeat
 from .metadata_extract import ExtractedMetadata as ExtractedMetadata  # noqa: F401 — monkeypatched by tests
 from .metadata_extract import extract_metadata
 from .metadata_store import (
-    _DB_LOCK,
     MAX_METADATA_JOB_ATTEMPTS,
+    RECOVERY_OP_ROWS,
     MetadataIndexJob,
-    _connect,
+    _connect_read,
     _persist_metadata_index_jobs,
     _read_snapshot,
+    apply_inconsistent_asset_repairs,
+    apply_legacy_asset_mtime_repairs,
     assert_catalog_job_claim,
     asset_matches_image_metadata_sql,
     claim_next_metadata_job,
+    claim_next_metadata_jobs,
     complete_metadata_job,
     fail_metadata_job,
     get_library_for_path,
@@ -44,14 +54,23 @@ from .metadata_store import (
     job_matches_image_metadata_sql,
     mark_metadata_job_stale,
     owns_metadata_job_claim,
+    plan_inconsistent_asset_repairs,
+    plan_legacy_asset_mtime_repairs,
     reconcile_library_assets,
     recover_running_metadata_jobs,
+    release_metadata_job_claims,
     renew_metadata_job_lease,
-    repair_inconsistent_asset_states,
-    repair_legacy_asset_mtime_ns,
     requeue_metadata_job,
+    schedule_derived_search_backfills,
+)
+from .metadata_store.db_writer import (
+    LANE_NORMAL,
+    LANE_PRIORITY,
+    DatabaseWriterUnavailable,
+    run_write,
 )
 from .metadata_store.path_utils import path_scope_sql
+from .metadata_store.runtime_counters import metadata_job_state_counts
 
 try:  # prometheus-fastapi-instrumentator depends on prometheus_client.
     from prometheus_client import Counter, Gauge, Histogram
@@ -119,24 +138,28 @@ def _metadata_runtime_scope_sql(
 def get_indexer_runtime_status(scope_path: str | Path | None = None, *, conn: Any | None = None) -> dict[str, Any]:
     """Return runtime status from the SQLite metadata queue and worker pool.
 
-    Reads one WAL snapshot without taking ``_DB_LOCK``; pass ``conn`` to join the
+    Reads one WAL snapshot; pass ``conn`` to join the
     snapshot of an enclosing status build.
     """
     initialize_database()
     scope_sql, scope_params = _metadata_runtime_scope_sql(scope_path)
     with _read_snapshot(conn) as conn:
-        queued_count = int(
-            conn.execute(
-                f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'queued'{scope_sql}",
-                scope_params,
-            ).fetchone()[0]
-        )
-        running_count = int(
-            conn.execute(
-                f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'running'{scope_sql}",
-                scope_params,
-            ).fetchone()[0]
-        )
+        if scope_sql:
+            queued_count = int(
+                conn.execute(
+                    f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'queued'{scope_sql}",
+                    scope_params,
+                ).fetchone()[0]
+            )
+            running_count = int(
+                conn.execute(
+                    f"SELECT count(*) FROM metadata_index_jobs WHERE state = 'running'{scope_sql}",
+                    scope_params,
+                ).fetchone()[0]
+            )
+        else:  # unscoped: O(1) runtime counters read from the same snapshot
+            state_counts = metadata_job_state_counts(conn)
+            queued_count, running_count = state_counts["queued"], state_counts["running"]
         queued_rows = conn.execute(
             f"""
             SELECT path, priority, attempts, queued_at, updated_at, library_id
@@ -307,9 +330,12 @@ def is_transient_metadata_error(exc: BaseException) -> bool:
     """Return whether ``exc`` is a storage hiccup worth retrying rather than a permanent job failure.
 
     Transient: ``sqlite3.OperationalError`` whose message says the database or a table is
-    ``locked``/``busy``, and ``OSError`` with ``EAGAIN``/``EBUSY``/``EINTR``. Parse, format, and
+    ``locked``/``busy``, ``DatabaseWriterUnavailable`` (writer stopped, backed up, or slow to answer),
+    and ``OSError`` with ``EAGAIN``/``EBUSY``/``EINTR``. Parse, format, and
     permanent I/O errors (missing file, permission, unreadable image) are not transient.
     """
+    if isinstance(exc, DatabaseWriterUnavailable):
+        return True  # the database writer was stopping, backed up, or slow; the job is fine
     if isinstance(exc, sqlite3.OperationalError):
         message = str(exc).lower()
         return "locked" in message or "busy" in message
@@ -331,8 +357,22 @@ def recover_abandoned_metadata_jobs(*, expired_only: bool = True, now: float | N
     Returns ``{"reset": n, "failed": n}``.
     """
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+
+    def recover(conn: sqlite3.Connection) -> dict[str, int]:
         return recover_running_metadata_jobs(conn, expired_only=expired_only, now=now)
+
+    return run_write(recover, lane=LANE_NORMAL)
+
+
+@dataclass(frozen=True)
+class _JobCompletion:
+    """Outcome of the combined persist-and-complete writer op for one metadata job."""
+
+    applied: bool
+    claim_lost: bool = False
+    persisted: int = 0
+    asset_id: int | None = None
+    library_id: int | None = None
 
 
 class MetadataLifecycleWorker:
@@ -358,6 +398,7 @@ class MetadataLifecycleWorker:
         heartbeat_seconds: float | None = None,
         supervisor_interval_seconds: float | None = None,
         write_retry_delays: tuple[float, ...] | None = None,
+        claim_batch_size: int | None = None,
     ):
         """Initialize metadata worker thread pool."""
         self.worker_count = max(1, min(worker_count, 4))
@@ -367,6 +408,14 @@ class MetadataLifecycleWorker:
             METADATA_SUPERVISOR_INTERVAL_SECONDS if supervisor_interval_seconds is None else supervisor_interval_seconds
         )
         self._write_retry_delays = tuple(_WRITE_RETRY_DELAYS if write_retry_delays is None else write_retry_delays)
+        self.claim_batch_size = max(
+            1, min(int(METADATA_CLAIM_BATCH_SIZE if claim_batch_size is None else claim_batch_size), 16)
+        )
+        # Jobs a worker claimed in one batch but has not started yet: a per-thread FIFO plus a shared
+        # registry so the running job's heartbeat can renew their leases too.
+        self._claim_buffers = threading.local()
+        self._pending_lock = threading.Lock()
+        self._pending_claims: dict[str, MetadataIndexJob] = {}
         self._instance_id = uuid.uuid4().hex[:12]
         self._stop_event = threading.Event()
         self._wake_event = threading.Event()
@@ -430,20 +479,23 @@ class MetadataLifecycleWorker:
         return f"{self._instance_id}:{threading.current_thread().name}"
 
     def _worker_loop(self) -> None:
-        while not self._stop_event.is_set():
-            try:
-                with producer_gate():
-                    job = self._claim_job()
-                    if job is not None:
-                        self._run_job(job)
-            except Exception:  # noqa: BLE001
-                self._logger.exception("DB-claim worker could not read the job queue")
-                self._stop_event.wait(0.5)
-                continue
-            if job is None:
-                self._wake_event.clear()
-                self._wake_event.wait(timeout=1)
-                continue
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    with producer_gate():
+                        job = self._claim_job()
+                        if job is not None:
+                            self._run_job(job)
+                except Exception:  # noqa: BLE001
+                    self._logger.exception("DB-claim worker could not read the job queue")
+                    self._stop_event.wait(0.5)
+                    continue
+                if job is None:
+                    self._wake_event.clear()
+                    self._wake_event.wait(timeout=1)
+                    continue
+        finally:
+            self._release_pending_claims()
 
     def _supervisor_loop(self) -> None:
         """Recover abandoned claims and restore the configured worker count until stopped."""
@@ -488,36 +540,99 @@ class MetadataLifecycleWorker:
             thread.start()
         return len(replacements)
 
+    def _claim_buffer(self) -> deque[MetadataIndexJob]:
+        """Return this thread's FIFO of claimed-but-not-started jobs."""
+        buffer = getattr(self._claim_buffers, "jobs", None)
+        if buffer is None:
+            buffer = self._claim_buffers.jobs = deque()
+        return buffer
+
+    def _pending_claim_paths(self) -> list[str]:
+        """Return the paths of every claimed-but-not-started job of this worker (all threads)."""
+        with self._pending_lock:
+            return sorted(self._pending_claims)
+
     def _claim_job(self) -> MetadataIndexJob | None:
         """Claim one due queued metadata job from SQLite.
 
-        Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``).
+        Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``). With
+        ``claim_batch_size`` above 1 one claim transaction takes several jobs in queue order; the rest
+        wait in this thread's buffer (their leases are renewed by the running job's heartbeat and
+        released on shutdown).
         """
-        return claim_next_metadata_job(worker_id=self._worker_id(), lease_seconds=self.lease_seconds)
+        buffer = self._claim_buffer()
+        if buffer:
+            job = buffer.popleft()
+            with self._pending_lock:
+                self._pending_claims.pop(job.path, None)
+            return job
+        if self.claim_batch_size <= 1:
+            return claim_next_metadata_job(worker_id=self._worker_id(), lease_seconds=self.lease_seconds)
+        jobs = claim_next_metadata_jobs(
+            self.claim_batch_size, worker_id=self._worker_id(), lease_seconds=self.lease_seconds
+        )
+        if not jobs:
+            return None
+        rest = jobs[1:]
+        if rest:
+            buffer.extend(rest)
+            with self._pending_lock:
+                self._pending_claims.update({pending.path: pending for pending in rest})
+        return jobs[0]
+
+    def _release_pending_claims(self) -> None:
+        """Give this thread's unstarted claims back to the queue (no attempt consumed); the lease recovers failures."""
+        buffer = self._claim_buffer()
+        jobs = list(buffer)
+        buffer.clear()
+        if not jobs:
+            return
+        with self._pending_lock:
+            for job in jobs:
+                self._pending_claims.pop(job.path, None)
+        try:
+            release_metadata_job_claims(jobs)
+        except Exception:  # noqa: BLE001
+            self._logger.warning(
+                "Could not release %s unstarted metadata claim(s); leases will recover them", len(jobs)
+            )
 
     def _renew_lease(self, job: MetadataIndexJob) -> bool:
-        """Extend the lease of a still-owned claim; never takes ``_DB_LOCK`` so unrelated readers cannot starve it."""
+        """Extend the lease of a still-owned claim (and of this worker's unstarted claims).
+
+        A priority-lane writer op, so unrelated readers and bulk writes cannot starve it.
+        """
+        with self._pending_lock:
+            pending = list(self._pending_claims.values())
+
+        def renew(conn: sqlite3.Connection) -> bool:
+            renewed = renew_metadata_job_lease(conn, job, lease_seconds=self.lease_seconds)
+            for waiting in pending:
+                renew_metadata_job_lease(conn, waiting, lease_seconds=self.lease_seconds)
+            return renewed
+
         try:
-            with _connect() as conn:
-                return renew_metadata_job_lease(conn, job, lease_seconds=self.lease_seconds)
-        except sqlite3.Error:
+            return run_write(renew, lane=LANE_PRIORITY)
+        except (sqlite3.Error, DatabaseWriterUnavailable):
             self._logger.warning("Metadata lease renewal failed for %s", job.path)
             return False
 
     def _owns_claim(self, job: MetadataIndexJob) -> bool:
         try:
-            with _connect() as conn:
+            with _connect_read() as conn:
                 return owns_metadata_job_claim(conn, job)
         except sqlite3.Error:
             return True  # cannot tell; the fenced completion write decides
 
     def _persist(self, write: Callable[[sqlite3.Connection], Any]) -> Any:
-        """Run one short job-state write, retrying SQLite lock/busy contention a bounded number of times."""
+        """Run one short job-state write, retrying SQLite lock/busy contention a bounded number of times.
+
+        The write is a priority-lane database writer op (a terminal job write).
+        """
         attempt = 0
         while True:
             try:
-                with _DB_LOCK, _connect() as conn:
-                    return write(conn)
+                return run_write(write, lane=LANE_PRIORITY)
             except sqlite3.OperationalError as exc:
                 if attempt >= len(self._write_retry_delays) or not is_transient_metadata_error(exc):
                     raise
@@ -551,31 +666,26 @@ class MetadataLifecycleWorker:
                 self._logger.info("Metadata job %s lost its claim during extraction; discarding the result", job.path)
                 return
 
-            # Write image_metadata in its own short transaction
-            from .metadata_store import upsert_metadata_batch as _upbatch
-
-            _upbatch([metadata])
             heartbeat.stop()
-
-            # Complete job + materialize asset state in another short transaction
-            def _complete(conn: sqlite3.Connection) -> tuple[bool, Any]:
-                applied = complete_metadata_job(conn, job)
-                asset = conn.execute(
-                    "SELECT id FROM assets WHERE path = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
-                    (job.path,),
-                ).fetchone()
-                return applied, asset
-
-            applied, asset = self._persist(_complete)
+            completion = self._persist(lambda conn: self._persist_and_complete(conn, job, metadata))
+            if completion.claim_lost:
+                self._logger.info(
+                    "Metadata job %s lost its claim before its result was written; discarding the result", job.path
+                )
+                return
+            if completion.persisted and completion.library_id is not None:
+                # After the commit and outside the op: scheduling a backfill waits on the writer.
+                schedule_derived_search_backfills(completion.library_id)
+            applied, asset_id = completion.applied, completion.asset_id
             if not applied:
                 self._logger.info("Ignored stale completion for metadata job %s", job.path)
                 return
-            if asset is not None:
+            if asset_id is not None:
                 from .derivative_scheduler import scheduler
 
                 try:
                     scheduler.reconcile_desired_derivatives(
-                        asset_ids=[int(asset["id"])],
+                        asset_ids=[asset_id],
                         reason="metadata_completion",
                     )
                 except Exception:  # noqa: BLE001
@@ -590,6 +700,30 @@ class MetadataLifecycleWorker:
             self._handle_failure(job, exc)
         finally:
             heartbeat.stop()
+
+    @staticmethod
+    def _persist_and_complete(conn: sqlite3.Connection, job: MetadataIndexJob, metadata: Any) -> _JobCompletion:
+        """One writer op per job: fence on the claim, upsert ``image_metadata``, complete the job, find the asset.
+
+        All of it commits together or not at all. The claim is checked inside the op, so a worker that
+        lost its claim between extraction and write changes nothing (not even ``image_metadata``).
+        """
+        if not owns_metadata_job_claim(conn, job):
+            return _JobCompletion(applied=False, claim_lost=True)
+        from .metadata_store import upsert_metadata_batch as _upbatch
+
+        persisted = _upbatch([metadata])  # on the writer thread: joins this op's transaction
+        applied = complete_metadata_job(conn, job)
+        asset = conn.execute(
+            "SELECT id, library_id FROM assets WHERE path = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
+            (job.path,),
+        ).fetchone()
+        return _JobCompletion(
+            applied=applied,
+            persisted=persisted,
+            asset_id=int(asset["id"]) if asset is not None else None,
+            library_id=int(asset["library_id"]) if asset is not None else None,
+        )
 
     def _handle_failure(self, job: MetadataIndexJob, exc: Exception) -> None:
         """Requeue a transient failure with backoff, or fail the job; the write itself is retried."""
@@ -643,10 +777,29 @@ def recover_metadata_index_jobs() -> dict[str, int]:
         done_repaired, done_demoted, done_skipped, total
     """
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
-        recovered = recover_running_metadata_jobs(conn, expired_only=False)
-        mtime_repair_result = repair_legacy_asset_mtime_ns(conn)
-        repair_result = repair_inconsistent_asset_states(conn)
+
+    # The running reset is one short op. What decides the two repairs (one ``image_metadata`` lookup and a
+    # sidecar stat per done job, a file stat per legacy mtime) is read on a snapshot, outside the write
+    # lock, and applied in bounded ops whose UPDATEs are identity-fenced; a crash between chunks only
+    # leaves the rest to the next start (every repair is idempotent).
+    recovered = run_write(lambda conn: recover_running_metadata_jobs(conn, expired_only=False), lane=LANE_NORMAL)
+    with _read_snapshot() as snapshot:
+        mtime_plan, mtime_skipped = plan_legacy_asset_mtime_repairs(snapshot)
+        repair_plan = plan_inconsistent_asset_repairs(snapshot)
+
+    mtime_repair_result = {"file_index": 0, "filesystem": 0, "skipped": mtime_skipped}
+    for start in range(0, len(mtime_plan), RECOVERY_OP_ROWS):
+        chunk = mtime_plan[start : start + RECOVERY_OP_ROWS]
+        counts = run_write(lambda conn, chunk=chunk: apply_legacy_asset_mtime_repairs(conn, chunk), lane=LANE_NORMAL)
+        mtime_repair_result["file_index"] += counts["file_index"]
+        mtime_repair_result["filesystem"] += counts["filesystem"]
+
+    repair_result = {"repaired": 0, "demoted": 0, "skipped": 0, "stale_repaired": 0}
+    for start in range(0, len(repair_plan), RECOVERY_OP_ROWS):
+        chunk = repair_plan[start : start + RECOVERY_OP_ROWS]
+        counts = run_write(lambda conn, chunk=chunk: apply_inconsistent_asset_repairs(conn, chunk), lane=LANE_NORMAL)
+        for key in repair_result:
+            repair_result[key] += counts[key]
 
     metadata_worker.wake()
 
@@ -675,7 +828,7 @@ def get_metadata_lifecycle_status(scope_path: str | Path | None = None, *, conn:
 
     Provides 15 counters covering job queue depth, inconsistency detection,
     worker health, and throughput. Reads one WAL snapshot without taking
-    ``_DB_LOCK``; pass ``conn`` to join the snapshot of an enclosing status build.
+    pass ``conn`` to join the snapshot of an enclosing status build.
     """
     initialize_database()
     now = time.time()
@@ -685,13 +838,19 @@ def get_metadata_lifecycle_status(scope_path: str | Path | None = None, *, conn:
     a_scope, _asset_scope_params = _metadata_runtime_scope_sql(scope_path, "a.path")
 
     with _read_snapshot(conn) as conn:
-        # Job state counts
+        # Job state counts (unscoped reads use the O(1) runtime counters of the same snapshot)
+        if mj_scope:
+            state_counts = {}
+            for state in ("queued", "running", "done", "stale", "failed", "skipped"):
+                row = conn.execute(
+                    f"SELECT count(*) AS cnt FROM metadata_index_jobs mj WHERE mj.state = ? {mj_scope}",
+                    [state, *scope_params],
+                ).fetchone()
+                state_counts[state] = int(row["cnt"])
+        else:
+            state_counts = metadata_job_state_counts(conn)
         for state in ("queued", "running", "done", "stale", "failed", "skipped"):
-            row = conn.execute(
-                f"SELECT count(*) AS cnt FROM metadata_index_jobs mj WHERE mj.state = ? {mj_scope}",
-                [state, *scope_params],
-            ).fetchone()
-            result[f"{state}_metadata_jobs"] = int(row["cnt"])
+            result[f"{state}_metadata_jobs"] = state_counts[state]
 
         # oldest_queued_metadata_job_age
         row = conn.execute(

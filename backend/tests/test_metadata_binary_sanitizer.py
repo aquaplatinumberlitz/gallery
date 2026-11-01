@@ -86,11 +86,11 @@ def test_metadata_indexing_sanitizes_pil_binary_info(
 
     # Seed a matching asset row so complete_metadata_job can materialize done
     from backend.indexer import MetadataLifecycleWorker
-    from backend.metadata_store import _DB_LOCK, _connect, claim_next_metadata_job, create_library
+    from backend.metadata_store import _connect, claim_next_metadata_job, create_library
 
     job_row_data = queued.enqueued[0]
     create_library([tmp_path], name="TestLib")
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute(
             """INSERT INTO assets (library_id, path, parent_path, name, type, mtime_ns, size,
                indexed_at, metadata_state) VALUES (

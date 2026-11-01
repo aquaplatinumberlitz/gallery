@@ -293,7 +293,7 @@ backend/.venv_linux/bin/python scripts/worker_contention_bench.py --phase 0 \
 ```
 
 Reproduces the worker-lifecycle audit findings (WK-01..WK-06, see
-`docs/plans/WORKER_LIFECYCLE_HARDENING_PLAN.md`) against a real backend
+`docs/archived/WORKER_LIFECYCLE_HARDENING_PLAN.md`) against a real backend
 subprocess. Unlike the other benchmarks it owns its whole environment:
 
 1. builds a 1,500-image fixture with `scripts/create_perf_fixture.py` in a temp
@@ -326,7 +326,7 @@ subprocess. Unlike the other benchmarks it owns its whole environment:
 | -------------------------------------------------------------- | -------------- | ------------- |
 | `status_p95_ms` (4 endpoints × 20 samples, worst endpoint p95) | ≤ 500          | `--phase 0`   |
 | `polling_throughput_ratio`                                     | ≥ 0.90         | `--phase 0`   |
-| `max_write_lock_hold_ms` (during touch + rescan)               | ≤ 1000         | `--phase 0`   |
+| `max_write_lock_hold_ms` (during touch + rescan)               | ≤ 250          | `--phase 0`   |
 | `database_locked_log_lines`                                    | 0              | `--phase 0`   |
 | `lease_loss_failed_scans`                                      | 0              | `--phase 0`   |
 | `orphan_running_metadata_jobs`                                 | 0              | `--phase 1`   |
@@ -586,7 +586,7 @@ the published-standard-derived limits.
 | `GALLERY_PERF_WORKER_CONTENTION`                | unset                                                   | `1` adds the worker contention bench to `./test.sh perf`                      |
 | `GALLERY_PERF_WORKER_STATUS_P95_BUDGET_MS`      | `[worker_contention].status_p95_ms` (`500`)             | Max worst-endpoint status p95 over ≥ 36,000 `derivative_jobs` rows            |
 | `GALLERY_PERF_WORKER_POLLING_RATIO_BUDGET`      | `[worker_contention].polling_throughput_ratio` (`0.90`) | Min metadata throughput with status pollers ÷ without                         |
-| `GALLERY_PERF_WORKER_LOCK_HOLD_BUDGET_MS`       | `[worker_contention].max_write_lock_hold_ms` (`1000`)   | Max continuous SQLite write-lock hold seen by the external probe              |
+| `GALLERY_PERF_WORKER_LOCK_HOLD_BUDGET_MS`       | `[worker_contention].max_write_lock_hold_ms` (`250`)    | Max continuous SQLite write-lock hold seen by the external probe              |
 | `GALLERY_PERF_WORKER_LOCKED_LINES_BUDGET`       | `[worker_contention].database_locked_log_lines` (`0`)   | Max `database is locked` lines in the backend log                             |
 | `GALLERY_PERF_WORKER_LEASE_LOSS_BUDGET`         | `[worker_contention].lease_loss_failed_scans` (`0`)     | Max catalog scans failed by lease loss with a 30 s lease                      |
 | `GALLERY_PERF_WORKER_ORPHAN_BUDGET`             | `[worker_contention].orphan_running_metadata_jobs` (`0`) | Max `running` metadata jobs 60 s after the queue drained (Phase 1)           |

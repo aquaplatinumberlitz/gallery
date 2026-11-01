@@ -12,7 +12,8 @@ from typing import Any
 from PIL import Image, ImageOps
 
 from .config import GALLERY_RELATED_VISUAL_ENABLED
-from .metadata_store._db import _DB_LOCK, _connect
+from .metadata_store._db import _connect_read
+from .metadata_store.db_writer import LANE_NORMAL, run_write
 from .metadata_store.path_utils import canonicalize_catalog_path, named_path_scope_sql
 from .models import RelatedSearchResultV1
 from .search_scope import SearchScopeContext
@@ -76,7 +77,7 @@ def compute_visual_fingerprint(path: str | Path) -> dict[str, bytes]:
 
 
 def _current_derivative(asset: dict[str, Any]) -> dict[str, Any] | None:
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         rows = conn.execute(
             """
             SELECT kind, variant, cache_path
@@ -215,16 +216,22 @@ def schedule_visual_fingerprint_backfill(library_id: int) -> None:
 
 
 def notify_derivative_ready(asset_id: int) -> None:
-    """Invalidate a pending visual extraction and queue durable retry work."""
+    """Invalidate a pending visual extraction and queue durable retry work.
+
+    Called by a derivative worker right after a derivative became ``ready``. The invalidation is a
+    normal-lane database writer op; the backfill
+    scheduling waits on the writer, so it runs after the op resolved, never inside it.
+    """
     if not GALLERY_RELATED_VISUAL_ENABLED:
         return
-    with _DB_LOCK, _connect() as conn:
+
+    def invalidate(conn: sqlite3.Connection) -> int | None:
         asset = conn.execute(
             "SELECT library_id FROM assets WHERE id = ? AND type = 'image' AND offline = 0 AND deleted_at IS NULL",
             (asset_id,),
         ).fetchone()
         if asset is None:
-            return
+            return None
         current = conn.execute(
             """
             SELECT 1 FROM asset_visual_fingerprints AS fingerprint
@@ -238,15 +245,18 @@ def notify_derivative_ready(asset_id: int) -> None:
             (asset_id, VISUAL_DERIVATIVE_VERSION, VISUAL_FINGERPRINT_ALGORITHM_VERSION),
         ).fetchone()
         if current is not None:
-            return
+            return None
         conn.execute("DELETE FROM asset_visual_fingerprints WHERE asset_id = ?", (asset_id,))
         conn.execute("DELETE FROM asset_visual_hash_bands WHERE asset_id = ?", (asset_id,))
         conn.execute(
             "DELETE FROM asset_search_extractions WHERE asset_id = ? AND index_name = 'visual_fingerprints'",
             (asset_id,),
         )
-        library_id = int(asset["library_id"])
-    schedule_visual_fingerprint_backfill(library_id)
+        return int(asset["library_id"])
+
+    library_id = run_write(invalidate, lane=LANE_NORMAL)
+    if library_id is not None:
+        schedule_visual_fingerprint_backfill(library_id)
 
 
 def _scope_sql(context: SearchScopeContext) -> tuple[str, dict[str, Any]]:
@@ -392,7 +402,7 @@ def query_visual_variants(
     limit: int,
 ) -> list[RelatedSearchResultV1]:
     """Rank persisted visual near-duplicates without decoding in the request."""
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         reference = _current_reference(conn, reference_asset_id)
         if reference is None:
             return []

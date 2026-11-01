@@ -2,18 +2,19 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-10-27
+Last reviewed: 2026-11-01
 
 Active plans:
 
 | Plan | Status | Created |
 |------|--------|---------|
-| [Worker Lifecycle Hardening](WORKER_LIFECYCLE_HARDENING_PLAN.md) | Active | 2026-10-27 |
+| _None_ | | |
 
 Completed plans:
 
 | Plan | Completed | Archived |
 |------|-----------|----------|
+| Worker Lifecycle Hardening | 2026-11-01 | [`../archived/WORKER_LIFECYCLE_HARDENING_PLAN.md`](../archived/WORKER_LIFECYCLE_HARDENING_PLAN.md) |
 | Advanced Search UX Remediation | 2026-07-19 | [`../archived/ADVANCED_SEARCH_UX_REMEDIATION_PLAN.md`](../archived/ADVANCED_SEARCH_UX_REMEDIATION_PLAN.md) |
 | Search Hardening | earlier | [`../archived/`](../archived/) |
 | Search Discovery Evolution | earlier | [`../archived/`](../archived/) |

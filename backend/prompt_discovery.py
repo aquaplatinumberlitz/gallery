@@ -11,7 +11,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any, Literal
 
-from .metadata_store._db import _DB_LOCK, _connect
+from .metadata_store._db import _connect_read
 from .metadata_store._schema import initialize_database
 from .metadata_store.path_utils import canonicalize_catalog_path, named_path_scope_sql
 
@@ -58,7 +58,7 @@ def _clean_identity(value: Any) -> tuple[str, str]:
 def _metadata_source(asset: dict[str, Any]) -> dict[str, Any] | None:
     """Read only persisted metadata/resource rows; never reopen the media file."""
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         metadata = conn.execute(
             """
             SELECT prompt, negative_prompt, model, model_hash
@@ -433,7 +433,7 @@ def query_prompt_usage(
       ORDER BY {order_sql}
       LIMIT :page_limit
     """
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         rows = list(conn.execute(sql, params))
     page = rows[:limit]
     items = [

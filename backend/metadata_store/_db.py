@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import sqlite3
-import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
 from .path_utils import _compare_natural_sql
 
-_DB_LOCK = threading.RLock()
 _DB_INITIALIZED = False
 _DB_INITIALIZED_PATH: Path | None = None
 METADATA_JOB_STATES = ("queued", "running", "done", "failed", "stale", "skipped")
@@ -82,7 +80,7 @@ def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
 def _connect_read() -> sqlite3.Connection:
     """Open a read-only connection for status snapshots.
 
-    The connection never takes ``_DB_LOCK`` and refuses writes (``query_only``), so a
+    The connection takes no Python lock and refuses writes (``query_only``), so a
     status read cannot queue behind, or block, any worker. Transactions are explicit
     (``isolation_level=None``) so callers choose exactly when a snapshot starts.
     """
@@ -96,12 +94,27 @@ def _connect_read() -> sqlite3.Connection:
     return conn
 
 
+def _connect_readonly(*, timeout: float = 30.0) -> sqlite3.Connection:
+    """Open an OS-level read-only connection (``mode=ro``) that may still create TEMP tables.
+
+    For read paths that stage intermediate rows in a temp table (facets) or need a short busy timeout
+    (raw workflow search). Writes to the database fail at the file level; TEMP objects live in a private
+    temp store, which ``PRAGMA query_only`` would forbid.
+    """
+    db_path = _gallery_metadata_db_path()
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=timeout, isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
+    conn.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
+    return conn
+
+
 @contextmanager
 def _read_snapshot(conn: sqlite3.Connection | None = None) -> Iterator[sqlite3.Connection]:
     """Yield a connection whose reads all come from one consistent WAL snapshot.
 
     Opens a read connection, starts one deferred read transaction (the snapshot is
-    fixed by the first read), and always rolls back and closes it. ``_DB_LOCK`` is not
+    fixed by the first read), and always rolls back and closes it. No Python lock is
     taken: WAL readers do not block the writer and the writer does not block them.
     Pass ``conn`` to join a snapshot owned by an outer status build; it is yielded
     unchanged and left open for its owner.

@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 
 from backend import metadata_extract
 from backend.metadata_extract import MetadataSidecarTooLargeError, extract_metadata
-from backend.metadata_store import _DB_LOCK, _connect, index_file, register_library
+from backend.metadata_store import _connect, index_file, register_library
 
 from .conftest import create_test_png
 
@@ -58,7 +58,7 @@ def test_normal_sidecar_is_bounded_and_persists_same_descriptor_identity(
     assert response.status_code == 200
     assert response.json()["prompt"] == "normal sidecar prompt"
     sidecar_stat = sidecar.stat()
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         row = conn.execute(
             "SELECT source_path, source_mtime_ns, source_size FROM image_metadata WHERE path = ?",
             (str(image.resolve()),),

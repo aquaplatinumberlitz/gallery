@@ -946,7 +946,6 @@ def test_current_metadata_shortcut_marks_job_and_asset_done(
     """
     from backend.metadata_extract import ExtractedMetadata
     from backend.metadata_store import (
-        _DB_LOCK,
         _connect,
         _persist_metadata_index_jobs,
         create_library,
@@ -1005,7 +1004,7 @@ def test_current_metadata_shortcut_marks_job_and_asset_done(
     upsert_extracted_metadata(meta)
 
     # Now set asset metadata_state back to 'reset' (simulating what rebuild does)
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute(
             "UPDATE assets SET metadata_state = 'reset' WHERE path = ?",
             (str(image.resolve()),),
@@ -1022,7 +1021,7 @@ def test_current_metadata_shortcut_marks_job_and_asset_done(
 
     # Phase 3: both job and asset should be 'done' because _mark_current_metadata_done
     # now routes through _update_asset_done which materializes assets.metadata_state='done'
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         asset_row = conn.execute(
             "SELECT metadata_state FROM assets WHERE path = ?",
             (str(image.resolve()),),
@@ -1047,7 +1046,6 @@ def test_mark_metadata_jobs_done_stale_guard(
     Changing mark_metadata_jobs_done behavior or stale guard logic.
     """
     from backend.metadata_store import (
-        _DB_LOCK,
         _connect,
         _persist_metadata_index_jobs,
         create_library,
@@ -1075,7 +1073,7 @@ def test_mark_metadata_jobs_done_stale_guard(
     # Simulate the file changing (new version with different mtime_ns/size)
 
     # Record what job the system knows about
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         job_row = conn.execute(
             "SELECT path, mtime, size, mtime_ns FROM metadata_index_jobs WHERE path = ?",
             (str(image.resolve()),),

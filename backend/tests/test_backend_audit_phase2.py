@@ -23,7 +23,6 @@ import pytest
 from backend.indexer import MetadataLifecycleWorker, recover_metadata_index_jobs
 from backend.metadata_extract import extract_metadata
 from backend.metadata_store import (
-    _DB_LOCK,
     _connect,
     _persist_metadata_index_jobs,
     claim_next_catalog_job,
@@ -92,7 +91,7 @@ def test_oversized_sidecar_returns_413_and_background_failure_is_bounded(
     MetadataLifecycleWorker()._run_job(job)
     status = get_metadata_index_status(image.parent)
     assert status["counts"]["failed"] == 1
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         error = conn.execute(
             "SELECT error FROM metadata_index_jobs WHERE path = ?", (str(image.resolve()),)
         ).fetchone()[0]
@@ -140,7 +139,7 @@ def test_scan_reconciles_offline_import_root_with_empty_discovery(isolated_galle
     offline_image = offline / "offline.png"
     create_test_png(offline_image)
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         library_id = int(conn.execute("SELECT id FROM libraries LIMIT 1").fetchone()[0])
         now = conn.execute("SELECT updated_at FROM libraries WHERE id = ?", (library_id,)).fetchone()[0]
         conn.execute(
@@ -165,7 +164,7 @@ def test_scan_reconciles_offline_import_root_with_empty_discovery(isolated_galle
     assert claimed is not None and int(claimed["id"]) == int(queued["id"])
     assert execute_scan_job(claimed)
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         rows = {Path(row["path"]).name: int(row["offline"]) for row in conn.execute("SELECT path, offline FROM assets")}
     assert rows[online_image.name] == 0
     assert rows["offline.png"] == 1
@@ -177,7 +176,7 @@ def test_unregister_prevents_orphan_metadata_recreation(isolated_gallery_root: P
 
     assert unregister_library(library_id)
     assert upsert_metadata_batch([extracted]) == 0
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert conn.execute("SELECT count(*) FROM image_metadata WHERE path = ?", (extracted.path,)).fetchone()[0] == 0
 
 

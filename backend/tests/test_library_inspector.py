@@ -172,7 +172,7 @@ def test_library_inspector_applies_model_and_prompt_filters_before_cursor_pagina
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from backend.metadata_store import _DB_LOCK, _connect, index_directory_tree, register_library
+    from backend.metadata_store import _connect, index_directory_tree, register_library
 
     from .conftest import create_test_png_with_metadata
 
@@ -188,7 +188,7 @@ def test_library_inspector_applies_model_and_prompt_filters_before_cursor_pagina
     register_library(isolated_gallery_root)
     collected: list[Path] = []
     index_directory_tree(isolated_gallery_root, include_metadata=True, collected_image_paths=collected)
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute(
             "UPDATE image_metadata SET prompt = '' WHERE path = ?", (str((album / "pony-empty.png").resolve()),)
         )

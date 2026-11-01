@@ -21,7 +21,6 @@ import pytest
 
 from backend.integrity_checker import IntegrityCheckAlreadyRunning, IntegrityChecker
 from backend.metadata_store import (
-    _DB_LOCK,
     _connect,
     create_library,
     file_index,
@@ -30,6 +29,7 @@ from backend.metadata_store import (
     unregister_library,
 )
 from tests.conftest import create_test_png
+from tests.worker_contention_support import count_direct_transactions
 
 
 @pytest.mark.parametrize("operation", ["forget", "unregister"])
@@ -51,7 +51,7 @@ def test_library_removal_cleans_every_path_owned_table_and_cache_file(
     library = create_library([root])
     library_id = int(library["id"])
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         asset_id = conn.execute(
             """INSERT INTO assets
                (library_id, path, parent_path, name, type, mtime_ns, size, indexed_at, offline)
@@ -95,7 +95,7 @@ def test_library_removal_cleans_every_path_owned_table_and_cache_file(
     else:
         assert unregister_library(library_id) is True
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         for table in (
             "assets",
             "asset_derivatives",
@@ -111,32 +111,27 @@ def test_library_removal_cleans_every_path_owned_table_and_cache_file(
 
 
 def test_nanosecond_identity_columns_use_integer_affinity(isolated_metadata_db: Path) -> None:
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assets = {row["name"]: row["type"] for row in conn.execute("PRAGMA table_info(assets)")}
         derivatives = {row["name"]: row["type"] for row in conn.execute("PRAGMA table_info(asset_derivatives)")}
     assert assets["mtime_ns"] == "INTEGER"
     assert derivatives["source_mtime_ns"] == "INTEGER"
 
 
+@pytest.mark.usefixtures("no_active_writer")
 def test_directory_scan_uses_one_shared_write_connection(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Asserts direct-transaction internals (connection per batch): pinned to the no-active-writer path; the
+    # writer path is covered in test_worker_contention_phase2_catalog.py.
     create_library([isolated_gallery_root])
     for index in range(8):
         create_test_png(isolated_gallery_root / f"{index}.png")
-    calls = 0
-    original_connect = file_index._connect
-
-    def counted_connect(*args, **kwargs):
-        nonlocal calls
-        calls += 1
-        return original_connect(*args, **kwargs)
-
-    monkeypatch.setattr(file_index, "_connect", counted_connect)
+    transactions = count_direct_transactions(monkeypatch)
     assert file_index.index_directory_tree(isolated_gallery_root) == 9
-    assert calls == 1
+    assert len(transactions) == 1
 
 
 def test_integrity_run_lock_rejects_concurrent_start(monkeypatch: pytest.MonkeyPatch) -> None:

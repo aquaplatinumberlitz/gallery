@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import uuid
+from concurrent.futures import Future
 from typing import Any
 
 from ..config import DERIVATIVE_QUOTA_BYTES, DERIVATIVE_RECONCILE_ENABLED, DERIVATIVE_WORKER_COUNT
@@ -51,6 +52,7 @@ class DerivativeScheduler(
         self._generating_paths: set[str] = set()
         self._served_paths: set[str] = set()
         self._deferred_unlinks: set[str] = set()
+        self._pending_touches: dict[str, Future] = {}
         self._threads: list[threading.Thread] = []
         self._supervisor_thread: threading.Thread | None = None
         self._reconciler_thread: threading.Thread | None = None

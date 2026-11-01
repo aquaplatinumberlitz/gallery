@@ -49,7 +49,7 @@ except ImportError:
 def _registered_watcher_roots(conn: Any | None = None) -> list[str]:
     """Return enabled registered roots, optionally constrained by WATCHER_ROOTS.
 
-    Pass ``conn`` (a status read snapshot) to resolve the libraries without ``_DB_LOCK``.
+    Pass ``conn`` (a status read snapshot).
     """
     from .metadata_store import list_libraries
 
@@ -259,7 +259,7 @@ def reconcile_watcher() -> None:
 def get_watcher_status(conn: Any | None = None) -> dict[str, Any]:
     """Return file watcher configuration and runtime liveness.
 
-    Pass ``conn`` (a status read snapshot) to resolve registered roots without ``_DB_LOCK``.
+    Pass ``conn`` (a status read snapshot).
     """
     roots = _registered_watcher_roots(conn)
     return {

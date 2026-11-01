@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import threading
 
 from . import _db as _db
 from ._db import _connect, _database_has_application_tables
@@ -31,6 +32,7 @@ from ._schema_ensure import (
     _ensure_post_v1_additive_columns,
     _ensure_prompt_discovery_schema,
     _ensure_raw_workflow_schema,
+    _ensure_runtime_counters,
     _ensure_search_index_schema,
     _ensure_v3_schema,
     _ensure_visual_fingerprint_schema,
@@ -43,12 +45,17 @@ logger = logging.getLogger(__name__)
 CATALOG_SCHEMA_VERSION = 12
 
 
+# Serializes first-use schema initialization/migration of a database path (a dedicated lock: it guards
+# the one-time init state only and is never held across a catalog read or write).
+_INIT_LOCK = threading.RLock()
+
+
 def initialize_database() -> None:
     """Create or migrate the SQLite metadata database once per configured DB path."""
     if _db._DB_INITIALIZED and _gallery_metadata_db() == _db._DB_INITIALIZED_PATH:
         return
 
-    with _db._DB_LOCK:
+    with _INIT_LOCK:
         if _db._DB_INITIALIZED and _gallery_metadata_db() == _db._DB_INITIALIZED_PATH:
             return
 
@@ -118,6 +125,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         _ensure_file_index_trigram_schema(conn)
         _ensure_generation_signature_schema(conn)
         _ensure_visual_fingerprint_schema(conn)
+        _ensure_runtime_counters(conn)
         return
 
     if current_version == 0 and has_application_tables:
@@ -136,6 +144,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     _ensure_file_index_trigram_schema(conn)
     _ensure_generation_signature_schema(conn)
     _ensure_visual_fingerprint_schema(conn)
+    _ensure_runtime_counters(conn)
 
     conn.execute(f"PRAGMA user_version = {CATALOG_SCHEMA_VERSION}")
     _cleanup_ignored_index_conn(conn)

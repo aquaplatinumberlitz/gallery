@@ -24,7 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import backend.derivative_scheduler.maintenance as derivative_scheduler_maintenance_module
-from backend.metadata_store import _DB_LOCK, _connect, create_job, create_library, initialize_database, update_job_state
+from backend.metadata_store import _connect, create_job, create_library, initialize_database, update_job_state
 from backend.metadata_store.job_store import update_parent_aggregate_job
 from tests.conftest import create_test_png
 
@@ -41,7 +41,7 @@ def _seed_imported_data(root: Path, cache_dir: Path, monkeypatch) -> int:
     poster_file.parent.mkdir(parents=True, exist_ok=True)
     poster_file.write_bytes(b"poster")
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         cursor = conn.execute(
             """
             INSERT INTO assets (
@@ -167,7 +167,7 @@ def _seed_imported_data(root: Path, cache_dir: Path, monkeypatch) -> int:
 
 
 def _table_count(table: str) -> int:
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         return int(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
 
 
@@ -242,7 +242,7 @@ def test_clear_imported_data_preserves_libraries_import_paths_exclusions_and_cle
     initialize_database()
     library_id = _seed_imported_data(isolated_gallery_root, isolated_thumbnail_cache, monkeypatch)
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute(
             """
             INSERT INTO search_index_jobs (
@@ -304,7 +304,7 @@ def test_clear_imported_data_preserves_libraries_import_paths_exclusions_and_cle
         "model_identity_aliases",
     ):
         assert _table_count(table) == 0, table
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         library = conn.execute(
             "SELECT state, last_scan_at, last_error FROM libraries WHERE id = ?", (library_id,)
         ).fetchone()
@@ -446,7 +446,7 @@ def test_maintenance_endpoints_reject_all_active_work_types(
     count_key: str,
 ) -> None:
     library = create_library([isolated_gallery_root], name="Busy")
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         _seed_active_work(kind, conn, int(library["id"]))
 
     response = isolated_app.post(path, json=payload)
@@ -481,7 +481,7 @@ def test_rebuild_imported_data_clears_and_queues_parent_and_child(
     assert _table_count("image_metadata") == 0
     assert not (isolated_thumbnail_cache / "files" / "one.webp").exists()
     assert not (isolated_thumbnail_cache / "video_posters" / "one.webp").exists()
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         parent = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (data["job_id"],)).fetchone()
         child = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (data["child_job_ids"][0],)).fetchone()
     assert parent["type"] == "rebuild_imported_data"

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import THUMBNAIL_CACHE_DIR
-from ..metadata_store import _connect
+from ..metadata_store.db_writer import LANE_NORMAL, run_write
 from ._common import _ensure_database
 
 
@@ -59,9 +59,6 @@ class CacheMaintenanceMixin:
     def clear_all(self) -> dict[str, int]:
         """Clear derivative jobs/catalog rows and delete unserved cache files."""
         _ensure_database()
-        with _connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            result = self.clear_database_rows(conn)
-            conn.commit()
+        result = run_write(self.clear_database_rows, lane=LANE_NORMAL)
         cache_result = self.clear_cache_files(result.pop("cache_paths"))
         return {**result, **cache_result}

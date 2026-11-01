@@ -10,7 +10,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 
 from .errors import APIError, ErrorType
-from .metadata_store import _DB_LOCK, _connect, initialize_database
+from .metadata_store import _connect_read, _connect_readonly, initialize_database
 from .metadata_store.identity import (
     active_catalog_file_sql,
     catalog_import_path_owns_sql,
@@ -104,7 +104,7 @@ def _validate_facet_scope(path: str) -> str | None:
 
 def _get_folder_list(scope_where: str, scope_params: dict, max_folders: int) -> list[dict]:
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         rows = conn.execute(
             f"""
             SELECT fi.parent_path AS value, count(*) AS count
@@ -121,7 +121,7 @@ def _get_folder_list(scope_where: str, scope_params: dict, max_folders: int) -> 
 
 def _get_image_size_facets(scope_where: str, scope_params: dict, max_values: int) -> dict:
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         orientation_rows = conn.execute(
             f"""
             SELECT
@@ -153,7 +153,7 @@ def _get_image_size_facets(scope_where: str, scope_params: dict, max_values: int
 
 def _get_seed_availability(scope_where: str, scope_params: dict) -> list[dict]:
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         has_seed = conn.execute(
             f"""
             SELECT count(*) AS total
@@ -179,7 +179,7 @@ def _get_seed_availability(scope_where: str, scope_params: dict) -> list[dict]:
 
 def _get_metadata_availability(scope_where: str, scope_params: dict) -> list[dict]:
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         has_metadata = conn.execute(
             f"""
             SELECT count(*) AS total
@@ -205,7 +205,7 @@ def _get_metadata_availability(scope_where: str, scope_params: dict) -> list[dic
 
 def _get_lora_facet(scope_where: str, scope_params: dict, max_values: int) -> list[dict]:
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         return [
             {"value": row["name"], "count": int(row["count"])}
             for row in conn.execute(
@@ -240,7 +240,7 @@ def build_facets(
     result: dict[str, Any] = {}
 
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_readonly() as conn:
         conn.execute(
             f"""
             CREATE TEMP TABLE facet_rows AS

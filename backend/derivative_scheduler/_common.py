@@ -6,7 +6,7 @@ import logging
 import sqlite3
 
 from ..config import DERIVATIVE_JOB_LEASE_SECONDS, DERIVATIVE_VARIANTS
-from ..metadata_store import _connect, initialize_database
+from ..metadata_store import _connect_read, initialize_database
 
 # Keep the historical logger name so existing log filters and caplog targets keep matching.
 logger = logging.getLogger("backend.derivative_scheduler")
@@ -23,7 +23,7 @@ def _lease_days() -> float:
 def _ensure_database() -> None:
     """Initialize only when the derivative schema is not already present."""
     try:
-        with _connect() as conn:
+        with _connect_read() as conn:
             version = int(conn.execute("PRAGMA user_version").fetchone()[0])
             table = conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'derivative_jobs'"

@@ -32,7 +32,7 @@ import pytest
 from backend import indexer
 from backend.indexer import MetadataLifecycleWorker
 from backend.metadata_extract import extract_metadata
-from backend.metadata_store import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, _connect
+from backend.metadata_store import MAX_METADATA_JOB_ATTEMPTS, _connect
 from tests.worker_contention_support import (
     install_metadata_clock,
     metadata_job_row,
@@ -175,7 +175,7 @@ def test_stale_workers_writes_after_reclaim_change_zero_rows(seeded, monkeypatch
 
     # Metadata exists and the asset matches, so an unfenced completion would mark the job done.
     _upsert_current_metadata(Path(old.path))
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert store.complete_metadata_job(conn, old) is False
         assert store.fail_metadata_job(conn, old, "late failure") is False
         assert store.mark_metadata_job_stale(conn, old) is False
@@ -188,7 +188,7 @@ def test_stale_workers_writes_after_reclaim_change_zero_rows(seeded, monkeypatch
     assert row["error"] is None
     assert _asset_metadata_state(db_path, Path(old.path)) == "pending", "a stale completion must not stamp the asset"
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert store.complete_metadata_job(conn, new) is True
     row = metadata_job_row(db_path, old.path)
     assert row["state"] == "done"
@@ -212,7 +212,7 @@ def test_dispatch_of_a_changed_file_fences_the_old_claim(seeded) -> None:
     row = metadata_job_row(db_path, path)
     assert row["state"] == "queued" and row["attempts"] == 0
     assert row["claim_token"] is None and row["lease_expires_at"] is None
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert store.complete_metadata_job(conn, old) is False
         assert store.fail_metadata_job(conn, old, "late failure") is False
     assert metadata_job_row(db_path, path)["state"] == "queued"

@@ -5,14 +5,15 @@ from __future__ import annotations
 import sqlite3
 import time
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
 from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE, METADATA_JOB_LEASE_SECONDS
 from ..files import is_image_path, is_index_excluded_path
 from ..metadata_extract import metadata_sidecar_identity
-from ._db import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect
+from ._db import MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect_read
+from .db_writer import LANE_NORMAL, LANE_PRIORITY, SCAN_OP_ROWS, get_active_writer, run_write
 from .identity import (
     asset_params_match_sql,
     image_metadata_params_match_sql,
@@ -211,14 +212,13 @@ def _persist_metadata_index_job_batch(
         return MetadataQueueResult(enqueued=[])
 
     _initialize_database()
-    enqueued: list[MetadataIndexJob] = []
-    coalesced = 0
-    skipped = 0
-    failed = 0
     now = metadata_now()
 
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
+    def persist(conn: sqlite3.Connection) -> MetadataQueueResult:
+        enqueued: list[MetadataIndexJob] = []
+        coalesced = 0
+        skipped = 0
+        failed = 0
         if catalog_claim_job_id is not None and catalog_claim_token is not None:
             from .job_store import assert_catalog_job_claim_conn
 
@@ -357,7 +357,10 @@ def _persist_metadata_index_job_batch(
                 lease_seconds=catalog_claim_lease_seconds,
             )
 
-    return MetadataQueueResult(enqueued=enqueued, coalesced=coalesced, skipped=skipped, failed=failed)
+        return MetadataQueueResult(enqueued=enqueued, coalesced=coalesced, skipped=skipped, failed=failed)
+
+    # A scan's metadata-job batch: one fenced normal-lane writer op (claim assertion, coalescing, claim refresh).
+    return run_write(persist, lane=LANE_NORMAL)
 
 
 def _persist_metadata_index_jobs(
@@ -378,6 +381,8 @@ def _persist_metadata_index_jobs(
     skipped = 0
     failed = 0
     batch_size = max(1, GALLERY_CATALOG_WRITE_BATCH_SIZE)
+    if get_active_writer() is not None:
+        batch_size = min(batch_size, SCAN_OP_ROWS)  # one writer op per batch stays inside the write budget
     for start in range(0, len(path_list), batch_size):
         result = _persist_metadata_index_job_batch(
             path_list[start : start + batch_size],
@@ -401,7 +406,8 @@ def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
         return
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def write(conn: sqlite3.Connection) -> None:
         for job in rows:
             if job.mtime_ns is not None:
                 conn.execute(
@@ -432,6 +438,8 @@ def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
                     (now, now, job.path, job.mtime, job.size),
                 )
 
+    run_write(write, lane=LANE_NORMAL)
+
 
 def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
     """Mark durable metadata jobs as successfully completed (batch path).
@@ -445,7 +453,8 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
         return
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def write(conn: sqlite3.Connection) -> None:
         for job in rows:
             if not _image_metadata_exists_for_job(conn, job.path, job.mtime, job.size, job.mtime_ns):
                 if job.mtime_ns is not None:
@@ -500,6 +509,8 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
                 )
             _update_asset_done(conn, job, now)
 
+    run_write(write, lane=LANE_NORMAL)
+
 
 def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
     """Mark durable metadata jobs stale when the file version no longer matches."""
@@ -508,7 +519,8 @@ def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
         return
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def write(conn: sqlite3.Connection) -> None:
         for job in rows:
             if job.mtime_ns is not None:
                 conn.execute(
@@ -535,6 +547,8 @@ def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
                     (now, now, job.path, job.mtime, job.size),
                 )
 
+    run_write(write, lane=LANE_NORMAL)
+
 
 def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) -> None:
     """Mark durable metadata jobs failed with a bounded error message."""
@@ -543,7 +557,8 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
         return
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def write(conn: sqlite3.Connection) -> None:
         for job, error in rows:
             if job.mtime_ns is not None:
                 conn.execute(
@@ -570,48 +585,46 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
                     (error, now, now, job.path, job.mtime, job.size),
                 )
 
+    run_write(write, lane=LANE_NORMAL)
+
 
 # ---------------------------------------------------------------------------
 # DB-claim worker primitives (Phase 1)
 # ---------------------------------------------------------------------------
 
 
-def claim_next_metadata_job(
+def _claim_metadata_jobs_conn(
+    conn: sqlite3.Connection,
+    limit: int,
     *,
-    max_queue_wait_seconds: int = 600,
-    worker_id: str | None = None,
-    lease_seconds: float | None = None,
-    now: float | None = None,
-) -> MetadataIndexJob | None:
-    """Claim one due queued metadata job from SQLite in a short BEGIN IMMEDIATE transaction.
+    worker_id: str | None,
+    lease_seconds: float,
+    now: float | None,
+) -> list[MetadataIndexJob]:
+    """Claim up to ``limit`` due queued jobs inside the caller's write transaction.
 
-    Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``): the claim
-    records the owner (``worker_id``), a fresh claim token, and a lease. Rows whose
-    ``next_attempt_at`` (retry backoff) lies in the future are not due and are skipped.
-    Returns ``None`` when no job is available.
+    Rows come in the exact order of repeated single claims (``priority``, ``queued_at``, ``path``);
+    rows whose ``next_attempt_at`` (retry backoff) lies in the future are not due. Every claimed job
+    gets its own claim token and ``lease_seconds`` lease, and its attempt count is incremented.
     """
-    _initialize_database()
-    lease = float(METADATA_JOB_LEASE_SECONDS if lease_seconds is None else lease_seconds)
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        claimed_at = metadata_now() if now is None else float(now)
-        row = conn.execute(
-            """
-            SELECT path, name, parent_path, folder_path, root_path,
-                   mtime, mtime_ns, size, state, attempts,
-                   queued_at, started_at, finished_at, updated_at, library_id, priority
-            FROM metadata_index_jobs
-            WHERE state = 'queued'
-              AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
-            ORDER BY priority ASC, queued_at ASC, path ASC
-            LIMIT 1
-            """,
-            (claimed_at,),
-        ).fetchone()
-        if row is None:
-            return None
+    claimed_at = metadata_now() if now is None else float(now)
+    rows = conn.execute(
+        """
+        SELECT path, name, parent_path, folder_path, root_path,
+               mtime, mtime_ns, size, state, attempts,
+               queued_at, started_at, finished_at, updated_at, library_id, priority
+        FROM metadata_index_jobs
+        WHERE state = 'queued'
+          AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+        ORDER BY priority ASC, queued_at ASC, path ASC
+        LIMIT ?
+        """,
+        (claimed_at, limit),
+    ).fetchall()
+    owner = worker_id or "metadata-worker"
+    jobs: list[MetadataIndexJob] = []
+    for row in rows:
         attempts = int(row["attempts"]) + 1
-        owner = worker_id or "metadata-worker"
         claim_token = uuid.uuid4().hex
         identity_sql, identity_params = (
             ("mtime_ns = ? AND size = ?", (row["mtime_ns"], row["size"]))
@@ -632,22 +645,110 @@ def claim_next_metadata_job(
                 next_attempt_at=NULL
             WHERE path=? AND {identity_sql} AND state='queued'
             """,
-            (attempts, claimed_at, claimed_at, owner, claim_token, claimed_at + lease, row["path"], *identity_params),
+            (
+                attempts,
+                claimed_at,
+                claimed_at,
+                owner,
+                claim_token,
+                claimed_at + lease_seconds,
+                row["path"],
+                *identity_params,
+            ),
         )
-        return MetadataIndexJob(
-            path=row["path"],
-            name=row["name"],
-            parent_path=row["parent_path"],
-            folder_path=row["folder_path"],
-            root_path=row["root_path"],
-            mtime=row["mtime"],
-            mtime_ns=row["mtime_ns"],
-            size=row["size"],
-            library_id=row["library_id"],
-            attempts=attempts,
-            claim_token=claim_token,
-            claimed_by=owner,
+        jobs.append(
+            MetadataIndexJob(
+                path=row["path"],
+                name=row["name"],
+                parent_path=row["parent_path"],
+                folder_path=row["folder_path"],
+                root_path=row["root_path"],
+                mtime=row["mtime"],
+                mtime_ns=row["mtime_ns"],
+                size=row["size"],
+                library_id=row["library_id"],
+                attempts=attempts,
+                claim_token=claim_token,
+                claimed_by=owner,
+            )
         )
+    return jobs
+
+
+def claim_next_metadata_jobs(
+    limit: int,
+    *,
+    worker_id: str | None = None,
+    lease_seconds: float | None = None,
+    now: float | None = None,
+) -> list[MetadataIndexJob]:
+    """Claim up to ``limit`` due queued metadata jobs from SQLite in one short write transaction.
+
+    Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``): each claim
+    records the owner (``worker_id``), its own claim token, and a lease. The claim is one priority-lane
+    database writer op, so
+    claiming K jobs costs one transaction. Returns fewer than ``limit`` jobs when fewer are due.
+    """
+    if limit < 1:
+        return []
+    _initialize_database()
+    lease = float(METADATA_JOB_LEASE_SECONDS if lease_seconds is None else lease_seconds)
+
+    def claim(conn: sqlite3.Connection) -> list[MetadataIndexJob]:
+        return _claim_metadata_jobs_conn(conn, limit, worker_id=worker_id, lease_seconds=lease, now=now)
+
+    return run_write(claim, lane=LANE_PRIORITY)
+
+
+def claim_next_metadata_job(
+    *,
+    max_queue_wait_seconds: int = 600,
+    worker_id: str | None = None,
+    lease_seconds: float | None = None,
+    now: float | None = None,
+) -> MetadataIndexJob | None:
+    """Claim one due queued metadata job from SQLite in a short write transaction.
+
+    The single-job form of ``claim_next_metadata_jobs``. Returns ``None`` when no job is available.
+    """
+    jobs = claim_next_metadata_jobs(1, worker_id=worker_id, lease_seconds=lease_seconds, now=now)
+    return jobs[0] if jobs else None
+
+
+def release_metadata_job_claims(jobs: Iterable[MetadataIndexJob]) -> int:
+    """Give claimed-but-never-started jobs back to the queue without consuming an attempt.
+
+    Used when a worker that claimed a batch stops before reaching its later jobs. Fenced by each
+    job's claim token (a job whose claim was already recovered is left alone); keeps ``queued_at`` so
+    the queue order is unchanged. Returns how many jobs were released.
+    """
+    claimed = [job for job in jobs if job.claim_token is not None]
+    if not claimed:
+        return 0
+    _initialize_database()
+
+    def release(conn: sqlite3.Connection) -> int:
+        now = metadata_now()
+        released = 0
+        for job in claimed:
+            result = conn.execute(
+                f"""
+                UPDATE metadata_index_jobs
+                SET state='queued',
+                    attempts=MAX(attempts - 1, 0),
+                    started_at=NULL,
+                    finished_at=NULL,
+                    updated_at=?,
+                    next_attempt_at=NULL,
+                    {_CLEAR_CLAIM_SQL}
+                WHERE path=? AND state='running' AND claim_token=?
+                """,
+                (now, job.path, job.claim_token),
+            )
+            released += result.rowcount
+        return released
+
+    return run_write(release, lane=LANE_PRIORITY)
 
 
 def renew_metadata_job_lease(
@@ -1011,14 +1112,20 @@ def _metadata_scope_filter(alias: str, scope_path: str | Path | None) -> tuple[s
     return path_scope_sql(scope_path, column=f"{alias}.path", leading_and=True)
 
 
-def repair_legacy_asset_mtime_ns(
+#: Rows one startup-recovery write op applies; the reads that decide them happen before the op.
+RECOVERY_OP_ROWS = 250
+
+
+def plan_legacy_asset_mtime_repairs(
     conn: sqlite3.Connection,
     scope_path: str | Path | None = None,
-) -> dict[str, int]:
-    """Backfill asset mtimes that were accidentally stored as seconds."""
-    counters = {"file_index": 0, "filesystem": 0, "skipped": 0}
+) -> tuple[list[tuple[int, int, str]], int]:
+    """Read-only half of ``repair_legacy_asset_mtime_ns``: return ``([(asset_id, mtime_ns, source)], skipped)``.
+
+    Looks up the file index and, when it has nothing usable, stats the file. It performs no write, so a
+    caller can run it on a read snapshot instead of holding the write lock while it touches the filesystem.
+    """
     scope_where, scope_params = _metadata_scope_filter("a", scope_path)
-    now = time.time()
     rows = conn.execute(
         f"""
         SELECT a.id, a.path, a.size, fi.mtime_ns AS file_index_mtime_ns
@@ -1034,49 +1141,60 @@ def repair_legacy_asset_mtime_ns(
         [_MIN_REASONABLE_MTIME_NS, *scope_params],
     ).fetchall()
 
+    plan: list[tuple[int, int, str]] = []
+    skipped = 0
     for row in rows:
         file_index_mtime_ns = row["file_index_mtime_ns"]
-        source: str
         if file_index_mtime_ns is not None and int(file_index_mtime_ns) >= _MIN_REASONABLE_MTIME_NS:
-            repaired_mtime_ns = int(file_index_mtime_ns)
-            source = "file_index"
-        else:
-            try:
-                repaired_mtime_ns = int(Path(row["path"]).stat().st_mtime_ns)
-            except OSError:
-                counters["skipped"] += 1
-                continue
-            source = "filesystem"
+            plan.append((int(row["id"]), int(file_index_mtime_ns), "file_index"))
+            continue
+        try:
+            plan.append((int(row["id"]), int(Path(row["path"]).stat().st_mtime_ns), "filesystem"))
+        except OSError:
+            skipped += 1
+    return plan, skipped
 
+
+def apply_legacy_asset_mtime_repairs(conn: sqlite3.Connection, plan: Sequence[tuple[int, int, str]]) -> dict[str, int]:
+    """Write half of ``repair_legacy_asset_mtime_ns``: one UPDATE per planned asset (a writer op body)."""
+    counters = {"file_index": 0, "filesystem": 0, "skipped": 0}
+    now = time.time()
+    for asset_id, repaired_mtime_ns, source in plan:
         conn.execute(
             "UPDATE assets SET mtime_ns = ?, indexed_at = ? WHERE id = ?",
-            (repaired_mtime_ns, now, row["id"]),
+            (repaired_mtime_ns, now, asset_id),
         )
         counters[source] += 1
-
     return counters
 
 
-def repair_inconsistent_asset_states(
+def repair_legacy_asset_mtime_ns(
     conn: sqlite3.Connection,
     scope_path: str | Path | None = None,
 ) -> dict[str, int]:
-    """Repair done metadata_index_jobs whose assets are not in the done state.
+    """Backfill asset mtimes that were accidentally stored as seconds."""
+    plan, skipped = plan_legacy_asset_mtime_repairs(conn, scope_path)
+    counters = apply_legacy_asset_mtime_repairs(conn, plan)
+    counters["skipped"] += skipped
+    return counters
 
-    For each ``done`` job whose ``assets.metadata_state`` is not ``done``:
-    - If no asset row exists, marks the job ``skipped``.
-    - If ``image_metadata`` is current (matches the job's identity by mtime_ns
-      or mtime + size), stamps ``assets.metadata_state = 'done'``.
-    - Otherwise, demotes the job back to ``queued`` so the worker re-processes.
 
-    Uses ``scope_path`` to filter by path prefix (or None for all paths).
+#: One planned repair of ``plan_inconsistent_asset_repairs``: (action, path, mtime, mtime_ns, size, state).
+AssetRepair = tuple[str, str, Any, Any, Any, str]
 
-    Returns counters ``{"repaired": N, "demoted": N, "skipped": N}``.
+
+def plan_inconsistent_asset_repairs(
+    conn: sqlite3.Connection,
+    scope_path: str | Path | None = None,
+) -> list[AssetRepair]:
+    """Read-only half of ``repair_inconsistent_asset_states``: classify every ``done``/``stale`` job.
+
+    Returns only the jobs that need a write: ``skip`` (no asset row), ``repair`` (current ``image_metadata``,
+    job or asset state wrong) and ``demote`` (``image_metadata`` missing or stale, including a sidecar
+    mismatch). Deciding that needs one ``image_metadata`` lookup and a sidecar stat per job, which is why it
+    runs on a read snapshot and not inside the write transaction.
     """
-    counters: dict[str, int] = {"repaired": 0, "demoted": 0, "skipped": 0, "stale_repaired": 0}
-
     scope_where, scope_params = _metadata_scope_filter("mj", scope_path)
-
     rows = conn.execute(
         f"""
         SELECT mj.path, mj.mtime, mj.mtime_ns, mj.size, mj.state,
@@ -1090,17 +1208,27 @@ def repair_inconsistent_asset_states(
         scope_params,
     ).fetchall()
 
-    now = time.time()
+    plan: list[AssetRepair] = []
     for row in rows:
-        path = row["path"]
-        mtime = row["mtime"]
-        mtime_ns = row["mtime_ns"]
-        size = row["size"]
-        state = row["state"]
-        has_asset = bool(row["has_asset"])
+        path, mtime, mtime_ns, size, state = row["path"], row["mtime"], row["mtime_ns"], row["size"], row["state"]
+        if not bool(row["has_asset"]):
+            plan.append(("skip", path, mtime, mtime_ns, size, state))
+        elif _image_metadata_exists_for_job(conn, path, mtime, size, mtime_ns):
+            if state == "done" and row["asset_metadata_state"] == "done":
+                continue
+            plan.append(("repair", path, mtime, mtime_ns, size, state))
+        else:
+            plan.append(("demote", path, mtime, mtime_ns, size, state))
+    return plan
 
-        if not has_asset:
-            # No asset row — mark job skipped
+
+def apply_inconsistent_asset_repairs(conn: sqlite3.Connection, plan: Sequence[AssetRepair]) -> dict[str, int]:
+    """Write half of ``repair_inconsistent_asset_states`` (a writer op body); every UPDATE is identity-fenced."""
+    counters: dict[str, int] = {"repaired": 0, "demoted": 0, "skipped": 0, "stale_repaired": 0}
+    now = time.time()
+    for action, path, mtime, mtime_ns, size, state in plan:
+        if action == "skip":
+            # No asset row - mark the job skipped.
             if mtime_ns is not None:
                 conn.execute(
                     """
@@ -1124,15 +1252,8 @@ def repair_inconsistent_asset_states(
                     (now, now, path, mtime, size),
                 )
             counters["skipped"] += 1
-            continue
-
-        # Check whether current image_metadata exists for the job identity
-        im_exists = _image_metadata_exists_for_job(conn, path, mtime, size, mtime_ns)
-
-        if im_exists:
-            if state == "done" and row["asset_metadata_state"] == "done":
-                continue
-            # image_metadata is current — repair job and asset state
+        elif action == "repair":
+            # image_metadata is current - repair job and asset state.
             conn.execute(
                 f"""
                 UPDATE metadata_index_jobs
@@ -1168,7 +1289,7 @@ def repair_inconsistent_asset_states(
             if state == "stale":
                 counters["stale_repaired"] += 1
         else:
-            # image_metadata missing or stale (including sidecar mismatch) — demote to queued
+            # image_metadata missing or stale (including sidecar mismatch) - demote to queued.
             if mtime_ns is not None:
                 conn.execute(
                     """
@@ -1194,8 +1315,28 @@ def repair_inconsistent_asset_states(
                     (now, path, mtime, size),
                 )
             counters["demoted"] += 1
-
     return counters
+
+
+def repair_inconsistent_asset_states(
+    conn: sqlite3.Connection,
+    scope_path: str | Path | None = None,
+) -> dict[str, int]:
+    """Repair done metadata_index_jobs whose assets are not in the done state.
+
+    For each ``done`` job whose ``assets.metadata_state`` is not ``done``:
+    - If no asset row exists, marks the job ``skipped``.
+    - If ``image_metadata`` is current (matches the job's identity by mtime_ns
+      or mtime + size), stamps ``assets.metadata_state = 'done'``.
+    - Otherwise, demotes the job back to ``queued`` so the worker re-processes.
+
+    Uses ``scope_path`` to filter by path prefix (or None for all paths). This is the one-connection form
+    (``apply_inconsistent_asset_repairs(plan_inconsistent_asset_repairs(...))``); startup recovery calls the two
+    halves separately so that the reads happen outside the write lock.
+
+    Returns counters ``{"repaired": N, "demoted": N, "skipped": N}``.
+    """
+    return apply_inconsistent_asset_repairs(conn, plan_inconsistent_asset_repairs(conn, scope_path))
 
 
 def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
@@ -1210,7 +1351,7 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
         scope_predicate, params = path_scope_sql(path)
         where = f"WHERE {scope_predicate}"
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         for row in conn.execute(
             f"""
             SELECT state, count(*) AS total

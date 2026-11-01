@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from .config import GALLERY_RELATED_VISUAL_ENABLED
 from .errors import APIError, ErrorType
 from .generation_signatures import GENERATION_SIGNATURE_EXTRACTOR_VERSION, PROMPT_NORMALIZER_VERSION
-from .metadata_store._db import _DB_LOCK, _connect, _table_exists
+from .metadata_store._db import _connect_read, _table_exists
 from .metadata_store.path_utils import catalog_path_contains
 from .models import (
     APIErrorResponse,
@@ -118,7 +118,7 @@ def _aggregate_component_status(
 
 def _related_status(reference_asset_id: int, context: SearchScopeContext) -> RelatedSearchStatusV1:
     """Report only persisted readiness; never decode or derive media here."""
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         asset = conn.execute("SELECT library_id FROM assets WHERE id = ?", (reference_asset_id,)).fetchone()
         reference_library_id = int(asset["library_id"]) if asset is not None else 0
         if context.kind == "all":
@@ -222,7 +222,7 @@ def _related_status(reference_asset_id: int, context: SearchScopeContext) -> Rel
 def _visual_index_globally_usable(library_id: int) -> bool:
     if not GALLERY_RELATED_VISUAL_ENABLED:
         return False
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             """
             SELECT state, schema_version, extractor_version, indexed_count, target_count FROM search_index_states
@@ -245,7 +245,7 @@ def _visual_index_globally_usable(library_id: int) -> bool:
 
 
 def _reference_asset(reference_asset_id: int, context: SearchScopeContext) -> dict[str, Any]:
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             """
             SELECT asset.id, asset.library_id, asset.path, asset.type,

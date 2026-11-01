@@ -816,7 +816,7 @@ def _build_status(
 def build_global_runtime(conn: Any | None = None) -> GlobalRuntime:
     """Return process and durable-queue runtime status for one response envelope.
 
-    Durable counters are read from one WAL snapshot without taking ``_DB_LOCK``. Pass
+    Durable counters are read from one WAL snapshot. Pass
     ``conn`` to read them from a snapshot owned by an enclosing status build.
     """
     initialize_database()

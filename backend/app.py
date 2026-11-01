@@ -35,6 +35,7 @@ from .libraries import router as libraries_router
 from .maintenance import router as maintenance_router
 from .metadata_parse import router as metadata_parse_router
 from .metadata_store import recover_stale_jobs
+from .metadata_store.db_writer import database_writer
 from .paths import InvalidPathError
 from .refresh import start_refresh as _start_refresh
 from .refresh import stop_refresh as _stop_refresh
@@ -117,6 +118,8 @@ async def _lifespan(_app: FastAPI):
     lifecycle = _LifecycleRegistry()
     try:
         validate_trusted_proxy_configuration()
+        # First to start and last to stop: startup recovery and every worker below hand their writes to it.
+        lifecycle.start("db-writer", database_writer.start, database_writer.stop)
         recover_stale_jobs()
         if metadata_indexer.METADATA_INDEXER_ENABLED:
             recover_metadata_index_jobs()

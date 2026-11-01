@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from .imported_data_maintenance import clear_imported_data, rebuild_imported_data, reset_catalog_database
 from .indexer import get_metadata_lifecycle_status
 from .integrity_checker import IntegrityCheckAlreadyRunning, integrity_checker
-from .metadata_store import _DB_LOCK, _connect, _read_snapshot, initialize_database
+from .metadata_store import _connect_read, _read_snapshot, initialize_database
 from .metadata_store.maintenance_store import get_latest_run
 from .metadata_store.status_store import build_global_runtime
 
@@ -102,7 +102,7 @@ class FileHealthResponse(BaseModel):
 @router.get("/file-health")
 def get_file_health():
     """Return the latest file-health check run, or null if never run."""
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         run = get_latest_run(conn)
     if run is None:
         return FileHealthResponse(run=None)

@@ -28,7 +28,7 @@ from fastapi import Request
 
 from backend import app as app_module
 from backend import metadata_store
-from backend.metadata_store import _DB_LOCK, _connect, index_file, register_library
+from backend.metadata_store import _connect, index_file, register_library
 from backend.metadata_store import _migrations as migrations_module
 from tests.conftest import create_test_png
 
@@ -219,7 +219,7 @@ def test_v2_migration_failure_restores_exact_schema_and_data(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     metadata_store.initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute("INSERT INTO libraries(name) VALUES ('migration')")
     _mark_nanosecond_columns_as_real(isolated_metadata_db)
     before = _database_dump(isolated_metadata_db)

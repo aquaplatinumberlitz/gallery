@@ -17,7 +17,7 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
 ## Test Selection
 
 - Push/PR CI runs full-codebase static checks, backend and frontend unit/integration tests, the complete Chromium functional suite split into four shards, deterministic performance tests, and docs/test-catalog drift checks.
-- CI delegates to `./test.sh` for lint, unit, docs, functional E2E, and performance checks so local and CI commands stay in sync. Docs/test inventory drift and metadata lifecycle ownership are guarded by `scripts/check_docs_staleness.py`, `scripts/check_test_docs.py`, `scripts/audit_test_matrix.py --fail-on-gaps`, and `scripts/check_metadata_lifecycle_ownership.py` (run via `./test.sh docs`).
+- CI delegates to `./test.sh` for lint, unit, docs, functional E2E, and performance checks so local and CI commands stay in sync. Docs/test inventory drift and metadata lifecycle ownership are guarded by `scripts/check_docs_staleness.py`, `scripts/check_test_docs.py`, `scripts/audit_test_matrix.py --fail-on-gaps`, and `scripts/check_metadata_lifecycle_ownership.py` (run via `./test.sh docs`). Database write ownership (no writable connection, transaction control or write SQL outside the database writer and the schema modules) is guarded by `scripts/check_db_write_ownership.py`, run via `./test.sh lint`.
 - Functional Playwright runs without Istanbul instrumentation. Frontend coverage is produced by Vitest/V8 in the unit job.
 - Backend line coverage has an enforced 90% baseline. Frontend Vitest enforces
   the measured 2026-07-15 global ratchets (70% lines, 68% statements, 62%
@@ -230,6 +230,7 @@ Run from the repo root unless a command changes directory explicitly.
 | Full CI-equivalent suite                   | `./test.sh full`                                                                                                                                                                      |
 | Show all test commands                     | `./test.sh help`                                                                                                                                                                      |
 | Backend tests                              | `cd backend && python -m pytest -q`                                                                                                                                                   |
+| Backend tests with the database writer running| `GALLERY_TEST_DB_WRITER=1 python -m pytest backend/tests -q` (every write goes through the writer thread, as in the app; `./test.sh unit` runs the suite with and without it)                       |
 | Backend API integration subset             | `./test.sh backend-api`                                                                                                                                                               |
 | Frontend lint                              | `cd frontend && corepack pnpm run lint`                                                                                                                                               |
 | Frontend lint test files only              | `cd frontend && corepack pnpm run lint:tests`                                                                                                                                         |

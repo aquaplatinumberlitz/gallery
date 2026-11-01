@@ -23,7 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.integrity_checker import integrity_checker
-from backend.metadata_store import _DB_LOCK, _connect, initialize_database
+from backend.metadata_store import _connect, initialize_database
 from backend.metadata_store.maintenance_store import insert_run
 
 
@@ -102,7 +102,7 @@ class TestGetFileHealth:
 
     def test_after_daemon_run(self, isolated_app: TestClient) -> None:
         now = time.time()
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             insert_run(conn, _make_dummy_run(trigger="daemon", now=now))
         resp = isolated_app.get("/api/maintenance/file-health")
         assert resp.status_code == 200

@@ -5,7 +5,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from ..metadata_store import _connect
+from ..metadata_store import _connect_read
+from ..metadata_store.db_writer import LANE_NORMAL, run_write
 from ._common import logger
 
 
@@ -101,52 +102,60 @@ class CapacityMixin:
         ready_used, reserved = self._capacity_usage(conn, estimated_bytes)
         return ready_used + reserved + estimated_bytes <= self.quota_bytes
 
-    def _reserve_capacity(self, estimated_bytes: int) -> bool:
+    def _reserve_capacity(self, estimated_bytes: int, lane: str = LANE_NORMAL) -> bool:
         """Commit eligible evictions, unlink them safely, then verify capacity.
 
         File deletion never occurs inside a caller-owned scheduling transaction:
         rolling that transaction back could otherwise resurrect ``ready`` catalog
         rows whose files are already gone. Candidate paths remain in the catalog
         until unlink succeeds, allowing failed unlinks to be compensated exactly.
+
+        The two catalog phases are database writer ops on ``lane`` (direct transactions with the flag
+        off); the unlink runs between them, after the first op's Future resolved (its commit).
         """
-        with self._eviction_lock, self._file_lock:
+
+        def select_and_evict(conn: sqlite3.Connection) -> list[tuple[int, str, int]] | bool:
+            ready_used, reserved = self._capacity_usage(conn, estimated_bytes)
+            if ready_used + reserved + estimated_bytes <= self.quota_bytes:
+                return True
+            needed = ready_used + reserved + estimated_bytes - self.quota_bytes
             selected: list[tuple[int, str, int]] = []
-            with _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                ready_used, reserved = self._capacity_usage(conn, estimated_bytes)
-                if ready_used + reserved + estimated_bytes <= self.quota_bytes:
-                    return True
-                needed = ready_used + reserved + estimated_bytes - self.quota_bytes
-                selected_bytes = 0
-                candidates = conn.execute(
+            selected_bytes = 0
+            candidates = conn.execute(
+                """
+                SELECT id, cache_path, byte_size FROM asset_derivatives
+                WHERE status = 'ready' AND cache_path IS NOT NULL
+                ORDER BY COALESCE(last_accessed_at, created_at) ASC
+                """
+            ).fetchall()
+            for row in candidates:
+                cache_path = str(row["cache_path"])
+                if cache_path in self._served_paths or cache_path in self._generating_paths:
+                    continue
+                byte_size = int(row["byte_size"] or 0)
+                selected.append((int(row["id"]), cache_path, byte_size))
+                selected_bytes += byte_size
+                if selected_bytes >= needed:
+                    break
+            if selected_bytes < needed:
+                return False
+            for derivative_id, cache_path, _byte_size in selected:
+                conn.execute(
                     """
-                    SELECT id, cache_path, byte_size FROM asset_derivatives
-                    WHERE status = 'ready' AND cache_path IS NOT NULL
-                    ORDER BY COALESCE(last_accessed_at, created_at) ASC
-                    """
-                ).fetchall()
-                for row in candidates:
-                    cache_path = str(row["cache_path"])
-                    if cache_path in self._served_paths or cache_path in self._generating_paths:
-                        continue
-                    byte_size = int(row["byte_size"] or 0)
-                    selected.append((int(row["id"]), cache_path, byte_size))
-                    selected_bytes += byte_size
-                    if selected_bytes >= needed:
-                        break
-                if selected_bytes < needed:
-                    return False
-                for derivative_id, cache_path, _byte_size in selected:
-                    conn.execute(
-                        """
-                        UPDATE asset_derivatives
-                        SET status = 'evicted', last_error = 'evicted: capacity reservation',
-                            updated_at = julianday('now')
-                        WHERE id = ? AND status = 'ready' AND cache_path = ?
-                        """,
-                        (derivative_id, cache_path),
-                    )
-                conn.commit()
+                    UPDATE asset_derivatives
+                    SET status = 'evicted', last_error = 'evicted: capacity reservation',
+                        updated_at = julianday('now')
+                    WHERE id = ? AND status = 'ready' AND cache_path = ?
+                    """,
+                    (derivative_id, cache_path),
+                )
+            return selected
+
+        with self._eviction_lock, self._file_lock:
+            evicted = run_write(select_and_evict, lane=lane)
+            if evicted is True or evicted is False:
+                return evicted
+            selected = evicted
 
             removed: list[tuple[int, str, int]] = []
             failed: list[tuple[int, str, int]] = []
@@ -157,8 +166,7 @@ class CapacityMixin:
                 except OSError:
                     failed.append(candidate)
 
-            with _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
+            def finalize(conn: sqlite3.Connection) -> None:
                 for derivative_id, cache_path, _byte_size in removed:
                     conn.execute(
                         """
@@ -178,15 +186,16 @@ class CapacityMixin:
                         """,
                         (cache_path, byte_size, derivative_id, cache_path),
                     )
-                conn.commit()
 
-            with _connect() as conn:
+            run_write(finalize, lane=lane)
+
+            with _connect_read() as conn:
                 return self._capacity_available(conn, estimated_bytes)
 
     def _enforce_quota(self) -> None:
         if self._reserve_capacity(0):
             return
-        with _connect() as conn:
+        with _connect_read() as conn:
             total = int(
                 conn.execute(
                     "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"

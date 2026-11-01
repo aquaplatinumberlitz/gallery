@@ -10,7 +10,8 @@ from pathlib import Path
 
 from ..catalog_maintenance_gate import maintenance_producer
 from ..config import DERIVATIVE_RECONCILE_YIELD_SECONDS
-from ..metadata_store import _connect
+from ..metadata_store import _connect_read
+from ..metadata_store.db_writer import LANE_NORMAL, run_write
 from ._common import _ensure_database, logger
 from .capacity import CapacityLedger
 
@@ -164,18 +165,22 @@ class SupersedeMixin:
         selected_assets = None if asset_ids is None else [int(asset_id) for asset_id in asset_ids]
         self._flush_deferred_unlinks()
         retired_total = 0
+
+        def retire(conn: sqlite3.Connection) -> list[_Retired]:
+            return self._retire_superseded_in_txn(
+                conn,
+                selected_assets,
+                limit=_STANDALONE_ROW_LIMIT,
+                library_id=library_id,
+                scope_clause=scope_clause,
+                scope_params=scope_params,
+            )
+
         while True:
             with self._eviction_lock:
-                with _connect() as conn:
-                    conn.execute("BEGIN IMMEDIATE")
-                    retired = self._retire_superseded_in_txn(
-                        conn,
-                        selected_assets,
-                        limit=_STANDALONE_ROW_LIMIT,
-                        library_id=library_id,
-                        scope_clause=scope_clause,
-                        scope_params=scope_params,
-                    )
+                # One bounded writer op per batch; the files are unlinked only after its Future resolved
+                # (the batch committed), never when the op failed.
+                retired = run_write(retire, lane=LANE_NORMAL)
                 self._discard_retired_files(path for _id, path in retired if path)
             retired_total += len(retired)
             if len(retired) < _STANDALONE_ROW_LIMIT:
@@ -196,7 +201,7 @@ class SupersedeMixin:
         if not pending:
             return
         referenced: set[str] = set()
-        with _connect() as conn:
+        with _connect_read() as conn:
             for start in range(0, len(pending), _ID_CHUNK):
                 chunk = pending[start : start + _ID_CHUNK]
                 referenced.update(
@@ -224,7 +229,7 @@ class SupersedeMixin:
             self._deferred_unlinks.discard(cache_path)
             if cache_path in self._generating_paths:
                 return
-            with _connect() as conn:
+            with _connect_read() as conn:
                 referenced = conn.execute(
                     "SELECT 1 FROM asset_derivatives WHERE cache_path = ? LIMIT 1", (cache_path,)
                 ).fetchone()
