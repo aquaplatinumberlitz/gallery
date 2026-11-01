@@ -49,7 +49,7 @@ LOGGER = logging.getLogger(__name__)
 # Rows of a catalog scan batch written by one writer op. The scan batch settings (500 by default) bound a
 # claim-refreshing transaction; with the writer each batch is cut into ops of at most this many rows so one
 # op stays well inside the Phase 2 write-lock budget (<= 250 ms).
-SCAN_OP_ROWS = 250
+SCAN_OP_ROWS = 100
 
 LANE_PRIORITY = "priority"
 LANE_NORMAL = "normal"

@@ -257,6 +257,15 @@ worker thread                          gallery-db-writer thread
   1 s); when the retries are exhausted, or the error is not transient, every op of the
   batch fails with that error. No Future is ever left unresolved, including for a
   `BaseException` raised by an op (the writer then closes).
+* **Fairness yield.** A saturated writer commits a batch and starts the next within
+  microseconds because producers keep the queue filled, so the write lock would be held
+  continuously for seconds although every transaction is short, and a writer outside it
+  (the not yet migrated `_DB_LOCK` writers, an external connection) polls the lock with
+  SQLite's sleeping busy handler and starves. After a stretch of at least
+  `GALLERY_DB_WRITER_BATCH_MS` of back-to-back batches the writer sleeps
+  `GALLERY_DB_WRITER_YIELD_MS` (25 ms) with the lock released, so the longest continuous
+  hold is about one batch. A writer that was idle for a full yield starts a fresh stretch,
+  so sparse traffic never waits; the pause is skipped while stopping.
 * **Backpressure.** Each lane is bounded (`GALLERY_DB_WRITER_QUEUE_MAX`); `submit`
   blocks up to `GALLERY_DB_WRITER_SUBMIT_TIMEOUT_SECONDS` and then raises
   `DatabaseWriterBackpressure`. The priority lane has its own capacity, so a full
@@ -310,7 +319,7 @@ of a connection, so the flag-off fallback runs the same code in a direct transac
 | completion (`_run_job`) and failure/retry/skip (`_handle_failure`)        | `priority` | fenced by claim token: a stale claim changes 0 rows inside the op |
 | `schedule_derivative` with job priority 0-1 (interactive HTTP request)    | `priority` | awaited: the request needs the derivative id |
 | `schedule_derivative` with job priority 2-3, `repair_derivative_consistency` | `normal` | |
-| `reconcile_desired_derivatives` batches, capacity-deferred coalesce       | `normal`   | one op per batch of at most 50 assets (`RECONCILE_OP_ASSETS`), each with its own `CapacityLedger`; superseded rows retired in the same op, their files unlinked only after the Future resolved |
+| `reconcile_desired_derivatives` batches, capacity-deferred coalesce       | `normal`   | one op per batch of at most 25 assets (`RECONCILE_OP_ASSETS`), each with its own `CapacityLedger`; superseded rows retired in the same op, their files unlinked only after the Future resolved |
 | `retire_superseded_derivatives` (500 rows per op)                         | `normal`   | unlink after the op resolved; serving protection unchanged |
 | `_reserve_capacity` / quota enforcement                                   | caller's lane | two ops (select + evict, finalize) with the unlink between them |
 | `_recover_running_jobs`, `_reconcile_queued_jobs` (supervisor, startup)   | `normal`   | candidates and file stats are read outside the op; the fenced updates are one op |
@@ -344,9 +353,9 @@ direct path).
 | `renew_catalog_job_lease` (`_CatalogLeaseHeartbeat`)                           | `priority` | no `_DB_LOCK` with the flag off either (WK-02 root cause) |
 | `fail_abandoned_catalog_job_claim`, `update_parent_aggregate_job`              | `priority` | |
 | `create_or_coalesce_catalog_job` (queue scan/rebuild)                          | `priority` | cancellation events are published after the op committed |
-| `_bulk_index_records` (scan upserts: `file_index`, FTS, `assets`)              | `normal`   | claim assertion + upserts + claim refresh per op, at most 250 rows (`db_writer.SCAN_OP_ROWS`) |
+| `_bulk_index_records` (scan upserts: `file_index`, FTS, `assets`)              | `normal`   | claim assertion + upserts + claim refresh per op, at most 100 rows (`db_writer.SCAN_OP_ROWS`) |
 | `reconcile_library_assets`                                                    | `normal`   | |
-| `_persist_metadata_index_job_batch` (metadata jobs of a scan)                  | `normal`   | at most 250 paths per op |
+| `_persist_metadata_index_job_batch` (metadata jobs of a scan)                  | `normal`   | at most 100 paths per op |
 | `enumerate_to_rebuild_staging` flushes, `delete_rebuild_staging*`              | `normal`   | |
 | `activate_rebuild_staging`                                                    | `normal`   | one atomic op by contract (a failed activation leaves the canonical generation and staging untouched), so a very large library holds the write lock for the whole merge |
 | `recover_stale_jobs` (supervisor, startup)                                     | `normal`   | candidates read on a plain connection; fenced failure writes are one op |

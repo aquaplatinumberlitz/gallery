@@ -295,7 +295,7 @@ def test_bulk_index_writes_are_split_into_small_writer_ops(scan_env, monkeypatch
     per_op = [count for count in recording.writes_per_op("INSERT INTO file_index (") if count]
     assert len(per_op) >= 4, f"1,200 rows must be several ops; saw {per_op}"
     assert sum(per_op) == 1_200
-    assert max(per_op) <= 250, f"one op wrote too many rows for the 250 ms write budget: {per_op}"
+    assert max(per_op) <= 100, f"one op wrote too many rows for the 250 ms write budget: {per_op}"
 
 
 # ---------------------------------------------------------------------------
@@ -558,6 +558,73 @@ def test_a_directory_scan_writes_through_one_shared_writer_connection(
         patch.setattr(sqlite3, "connect", counting_connect)
         assert index_directory_tree(root) == len(images) + 3  # images, the root and two album folders
     assert opened.count(WRITER_THREAD_NAME) == 1, f"the scan opened connections on {opened}"
+
+
+# ---------------------------------------------------------------------------
+# A saturated writer leaves gaps for other writers
+# ---------------------------------------------------------------------------
+
+
+def _longest_blocked_span(tmp_path: Path, yield_ms: float) -> float:
+    """Saturate a private writer with 4 ms ops and return the longest continuous blocked span of a 5 ms probe."""
+    from backend.metadata_store.db_writer import DatabaseWriter
+
+    db_file = tmp_path / f"yield_{int(yield_ms)}.db"
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)")
+
+    def connect() -> sqlite3.Connection:
+        return sqlite3.connect(db_file, timeout=5, isolation_level=None)
+
+    writer = DatabaseWriter(connect=connect, path_provider=lambda: db_file, batch_ms=30, yield_ms=yield_ms)
+    writer.start()
+    spans: list[float] = []
+    stop = threading.Event()
+
+    def probe() -> None:
+        conn = sqlite3.connect(db_file, timeout=0, isolation_level=None)
+        blocked_since: float | None = None
+        while not stop.is_set():
+            now = time.monotonic()
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("ROLLBACK")
+                if blocked_since is not None:
+                    spans.append(now - blocked_since)
+                    blocked_since = None
+            except sqlite3.OperationalError:
+                blocked_since = blocked_since or now
+            time.sleep(0.005)
+        if blocked_since is not None:
+            spans.append(time.monotonic() - blocked_since)
+
+    def slow_op(conn: sqlite3.Connection) -> None:
+        conn.execute("INSERT INTO t DEFAULT VALUES")
+        time.sleep(0.004)
+
+    thread = threading.Thread(target=probe, daemon=True)
+    thread.start()
+    try:
+        futures = [writer.submit(slow_op) for _ in range(250)]
+        for future in futures:
+            future.result(timeout=60)
+    finally:
+        stop.set()
+        thread.join(5)
+        writer.stop(timeout=5)
+    return max(spans, default=0.0)
+
+
+def test_a_saturated_writer_yields_the_write_lock_after_each_stretch_of_back_to_back_batches(
+    tmp_path: Path,
+) -> None:
+    """Without the yield a busy writer holds SQLite's write lock continuously; with it, about one batch."""
+    control = _longest_blocked_span(tmp_path, yield_ms=0)
+    yielding = _longest_blocked_span(tmp_path, yield_ms=60)
+
+    assert control > 0.4, f"control: a saturated writer without the yield holds the lock continuously ({control:.3f}s)"
+    assert yielding < 0.2, f"the yield must cut continuous holds to about one batch ({yielding:.3f}s)"
 
 
 # ---------------------------------------------------------------------------

@@ -28,7 +28,7 @@ from .models import DerivativeReconcileSummary, PendingCapacity, ReconcileCandid
 # (``DERIVATIVE_RECONCILE_BATCH_SIZE``, 250 by default) down to at most this many assets (x 3 variants) so no
 # op holds the SQLite write lock longer than the Phase 2 budget; each op is one transaction with its own
 # ``CapacityLedger``.
-RECONCILE_OP_ASSETS = 50
+RECONCILE_OP_ASSETS = 25
 
 
 class ReconcileMixin:

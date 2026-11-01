@@ -13,7 +13,7 @@ Guarantees:
 Claim, lease renewal (the heartbeat), completion and failure writes are priority-lane writer ops;
 interactive scheduling (job priority 0-1) is a priority op and background scheduling, supervisor
 recovery, queued-job reconciliation and reconcile batches are normal-lane ops; a reconcile pass is split
-into small ops (no op coalesces more than the op budget of assets) while ``CapacityLedger`` semantics stay
+into small ops (no op coalesces more than 25 assets) while ``CapacityLedger`` semantics stay
 those of one transaction; superseded files are unlinked only after the retiring op resolved
 successfully, and a failed commit keeps rows and files; eviction is two ops with the unlink between them;
 a stale claim's completion and failure apply zero rows; the warm ready-file lookup never waits for the
@@ -287,7 +287,7 @@ def test_a_reconcile_pass_is_split_into_small_writer_ops(
     job_inserts = [count for count in recording.writes_per_op("INSERT INTO derivative_jobs") if count]
     assert len(job_inserts) >= 3, f"a 130-asset pass must be split into several ops; saw {job_inserts}"
     assert sum(job_inserts) == len(images) * variants_per_asset
-    assert max(job_inserts) <= 50 * variants_per_asset, f"one op coalesced too many identities: {job_inserts}"
+    assert max(job_inserts) <= 25 * variants_per_asset, f"one op coalesced too many identities: {job_inserts}"
 
 
 # ---------------------------------------------------------------------------
