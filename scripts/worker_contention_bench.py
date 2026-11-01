@@ -29,7 +29,7 @@ Run when:
 * changing status aggregate SQL, write-op sizes, reconcile/capacity batching, or
   worker lease/heartbeat behavior
 * validating a worker-lifecycle hardening phase (see
-  `docs/plans/WORKER_LIFECYCLE_HARDENING_PLAN.md`)
+  `docs/archived/WORKER_LIFECYCLE_HARDENING_PLAN.md`)
 """
 
 from __future__ import annotations
