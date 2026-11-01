@@ -166,6 +166,7 @@ class DatabaseWriter:
         self._batch_max = max(1, DB_WRITER_BATCH_MAX if batch_max is None else int(batch_max))
         self._batch_ms = max(0.0, DB_WRITER_BATCH_MS if batch_ms is None else float(batch_ms))
         self._yield_s = max(0.0, DB_WRITER_YIELD_MS if yield_ms is None else float(yield_ms)) / 1000.0
+        self._streak_s = self._batch_ms / 1000.0
         self._queue_max = max(1, DB_WRITER_QUEUE_MAX if queue_max is None else int(queue_max))
         self._submit_timeout = DB_WRITER_SUBMIT_TIMEOUT_SECONDS if submit_timeout is None else float(submit_timeout)
         self._result_timeout = DB_WRITER_RESULT_TIMEOUT_SECONDS if result_timeout is None else float(result_timeout)
@@ -395,12 +396,20 @@ class DatabaseWriter:
         _db.mark_writer_thread(True)
         _LOCAL.writer = self
         try:
+            streak_start: float | None = None  # start of the current stretch of back-to-back batches
+            last_end = 0.0
             while True:
                 first = self._take_first()
                 if first is None:
                     break
+                started = self._clock_monotonic()
+                if streak_start is None or started - last_end >= self._yield_s:
+                    streak_start = started  # the lock was free for at least a full yield: a fresh stretch
                 self._run_batch(first)
-                self._yield_to_other_writers()
+                last_end = self._clock_monotonic()
+                if self._yield_s > 0 and last_end - streak_start >= self._streak_s:
+                    self._yield_to_other_writers()
+                    streak_start = None
         except BaseException:  # noqa: BLE001 - the thread must leave a consistent, closed writer behind
             LOGGER.exception("The database writer thread crashed")
         finally:
@@ -417,20 +426,17 @@ class DatabaseWriter:
             _settle(op.future, False, DatabaseWriterClosed("the database writer stopped before the op ran"))
 
     def _yield_to_other_writers(self) -> None:
-        """Release SQLite's write lock for ``yield_ms`` after a batch when more ops are already queued.
+        """Release SQLite's write lock for ``yield_ms`` after a long stretch of back-to-back batches.
 
-        A saturated writer would otherwise commit one batch and immediately begin the next, keeping the
-        write lock continuously for seconds: a writer outside this thread (the not yet migrated
-        ``_DB_LOCK`` writers, any other connection) polls the lock with SQLite's sleeping busy handler and
-        could starve however short each batch is. The guaranteed gap makes the longest continuous hold
-        one batch. The pause happens only when work is waiting (an idle writer never lingers), applies to
-        both lanes (priority ops wait at most ``yield_ms`` longer), and is skipped while stopping.
+        A saturated writer commits one batch and begins the next within microseconds (producers keep the
+        queue filled), so the write lock is held continuously for seconds even though every transaction
+        is short. A writer outside this thread (the not yet migrated ``_DB_LOCK`` writers, any other
+        connection) polls the lock with SQLite's sleeping busy handler and could starve. After a stretch of
+        at least ``batch_ms`` of continuous activity the writer therefore sleeps ``yield_ms``, so the
+        longest continuous hold is about one batch. Sparse traffic never reaches the threshold, and the
+        pause is skipped while the writer is stopping.
         """
-        if self._yield_s <= 0:
-            return
         with self._work:
-            if not any(self._queues[lane] for lane in LANES):
-                return  # nothing queued: the lock is free anyway
             deadline = self._clock_monotonic() + self._yield_s
             while self._state == "running":
                 remaining = deadline - self._clock_monotonic()
