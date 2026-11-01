@@ -35,10 +35,13 @@ from .metadata_extract import ExtractedMetadata as ExtractedMetadata  # noqa: F4
 from .metadata_extract import extract_metadata
 from .metadata_store import (
     MAX_METADATA_JOB_ATTEMPTS,
+    RECOVERY_OP_ROWS,
     MetadataIndexJob,
     _connect_read,
     _persist_metadata_index_jobs,
     _read_snapshot,
+    apply_inconsistent_asset_repairs,
+    apply_legacy_asset_mtime_repairs,
     assert_catalog_job_claim,
     asset_matches_image_metadata_sql,
     claim_next_metadata_job,
@@ -51,12 +54,12 @@ from .metadata_store import (
     job_matches_image_metadata_sql,
     mark_metadata_job_stale,
     owns_metadata_job_claim,
+    plan_inconsistent_asset_repairs,
+    plan_legacy_asset_mtime_repairs,
     reconcile_library_assets,
     recover_running_metadata_jobs,
     release_metadata_job_claims,
     renew_metadata_job_lease,
-    repair_inconsistent_asset_states,
-    repair_legacy_asset_mtime_ns,
     requeue_metadata_job,
     schedule_derived_search_backfills,
 )
@@ -775,14 +778,28 @@ def recover_metadata_index_jobs() -> dict[str, int]:
     """
     initialize_database()
 
-    def recover(conn: sqlite3.Connection) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
-        return (
-            recover_running_metadata_jobs(conn, expired_only=False),
-            repair_legacy_asset_mtime_ns(conn),
-            repair_inconsistent_asset_states(conn),
-        )
+    # The running reset is one short op. What decides the two repairs (one ``image_metadata`` lookup and a
+    # sidecar stat per done job, a file stat per legacy mtime) is read on a snapshot, outside the write
+    # lock, and applied in bounded ops whose UPDATEs are identity-fenced; a crash between chunks only
+    # leaves the rest to the next start (every repair is idempotent).
+    recovered = run_write(lambda conn: recover_running_metadata_jobs(conn, expired_only=False), lane=LANE_NORMAL)
+    with _read_snapshot() as snapshot:
+        mtime_plan, mtime_skipped = plan_legacy_asset_mtime_repairs(snapshot)
+        repair_plan = plan_inconsistent_asset_repairs(snapshot)
 
-    recovered, mtime_repair_result, repair_result = run_write(recover, lane=LANE_NORMAL)
+    mtime_repair_result = {"file_index": 0, "filesystem": 0, "skipped": mtime_skipped}
+    for start in range(0, len(mtime_plan), RECOVERY_OP_ROWS):
+        chunk = mtime_plan[start : start + RECOVERY_OP_ROWS]
+        counts = run_write(lambda conn, chunk=chunk: apply_legacy_asset_mtime_repairs(conn, chunk), lane=LANE_NORMAL)
+        mtime_repair_result["file_index"] += counts["file_index"]
+        mtime_repair_result["filesystem"] += counts["filesystem"]
+
+    repair_result = {"repaired": 0, "demoted": 0, "skipped": 0, "stale_repaired": 0}
+    for start in range(0, len(repair_plan), RECOVERY_OP_ROWS):
+        chunk = repair_plan[start : start + RECOVERY_OP_ROWS]
+        counts = run_write(lambda conn, chunk=chunk: apply_inconsistent_asset_repairs(conn, chunk), lane=LANE_NORMAL)
+        for key in repair_result:
+            repair_result[key] += counts[key]
 
     metadata_worker.wake()
 

@@ -23,7 +23,6 @@ from pathlib import Path
 import pytest
 
 from backend.metadata_store import (
-    _DB_LOCK,
     _connect,
     claim_next_catalog_job,
     create_job,

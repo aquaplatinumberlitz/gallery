@@ -3,8 +3,8 @@
 Purpose:
 Pin the writer-core contract of the worker lifecycle hardening plan (Phase 2, task 2.1). Background
 workers must be able to hand short SQLite writes to one thread that owns one write connection and
-applies them in short batched transactions, without ever taking the process-wide ``_DB_LOCK`` and
-without any way to deadlock against it.
+applies them in short batched transactions. (Phase 3 retired the process-wide ``_DB_LOCK`` and the
+``GALLERY_DB_WRITER_ENABLED`` flag; the writer is the only write path while it runs.)
 
 Guarantees:
 Every op runs on one dedicated thread and one connection configured like ``_connect()``; ops are FIFO
@@ -16,13 +16,14 @@ a transient ``BEGIN``/``COMMIT`` failure retries the whole batch, an exhausted o
 fails every op of it, and no Future is ever left unresolved (not even for a ``BaseException``); the
 queue is bounded with a blocking, timing-out ``submit``; ``stop()`` drains pending ops within a deadline
 and later submits raise immediately; ``submit`` from the writer thread runs inline in the current
-transaction; the writer thread can never acquire ``_DB_LOCK`` (it raises), the writer never needs
-``_DB_LOCK`` itself, and a thread holding ``_DB_LOCK`` is refused rather than left to wait on the
-writer; the app lifespan starts the writer before and stops it after every worker.
+transaction; a raising op does not disturb its batch neighbours, the writer commits while a reader holds a
+WAL snapshot, ``get_active_writer`` follows the writer lifecycle and never starts it, ``run_write`` never
+falls back to the direct path when the writer fails; the app lifespan starts the writer before startup
+recovery and every worker and stops it after them; the removed flag is ignored.
 
 Run when:
-Changing ``backend/metadata_store/db_writer.py``, the ``_DB_LOCK`` wrapper in ``_db.py``, the
-``GALLERY_DB_WRITER_*`` settings, or the writer registration in the app lifespan.
+Changing ``backend/metadata_store/db_writer.py``, the ``GALLERY_DB_WRITER_*`` settings, or the writer
+registration in the app lifespan.
 """
 
 from __future__ import annotations
@@ -662,91 +663,98 @@ def test_run_from_the_writer_thread_is_inline_too(make_writer) -> None:
     assert writer.run(lambda conn: writer.run(lambda inner: "nested", lane="priority")) == "nested"
 
 
-def test_the_writer_thread_cannot_acquire_the_global_db_lock(make_writer, db_file: Path) -> None:
-    from backend.metadata_store import _DB_LOCK
-    from backend.metadata_store._db import WriterThreadLockError
+def test_a_raising_op_does_not_disturb_the_ops_queued_around_it(make_writer, db_file: Path) -> None:
+    """Converted from the retired ``..._writer_thread_cannot_acquire_the_global_db_lock`` (no lock exists any more).
 
+    What survives of that test: an op that fails on the writer thread surfaces its own error while the ops
+    queued before and after it still commit in the same batch.
+    """
     writer = make_writer()
 
-    def takes_the_lock(conn: sqlite3.Connection) -> None:
-        with _DB_LOCK:
-            pass
+    def offender(conn: sqlite3.Connection) -> None:
+        raise RuntimeError("offender failed")
 
     blocker, first = park(writer)
-    offender = writer.submit(takes_the_lock)
+    failing = writer.submit(offender)
     bystander = writer.submit(insert("still-commits"))
     blocker.release.set()
     first.result(10)
 
-    with pytest.raises(WriterThreadLockError, match="_DB_LOCK"):
-        offender.result(10)
+    with pytest.raises(RuntimeError, match="offender failed"):
+        failing.result(10)
     assert bystander.result(10) == "still-commits"
     assert rows(db_file) == ["still-commits"]
 
-    with _DB_LOCK, _DB_LOCK:  # ordinary threads keep the reentrant lock unchanged
-        assert _DB_LOCK.is_owned()
-    assert not _DB_LOCK.is_owned()
 
+def test_the_writer_commits_while_another_connection_holds_an_open_read_snapshot(make_writer, db_file: Path) -> None:
+    """Converted from ``test_the_writer_never_needs_the_global_db_lock``.
 
-def test_the_writer_never_needs_the_global_db_lock(make_writer, db_file: Path) -> None:
-    from backend.metadata_store import _DB_LOCK
-
+    The writer used to be proven independent of ``_DB_LOCK``; with the lock gone, the equivalent is that a
+    reader parked inside a long WAL read transaction never delays the writer, and the reader keeps its snapshot.
+    """
     writer = make_writer()
-    with _DB_LOCK:
-        future = writer.submit(insert("while-locked"))
-        assert future.result(timeout=10) == "while-locked", "the writer must not queue behind _DB_LOCK"
-    assert rows(db_file) == ["while-locked"]
+    reader = sqlite3.connect(db_file, timeout=5, isolation_level=None)
+    try:
+        reader.execute("BEGIN")
+        assert reader.execute("SELECT count(*) FROM t").fetchone()[0] == 0
+        future = writer.submit(insert("while-reading"))
+        assert future.result(timeout=10) == "while-reading", "the writer must not queue behind a reader"
+        assert reader.execute("SELECT count(*) FROM t").fetchone()[0] == 0, "the reader keeps its snapshot"
+        reader.execute("COMMIT")
+    finally:
+        reader.close()
+    assert rows(db_file) == ["while-reading"]
 
 
-def test_run_from_a_thread_holding_the_db_lock_is_refused_not_deadlocked(make_writer, db_file: Path) -> None:
-    from backend.metadata_store import _DB_LOCK
+def test_get_active_writer_follows_the_writer_lifecycle(make_writer, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Converted from ``test_get_active_writer_honours_the_flag_the_db_lock_and_the_lifecycle``.
 
-    module = _module()
-    writer = make_writer()
-    ran: list[int] = []
-    with _DB_LOCK, pytest.raises(module.DatabaseWriterDeadlock):
-        writer.run(lambda conn: ran.append(1))
-    assert ran == []
-    assert rows(db_file) == []
-
-
-def test_get_active_writer_honours_the_flag_the_db_lock_and_the_lifecycle(
-    make_writer, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from backend.metadata_store import _DB_LOCK
-
+    The flag and the ``_DB_LOCK`` branches no longer exist. The lifecycle contract is kept and tightened: a
+    running writer is active, a stopping one still counts as active (so callers are refused instead of
+    writing around it), and an idle or stopped one means "no active writer" (the direct path). Nothing
+    auto-starts a writer any more.
+    """
     module = _module()
     writer = make_writer()
     monkeypatch.setattr(module, "database_writer", writer)
-
-    monkeypatch.setattr(module, "DB_WRITER_ENABLED", False)
-    assert module.get_active_writer() is None, "the feature flag routes everything to the direct path"
-
-    monkeypatch.setattr(module, "DB_WRITER_ENABLED", True)
     assert module.get_active_writer() is writer
-    with _DB_LOCK:
-        assert module.get_active_writer() is None, "a thread holding _DB_LOCK must not wait on the writer"
 
     writer.stop(timeout=5)
-    assert module.get_active_writer() is None, "after stop the direct path takes over (no restart, no hang)"
+    assert module.get_active_writer() is None, "a stopped writer is no active writer"
 
     fresh = module.DatabaseWriter(connect=lambda: sqlite3.connect(":memory:", isolation_level=None))
     monkeypatch.setattr(module, "database_writer", fresh)
     assert fresh.state == "idle"
+    assert module.get_active_writer() is None, "an idle writer is no active writer"
+    assert fresh.state == "idle", "get_active_writer never starts the writer"
+
+    fresh.start()
     try:
-        assert module.get_active_writer() is fresh, "first use outside the lifespan starts the writer"
-        assert fresh.state == "running"
+        assert module.get_active_writer() is fresh
+        blocker, parked = park(fresh)  # a writer that is draining counts as active until it stopped
+        stopper = threading.Thread(target=lambda: fresh.stop(timeout=10), daemon=True)
+        stopper.start()
+        wait_until(lambda: fresh.state == "stopping", timeout=5)
+        assert module.get_active_writer() is fresh
+        blocker.release.set()
+        parked.result(10)
+        stopper.join(10)
     finally:
         fresh.stop(timeout=5)
+    assert module.get_active_writer() is None
 
 
-def test_run_write_falls_back_when_the_writer_closes_underneath_it(
-    make_writer, monkeypatch: pytest.MonkeyPatch
+def test_run_write_never_falls_back_to_the_direct_path_when_the_writer_fails(
+    make_writer, db_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Converted from ``test_run_write_falls_back_when_the_writer_closes_underneath_it``.
+
+    Before: a writer that closed between routing and submission made ``run_write`` run the op through the
+    ``fallback=`` callable. Now the error propagates and the op does not run anywhere.
+    """
     module = _module()
     writer = make_writer()
     monkeypatch.setattr(module, "database_writer", writer)
-    monkeypatch.setattr(module, "DB_WRITER_ENABLED", True)
     real_run = writer.run
 
     def racing_run(op, **kwargs):
@@ -754,7 +762,9 @@ def test_run_write_falls_back_when_the_writer_closes_underneath_it(
         return real_run(op, **kwargs)
 
     monkeypatch.setattr(writer, "run", racing_run)
-    assert module.run_write(lambda conn: "via writer", lane="priority", fallback=lambda: "direct") == "direct"
+    with pytest.raises(module.DatabaseWriterClosed):
+        module.run_write(insert("never-written"), lane="priority")
+    assert rows(db_file) == []
 
 
 # ---------------------------------------------------------------------------
@@ -778,15 +788,14 @@ def _config_values(expression: str, **env: str) -> list[str]:
 
 
 def test_configuration_defaults_and_overrides() -> None:
-    expression = "c.DB_WRITER_ENABLED, c.DB_WRITER_BATCH_MAX, c.DB_WRITER_BATCH_MS"
-    assert _config_values(expression) == ["True", "50", "100.0"]
+    expression = "c.DB_WRITER_BATCH_MAX, c.DB_WRITER_BATCH_MS"
+    assert _config_values(expression) == ["50", "100.0"]
     overridden = _config_values(
         expression,
-        GALLERY_DB_WRITER_ENABLED="false",
         GALLERY_DB_WRITER_BATCH_MAX="7",
         GALLERY_DB_WRITER_BATCH_MS="12",
     )
-    assert overridden == ["False", "7", "12.0"]
+    assert overridden == ["7", "12.0"]
     clamped = _config_values(
         "c.DB_WRITER_BATCH_MAX, c.DB_WRITER_BATCH_MS",
         GALLERY_DB_WRITER_BATCH_MAX="0",
@@ -795,7 +804,7 @@ def test_configuration_defaults_and_overrides() -> None:
     assert clamped == ["1", "1.0"], "nonsensical values are clamped, never zero or negative"
 
 
-def _record_lifespan(monkeypatch: pytest.MonkeyPatch, *, writer_enabled: bool) -> list[str]:
+def _record_lifespan(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     import backend.app as app_module
 
     events: list[str] = []
@@ -825,7 +834,6 @@ def _record_lifespan(monkeypatch: pytest.MonkeyPatch, *, writer_enabled: bool) -
     monkeypatch.setattr(app_module, "_stop_refresh", recorder("stop:refresh"))
     monkeypatch.setattr(app_module, "_start_watcher", recorder("start:watcher"))
     monkeypatch.setattr(app_module, "_stop_watcher", recorder("stop:watcher"))
-    monkeypatch.setattr(app_module, "DB_WRITER_ENABLED", writer_enabled)
     monkeypatch.setattr(app_module.database_writer, "start", recorder("start:db-writer"))
     monkeypatch.setattr(app_module.database_writer, "stop", recorder("stop:db-writer"))
 
@@ -840,7 +848,7 @@ def _record_lifespan(monkeypatch: pytest.MonkeyPatch, *, writer_enabled: bool) -
 def test_lifespan_starts_the_writer_before_every_worker_and_stops_it_after_all_of_them(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    events = _record_lifespan(monkeypatch, writer_enabled=True)
+    events = _record_lifespan(monkeypatch)
 
     starts = [event for event in events if event.startswith("start:")]
     stops = [event for event in events if event.startswith("stop:")]
@@ -852,7 +860,23 @@ def test_lifespan_starts_the_writer_before_every_worker_and_stops_it_after_all_o
     assert stops == [f"stop:{name.split(':')[1]}" for name in reversed(starts)], "strict reverse unwind"
 
 
-def test_lifespan_without_the_flag_never_touches_the_writer(monkeypatch: pytest.MonkeyPatch) -> None:
-    events = _record_lifespan(monkeypatch, writer_enabled=False)
-    assert not [event for event in events if "db-writer" in event]
-    assert "start:metadata" in events
+def test_lifespan_starts_the_writer_before_startup_recovery(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replaces ``test_lifespan_without_the_flag_never_touches_the_writer`` (the flag no longer exists).
+
+    Startup recovery writes, so with no flag-off mode the writer must already run when it executes.
+    """
+    events = _record_lifespan(monkeypatch)
+    writer_up = events.index("start:db-writer")
+    assert writer_up < events.index("recover-stale")
+    assert writer_up < events.index("recover-metadata")
+
+
+def test_the_writer_flag_no_longer_exists(monkeypatch: pytest.MonkeyPatch) -> None:
+    import backend.app as app_module
+    import backend.config as config_module
+
+    assert not hasattr(config_module, "DB_WRITER_ENABLED")
+    assert not hasattr(app_module, "DB_WRITER_ENABLED")
+    assert not hasattr(_module(), "DB_WRITER_ENABLED")
+    values = _config_values("hasattr(c, 'DB_WRITER_ENABLED')", GALLERY_DB_WRITER_ENABLED="false")
+    assert values == ["False"], "GALLERY_DB_WRITER_ENABLED is ignored: the writer is the only write path"

@@ -28,7 +28,7 @@ from fastapi import Request
 
 from backend import app as app_module
 from backend import metadata_store
-from backend.metadata_store import _DB_LOCK, _connect, index_file, register_library
+from backend.metadata_store import _connect, index_file, register_library
 from backend.metadata_store import _migrations as migrations_module
 from tests.conftest import create_test_png
 

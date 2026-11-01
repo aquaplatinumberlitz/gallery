@@ -13,16 +13,17 @@ module under ``backend/`` except tests and the allowlist below:
    ``_open_default_connection(...)``. Production code reads through ``_connect_read()`` /
    ``_read_snapshot()`` (``query_only``) and writes inside ops handed a connection by the writer.
 2. **Write SQL needs a connection in hand.** A string literal (plain, f-string, or ``+`` concatenation)
-   containing ``INSERT INTO``, ``REPLACE INTO``, ``UPDATE <table> SET``, ``DELETE FROM``, DDL, or
-   ``executescript`` may only appear inside a function that takes a connection parameter (``conn``,
-   ``connection``, ``cur``, ``cursor``) - an op body or an op helper. ``BEGIN IMMEDIATE`` is transaction
-   control and may not appear at all outside the allowlist.
+   containing ``INSERT INTO``, ``REPLACE INTO``, ``UPDATE <table> SET``, ``DELETE FROM``, or DDL may only
+   appear inside a function that takes a connection parameter (``conn``, ``connection``, ``cur``,
+   ``cursor``) - an op body or an op helper. ``BEGIN IMMEDIATE`` (or a bare ``BEGIN`` / ``COMMIT`` /
+   ``ROLLBACK`` / ``END`` statement) is transaction control and may not appear at all outside the
+   allowlist, nor may ``executescript``.
 3. **Transactions.** No ``.commit()`` / ``.rollback()`` calls outside the allowlist.
 
 Allowlist: the writer module (which owns the no-active-writer path), ``_db.py`` (connection factories),
 and the schema / migration modules that run before any writer exists.
 
-Usage: ``python scripts/check_db_write_ownership.py [--root DIR] [--list]`` (exit 1 on violations).
+Usage: ``python scripts/check_db_write_ownership.py [--root DIR]`` (exit 1 on violations).
 """
 
 from __future__ import annotations
@@ -55,10 +56,13 @@ _WRITE_SQL = re.compile(
     r"\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|REPLACE\s+INTO|UPDATE\s+\S+\s+SET|DELETE\s+FROM|"
     r"ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX|TRIGGER|VIEW)|CREATE\s+(?:VIRTUAL\s+)?(?:TABLE|INDEX|TRIGGER))\b"
 )
-_BEGIN_IMMEDIATE = re.compile(r"\bBEGIN\s+IMMEDIATE\b")
+_TRANSACTION_CONTROL = re.compile(
+    r"(?i:\bBEGIN\s+IMMEDIATE\b)|^\s*(?:BEGIN(?:\s+(?:EXCLUSIVE|DEFERRED))?(?:\s+TRANSACTION)?|COMMIT|END|ROLLBACK)\s*;?\s*$"
+)  # bare statements are upper case only: ``"commit"`` is also an ordinary dictionary key
 
 
 def _production_files(root: Path) -> Iterator[Path]:
+    """Yield the production ``*.py`` files under ``root`` (tests, caches and virtualenvs are skipped)."""
     for path in sorted(root.rglob("*.py")):
         parts = set(path.relative_to(root).parts)
         if parts & EXCLUDED_PARTS or any(part.startswith(".venv") or part == "venv" for part in parts):
@@ -84,6 +88,7 @@ def _string_value(node: ast.AST) -> str | None:
 
 
 def _docstring_nodes(tree: ast.AST) -> set[int]:
+    """Return the ids of docstring constants, which may mention SQL without being SQL."""
     docs: set[int] = set()
     for node in ast.walk(tree):
         if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -124,6 +129,12 @@ def check_source(source: str, rel: str) -> list[str]:
         is_function = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
         if is_function:
             stack = [*stack, node]
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "sqlite3"
+            and any(a.name == "connect" for a in node.names)
+        ):
+            errors.append(f"{rel}:{node.lineno} imports sqlite3.connect (writable connections belong to the writer)")
         if isinstance(node, ast.Call):
             owner, name = _call_name(node)
             if name in CONNECT_CALLS or (owner == "sqlite3" and name == "connect"):
@@ -139,11 +150,15 @@ def check_source(source: str, rel: str) -> list[str]:
         if is_string and not in_concat and id(node) not in docstrings:
             text = _string_value(node)
         if text is not None:
-            if _BEGIN_IMMEDIATE.search(text):
-                errors.append(f"{rel}:{node.lineno} contains BEGIN IMMEDIATE (transaction control belongs to the writer)")
+            if _TRANSACTION_CONTROL.search(text):
+                errors.append(
+                    f"{rel}:{node.lineno} contains transaction control SQL (it belongs to the database writer)"
+                )
             elif _WRITE_SQL.search(text) and not has_connection(stack):
                 errors.append(f"{rel}:{node.lineno} contains write SQL outside a function that takes a connection")
-        child_in_concat = in_concat or (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and text is not None)
+        child_in_concat = in_concat or (
+            isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and text is not None
+        )
         for child in ast.iter_child_nodes(node):
             visit(child, stack, child_in_concat or isinstance(node, ast.JoinedStr))
 
@@ -152,6 +167,7 @@ def check_source(source: str, rel: str) -> list[str]:
 
 
 def check_tree(root: Path) -> list[str]:
+    """Return the violations of every production module under ``root``."""
     errors: list[str] = []
     for path in _production_files(root):
         errors.extend(check_source(path.read_text(encoding="utf-8"), path.relative_to(root).as_posix()))
@@ -159,6 +175,7 @@ def check_tree(root: Path) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the check; exit status 1 when any violation is found."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--root", type=Path, default=REPO_ROOT / "backend", help="package root to scan")
     args = parser.parse_args(argv)

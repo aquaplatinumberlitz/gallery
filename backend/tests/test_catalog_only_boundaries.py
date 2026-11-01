@@ -20,7 +20,6 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.metadata_store import (
-    _DB_LOCK,
     _connect,
     get_catalog_browse_listing,
     index_file,

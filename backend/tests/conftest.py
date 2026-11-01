@@ -217,11 +217,38 @@ def isolated_thumbnail_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
 @pytest.fixture(autouse=True)
 def _reset_database_writer():
-    """Give every test a never-started shared database writer (it follows the per-test database path)."""
-    yield
+    """Give every test a clean shared database writer, and optionally run it with the writer active.
+
+    By default the shared writer is never started, so every write takes the no-active-writer path (one direct
+    ``BEGIN IMMEDIATE`` transaction), like ``init_db``, the CLI scripts and plain unit tests do. With
+    ``GALLERY_TEST_DB_WRITER=1`` the writer runs for the whole test, so every write goes through it like in the
+    app. CI runs the suite in both modes; the writer follows the per-test database path by itself.
+    """
     from backend.metadata_store.db_writer import database_writer
 
     database_writer.reset()
+    if os.environ.get("GALLERY_TEST_DB_WRITER") == "1":
+        database_writer.start()
+    yield
+    database_writer.reset()
+
+
+@pytest.fixture
+def started_writer():
+    """Run the shared database writer for this test (the app lifespan does this in production)."""
+    from backend.metadata_store.db_writer import database_writer
+
+    database_writer.start()
+    return database_writer
+
+
+@pytest.fixture
+def no_active_writer():
+    """Guarantee no database writer is active for this test: writes take the no-active-writer path."""
+    from backend.metadata_store.db_writer import database_writer
+
+    database_writer.reset()
+    return database_writer
 
 
 @pytest.fixture

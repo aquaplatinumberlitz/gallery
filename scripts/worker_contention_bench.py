@@ -26,7 +26,7 @@ Guarantees:
   which are always measured and reported
 
 Run when:
-* changing status aggregate SQL, `_DB_LOCK` usage, reconcile/capacity batching, or
+* changing status aggregate SQL, write-op sizes, reconcile/capacity batching, or
   worker lease/heartbeat behavior
 * validating a worker-lifecycle hardening phase (see
   `docs/plans/WORKER_LIFECYCLE_HARDENING_PLAN.md`)

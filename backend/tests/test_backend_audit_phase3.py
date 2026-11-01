@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from backend import refresh, scan_worker, watcher
-from backend.metadata_store import _DB_LOCK, _connect, create_library
+from backend.metadata_store import _connect, create_library
 from backend.metadata_store.status_store import build_global_runtime
 
 

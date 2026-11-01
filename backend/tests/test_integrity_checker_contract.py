@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 from backend.integrity_checker import integrity_checker
-from backend.metadata_store import _DB_LOCK, _connect, create_library, initialize_database
+from backend.metadata_store import _connect, create_library, initialize_database
 from backend.metadata_store.maintenance_store import get_latest_run
 from backend.metadata_store.schema_check import check_catalog_schema
 

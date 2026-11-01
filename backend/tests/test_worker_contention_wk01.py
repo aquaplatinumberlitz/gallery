@@ -3,20 +3,20 @@
 Purpose:
 Pin the worker-lifecycle audit finding WK-01. The runtime status query ran a
 correlated ``max(id)`` subquery over ``derivative_jobs`` with no
-``(derivative_id, id)`` index while holding the process-wide ``_DB_LOCK``, so UI
-status polling froze the metadata, derivative, and catalog workers.
+``(derivative_id, id)`` index while holding the process-wide ``_DB_LOCK`` (retired in
+Phase 3), so UI status polling froze the metadata, derivative, and catalog workers.
 
 Guarantees:
 The ``idx_derivative_jobs_derivative_id`` index exists on fresh and existing
 databases and is used by the global-runtime and per-library derivative status
 queries; the 36,000-row runtime query finishes inside the 500 ms status budget;
-no status function or endpoint waits on ``_DB_LOCK``; each status build reads
+no status function or endpoint waits on SQLite's write lock (a plain WAL read); each status build reads
 one consistent WAL snapshot; and the counters equal the values the pre-change
 implementation produced for the same seeded database (frozen golden file).
 
 Run when:
 Changing status aggregate SQL, status read-connection handling, the
-``derivative_jobs`` indexes, or anything that touches ``_DB_LOCK`` on a status path.
+``derivative_jobs`` indexes, or anything that takes a write lock on a status path.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ from tests.worker_contention_support import (
     VARIANTS,
     capture_sql,
     query_plan,
-    run_while_db_lock_held,
+    run_while_write_lock_held,
     seed_assets,
     seed_derivative_corpus,
     seed_library,
@@ -199,7 +199,7 @@ def test_runtime_derivative_counts_identical_with_and_without_index(
 
 
 # ---------------------------------------------------------------------------
-# 0.3 status reads without _DB_LOCK
+# 0.3 status reads never wait on a lock (formerly _DB_LOCK, now SQLite's write lock)
 # ---------------------------------------------------------------------------
 
 
@@ -234,15 +234,15 @@ STATUS_FUNCTION_NAMES = (
 
 
 @pytest.mark.parametrize("name", STATUS_FUNCTION_NAMES)
-def test_status_function_returns_while_another_thread_holds_db_lock(
+def test_status_function_returns_while_another_connection_holds_the_write_lock(
     seeded_library: tuple[Path, int, Path], name: str
 ) -> None:
     _db_path, library_id, _root = seeded_library
     function = _status_callables(library_id)[name]
 
-    finished, result, error = run_while_db_lock_held(function, timeout=2.0)
+    finished, result, error = run_while_write_lock_held(function, timeout=2.0)
 
-    assert finished, f"{name} blocked on _DB_LOCK for more than 2 s"
+    assert finished, f"{name} blocked on the write lock for more than 2 s"
     assert error is None, f"{name} raised {error!r}"
     assert result
 
@@ -256,7 +256,7 @@ def test_status_function_returns_while_another_thread_holds_db_lock(
         "/api/maintenance/runtime",
     ],
 )
-def test_status_endpoint_returns_while_another_thread_holds_db_lock(
+def test_status_endpoint_returns_while_another_connection_holds_the_write_lock(
     isolated_app: TestClient, isolated_gallery_root: Path, path_template: str
 ) -> None:
     root = isolated_gallery_root / "photos"
@@ -264,9 +264,9 @@ def test_status_endpoint_returns_while_another_thread_holds_db_lock(
     library_id = seed_library(root)
     path = path_template.format(library_id=library_id)
 
-    finished, response, error = run_while_db_lock_held(lambda: isolated_app.get(path), timeout=2.0)
+    finished, response, error = run_while_write_lock_held(lambda: isolated_app.get(path), timeout=2.0)
 
-    assert finished, f"GET {path} blocked on _DB_LOCK for more than 2 s"
+    assert finished, f"GET {path} blocked on the write lock for more than 2 s"
     assert error is None, f"GET {path} raised {error!r}"
     assert response.status_code == 200
 

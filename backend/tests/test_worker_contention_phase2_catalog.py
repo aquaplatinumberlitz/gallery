@@ -7,23 +7,23 @@ activation) ran in its own ``_DB_LOCK`` + ``BEGIN IMMEDIATE`` transaction, so th
 running scan queued behind any unrelated ``_DB_LOCK`` holder (WK-02 root cause: two scans lost their claim
 in the audit) and long scan batches held SQLite's write lock for hundreds of milliseconds. Now every one
 of them is a writer op: claim, job transitions, lease renewals and abandoned-claim closing use the
-priority lane, scan batch writes use the normal lane, and none of them holds or needs ``_DB_LOCK``.
+priority lane and scan batch writes use the normal lane (Phase 3 retired ``_DB_LOCK``).
 
 Guarantees:
-With the feature flag on, a whole scan and a whole rebuild run no write statement on any thread but the
-writer thread, and no writer call is made holding ``_DB_LOCK``; claim, job transitions, lease renewals
+With the writer running, a whole scan and a whole rebuild run no write statement on any thread but the
+writer thread; claim, job transitions, lease renewals
 and abandoned-claim closing are priority-lane ops while scan batches, reconcile, metadata-job persistence,
 rebuild staging and activation are normal-lane ops; bulk index writes are split into small ops; the
-catalog lease heartbeat keeps a claim alive while another thread holds ``_DB_LOCK`` for longer than the
-lease; claim fencing is unchanged (a stale claim writes zero rows and its ops raise ``CatalogJobClaimLost``
+catalog lease heartbeat keeps a claim alive while unrelated bulk writers saturate the write path for longer
+than the lease; claim fencing is unchanged (a stale claim writes zero rows and its ops raise ``CatalogJobClaimLost``
 inside the op); rebuild activation stays one atomic op; conflicts raised inside an op surface unchanged;
 the maintenance producer gate still holds back catalog writes and an in-flight op keeps maintenance from
-starting; scan results are identical through the writer and through the direct flag-off transactions;
-with the flag off every path uses the previous direct transactions and the writer never starts.
+starting; scan results are identical through the writer and through the no-active-writer path; with no
+active writer every path uses direct transactions and the writer never starts.
 
 Run when:
 Changing catalog job claim/transition/renew/recover paths, scan batch persistence, rebuild staging or
-activation, the catalog lease heartbeat, the maintenance producer gate, or the writer feature flag.
+activation, the catalog lease heartbeat, the maintenance producer gate, or the no-active-writer path.
 """
 
 from __future__ import annotations
@@ -37,10 +37,8 @@ from typing import Any
 
 import pytest
 
-import backend.config as config
 from backend import scan_worker
 from backend.metadata_store import (
-    _DB_LOCK,
     CatalogJobClaimLost,
     CatalogJobConflict,
     claim_next_catalog_job,
@@ -56,13 +54,10 @@ from tests.worker_contention_support import (
     RecordingWriter,
     capture_write_threads,
     install_submit_spy,
-    run_while_db_lock_held,
+    run_while_write_path_saturated,
 )
 
-needs_writer = pytest.mark.skipif(
-    not getattr(config, "DB_WRITER_ENABLED", True),
-    reason="exercises the writer path; GALLERY_DB_WRITER_ENABLED is off for this run",
-)
+needs_writer = pytest.mark.usefixtures("started_writer")
 CATALOG_TABLES = (
     "library_jobs",
     "libraries",
@@ -113,9 +108,13 @@ def submit_log(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture(params=["writer", "direct"])
-def mode(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
-    """Run a test once through the writer and once through the direct (flag-off) transactions."""
-    monkeypatch.setattr(_writer_module(), "DB_WRITER_ENABLED", request.param == "writer")
+def mode(request: pytest.FixtureRequest) -> str:
+    """Run a test once through the writer and once through the no-active-writer (direct) path."""
+    writer = _writer_module().database_writer
+    if request.param == "writer":
+        writer.start()
+    else:
+        writer.reset()
     return request.param
 
 
@@ -139,7 +138,7 @@ def _count(db_path: Path, table: str) -> int:
 
 @needs_writer
 @pytest.mark.parametrize("operation", ["scan", "rebuild"])
-def test_a_whole_catalog_job_writes_only_on_the_writer_thread_and_never_holds_the_db_lock(
+def test_a_whole_catalog_job_writes_only_on_the_writer_thread(
     scan_env, submit_log, monkeypatch: pytest.MonkeyPatch, operation: str
 ) -> None:
     db_path, library_id, _root, images = scan_env
@@ -160,7 +159,6 @@ def test_a_whole_catalog_job_writes_only_on_the_writer_thread_and_never_holds_th
     for table in ("library_jobs", "assets", "file_index", "metadata_index_jobs"):
         assert table in on_writer, f"no {table} write reached the writer during a {operation}"
     assert submit_log, "the catalog job never used the writer"
-    assert not [entry for entry in submit_log if entry.holds_db_lock], "a writer call was made holding _DB_LOCK"
 
 
 # ---------------------------------------------------------------------------
@@ -295,17 +293,23 @@ def test_bulk_index_writes_are_split_into_small_writer_ops(scan_env, monkeypatch
     per_op = [count for count in recording.writes_per_op("INSERT INTO file_index (") if count]
     assert len(per_op) >= 4, f"1,200 rows must be several ops; saw {per_op}"
     assert sum(per_op) == 1_200
-    assert max(per_op) <= 100, f"one op wrote too many rows for the 250 ms write budget: {per_op}"
+    assert max(per_op) <= 50, f"one op wrote too many rows for the 250 ms write budget: {per_op}"
 
 
 # ---------------------------------------------------------------------------
-# Lease renewal vs _DB_LOCK holders (WK-02 root cause)
+# Lease renewal vs unrelated bulk writers (WK-02 root cause)
 # ---------------------------------------------------------------------------
 
 
-def test_a_running_scans_lease_is_renewed_while_another_thread_holds_the_db_lock_longer_than_the_lease(
-    scan_env, submit_log, monkeypatch: pytest.MonkeyPatch, mode: str
+@needs_writer
+def test_a_running_scans_lease_is_renewed_while_unrelated_bulk_writers_saturate_the_write_path_longer_than_the_lease(
+    scan_env, submit_log, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Writer-path version of the WK-02 lease test (the direct path has no priority lane and no workers).
+
+    Before this test ran in both modes while another thread held ``_DB_LOCK``; only a running writer has a
+    priority lane that lets a renewal overtake bulk writers, which is the guarantee that replaced the lock.
+    """
     db_path, library_id, _root, _images = scan_env
     monkeypatch.setattr(scan_worker, "CATALOG_LEASE_HEARTBEAT_SECONDS", 0.05)
     monkeypatch.setattr(scan_worker, "CATALOG_JOB_LEASE_SECONDS", 1.0)
@@ -317,7 +321,7 @@ def test_a_running_scans_lease_is_renewed_while_another_thread_holds_the_db_lock
     original_expiry = float(_job(db_path, job_id)["lease_expires_at"])
     heartbeat = scan_worker._CatalogLeaseHeartbeat(job_id, token)
 
-    def hold_the_lock_past_the_original_lease() -> tuple[bool, float]:
+    def run_past_the_original_lease() -> tuple[bool, float]:
         heartbeat.start()
         try:
             deadline = original_expiry + 0.6  # the lease would have lapsed twice over without renewals
@@ -330,17 +334,16 @@ def test_a_running_scans_lease_is_renewed_while_another_thread_holds_the_db_lock
         finally:
             heartbeat.stop()
 
-    finished, result, error = run_while_db_lock_held(hold_the_lock_past_the_original_lease, timeout=15)
+    finished, result, error = run_while_write_path_saturated(run_past_the_original_lease, timeout=15)
 
     assert finished and error is None
     alive, expiry = result
     assert alive, (
-        f"the claim's lease lapsed while _DB_LOCK was held elsewhere (expiry {expiry}, started {original_expiry})"
+        f"the claim's lease lapsed while bulk writers saturated the write path (expiry {expiry}, started {original_expiry})"
     )
     assert update_job_state(job_id, "running", claim_token=token, lease_seconds=1.0, progress_current=1) is not None
-    if mode == "writer":
-        renewals = [entry for entry in submit_log if entry.lane == "priority"]
-        assert renewals and not [entry for entry in renewals if entry.holds_db_lock]
+    renewals = [entry for entry in submit_log if entry.lane == "priority"]
+    assert renewals, "the lease renewals never used the priority lane"
 
 
 # ---------------------------------------------------------------------------
@@ -547,6 +550,7 @@ def test_a_directory_scan_writes_through_one_shared_writer_connection(
 
     _db_path, _library_id, root, images = scan_env
     _writer_module().database_writer.reset()
+    _writer_module().database_writer.start()
     opened: list[str] = []
     real_connect = sqlite3.connect
 
@@ -640,6 +644,7 @@ def test_active_maintenance_holds_back_catalog_writer_ops_until_it_is_released(s
     scan_worker.queue_scan(library_id, trigger="manual")
     db_writer = _writer_module()
     db_writer.database_writer.reset()
+    db_writer.database_writer.start()
     outcome: dict[str, Any] = {}
     done = threading.Event()
 
@@ -748,8 +753,9 @@ def test_scan_and_rebuild_results_are_identical_through_the_writer_and_directly(
         monkeypatch.setattr(ms, "GALLERY_METADATA_DB", run_db)
         monkeypatch.setattr(ms._db, "_DB_INITIALIZED", False)
         monkeypatch.setattr(ms._db, "_DB_INITIALIZED_PATH", None)
-        monkeypatch.setattr(_writer_module(), "DB_WRITER_ENABLED", enabled)
         _writer_module().database_writer.reset()
+        if enabled:
+            _writer_module().database_writer.start()
         ms.initialize_database()
         library_id = int(create_library([root], name="Equivalence")["id"])
         snapshots = []
@@ -774,12 +780,15 @@ def test_scan_and_rebuild_results_are_identical_through_the_writer_and_directly(
     assert results["writer"][2]["jobs"][-1][1] == "succeeded"
 
 
-def test_with_the_flag_off_the_direct_transactions_are_used_and_the_writer_never_starts(
-    scan_env, monkeypatch: pytest.MonkeyPatch
+def test_with_no_active_writer_the_direct_transactions_are_used_and_the_writer_never_starts(
+    scan_env, no_active_writer
 ) -> None:
+    """Converted from ``test_with_the_flag_off_the_direct_transactions_are_used_and_the_writer_never_starts``.
+
+    Same scan, same final state and the writer stays idle; the flag and the ``_DB_LOCK`` ownership assertion
+    are gone with the code they covered.
+    """
     db_writer = _writer_module()
-    monkeypatch.setattr(db_writer, "DB_WRITER_ENABLED", False)
-    db_writer.database_writer.reset()
     db_path, library_id, _root, images = scan_env
 
     job, _created = scan_worker.queue_scan(library_id, trigger="manual")
@@ -789,4 +798,3 @@ def test_with_the_flag_off_the_direct_transactions_are_used_and_the_writer_never
     assert _count(db_path, "metadata_index_jobs") == len(images)
     assert db_writer.database_writer.state == "idle"
     assert db_writer.database_writer.stats()["ops"] == 0
-    assert not _DB_LOCK.is_owned()

@@ -23,7 +23,6 @@ import pytest
 from backend.indexer import MetadataLifecycleWorker, recover_metadata_index_jobs
 from backend.metadata_extract import extract_metadata
 from backend.metadata_store import (
-    _DB_LOCK,
     _connect,
     _persist_metadata_index_jobs,
     claim_next_catalog_job,

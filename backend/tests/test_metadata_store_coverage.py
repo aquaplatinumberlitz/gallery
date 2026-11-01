@@ -946,7 +946,6 @@ def test_current_metadata_shortcut_marks_job_and_asset_done(
     """
     from backend.metadata_extract import ExtractedMetadata
     from backend.metadata_store import (
-        _DB_LOCK,
         _connect,
         _persist_metadata_index_jobs,
         create_library,
@@ -1047,7 +1046,6 @@ def test_mark_metadata_jobs_done_stale_guard(
     Changing mark_metadata_jobs_done behavior or stale guard logic.
     """
     from backend.metadata_store import (
-        _DB_LOCK,
         _connect,
         _persist_metadata_index_jobs,
         create_library,

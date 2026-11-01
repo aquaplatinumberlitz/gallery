@@ -269,6 +269,9 @@ from .metadata_persist import (
     upsert_metadata_result as upsert_metadata_result,
 )
 from .metadata_queue import (
+    RECOVERY_OP_ROWS as RECOVERY_OP_ROWS,
+)
+from .metadata_queue import (
     _current_metadata_is_complete as _current_metadata_is_complete,
 )
 from .metadata_queue import (
@@ -276,6 +279,12 @@ from .metadata_queue import (
 )
 from .metadata_queue import (
     _persist_metadata_index_jobs as _persist_metadata_index_jobs,
+)
+from .metadata_queue import (
+    apply_inconsistent_asset_repairs as apply_inconsistent_asset_repairs,
+)
+from .metadata_queue import (
+    apply_legacy_asset_mtime_repairs as apply_legacy_asset_mtime_repairs,
 )
 from .metadata_queue import (
     claim_next_metadata_job as claim_next_metadata_job,
@@ -312,6 +321,12 @@ from .metadata_queue import (
 )
 from .metadata_queue import (
     owns_metadata_job_claim as owns_metadata_job_claim,
+)
+from .metadata_queue import (
+    plan_inconsistent_asset_repairs as plan_inconsistent_asset_repairs,
+)
+from .metadata_queue import (
+    plan_legacy_asset_mtime_repairs as plan_legacy_asset_mtime_repairs,
 )
 from .metadata_queue import (
     recover_running_metadata_jobs as recover_running_metadata_jobs,

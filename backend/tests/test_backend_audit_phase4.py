@@ -26,7 +26,7 @@ import pytest
 from backend import thumbnails, video
 from backend.derivative_scheduler import DerivativeScheduler, scheduler
 from backend.integrity_checker import integrity_checker
-from backend.metadata_store import _DB_LOCK, _connect, create_library, index_file
+from backend.metadata_store import _connect, create_library, index_file
 from tests.conftest import create_test_png
 
 

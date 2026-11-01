@@ -463,7 +463,7 @@ def test_register_library_on_fresh_isolated_db(isolated_metadata_db, isolated_ga
 
 def test_register_library_import_paths_saved(isolated_metadata_db, isolated_gallery_root: Path):
     from backend.metadata_store import register_library
-    from backend.metadata_store._db import _DB_LOCK, _connect
+    from backend.metadata_store._db import _connect
 
     isolated_gallery_root.mkdir(parents=True, exist_ok=True)
     register_library(isolated_gallery_root)

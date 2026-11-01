@@ -167,7 +167,7 @@ def test_busy_coalesced_jobs_do_not_starve_scheduled_refresh(
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from backend.metadata_store import _DB_LOCK, _connect, create_library, create_or_coalesce_catalog_job
+    from backend.metadata_store import _connect, create_library, create_or_coalesce_catalog_job
     from backend.metadata_store.job_store import mark_scheduled_refresh_attempt
 
     library_ids: list[int] = []

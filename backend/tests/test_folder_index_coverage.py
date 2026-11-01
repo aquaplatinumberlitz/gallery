@@ -29,10 +29,10 @@ from backend.metadata_store import folder_index
 def test_update_folder_index_state_exception_on_db(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(folder_index, "_initialize_database", lambda: None)
 
-    def broken_connect(**kwargs):
+    def broken_write(op, **kwargs):
         raise RuntimeError("db unreachable")
 
-    monkeypatch.setattr(folder_index, "_connect", broken_connect)
+    monkeypatch.setattr(folder_index, "run_write", broken_write)
     result = folder_index.update_folder_index_state("/tmp", dir_mtime_ns=12345)
     assert result is False
 
@@ -43,7 +43,7 @@ def test_get_folder_index_state_exception_on_db(monkeypatch: pytest.MonkeyPatch)
     def broken_connect(**kwargs):
         raise RuntimeError("db unreachable")
 
-    monkeypatch.setattr(folder_index, "_connect", broken_connect)
+    monkeypatch.setattr(folder_index, "_connect_read", broken_connect)
     result = folder_index.get_folder_index_state("/tmp")
     assert result is None
 

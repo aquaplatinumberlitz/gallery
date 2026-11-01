@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 import time
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -1112,14 +1112,20 @@ def _metadata_scope_filter(alias: str, scope_path: str | Path | None) -> tuple[s
     return path_scope_sql(scope_path, column=f"{alias}.path", leading_and=True)
 
 
-def repair_legacy_asset_mtime_ns(
+#: Rows one startup-recovery write op applies; the reads that decide them happen before the op.
+RECOVERY_OP_ROWS = 250
+
+
+def plan_legacy_asset_mtime_repairs(
     conn: sqlite3.Connection,
     scope_path: str | Path | None = None,
-) -> dict[str, int]:
-    """Backfill asset mtimes that were accidentally stored as seconds."""
-    counters = {"file_index": 0, "filesystem": 0, "skipped": 0}
+) -> tuple[list[tuple[int, int, str]], int]:
+    """Read-only half of ``repair_legacy_asset_mtime_ns``: return ``([(asset_id, mtime_ns, source)], skipped)``.
+
+    Looks up the file index and, when it has nothing usable, stats the file. It performs no write, so a
+    caller can run it on a read snapshot instead of holding the write lock while it touches the filesystem.
+    """
     scope_where, scope_params = _metadata_scope_filter("a", scope_path)
-    now = time.time()
     rows = conn.execute(
         f"""
         SELECT a.id, a.path, a.size, fi.mtime_ns AS file_index_mtime_ns
@@ -1135,49 +1141,60 @@ def repair_legacy_asset_mtime_ns(
         [_MIN_REASONABLE_MTIME_NS, *scope_params],
     ).fetchall()
 
+    plan: list[tuple[int, int, str]] = []
+    skipped = 0
     for row in rows:
         file_index_mtime_ns = row["file_index_mtime_ns"]
-        source: str
         if file_index_mtime_ns is not None and int(file_index_mtime_ns) >= _MIN_REASONABLE_MTIME_NS:
-            repaired_mtime_ns = int(file_index_mtime_ns)
-            source = "file_index"
-        else:
-            try:
-                repaired_mtime_ns = int(Path(row["path"]).stat().st_mtime_ns)
-            except OSError:
-                counters["skipped"] += 1
-                continue
-            source = "filesystem"
+            plan.append((int(row["id"]), int(file_index_mtime_ns), "file_index"))
+            continue
+        try:
+            plan.append((int(row["id"]), int(Path(row["path"]).stat().st_mtime_ns), "filesystem"))
+        except OSError:
+            skipped += 1
+    return plan, skipped
 
+
+def apply_legacy_asset_mtime_repairs(conn: sqlite3.Connection, plan: Sequence[tuple[int, int, str]]) -> dict[str, int]:
+    """Write half of ``repair_legacy_asset_mtime_ns``: one UPDATE per planned asset (a writer op body)."""
+    counters = {"file_index": 0, "filesystem": 0, "skipped": 0}
+    now = time.time()
+    for asset_id, repaired_mtime_ns, source in plan:
         conn.execute(
             "UPDATE assets SET mtime_ns = ?, indexed_at = ? WHERE id = ?",
-            (repaired_mtime_ns, now, row["id"]),
+            (repaired_mtime_ns, now, asset_id),
         )
         counters[source] += 1
-
     return counters
 
 
-def repair_inconsistent_asset_states(
+def repair_legacy_asset_mtime_ns(
     conn: sqlite3.Connection,
     scope_path: str | Path | None = None,
 ) -> dict[str, int]:
-    """Repair done metadata_index_jobs whose assets are not in the done state.
+    """Backfill asset mtimes that were accidentally stored as seconds."""
+    plan, skipped = plan_legacy_asset_mtime_repairs(conn, scope_path)
+    counters = apply_legacy_asset_mtime_repairs(conn, plan)
+    counters["skipped"] += skipped
+    return counters
 
-    For each ``done`` job whose ``assets.metadata_state`` is not ``done``:
-    - If no asset row exists, marks the job ``skipped``.
-    - If ``image_metadata`` is current (matches the job's identity by mtime_ns
-      or mtime + size), stamps ``assets.metadata_state = 'done'``.
-    - Otherwise, demotes the job back to ``queued`` so the worker re-processes.
 
-    Uses ``scope_path`` to filter by path prefix (or None for all paths).
+#: One planned repair of ``plan_inconsistent_asset_repairs``: (action, path, mtime, mtime_ns, size, state).
+AssetRepair = tuple[str, str, Any, Any, Any, str]
 
-    Returns counters ``{"repaired": N, "demoted": N, "skipped": N}``.
+
+def plan_inconsistent_asset_repairs(
+    conn: sqlite3.Connection,
+    scope_path: str | Path | None = None,
+) -> list[AssetRepair]:
+    """Read-only half of ``repair_inconsistent_asset_states``: classify every ``done``/``stale`` job.
+
+    Returns only the jobs that need a write: ``skip`` (no asset row), ``repair`` (current ``image_metadata``,
+    job or asset state wrong) and ``demote`` (``image_metadata`` missing or stale, including a sidecar
+    mismatch). Deciding that needs one ``image_metadata`` lookup and a sidecar stat per job, which is why it
+    runs on a read snapshot and not inside the write transaction.
     """
-    counters: dict[str, int] = {"repaired": 0, "demoted": 0, "skipped": 0, "stale_repaired": 0}
-
     scope_where, scope_params = _metadata_scope_filter("mj", scope_path)
-
     rows = conn.execute(
         f"""
         SELECT mj.path, mj.mtime, mj.mtime_ns, mj.size, mj.state,
@@ -1191,17 +1208,27 @@ def repair_inconsistent_asset_states(
         scope_params,
     ).fetchall()
 
-    now = time.time()
+    plan: list[AssetRepair] = []
     for row in rows:
-        path = row["path"]
-        mtime = row["mtime"]
-        mtime_ns = row["mtime_ns"]
-        size = row["size"]
-        state = row["state"]
-        has_asset = bool(row["has_asset"])
+        path, mtime, mtime_ns, size, state = row["path"], row["mtime"], row["mtime_ns"], row["size"], row["state"]
+        if not bool(row["has_asset"]):
+            plan.append(("skip", path, mtime, mtime_ns, size, state))
+        elif _image_metadata_exists_for_job(conn, path, mtime, size, mtime_ns):
+            if state == "done" and row["asset_metadata_state"] == "done":
+                continue
+            plan.append(("repair", path, mtime, mtime_ns, size, state))
+        else:
+            plan.append(("demote", path, mtime, mtime_ns, size, state))
+    return plan
 
-        if not has_asset:
-            # No asset row — mark job skipped
+
+def apply_inconsistent_asset_repairs(conn: sqlite3.Connection, plan: Sequence[AssetRepair]) -> dict[str, int]:
+    """Write half of ``repair_inconsistent_asset_states`` (a writer op body); every UPDATE is identity-fenced."""
+    counters: dict[str, int] = {"repaired": 0, "demoted": 0, "skipped": 0, "stale_repaired": 0}
+    now = time.time()
+    for action, path, mtime, mtime_ns, size, state in plan:
+        if action == "skip":
+            # No asset row - mark the job skipped.
             if mtime_ns is not None:
                 conn.execute(
                     """
@@ -1225,15 +1252,8 @@ def repair_inconsistent_asset_states(
                     (now, now, path, mtime, size),
                 )
             counters["skipped"] += 1
-            continue
-
-        # Check whether current image_metadata exists for the job identity
-        im_exists = _image_metadata_exists_for_job(conn, path, mtime, size, mtime_ns)
-
-        if im_exists:
-            if state == "done" and row["asset_metadata_state"] == "done":
-                continue
-            # image_metadata is current — repair job and asset state
+        elif action == "repair":
+            # image_metadata is current - repair job and asset state.
             conn.execute(
                 f"""
                 UPDATE metadata_index_jobs
@@ -1269,7 +1289,7 @@ def repair_inconsistent_asset_states(
             if state == "stale":
                 counters["stale_repaired"] += 1
         else:
-            # image_metadata missing or stale (including sidecar mismatch) — demote to queued
+            # image_metadata missing or stale (including sidecar mismatch) - demote to queued.
             if mtime_ns is not None:
                 conn.execute(
                     """
@@ -1295,8 +1315,28 @@ def repair_inconsistent_asset_states(
                     (now, path, mtime, size),
                 )
             counters["demoted"] += 1
-
     return counters
+
+
+def repair_inconsistent_asset_states(
+    conn: sqlite3.Connection,
+    scope_path: str | Path | None = None,
+) -> dict[str, int]:
+    """Repair done metadata_index_jobs whose assets are not in the done state.
+
+    For each ``done`` job whose ``assets.metadata_state`` is not ``done``:
+    - If no asset row exists, marks the job ``skipped``.
+    - If ``image_metadata`` is current (matches the job's identity by mtime_ns
+      or mtime + size), stamps ``assets.metadata_state = 'done'``.
+    - Otherwise, demotes the job back to ``queued`` so the worker re-processes.
+
+    Uses ``scope_path`` to filter by path prefix (or None for all paths). This is the one-connection form
+    (``apply_inconsistent_asset_repairs(plan_inconsistent_asset_repairs(...))``); startup recovery calls the two
+    halves separately so that the reads happen outside the write lock.
+
+    Returns counters ``{"repaired": N, "demoted": N, "skipped": N}``.
+    """
+    return apply_inconsistent_asset_repairs(conn, plan_inconsistent_asset_repairs(conn, scope_path))
 
 
 def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:

@@ -84,9 +84,13 @@ def seeded(isolated_metadata_db: Path, isolated_gallery_root: Path) -> tuple[Pat
 
 
 @pytest.fixture(params=["writer", "direct"])
-def mode(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
-    """Run a test once through the writer and once through the direct (flag-off) transactions."""
-    monkeypatch.setattr(_writer_module(), "DB_WRITER_ENABLED", request.param == "writer")
+def mode(request: pytest.FixtureRequest) -> str:
+    """Run a test once through the writer and once through the no-active-writer (direct) path."""
+    writer = _writer_module().database_writer
+    if request.param == "writer":
+        writer.start()
+    else:
+        writer.reset()
     return request.param
 
 

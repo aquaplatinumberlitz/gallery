@@ -28,7 +28,6 @@ import pytest
 from backend import scan_worker
 from backend.indexer import dispatch_metadata_index_paths, rebuild_index_scope
 from backend.metadata_store import (
-    _DB_LOCK,
     CatalogJobClaimLost,
     _connect,
     activate_rebuild_staging,
@@ -52,6 +51,7 @@ from backend.metadata_store import metadata_queue as metadata_queue_module
 from backend.metadata_store import rebuild_store as rebuild_store_module
 
 from .conftest import create_test_png
+from .worker_contention_support import count_direct_transactions
 
 
 @pytest.fixture(autouse=True)
@@ -294,35 +294,36 @@ def test_run_once_closes_claim_when_initial_event_emit_fails(
         assert not scan_worker._active_catalog_claims
 
 
+@pytest.mark.usefixtures("no_active_writer")
 def test_recovery_update_allows_concurrent_heartbeat_to_win(
     isolated_gallery_root: Path,
     isolated_metadata_db: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Asserts direct-transaction internals (connection per batch): pinned to the flag-off path; the writer
-    # path is covered in test_worker_contention_phase2_catalog.py.
-    monkeypatch.setattr("backend.metadata_store.db_writer.DB_WRITER_ENABLED", False)
+    # Asserts direct-transaction internals (connection per batch): pinned to the no-active-writer path; the
+    # writer path is covered in test_worker_contention_phase2_catalog.py.
     _queued_job(isolated_gallery_root, "heartbeat-race")
     job = claim_next_catalog_job(worker_id="live-worker", lease_seconds=60)
     assert job is not None
     with _connect() as conn:
         conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, job["id"]))
 
-    original_connect = job_store_module._connect
+    real_run_write = job_store_module.run_write
     calls = 0
 
-    def racing_connect(*args, **kwargs):
+    def racing_run_write(op, **kwargs):
+        # The candidates were read on a plain connection; a heartbeat renews the lease before the fenced write.
         nonlocal calls
         calls += 1
-        if calls == 2:
+        if calls == 1:
             with sqlite3.connect(isolated_metadata_db) as raw:
                 raw.execute(
                     "UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?",
                     (time.time() + 60, job["id"]),
                 )
-        return original_connect(*args, **kwargs)
+        return real_run_write(op, **kwargs)
 
-    monkeypatch.setattr(job_store_module, "_connect", racing_connect)
+    monkeypatch.setattr(job_store_module, "run_write", racing_run_write)
     assert recover_stale_jobs(live_worker_ids={"live-worker"}) == []
     assert get_job(job["id"])["state"] == "running"
 
@@ -568,13 +569,13 @@ def test_runtime_recovery_updates_dependency_only_aggregate_parent(
     assert updated_parent["finished_at"] is not None
 
 
+@pytest.mark.usefixtures("no_active_writer")
 def test_scan_batches_release_lock_and_refresh_claim_before_each_commit(
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Asserts direct-transaction internals (connection per batch): pinned to the flag-off path; the writer
-    # path is covered in test_worker_contention_phase2_catalog.py.
-    monkeypatch.setattr("backend.metadata_store.db_writer.DB_WRITER_ENABLED", False)
+    # Asserts direct-transaction internals (connection per batch): pinned to the no-active-writer path; the
+    # writer path is covered in test_worker_contention_phase2_catalog.py.
     library_id, _queued = _queued_job(isolated_gallery_root, "bounded-scan")
     claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=1)
     assert claimed is not None
@@ -603,15 +604,7 @@ def test_scan_batches_release_lock_and_refresh_claim_before_each_commit(
         )
 
     monkeypatch.setattr(file_index_module, "_INDEX_WRITE_BATCH_SIZE", 1)
-    original_connect = file_index_module._connect
-    connection_count = 0
-
-    def counting_connect(*args, **kwargs):
-        nonlocal connection_count
-        connection_count += 1
-        return original_connect(*args, **kwargs)
-
-    monkeypatch.setattr(file_index_module, "_connect", counting_connect)
+    transactions = count_direct_transactions(monkeypatch)
     original_refresh = job_store_module.refresh_catalog_job_claim_before_commit_conn
 
     def slow_refresh(*args, **kwargs):
@@ -628,7 +621,7 @@ def test_scan_batches_release_lock_and_refresh_claim_before_each_commit(
         claim_lease_seconds=1,
     )
 
-    assert connection_count == 2
+    assert len(transactions) == 2
     assert time.monotonic() - started >= 1.2
     assert (
         update_job_state(
@@ -693,13 +686,13 @@ def test_rebuild_activation_refreshes_claim_inside_long_transaction(
         assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(image),)).fetchone()[0] == 1
 
 
+@pytest.mark.usefixtures("no_active_writer")
 def test_metadata_enqueue_batches_and_refreshes_catalog_claim(
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Asserts direct-transaction internals (connection per batch): pinned to the flag-off path; the writer
-    # path is covered in test_worker_contention_phase2_catalog.py.
-    monkeypatch.setattr("backend.metadata_store.db_writer.DB_WRITER_ENABLED", False)
+    # Asserts direct-transaction internals (connection per batch): pinned to the no-active-writer path; the
+    # writer path is covered in test_worker_contention_phase2_catalog.py.
     library_id, _queued = _queued_job(isolated_gallery_root, "metadata-enqueue")
     claimed = claim_next_catalog_job(worker_id="worker", lease_seconds=1)
     assert claimed is not None
@@ -723,15 +716,7 @@ def test_metadata_enqueue_batches_and_refreshes_catalog_claim(
         images.append(image)
 
     monkeypatch.setattr(metadata_queue_module, "GALLERY_CATALOG_WRITE_BATCH_SIZE", 1)
-    original_connect = metadata_queue_module._connect
-    connection_count = 0
-
-    def counting_connect(*args, **kwargs):
-        nonlocal connection_count
-        connection_count += 1
-        return original_connect(*args, **kwargs)
-
-    monkeypatch.setattr(metadata_queue_module, "_connect", counting_connect)
+    transactions = count_direct_transactions(monkeypatch)
     original_refresh = job_store_module.refresh_catalog_job_claim_before_commit_conn
 
     def slow_refresh(*args, **kwargs):
@@ -747,7 +732,7 @@ def test_metadata_enqueue_batches_and_refreshes_catalog_claim(
         catalog_claim_lease_seconds=1,
     )
     assert result["queued"] == 2
-    assert connection_count == 2
+    assert len(transactions) == 2
     assert (
         update_job_state(
             claimed["id"],

@@ -24,7 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import backend.derivative_scheduler.maintenance as derivative_scheduler_maintenance_module
-from backend.metadata_store import _DB_LOCK, _connect, create_job, create_library, initialize_database, update_job_state
+from backend.metadata_store import _connect, create_job, create_library, initialize_database, update_job_state
 from backend.metadata_store.job_store import update_parent_aggregate_job
 from tests.conftest import create_test_png
 

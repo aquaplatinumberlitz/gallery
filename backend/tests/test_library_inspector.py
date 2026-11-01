@@ -172,7 +172,7 @@ def test_library_inspector_applies_model_and_prompt_filters_before_cursor_pagina
     isolated_app: TestClient,
     isolated_gallery_root: Path,
 ):
-    from backend.metadata_store import _DB_LOCK, _connect, index_directory_tree, register_library
+    from backend.metadata_store import _connect, index_directory_tree, register_library
 
     from .conftest import create_test_png_with_metadata
 

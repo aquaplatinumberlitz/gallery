@@ -29,7 +29,6 @@ import pytest
 from backend.derivative_scheduler import DerivativeReconcileSummary
 from backend.integrity_checker import IntegrityChecker, integrity_checker
 from backend.metadata_store import (
-    _DB_LOCK,
     _connect,
     create_library,
     initialize_database,

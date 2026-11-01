@@ -37,6 +37,8 @@ run_lint() {
     "$PYTHON" -m ruff check backend scripts start.py
     echo "==> Backend Ruff format check"
     "$PYTHON" -m ruff format --check backend scripts start.py
+    echo "==> Database write ownership check"
+    "$PYTHON" scripts/check_db_write_ownership.py
 
     cd "$REPO_ROOT/frontend"
     echo "==> Frontend ESLint (source)"
@@ -56,6 +58,8 @@ run_unit() {
         --cov-report=xml \
         --cov-fail-under=90 \
         "$@"
+    echo "==> Backend pytest (database writer running)"
+    GALLERY_TEST_DB_WRITER=1 "$PYTHON" -m pytest backend/tests/ -x -q "$@"
 
     cd "$REPO_ROOT/frontend"
     echo "==> Frontend Vitest with coverage"

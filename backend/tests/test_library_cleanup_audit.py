@@ -21,7 +21,6 @@ import pytest
 
 from backend.integrity_checker import IntegrityCheckAlreadyRunning, IntegrityChecker
 from backend.metadata_store import (
-    _DB_LOCK,
     _connect,
     create_library,
     file_index,
@@ -30,6 +29,7 @@ from backend.metadata_store import (
     unregister_library,
 )
 from tests.conftest import create_test_png
+from tests.worker_contention_support import count_direct_transactions
 
 
 @pytest.mark.parametrize("operation", ["forget", "unregister"])
@@ -118,28 +118,20 @@ def test_nanosecond_identity_columns_use_integer_affinity(isolated_metadata_db: 
     assert derivatives["source_mtime_ns"] == "INTEGER"
 
 
+@pytest.mark.usefixtures("no_active_writer")
 def test_directory_scan_uses_one_shared_write_connection(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Asserts direct-transaction internals (connection per batch): pinned to the flag-off path; the writer
-    # path is covered in test_worker_contention_phase2_catalog.py.
-    monkeypatch.setattr("backend.metadata_store.db_writer.DB_WRITER_ENABLED", False)
+    # Asserts direct-transaction internals (connection per batch): pinned to the no-active-writer path; the
+    # writer path is covered in test_worker_contention_phase2_catalog.py.
     create_library([isolated_gallery_root])
     for index in range(8):
         create_test_png(isolated_gallery_root / f"{index}.png")
-    calls = 0
-    original_connect = file_index._connect
-
-    def counted_connect(*args, **kwargs):
-        nonlocal calls
-        calls += 1
-        return original_connect(*args, **kwargs)
-
-    monkeypatch.setattr(file_index, "_connect", counted_connect)
+    transactions = count_direct_transactions(monkeypatch)
     assert file_index.index_directory_tree(isolated_gallery_root) == 9
-    assert calls == 1
+    assert len(transactions) == 1
 
 
 def test_integrity_run_lock_rejects_concurrent_start(monkeypatch: pytest.MonkeyPatch) -> None:

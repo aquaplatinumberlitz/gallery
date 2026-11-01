@@ -13,17 +13,17 @@ un-committable completion leaves neither); the in-op claim fence rejects a stale
 writes anything; batched claims return jobs in exactly the single-claim order (priority, ``queued_at``,
 path, only rows whose ``next_attempt_at`` is due) with their own tokens and leases, in one transaction;
 claims, lease renewals and every terminal job write use the priority lane and supervisor recovery uses
-the normal lane; no metadata writer call is made by a thread holding ``_DB_LOCK``, and a whole job
-lifecycle completes while some other thread holds ``_DB_LOCK``; the maintenance producer gate still
+the normal lane; a whole job lifecycle writes only on the writer thread (and, with no active writer, in
+single direct transactions with the same final state); the maintenance producer gate still
 quiesces metadata producers (an in-flight writer op blocks maintenance, maintenance blocks new writer
 ops, the maintenance owner may still write); a writer that dies mid-queue leaves running jobs that the
 Phase 1 leases requeue, with no ``done`` job lacking metadata; the worker claim buffer renews and
-releases pending claims; and with the feature flag off every path uses the previous direct
-transactions and never starts the writer.
+releases pending claims; and with no active writer every path uses one direct transaction per op and
+never starts the writer (Phase 3 retired the feature flag and ``_DB_LOCK``).
 
 Run when:
 Changing metadata job claim/complete/fail/requeue/renew paths, ``upsert_metadata_batch``, the metadata
-worker's use of the database writer, the maintenance producer gate, or the writer feature flag.
+worker's use of the database writer, the maintenance producer gate, or the no-active-writer path.
 """
 
 from __future__ import annotations
@@ -40,16 +40,13 @@ from typing import Any
 
 import pytest
 
-import backend.config as config
 from backend import indexer
 from backend.indexer import MetadataLifecycleWorker
 from backend.metadata_extract import extract_metadata
-from backend.metadata_store import _DB_LOCK
 from tests.worker_contention_support import (
     capture_sql,
     install_metadata_clock,
     metadata_job_row,
-    run_while_db_lock_held,
     seed_queued_metadata_jobs,
     set_metadata_job,
     wait_until,
@@ -58,13 +55,9 @@ from tests.worker_contention_support import (
 LEASE_SECONDS = 30
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Tests that exercise the writer path without forcing the flag skip themselves in a flag-off run
-# (``GALLERY_DB_WRITER_ENABLED=false``); the parametrized ``mode`` tests run in both. ``getattr`` keeps
-# the module importable against a tree that predates the setting.
-needs_writer = pytest.mark.skipif(
-    not getattr(config, "DB_WRITER_ENABLED", True),
-    reason="exercises the writer path; GALLERY_DB_WRITER_ENABLED is off for this run",
-)
+# Tests that exercise the writer path run with the shared writer started; the parametrized ``mode``
+# tests run once with the writer and once with no active writer (the direct path).
+needs_writer = pytest.mark.usefixtures("started_writer")
 
 
 def _store():
@@ -120,26 +113,27 @@ def quiet_side_effects(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, int]]
 
 
 @pytest.fixture(params=["writer", "direct"])
-def mode(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
-    """Run a test once through the writer and once through the direct (flag-off) transactions."""
-    monkeypatch.setattr(_writer_module(), "DB_WRITER_ENABLED", request.param == "writer")
+def mode(request: pytest.FixtureRequest) -> str:
+    """Run a test once through the writer and once through the no-active-writer (direct) path."""
+    writer = _writer_module().database_writer
+    if request.param == "writer":
+        writer.start()
+    else:
+        writer.reset()
     return request.param
 
 
 @pytest.fixture
 def submit_log(monkeypatch: pytest.MonkeyPatch) -> list[SimpleNamespace]:
-    """Record every external submission to the shared writer: caller thread, lane, `_DB_LOCK` ownership."""
+    """Record every external submission to the shared writer: caller thread and lane."""
     db_writer = _writer_module()
     writer = db_writer.database_writer
-    writer.start()
     log: list[SimpleNamespace] = []
     real_submit = writer.submit
 
     def spy(op, *, lane: str = "normal", **kwargs: Any):
         if not writer.in_writer_thread():
-            log.append(
-                SimpleNamespace(thread=threading.current_thread().name, lane=lane, holds_db_lock=_DB_LOCK.is_owned())
-            )
+            log.append(SimpleNamespace(thread=threading.current_thread().name, lane=lane))
         return real_submit(op, lane=lane, **kwargs)
 
     monkeypatch.setattr(writer, "submit", spy)
@@ -296,10 +290,7 @@ def test_a_stale_workers_result_is_fenced_inside_the_op_before_anything_is_writt
     row = metadata_job_row(db_path, old.path)
     assert row["state"] == "running" and row["claim_token"] == new.claim_token
     assert _asset_state(db_path, old.path) == "pending"
-    if mode == "writer":
-        assert not _has_metadata(db_path, old.path), "the fenced op writes nothing at all"
-    else:
-        assert _has_metadata(db_path, old.path), "the direct path still upserts before the fenced completion"
+    assert not _has_metadata(db_path, old.path), f"the fenced op writes nothing at all ({mode})"
 
 
 # ---------------------------------------------------------------------------
@@ -505,9 +496,15 @@ def test_claims_renewals_and_terminal_writes_use_the_priority_lane_and_recovery_
 
 
 @needs_writer
-def test_no_metadata_writer_call_is_made_while_holding_the_db_lock(
+def test_a_metadata_worker_hands_every_write_to_the_writer(
     isolated_metadata_db: Path, isolated_gallery_root: Path, quiet_side_effects, submit_log, monkeypatch
 ) -> None:
+    """Converted from ``test_no_metadata_writer_call_is_made_while_holding_the_db_lock``.
+
+    The lock is gone (the process-wide-lock guarantee is pinned by
+    ``test_worker_contention_phase3.py::test_no_production_module_takes_a_process_global_db_lock``); what stays
+    is that a running worker drives all its job states through the writer.
+    """
     db_path, _root, images = _seed(isolated_metadata_db, isolated_gallery_root, 4)
     real_extract = indexer.extract_metadata
 
@@ -528,19 +525,19 @@ def test_no_metadata_writer_call_is_made_while_holding_the_db_lock(
         worker.stop()
 
     assert submit_log, "the worker never used the writer"
-    assert not [entry for entry in submit_log if entry.holds_db_lock], "a writer call was made holding _DB_LOCK"
+    assert {entry.lane for entry in submit_log} >= {"priority"}
 
 
-def test_a_whole_job_lifecycle_needs_no_db_lock(seeded, quiet_side_effects, monkeypatch, mode: str) -> None:
-    """Claim, completion, and the lease write proceed while another thread holds `_DB_LOCK` (the WK-02 root cause).
+def test_a_whole_job_lifecycle_has_the_same_outcome_through_the_writer_and_directly(
+    seeded, quiet_side_effects, monkeypatch, mode: str
+) -> None:
+    """Converted from ``test_a_whole_job_lifecycle_needs_no_db_lock`` (the WK-02 root cause).
 
-    Extraction is stubbed with a result computed beforehand: reading the sidecar scope still takes
-    ``_DB_LOCK`` briefly (reads leave `_DB_LOCK` in Phase 3); this test is about the writes.
+    There is no lock left to hold, so the lifecycle simply runs to completion in both modes. Reading the
+    sidecar scope no longer takes any lock either, so extraction is not stubbed any more.
     """
-    db_path, _root, images = seeded
+    db_path, _root, _images = seeded
     worker = _worker()
-    prepared = {str(image): extract_metadata(image) for image in images}
-    monkeypatch.setattr(indexer, "extract_metadata", lambda path: prepared[str(path)])
     handled: list[str] = []
 
     def lifecycle() -> None:
@@ -549,31 +546,11 @@ def test_a_whole_job_lifecycle_needs_no_db_lock(seeded, quiet_side_effects, monk
         worker._run_job(job)
         handled.append(job.path)
 
-    finished, _result, error = run_while_db_lock_held(lifecycle, timeout=1.0 if mode == "direct" else 20.0)
+    lifecycle()
 
-    assert error is None
-    if mode == "writer":
-        assert finished, "the writer path must not queue behind _DB_LOCK"
-    else:
-        assert not finished, "control: the direct path does queue behind _DB_LOCK"
-    # run_while_db_lock_held releases the holder afterwards, so the direct path completes too.
     assert len(handled) == 1
     assert metadata_job_row(db_path, handled[0])["state"] == "done"
-
-
-def test_a_caller_holding_the_db_lock_uses_the_direct_path_instead_of_waiting_on_the_writer(
-    seeded, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    db_writer = _writer_module()
-    monkeypatch.setattr(db_writer, "DB_WRITER_ENABLED", True)
-    store = _store()
-    db_writer.database_writer.reset()
-
-    with _DB_LOCK:
-        job = store.claim_next_metadata_job()
-
-    assert job is not None
-    assert db_writer.database_writer.state == "idle", "the writer was never involved"
+    assert _has_metadata(db_path, handled[0])
 
 
 def test_writer_unavailability_is_a_transient_failure_for_retry_purposes() -> None:
@@ -584,7 +561,7 @@ def test_writer_unavailability_is_a_transient_failure_for_retry_purposes() -> No
         db_writer.DatabaseWriterTimeout("slow"),
     ):
         assert indexer.is_transient_metadata_error(exc), type(exc).__name__
-    assert not indexer.is_transient_metadata_error(db_writer.DatabaseWriterDeadlock("bug"))
+    assert not indexer.is_transient_metadata_error(db_writer.DatabaseWriterActive("bug"))
 
 
 # ---------------------------------------------------------------------------
@@ -654,7 +631,7 @@ def test_an_in_flight_writer_op_keeps_maintenance_from_starting(seeded) -> None:
     outcome: dict[str, Any] = {}
 
     def producer() -> None:
-        outcome["value"] = db_writer.run_write(blocker, lane="priority", fallback=lambda: "direct")
+        outcome["value"] = db_writer.run_write(blocker, lane="priority")
 
     thread = threading.Thread(target=producer, daemon=True)
     thread.start()
@@ -677,7 +654,8 @@ def test_active_maintenance_blocks_new_writer_ops_until_it_is_released(seeded) -
     _db_path, _root, _images = seeded
     store = _store()
     db_writer = _writer_module()
-    db_writer.database_writer.reset()
+    db_writer.database_writer.reset()  # fresh statistics
+    db_writer.database_writer.start()
     outcome: dict[str, Any] = {}
     done = threading.Event()
 
@@ -775,16 +753,20 @@ def test_a_writer_that_dies_mid_queue_leaves_jobs_the_leases_requeue_and_nothing
 
 
 # ---------------------------------------------------------------------------
-# Feature flag off: exactly the previous behaviour
+# No active writer: exactly one direct transaction per op
 # ---------------------------------------------------------------------------
 
 
-def test_with_the_flag_off_the_direct_transactions_are_used_and_the_writer_never_starts(
-    seeded, quiet_side_effects, monkeypatch: pytest.MonkeyPatch
+def test_with_no_active_writer_the_direct_transactions_are_used_and_the_writer_never_starts(
+    seeded, quiet_side_effects, monkeypatch: pytest.MonkeyPatch, no_active_writer
 ) -> None:
+    """Converted from ``test_with_the_flag_off_the_direct_transactions_are_used_and_the_writer_never_starts``.
+
+    Before: the flag-off path kept three transactions per job, so the run had two commits (upsert, completion).
+    After: the flag and that path are gone; the no-active-writer path runs the same single op as the writer
+    (upsert + completion atomically), so the run has one commit.
+    """
     db_writer = _writer_module()
-    monkeypatch.setattr(db_writer, "DB_WRITER_ENABLED", False)
-    db_writer.database_writer.reset()
     db_path, _root, _images = seeded
     worker = _worker()
 
@@ -797,7 +779,7 @@ def test_with_the_flag_off_the_direct_transactions_are_used_and_the_writer_never
 
     assert metadata_job_row(db_path, job.path)["state"] == "done"
     commits = [sql for sql in run_statements if sql.strip().upper().startswith("COMMIT")]
-    assert len(commits) == 2, "flag off keeps the previous shape: one commit for the upsert, one for the completion"
+    assert len(commits) == 1, "upsert and completion are one direct transaction even without a writer"
     assert db_writer.database_writer.state == "idle"
     assert db_writer.database_writer.stats()["ops"] == 0
 

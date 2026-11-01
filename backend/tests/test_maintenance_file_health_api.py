@@ -23,7 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.integrity_checker import integrity_checker
-from backend.metadata_store import _DB_LOCK, _connect, initialize_database
+from backend.metadata_store import _connect, initialize_database
 from backend.metadata_store.maintenance_store import insert_run
 
 

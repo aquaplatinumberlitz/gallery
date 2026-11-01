@@ -24,7 +24,6 @@ from backend import scan_worker as catalog_service
 from backend.app import app
 from backend.indexer import rebuild_index_scope
 from backend.metadata_store import (
-    _DB_LOCK,
     _connect,
     get_asset_folder_listing,
     get_first_library_root,
@@ -82,7 +81,7 @@ def test_library_listing_batches_child_queries(
     library_store.create_library([second], exclusion_patterns=["tmp/**"])
 
     statements: list[str] = []
-    real_connect = library_store._connect
+    real_connect = library_store._connect_read
 
     class RecordingConnection:
         def __init__(self):
@@ -99,7 +98,7 @@ def test_library_listing_batches_child_queries(
             statements.append(" ".join(statement.split()))
             return self.connection.execute(statement, parameters)
 
-    monkeypatch.setattr(library_store, "_connect", RecordingConnection)
+    monkeypatch.setattr(library_store, "_connect_read", RecordingConnection)
 
     libraries = library_store.list_libraries()
 

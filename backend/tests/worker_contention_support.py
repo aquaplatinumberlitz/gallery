@@ -109,6 +109,14 @@ def seed_derivative_corpus(
     return total_jobs, expected_latest
 
 
+def _restart_writer_if_running(writer: Any) -> None:
+    """Restart a running shared writer (fresh connection, fresh statistics); leave an inactive one alone."""
+    was_running = writer.is_running()
+    writer.reset()
+    if was_running:
+        writer.start()
+
+
 @contextmanager
 def capture_sql(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[str]]:
     """Record every statement executed on connections opened while the context is active."""
@@ -116,7 +124,7 @@ def capture_sql(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[str]]:
 
     # The shared writer keeps one long-lived connection; restart it so the connection it opens next is traced
     # (a test's own setup may already have used the writer, which is not what is being observed).
-    database_writer.reset()
+    _restart_writer_if_running(database_writer)
     statements: list[str] = []
     real_connect = sqlite3.connect
 
@@ -130,20 +138,43 @@ def capture_sql(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[str]]:
         yield statements
 
 
+def count_direct_transactions(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Count the direct (no-active-writer) write transactions opened from now on; one entry per transaction.
+
+    Phase 3 replacement for patching a store module's private ``_connect``: on the no-active-writer path every
+    write op is exactly one ``BEGIN IMMEDIATE`` transaction on a fresh connection from the writer module, so
+    counting those connections counts the transactions (a nested op reuses its parent's and is not counted).
+    """
+    import backend.metadata_store.db_writer as db_writer
+
+    opened: list[str] = []
+    real = db_writer._open_default_connection
+
+    def counting() -> sqlite3.Connection:
+        opened.append(threading.current_thread().name)
+        return real()
+
+    monkeypatch.setattr(db_writer, "_open_default_connection", counting)
+    return opened
+
+
 def query_plan(db_path: Path, statement: str) -> str:
     """Return the joined ``EXPLAIN QUERY PLAN`` detail text for ``statement``."""
     with sqlite3.connect(db_path) as conn:
         return "\n".join(str(row[3]) for row in conn.execute(f"EXPLAIN QUERY PLAN {statement}"))
 
 
-def run_while_db_lock_held(fn: Callable[[], Any], *, timeout: float = 2.0) -> tuple[bool, Any, BaseException | None]:
-    """Run ``fn`` on a worker thread while another thread owns ``_DB_LOCK``.
+def run_while_write_lock_held(fn: Callable[[], Any], *, timeout: float = 2.0) -> tuple[bool, Any, BaseException | None]:
+    """Run ``fn`` on a worker thread while another connection holds SQLite's write lock.
 
-    Returns ``(finished_within_timeout, result, error)``. The lock holder is
-    released after ``timeout`` so a function that needs ``_DB_LOCK`` is observed
-    as blocked (``finished_within_timeout`` is False) and then drains cleanly.
+    Phase 3 replacement of ``run_while_db_lock_held``: the process-wide ``_DB_LOCK`` is gone, the only lock
+    left that a reader could wait on is the database write lock itself. A holder thread opens its own
+    connection, begins an immediate (writing) transaction, and keeps it open until ``fn`` finished or
+    ``timeout`` elapsed. Returns ``(finished_within_timeout, result, error)``; a plain WAL read finishes in
+    time, a function that needs the write lock is observed as blocked and then drains once the holder
+    releases.
     """
-    from backend.metadata_store import _DB_LOCK
+    from backend.metadata_store import _connect
 
     acquired = threading.Event()
     release = threading.Event()
@@ -151,9 +182,15 @@ def run_while_db_lock_held(fn: Callable[[], Any], *, timeout: float = 2.0) -> tu
     finished = threading.Event()
 
     def holder() -> None:
-        with _DB_LOCK:
+        conn = _connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
             acquired.set()
             release.wait()
+            conn.execute("ROLLBACK")
+        finally:
+            acquired.set()
+            conn.close()
 
     def runner() -> None:
         try:
@@ -165,12 +202,60 @@ def run_while_db_lock_held(fn: Callable[[], Any], *, timeout: float = 2.0) -> tu
 
     holder_thread = threading.Thread(target=holder, daemon=True)
     holder_thread.start()
-    assert acquired.wait(5), "lock holder never acquired _DB_LOCK"
+    assert acquired.wait(5), "lock holder never acquired the write lock"
     runner_thread = threading.Thread(target=runner, daemon=True)
     runner_thread.start()
     completed_in_time = finished.wait(timeout)
     release.set()
     holder_thread.join(10)
+    runner_thread.join(30)
+    return completed_in_time, outcome.get("result"), outcome.get("error")
+
+
+def run_while_write_path_saturated(
+    fn: Callable[[], Any], *, timeout: float = 20.0, op_seconds: float = 0.01, flooders: int = 2
+) -> tuple[bool, Any, BaseException | None]:
+    """Run ``fn`` on a worker thread while unrelated bulk writers keep the write path busy.
+
+    Phase 3 replacement of the "another thread holds ``_DB_LOCK``" scenario of the WK-02 lease tests: the
+    contention that remains is other writers. ``flooders`` threads keep submitting normal-lane ops that each
+    hold the write path for ``op_seconds`` (through the writer when one is active, as direct transactions
+    otherwise) until ``fn`` is done. A priority-lane lease renewal must still get through. Returns
+    ``(finished_within_timeout, result, error)``.
+    """
+    import backend.metadata_store.db_writer as db_writer
+
+    stop = threading.Event()
+    outcome: dict[str, Any] = {}
+    finished = threading.Event()
+
+    def busy(_conn: sqlite3.Connection) -> None:
+        time.sleep(op_seconds)
+
+    def flood() -> None:
+        while not stop.is_set():
+            try:
+                db_writer.run_write(busy, lane="normal")
+            except Exception:  # noqa: BLE001 - a closing writer simply ends the flood
+                return
+
+    def runner() -> None:
+        try:
+            outcome["result"] = fn()
+        except BaseException as exc:  # noqa: BLE001 - surfaced to the caller
+            outcome["error"] = exc
+        finally:
+            finished.set()
+
+    threads = [threading.Thread(target=flood, daemon=True, name=f"flood-{index}") for index in range(flooders)]
+    for thread in threads:
+        thread.start()
+    runner_thread = threading.Thread(target=runner, daemon=True)
+    runner_thread.start()
+    completed_in_time = finished.wait(timeout)
+    stop.set()
+    for thread in threads:
+        thread.join(10)
     runner_thread.join(30)
     return completed_in_time, outcome.get("result"), outcome.get("error")
 
@@ -259,12 +344,10 @@ _WRITE_VERBS = ("INSERT", "UPDATE", "DELETE", "REPLACE")
 
 
 def install_submit_spy(monkeypatch: pytest.MonkeyPatch) -> list[SimpleNamespace]:
-    """Record every external submission to the shared writer: caller thread, lane, `_DB_LOCK` ownership."""
+    """Record every external submission to the shared writer: caller thread, lane and op name."""
     import backend.metadata_store.db_writer as db_writer
-    from backend.metadata_store import _DB_LOCK
 
     writer = db_writer.database_writer
-    writer.start()
     log: list[SimpleNamespace] = []
     real_submit = writer.submit
 
@@ -274,7 +357,6 @@ def install_submit_spy(monkeypatch: pytest.MonkeyPatch) -> list[SimpleNamespace]
                 SimpleNamespace(
                     thread=threading.current_thread().name,
                     lane=lane,
-                    holds_db_lock=_DB_LOCK.is_owned(),
                     op=getattr(op, "__qualname__", repr(op)),
                 )
             )
@@ -371,6 +453,9 @@ class RecordingWriter:
 @contextmanager
 def capture_write_threads(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[tuple[str, str]]]:
     """Record ``(thread name, statement)`` for every write statement run on a connection opened meanwhile."""
+    from backend.metadata_store.db_writer import database_writer
+
+    _restart_writer_if_running(database_writer)  # the writer keeps one long-lived connection: trace the next one
     writes: list[tuple[str, str]] = []
     real_connect = sqlite3.connect
 

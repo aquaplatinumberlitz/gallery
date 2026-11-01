@@ -28,7 +28,7 @@ from PIL import UnidentifiedImageError
 
 from backend import indexer
 from backend.indexer import MetadataLifecycleWorker
-from backend.metadata_store import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, _connect
+from backend.metadata_store import MAX_METADATA_JOB_ATTEMPTS, _connect
 from tests.worker_contention_support import (
     install_metadata_clock,
     metadata_job_row,

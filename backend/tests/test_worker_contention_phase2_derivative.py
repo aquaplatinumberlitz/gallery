@@ -18,14 +18,15 @@ those of one transaction; superseded files are unlinked only after the retiring 
 successfully, and a failed commit keeps rows and files; eviction is two ops with the unlink between them;
 a stale claim's completion and failure apply zero rows; the warm ready-file lookup never waits for the
 writer (the ``last_accessed_at`` touch is a queued normal-lane op that ``release_serving`` flushes); no
-derivative writer call is made holding ``_DB_LOCK`` and a whole derivative lifecycle drains through the
-writer; the maintenance producer gate still holds back derivative writes; reconcile results are identical
-through the writer and through the direct flag-off transactions; with the flag off every path uses the
-previous direct transactions and the writer never starts.
+a whole derivative lifecycle drains through the writer and the lease heartbeat renews while unrelated bulk
+writers saturate the write path; the maintenance producer gate still holds back derivative writes;
+reconcile results are identical through the writer and through the no-active-writer path; with no active
+writer every path uses direct transactions and the writer never starts (Phase 3 retired ``_DB_LOCK`` and
+the writer flag).
 
 Run when:
 Changing derivative claim/complete/fail/renew/recover/schedule/reconcile/eviction paths, the lookup
-touch, the reconcile op size, the maintenance producer gate, or the writer feature flag.
+touch, the reconcile op size, the maintenance producer gate, or the no-active-writer path.
 """
 
 from __future__ import annotations
@@ -39,7 +40,6 @@ from typing import Any
 import pytest
 from PIL import UnidentifiedImageError
 
-import backend.config as config
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler
 from backend.derivative_scheduler.execution import _LeaseHeartbeat
@@ -52,7 +52,7 @@ from tests.worker_contention_support import (
     RecordingWriter,
     capture_write_threads,
     install_submit_spy,
-    run_while_db_lock_held,
+    run_while_write_path_saturated,
     seed_library,
     wait_until,
 )
@@ -60,10 +60,7 @@ from tests.worker_contention_support import (
 BIG_QUOTA = 1024 * 1024 * 1024
 THUMB_VARIANT = str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"])
 
-needs_writer = pytest.mark.skipif(
-    not getattr(config, "DB_WRITER_ENABLED", True),
-    reason="exercises the writer path; GALLERY_DB_WRITER_ENABLED is off for this run",
-)
+needs_writer = pytest.mark.usefixtures("started_writer")
 
 
 def _writer_module():
@@ -112,9 +109,13 @@ def submit_log(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture(params=["writer", "direct"])
-def mode(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
-    """Run a test once through the writer and once through the direct (flag-off) transactions."""
-    monkeypatch.setattr(_writer_module(), "DB_WRITER_ENABLED", request.param == "writer")
+def mode(request: pytest.FixtureRequest) -> str:
+    """Run a test once through the writer and once through the no-active-writer (direct) path."""
+    writer = _writer_module().database_writer
+    if request.param == "writer":
+        writer.start()
+    else:
+        writer.reset()
     return request.param
 
 
@@ -333,13 +334,18 @@ def test_a_stale_claims_completion_and_failure_apply_zero_rows(
 
 
 # ---------------------------------------------------------------------------
-# Lease heartbeat vs _DB_LOCK holders (WK-02 root cause)
+# Lease heartbeat vs unrelated bulk writers (WK-02 root cause)
 # ---------------------------------------------------------------------------
 
 
-def test_the_lease_heartbeat_renews_through_the_writer_while_another_thread_holds_the_db_lock(
-    library, scheduler: DerivativeScheduler, submit_log, mode: str
+@needs_writer
+def test_the_lease_heartbeat_renews_through_the_writer_while_unrelated_bulk_writers_saturate_it(
+    library, scheduler: DerivativeScheduler, submit_log
 ) -> None:
+    """Writer-path version of the WK-02 lease test (before: another thread held ``_DB_LOCK``, both modes).
+
+    The direct path has no priority lane and runs no workers, so only the writer path carries this guarantee.
+    """
     db_path, _library_id, images = library
     scheduler.schedule_derivative(images[0][0], "thumbnail", THUMB_VARIANT, 3)
     job = scheduler._claim_job("worker")
@@ -361,32 +367,28 @@ def test_the_lease_heartbeat_renews_through_the_writer_while_another_thread_hold
 
     heartbeat = _LeaseHeartbeat(scheduler, job["job_id"], job["claim_token"], 0.05)
 
-    def hold_lock_until_renewed() -> bool:
+    def run_until_renewed() -> bool:
         heartbeat.start()
         try:
             return wait_until(renewed, timeout=20)
         finally:
             heartbeat.stop()
 
-    finished, result, error = run_while_db_lock_held(hold_lock_until_renewed, timeout=25)
+    finished, result, error = run_while_write_path_saturated(run_until_renewed, timeout=25)
 
     assert finished and error is None
-    assert result is True, "the heartbeat could not renew while another thread held _DB_LOCK"
-    if mode == "writer":
-        renewals = [entry for entry in submit_log if entry.thread.startswith("derivative-lease")]
-        assert renewals and {entry.lane for entry in renewals} == {"priority"}
-        assert not [entry for entry in renewals if entry.holds_db_lock]
+    assert result is True, "the heartbeat could not renew while bulk writers saturated the write path"
+    renewals = [entry for entry in submit_log if entry.thread.startswith("derivative-lease")]
+    assert renewals and {entry.lane for entry in renewals} == {"priority"}
 
 
 # ---------------------------------------------------------------------------
-# End to end through the writer, no _DB_LOCK
+# End to end through the writer
 # ---------------------------------------------------------------------------
 
 
 @needs_writer
-def test_the_derivative_workers_drain_every_job_through_the_writer_without_holding_the_db_lock(
-    library, submit_log
-) -> None:
+def test_the_derivative_workers_drain_every_job_through_the_writer(library, submit_log) -> None:
     db_path, library_id, images = library
     scheduler = DerivativeScheduler(worker_count=2, quota_bytes=BIG_QUOTA)
     expected = len(images) * sum(len(v) for v in DERIVATIVE_VARIANTS.values())
@@ -409,34 +411,29 @@ def test_the_derivative_workers_drain_every_job_through_the_writer_without_holdi
         scheduler.stop()
 
     assert submit_log, "the derivative workers never used the writer"
-    assert not [entry for entry in submit_log if entry.holds_db_lock], "a writer call was made holding _DB_LOCK"
     with sqlite3.connect(db_path) as conn:
         done = conn.execute("SELECT count(*) FROM derivative_jobs WHERE state = 'done'").fetchone()[0]
         files = [row[0] for row in conn.execute("SELECT cache_path FROM asset_derivatives")]
     assert done == expected and all(Path(path).is_file() for path in files)
 
 
-def test_a_whole_derivative_lifecycle_completes_while_another_thread_holds_the_db_lock(
+def test_a_whole_derivative_lifecycle_has_the_same_outcome_through_the_writer_and_directly(
     library, scheduler: DerivativeScheduler, mode: str
 ) -> None:
-    """Claim, render (including its dimension upsert), completion and quota enforcement need no `_DB_LOCK`."""
+    """Converted from ``test_a_whole_derivative_lifecycle_completes_while_another_thread_holds_the_db_lock``.
+
+    Claim, render (including its dimension upsert), completion and quota enforcement complete in both modes;
+    there is no lock to hold any more. That the render's dimension upsert is a writer op is pinned by
+    ``test_a_derivative_lifecycle_writes_only_on_the_writer_thread``.
+    """
     db_path, _library_id, images = library
     derivative_id = scheduler.schedule_derivative(images[0][0], "thumbnail", THUMB_VARIANT, 3)
 
-    def lifecycle() -> None:
-        job = scheduler._claim_job("worker")
-        assert job is not None
-        scheduler._run_job(job)
+    job = scheduler._claim_job("worker")
+    assert job is not None
+    scheduler._run_job(job)
 
-    finished, _result, error = run_while_db_lock_held(lifecycle, timeout=1.0 if mode == "direct" else 20.0)
-
-    assert error is None
-    if mode == "writer":
-        assert finished, "the writer path must not queue behind _DB_LOCK"
-    else:
-        assert not finished, "control: the direct dimension upsert does queue behind _DB_LOCK"
-    # run_while_db_lock_held releases the holder afterwards, so the direct path completes too.
-    assert _derivative_row(db_path, derivative_id)["status"] == "ready"
+    assert _derivative_row(db_path, derivative_id)["status"] == "ready", mode
 
 
 @needs_writer
@@ -496,9 +493,8 @@ def test_the_derivative_ready_hook_invalidates_through_the_writer_and_schedules_
 
     entries = submit_log[start:]
     assert entries and {entry.lane for entry in entries} == {"normal"}
-    assert not [entry for entry in entries if entry.holds_db_lock]
     assert len(scheduled) == 1 and scheduled[0][0] == library_id
-    assert scheduled[0][1] != WRITER_THREAD_NAME, "the backfill scheduling takes _DB_LOCK: never inside the op"
+    assert scheduled[0][1] != WRITER_THREAD_NAME, "the backfill scheduling runs after the op, never inside it"
 
 
 # ---------------------------------------------------------------------------
@@ -685,7 +681,8 @@ def test_active_maintenance_holds_back_derivative_writer_ops_until_it_is_release
     from backend.catalog_maintenance_gate import maintenance_gate
 
     db_writer = _writer_module()
-    db_writer.database_writer.reset()
+    db_writer.database_writer.reset()  # fresh statistics
+    db_writer.database_writer.start()
     outcome: dict[str, Any] = {}
     done = threading.Event()
 
@@ -783,8 +780,9 @@ def test_reconcile_results_are_identical_through_the_writer_and_directly(
     for label, enabled in (("writer", True), ("direct", False)):
         run_db = _copy_database(isolated_metadata_db, tmp_path / f"{label}.db")
         _use_database(monkeypatch, run_db)
-        monkeypatch.setattr(_writer_module(), "DB_WRITER_ENABLED", enabled)
         _writer_module().database_writer.reset()
+        if enabled:
+            _writer_module().database_writer.start()
         sched = DerivativeScheduler(worker_count=1, quota_bytes=60 * 64 * 1024)
         summary = sched.reconcile_desired_derivatives(
             library_id=library_id, reason="integrity", respect_warm_policy=False, retry_failed=True
@@ -795,12 +793,11 @@ def test_reconcile_results_are_identical_through_the_writer_and_directly(
     assert results["writer"][0]["created_jobs"] > 0
 
 
-def test_with_the_flag_off_the_direct_transactions_are_used_and_the_writer_never_starts(
-    library, scheduler: DerivativeScheduler, monkeypatch: pytest.MonkeyPatch
+def test_with_no_active_writer_the_direct_transactions_are_used_and_the_writer_never_starts(
+    library, scheduler: DerivativeScheduler, no_active_writer
 ) -> None:
+    """Converted from ``test_with_the_flag_off_the_direct_transactions_are_used_and_the_writer_never_starts``."""
     db_writer = _writer_module()
-    monkeypatch.setattr(db_writer, "DB_WRITER_ENABLED", False)
-    db_writer.database_writer.reset()
     db_path, library_id, images = library
 
     derivative_id = scheduler.schedule_derivative(images[0][0], "thumbnail", THUMB_VARIANT, 0)

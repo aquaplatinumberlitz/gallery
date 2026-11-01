@@ -25,7 +25,6 @@ import pytest
 from backend.indexer import dispatch_metadata_index_paths, metadata_worker, recover_metadata_index_jobs
 from backend.metadata_extract import extract_metadata
 from backend.metadata_store import (
-    _DB_LOCK,
     MAX_METADATA_JOB_ATTEMPTS,
     MetadataIndexJob,
     _connect,

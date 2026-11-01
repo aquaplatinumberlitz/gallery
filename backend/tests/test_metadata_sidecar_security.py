@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 
 from backend import metadata_extract
 from backend.metadata_extract import MetadataSidecarTooLargeError, extract_metadata
-from backend.metadata_store import _DB_LOCK, _connect, index_file, register_library
+from backend.metadata_store import _connect, index_file, register_library
 
 from .conftest import create_test_png
 
