@@ -5,15 +5,21 @@ functions (``op(conn)``). The writer thread applies them in batches: one ``BEGIN
 one ``SAVEPOINT`` per op (a failing op rolls back only itself), one ``COMMIT``. Each op's ``Future``
 resolves only after its batch committed, so a result a caller sees is durable.
 
-Deadlock rules (the writer never takes ``_DB_LOCK``):
+Rules:
 
-* Code running inside an op must never acquire ``_DB_LOCK`` (it raises ``WriterThreadLockError``) and
-  must never wait on the writer. ``submit``/``run`` from the writer thread run the op inline, in the
-  current transaction under a nested savepoint.
-* A thread holding ``_DB_LOCK`` must not wait for the writer either: ``run`` refuses
-  (``DatabaseWriterDeadlock``) and ``get_active_writer`` routes such a caller to its direct path.
-* Side effects that may take ``_DB_LOCK`` (scheduling backfills, derivative reconciliation) run in the
-  caller after the Future resolved, never inside an op.
+* There is no process-global database lock. SQLite's single write lock is the only write serialization,
+  and the writer thread is the only thread that normally holds it: production code outside this module
+  never opens a writable connection (``scripts/check_db_write_ownership.py`` enforces it) and reads on
+  plain WAL connections (``_connect_read`` / ``_read_snapshot``).
+* ``submit``/``run`` from the writer thread run the op inline, in the current transaction under a nested
+  savepoint, so op helpers may call each other and ``run_write`` freely.
+* A read-then-write sequence that must be atomic is one op (the op reads through its own connection and
+  sees its own uncommitted rows). Side effects that wait on the writer (scheduling backfills, derivative
+  reconciliation) run in the caller after the Future resolved, never inside an op.
+* **No active writer.** ``init_db``/migrations before startup, scripts under ``scripts/`` and plain unit
+  tests that never start a writer have no writer thread; ``run_write`` then runs the op in one direct
+  ``BEGIN IMMEDIATE`` transaction (``run_direct``). That path refuses to run while a writer is active, and
+  ``run_write`` never falls back to it when a writer exists - a writer error propagates to the caller.
 """
 
 from __future__ import annotations
@@ -33,14 +39,12 @@ from ..catalog_maintenance_gate import producer_gate, release_maintenance_gate, 
 from ..config import (
     DB_WRITER_BATCH_MAX,
     DB_WRITER_BATCH_MS,
-    DB_WRITER_ENABLED,
     DB_WRITER_QUEUE_MAX,
     DB_WRITER_RESULT_TIMEOUT_SECONDS,
     DB_WRITER_SHUTDOWN_TIMEOUT_SECONDS,
     DB_WRITER_SUBMIT_TIMEOUT_SECONDS,
     DB_WRITER_YIELD_MS,
 )
-from . import _db
 from ._db import _connect, _gallery_metadata_db_path
 
 _T = TypeVar("_T")
@@ -81,8 +85,8 @@ class DatabaseWriterTimeout(DatabaseWriterUnavailable):
     """The op was not finished within the caller's wait (it may still run later; its writes are fenced)."""
 
 
-class DatabaseWriterDeadlock(DatabaseWriterError):
-    """A caller holding ``_DB_LOCK`` asked to wait for the writer, which could deadlock."""
+class DatabaseWriterActive(DatabaseWriterError):
+    """The direct (no-active-writer) path was used while a writer is active."""
 
 
 @dataclass(slots=True)
@@ -118,20 +122,42 @@ def _open_default_connection() -> sqlite3.Connection:
     return conn
 
 
+def _run_in_savepoint(conn: sqlite3.Connection, name: str, fn: Callable[[sqlite3.Connection], Any]) -> tuple[bool, Any]:
+    """Run ``fn(conn)`` under savepoint ``name``; a failure rolls back only that savepoint."""
+    conn.execute(f"SAVEPOINT {name}")
+    try:
+        value = fn(conn)
+    except Exception as exc:  # noqa: BLE001 - delivered to the op's own Future
+        try:
+            conn.execute(f"ROLLBACK TO {name}")
+            conn.execute(f"RELEASE {name}")
+        except sqlite3.Error:
+            pass  # the op ended the transaction; the batch loop notices and stops
+        return False, exc
+    try:
+        conn.execute(f"RELEASE {name}")
+    except sqlite3.Error as exc:
+        return False, exc
+    return True, value
+
+
 def current_writer() -> DatabaseWriter | None:
     """Return the writer whose thread is the calling thread, if any."""
     return getattr(_LOCAL, "writer", None)
 
 
 def writer_connection() -> sqlite3.Connection | None:
-    """Return the connection of the writer op running on this thread, or ``None`` outside a writer op.
+    """Return the connection of the write op running on this thread, or ``None`` outside any op.
 
-    Store helpers that normally open their own connection under ``_DB_LOCK`` (small lookups such as
-    ``get_library_for_path``) use it instead when called from inside an op: the writer thread must not
-    take ``_DB_LOCK``, and reading through the op's own connection also sees the op's uncommitted rows.
+    An op is either a writer op (the writer's connection) or a direct op of the no-active-writer path.
+    Store helpers that normally open their own read connection (small lookups such as
+    ``get_library_for_path``) use it instead when called from inside an op: reading through the op's own
+    connection sees the op's uncommitted rows, which a separate read connection cannot.
     """
     writer = current_writer()
-    return None if writer is None else writer._active_conn
+    if writer is not None:
+        return writer._active_conn
+    return getattr(_LOCAL, "direct_conn", None)
 
 
 class DatabaseWriter:
@@ -352,13 +378,11 @@ class DatabaseWriter:
     ) -> _T:
         """Submit ``op`` and wait for its result; the one blocking entry point workers should use.
 
-        Refuses (``DatabaseWriterDeadlock``) when the calling thread holds ``_DB_LOCK``; runs inline on
+        Runs inline on
         the writer thread; raises ``DatabaseWriterTimeout`` if the op is not finished within the wait.
         """
         if self.in_writer_thread():
             return self._run_inline(op).result()
-        if _db._DB_LOCK.is_owned():
-            raise DatabaseWriterDeadlock("a thread holding _DB_LOCK must not wait for the database writer")
         future = self.submit(op, lane=lane)
         wait = self._result_timeout if timeout is None else float(timeout)
         try:
@@ -393,7 +417,6 @@ class DatabaseWriter:
     # -- the writer thread ---------------------------------------------------------------------
 
     def _thread_main(self) -> None:
-        _db.mark_writer_thread(True)
         _LOCAL.writer = self
         try:
             streak_start: float | None = None  # start of the current stretch of back-to-back batches
@@ -430,7 +453,7 @@ class DatabaseWriter:
 
         A saturated writer commits one batch and begins the next within microseconds (producers keep the
         queue filled), so the write lock is held continuously for seconds even though every transaction
-        is short. A writer outside this thread (the not yet migrated ``_DB_LOCK`` writers, any other
+        is short. A writer outside this thread (any other
         connection) polls the lock with SQLite's sleeping busy handler and could starve. After a stretch of
         at least ``batch_ms`` of continuous activity the writer therefore sleeps ``yield_ms``, so the
         longest continuous hold is about one batch. Sparse traffic never reaches the threshold, and the
@@ -547,21 +570,7 @@ class DatabaseWriter:
         self, conn: sqlite3.Connection, name: str, fn: Callable[[sqlite3.Connection], Any]
     ) -> tuple[bool, Any]:
         """Run ``fn(conn)`` under savepoint ``name``; a failure rolls back only that savepoint."""
-        conn.execute(f"SAVEPOINT {name}")
-        try:
-            value = fn(conn)
-        except Exception as exc:  # noqa: BLE001 - delivered to the op's own Future
-            try:
-                conn.execute(f"ROLLBACK TO {name}")
-                conn.execute(f"RELEASE {name}")
-            except sqlite3.Error:
-                pass  # the op ended the transaction; the batch loop notices and stops
-            return False, exc
-        try:
-            conn.execute(f"RELEASE {name}")
-        except sqlite3.Error as exc:
-            return False, exc
-        return True, value
+        return _run_in_savepoint(conn, name, fn)
 
     def _requeue_unrun(self, ops: list[_Op]) -> None:
         with self._lock:
@@ -625,59 +634,90 @@ database_writer = DatabaseWriter()
 
 
 def get_active_writer() -> DatabaseWriter | None:
-    """Return the writer a write should go through, or ``None`` to use the direct transaction.
+    """Return the writer a write must go through, or ``None`` when no writer is active.
 
-    ``None`` when the feature flag is off, when the calling thread holds ``_DB_LOCK`` (it must never
-    wait on the writer), or when the shared writer was stopped (shutdown: the direct path takes over).
-    A never-started shared writer is started on first use, so code running outside the app lifespan
-    (tests, scripts) works unchanged. On the writer thread itself the running writer is returned.
+    On the writer thread itself the running writer is returned. Otherwise the shared writer counts as
+    active while it is ``running`` or ``stopping`` (a stopping writer rejects new ops: callers get
+    ``DatabaseWriterClosed`` instead of a silent direct write); ``idle`` (never started: scripts,
+    migrations, plain unit tests) and ``stopped`` mean no writer is active. The app lifespan is the only
+    production code that starts the shared writer.
     """
     current = current_writer()
     if current is not None:
         return current
-    if not DB_WRITER_ENABLED or _db._DB_LOCK.is_owned():
-        return None
     writer = database_writer
-    if writer.state == "idle":
-        writer.start()
-    return writer if writer.is_running() else None
+    return writer if writer.state in {"running", "stopping"} else None
 
 
-def run_write(op: Callable[[sqlite3.Connection], _T], *, lane: str = LANE_NORMAL, fallback: Callable[[], _T]) -> _T:
-    """Run ``op`` through the writer, or ``fallback()`` (the direct transaction) when no writer applies.
+def run_direct(op: Callable[[sqlite3.Connection], _T]) -> _T:
+    """Run ``op(conn)`` in one direct ``BEGIN IMMEDIATE`` transaction: the no-active-writer path.
+
+    For contexts that have no writer thread (``init_db``, migrations, scripts under ``scripts/``, plain unit
+    tests). The op runs on a fresh connection configured like the writer's, is committed on success and
+    rolled back on any exception. Raises ``DatabaseWriterActive`` while a writer is active: with a writer
+    around, every write goes through it. Called from inside a direct op on the same thread, the op runs
+    inline in that transaction under a savepoint (like ``submit`` on the writer thread).
+    """
+    if get_active_writer() is not None:
+        raise DatabaseWriterActive("the direct write path must not be used while a database writer is active")
+    outer = getattr(_LOCAL, "direct_conn", None)
+    if outer is not None:
+        depth = getattr(_LOCAL, "direct_depth", 0) + 1
+        _LOCAL.direct_depth = depth
+        try:
+            ok, value = _run_in_savepoint(outer, f"gw_direct_{depth}", op)
+        finally:
+            _LOCAL.direct_depth = depth - 1
+        if not ok:
+            raise value
+        return value
+    conn = _open_default_connection()
+    _LOCAL.direct_conn = conn
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            result = op(conn)
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+        conn.execute("COMMIT")
+        return result
+    finally:
+        _LOCAL.direct_conn = None
+        conn.close()
+
+
+def run_write(op: Callable[[sqlite3.Connection], _T], *, lane: str = LANE_NORMAL) -> _T:
+    """Run ``op`` through the active writer, or directly (``run_direct``) when no writer is active.
 
     The submission is made while holding the shared producer gate, so destructive maintenance can
-    quiesce writer-backed producers exactly like direct ones: an in-flight writer op keeps maintenance
-    from starting, and active maintenance holds new ops back. ``DatabaseWriterClosed`` means the op was
-    not applied, so the direct path takes over. On the writer thread the op runs inline, ungated.
+    quiesce writer-backed producers: an in-flight writer op keeps maintenance from starting, and active
+    maintenance holds new ops back. On the writer thread the op runs inline, ungated. A writer error
+    (including ``DatabaseWriterClosed`` from a stopping writer) propagates to the caller; the direct path
+    is never a fallback for a failed writer.
     """
     writer = get_active_writer()
     if writer is None:
-        return fallback()
+        with producer_gate():
+            return run_direct(op)
     if writer.in_writer_thread():
         return writer.run(op, lane=lane)
     with producer_gate():
-        try:
-            return writer.run(op, lane=lane)
-        except DatabaseWriterClosed:
-            pass
-    return fallback()
+        return writer.run(op, lane=lane)
 
 
-def post_write(
-    op: Callable[[sqlite3.Connection], Any], *, lane: str = LANE_NORMAL, fallback: Callable[[], Any]
-) -> Future | None:
+def post_write(op: Callable[[sqlite3.Connection], Any], *, lane: str = LANE_NORMAL) -> Future | None:
     """Queue a best-effort ``op`` without waiting for it (HTTP request paths must never wait for a batch).
 
-    Returns the op's Future, or ``None`` when nothing was queued: the op ran directly (``fallback()``, flag
-    off or the caller holds ``_DB_LOCK``), ran inline (writer thread), or was dropped because maintenance
-    holds the gate, the lane is full, or the writer is closed. A dropped op is only acceptable for writes
-    that do not affect correctness (such as the ``last_accessed_at`` touch). The submission is made under
-    the producer gate without blocking on it; a failing op is logged, never raised into the caller.
+    Returns the op's Future, or ``None`` when nothing was queued: no writer is active (the op ran directly),
+    the caller is the writer thread (inline), or the op was dropped because maintenance holds the gate, the
+    lane is full, or the writer is stopping. A dropped op is only acceptable for writes that do not affect
+    correctness (such as the ``last_accessed_at`` touch). The submission is made under the producer gate
+    without blocking on it; a failing op is logged, never raised into the caller.
     """
     writer = get_active_writer()
     if writer is None:
-        fallback()
+        run_direct(op)
         return None
     if writer.in_writer_thread():
         writer.run(op, lane=lane)

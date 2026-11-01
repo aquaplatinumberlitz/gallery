@@ -12,7 +12,7 @@ from typing import Any
 from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE, METADATA_JOB_LEASE_SECONDS
 from ..files import is_image_path, is_index_excluded_path
 from ..metadata_extract import metadata_sidecar_identity
-from ._db import _DB_LOCK, MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect
+from ._db import MAX_METADATA_JOB_ATTEMPTS, METADATA_JOB_STATES, _connect_read
 from .db_writer import LANE_NORMAL, LANE_PRIORITY, SCAN_OP_ROWS, get_active_writer, run_write
 from .identity import (
     asset_params_match_sql,
@@ -359,13 +359,8 @@ def _persist_metadata_index_job_batch(
 
         return MetadataQueueResult(enqueued=enqueued, coalesced=coalesced, skipped=skipped, failed=failed)
 
-    def persist_directly() -> MetadataQueueResult:
-        with _DB_LOCK, _connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            return persist(conn)
-
     # A scan's metadata-job batch: one fenced normal-lane writer op (claim assertion, coalescing, claim refresh).
-    return run_write(persist, lane=LANE_NORMAL, fallback=persist_directly)
+    return run_write(persist, lane=LANE_NORMAL)
 
 
 def _persist_metadata_index_jobs(
@@ -411,7 +406,8 @@ def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
         return
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def write(conn: sqlite3.Connection) -> None:
         for job in rows:
             if job.mtime_ns is not None:
                 conn.execute(
@@ -442,6 +438,8 @@ def mark_metadata_jobs_running(jobs: Iterable[MetadataIndexJob]) -> None:
                     (now, now, job.path, job.mtime, job.size),
                 )
 
+    run_write(write, lane=LANE_NORMAL)
+
 
 def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
     """Mark durable metadata jobs as successfully completed (batch path).
@@ -455,7 +453,8 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
         return
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def write(conn: sqlite3.Connection) -> None:
         for job in rows:
             if not _image_metadata_exists_for_job(conn, job.path, job.mtime, job.size, job.mtime_ns):
                 if job.mtime_ns is not None:
@@ -510,6 +509,8 @@ def mark_metadata_jobs_done(jobs: Iterable[MetadataIndexJob]) -> None:
                 )
             _update_asset_done(conn, job, now)
 
+    run_write(write, lane=LANE_NORMAL)
+
 
 def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
     """Mark durable metadata jobs stale when the file version no longer matches."""
@@ -518,7 +519,8 @@ def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
         return
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def write(conn: sqlite3.Connection) -> None:
         for job in rows:
             if job.mtime_ns is not None:
                 conn.execute(
@@ -545,6 +547,8 @@ def mark_metadata_jobs_stale(jobs: Iterable[MetadataIndexJob]) -> None:
                     (now, now, job.path, job.mtime, job.size),
                 )
 
+    run_write(write, lane=LANE_NORMAL)
+
 
 def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) -> None:
     """Mark durable metadata jobs failed with a bounded error message."""
@@ -553,7 +557,8 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
         return
     _initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def write(conn: sqlite3.Connection) -> None:
         for job, error in rows:
             if job.mtime_ns is not None:
                 conn.execute(
@@ -579,6 +584,8 @@ def mark_metadata_jobs_failed(errors: Iterable[tuple[MetadataIndexJob, str]]) ->
                     """,
                     (error, now, now, job.path, job.mtime, job.size),
                 )
+
+    run_write(write, lane=LANE_NORMAL)
 
 
 # ---------------------------------------------------------------------------
@@ -679,7 +686,7 @@ def claim_next_metadata_jobs(
 
     Mirrors ``DerivativeScheduler._claim_job`` (``derivative_scheduler/execution.py``): each claim
     records the owner (``worker_id``), its own claim token, and a lease. The claim is one priority-lane
-    database writer op (or, with the writer flag off, one direct ``BEGIN IMMEDIATE`` transaction), so
+    database writer op, so
     claiming K jobs costs one transaction. Returns fewer than ``limit`` jobs when fewer are due.
     """
     if limit < 1:
@@ -690,12 +697,7 @@ def claim_next_metadata_jobs(
     def claim(conn: sqlite3.Connection) -> list[MetadataIndexJob]:
         return _claim_metadata_jobs_conn(conn, limit, worker_id=worker_id, lease_seconds=lease, now=now)
 
-    def claim_directly() -> list[MetadataIndexJob]:
-        with _DB_LOCK, _connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            return claim(conn)
-
-    return run_write(claim, lane=LANE_PRIORITY, fallback=claim_directly)
+    return run_write(claim, lane=LANE_PRIORITY)
 
 
 def claim_next_metadata_job(
@@ -746,11 +748,7 @@ def release_metadata_job_claims(jobs: Iterable[MetadataIndexJob]) -> int:
             released += result.rowcount
         return released
 
-    def release_directly() -> int:
-        with _DB_LOCK, _connect() as conn:
-            return release(conn)
-
-    return run_write(release, lane=LANE_PRIORITY, fallback=release_directly)
+    return run_write(release, lane=LANE_PRIORITY)
 
 
 def renew_metadata_job_lease(
@@ -1313,7 +1311,7 @@ def get_metadata_index_status(path: str | Path | None = None) -> dict[str, Any]:
         scope_predicate, params = path_scope_sql(path)
         where = f"WHERE {scope_predicate}"
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         for row in conn.execute(
             f"""
             SELECT state, count(*) AS total

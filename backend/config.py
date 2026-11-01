@@ -192,7 +192,6 @@ OPEN_FOLDER_ENABLED = os.getenv("GALLERY_OPEN_FOLDER", "false").lower() == "true
 
 # Single database writer (Phase 2 of the worker lifecycle hardening plan). The flag stays until the
 # global write lock is retired so each migrated write path can fall back to its direct transaction.
-DB_WRITER_ENABLED = _env_flag("GALLERY_DB_WRITER_ENABLED", default=True)
 DB_WRITER_BATCH_MAX = max(1, int(os.getenv("GALLERY_DB_WRITER_BATCH_MAX", "50")))
 DB_WRITER_BATCH_MS = max(1.0, float(os.getenv("GALLERY_DB_WRITER_BATCH_MS", "100")))
 DB_WRITER_YIELD_MS = max(0.0, float(os.getenv("GALLERY_DB_WRITER_YIELD_MS", "25")))

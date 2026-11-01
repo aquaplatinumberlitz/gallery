@@ -9,7 +9,7 @@ from typing import Literal
 
 from .errors import APIError, ErrorType
 from .files import is_index_excluded_path
-from .metadata_store import _DB_LOCK, _connect, initialize_database, list_libraries
+from .metadata_store import _connect_read, initialize_database, list_libraries
 from .metadata_store.identity import active_catalog_file_sql, catalog_import_path_owns_sql
 from .metadata_store.path_utils import canonicalize_catalog_path, catalog_path_contains
 from .models import SearchAllScopeV1, SearchFolderScopeV1, SearchLibraryScopeV1, SearchScopeV1
@@ -61,7 +61,7 @@ def _require_catalog_folder(library_id: int, import_root: str, folder_path: str)
         path_sql="descendant.path",
     )
     prefix = folder_path + os.sep
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             f"""
             SELECT 1

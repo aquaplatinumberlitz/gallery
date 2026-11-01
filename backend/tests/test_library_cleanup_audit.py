@@ -51,7 +51,7 @@ def test_library_removal_cleans_every_path_owned_table_and_cache_file(
     library = create_library([root])
     library_id = int(library["id"])
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         asset_id = conn.execute(
             """INSERT INTO assets
                (library_id, path, parent_path, name, type, mtime_ns, size, indexed_at, offline)
@@ -95,7 +95,7 @@ def test_library_removal_cleans_every_path_owned_table_and_cache_file(
     else:
         assert unregister_library(library_id) is True
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         for table in (
             "assets",
             "asset_derivatives",
@@ -111,7 +111,7 @@ def test_library_removal_cleans_every_path_owned_table_and_cache_file(
 
 
 def test_nanosecond_identity_columns_use_integer_affinity(isolated_metadata_db: Path) -> None:
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assets = {row["name"]: row["type"] for row in conn.execute("PRAGMA table_info(assets)")}
         derivatives = {row["name"]: row["type"] for row in conn.execute("PRAGMA table_info(asset_derivatives)")}
     assert assets["mtime_ns"] == "INTEGER"

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 # Runtime counters (Phase 2.5): O(1) status counts maintained by triggers on the counted tables, so every
-# write path (database writer ops, flag-off direct transactions, destructive maintenance, migrations)
+# write path (database writer ops, the no-active-writer path, destructive maintenance, migrations)
 # keeps them exact. ``runtime_counters.py`` owns reading, recomputing, and repairing them.
 RUNTIME_COUNTER_METADATA_STATES = ("queued", "running", "done", "stale", "failed", "skipped")
 RUNTIME_COUNTER_NAMES = (

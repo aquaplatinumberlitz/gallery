@@ -125,7 +125,7 @@ def test_claim_rejects_job_from_stale_library_revision(isolated_metadata_db: Pat
 
     library = register_library(isolated_gallery_root)
     job = create_job("scan", library_id=int(library["id"]))
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute("UPDATE libraries SET config_revision = config_revision + 1 WHERE id = ?", (library["id"],))
     assert claim_next_catalog_job() is None
     assert get_job(int(job["id"]))["state"] == "cancelled"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -11,8 +12,9 @@ from .catalog_maintenance_gate import MaintenanceGateBusy, maintenance_gate
 from .derivative_scheduler import scheduler
 from .errors import APIError
 from .library_events import event_payload, publish
-from .metadata_store import _DB_LOCK, CatalogJobConflict, _connect, create_job, list_libraries, update_job_state
+from .metadata_store import CatalogJobConflict, _connect_read, create_job, list_libraries, update_job_state
 from .metadata_store._schema import initialize_database
+from .metadata_store.db_writer import LANE_NORMAL, run_write
 from .scan_worker import queue_rebuild
 
 RESET_CONFIRM_PHRASE = "RESET CATALOG DATABASE"
@@ -63,7 +65,7 @@ def _active_work_counts_conn(conn: Any) -> dict[str, int]:
 
 def _raise_if_active_work() -> None:
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         counts = _active_work_counts_conn(conn)
     if any(counts.values()):
         raise APIError(409, "maintenance_busy", "Maintenance cannot run while jobs are active", extra=counts)
@@ -82,7 +84,8 @@ def _reset_autoincrement_sequences_conn(conn: Any) -> int:
 def _clear_imported_data_rows() -> tuple[dict[str, int], dict[str, Any]]:
     initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def clear(conn: sqlite3.Connection) -> tuple[dict[str, int], dict[str, Any]]:
         counts = {
             "assets_cleared": _count_rows_conn(conn, "assets"),
             "file_index_rows_cleared": _count_rows_conn(conn, "file_index"),
@@ -97,53 +100,50 @@ def _clear_imported_data_rows() -> tuple[dict[str, int], dict[str, Any]]:
             "search_index_states_reset": _count_rows_conn(conn, "search_index_states"),
             "model_identity_aliases_cleared": _count_rows_conn(conn, "model_identity_aliases"),
         }
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            derivative_result = scheduler.clear_database_rows(conn)
-            conn.execute("DELETE FROM search_index_jobs")
-            conn.execute(
-                """
-                UPDATE search_index_states
-                SET state = 'pending',
-                    indexed_count = 0,
-                    target_count = 0,
-                    failed_count = 0,
-                    skipped_count = 0,
-                    active_job_id = NULL,
-                    started_at = NULL,
-                    completed_at = NULL,
-                    updated_at = ?,
-                    error_code = NULL,
-                    error_summary = NULL
-                """,
-                (now,),
-            )
-            conn.execute("DELETE FROM model_identity_aliases")
-            conn.execute("DELETE FROM catalog_rebuild_entries")
-            conn.execute("DELETE FROM library_jobs")
-            conn.execute("DELETE FROM metadata_index_jobs")
-            conn.execute("DELETE FROM image_resources")
-            conn.execute("DELETE FROM image_metadata")
-            conn.execute("DELETE FROM file_index_fts")
-            conn.execute("DELETE FROM file_index")
-            conn.execute("DELETE FROM folder_index_state")
-            conn.execute("DELETE FROM assets")
-            conn.execute("DELETE FROM integrity_check_runs")
-            conn.execute(
-                """
-                UPDATE libraries
-                SET state = 'discovering',
-                    last_scan_at = NULL,
-                    last_error = NULL,
-                    updated_at = ?
-                """,
-                (now,),
-            )
-            conn.execute("COMMIT")
-        except Exception:
-            conn.execute("ROLLBACK")
-            raise
-    return counts, derivative_result
+        derivative_result = scheduler.clear_database_rows(conn)
+        conn.execute("DELETE FROM search_index_jobs")
+        conn.execute(
+            """
+            UPDATE search_index_states
+            SET state = 'pending',
+                indexed_count = 0,
+                target_count = 0,
+                failed_count = 0,
+                skipped_count = 0,
+                active_job_id = NULL,
+                started_at = NULL,
+                completed_at = NULL,
+                updated_at = ?,
+                error_code = NULL,
+                error_summary = NULL
+            """,
+            (now,),
+        )
+        conn.execute("DELETE FROM model_identity_aliases")
+        conn.execute("DELETE FROM catalog_rebuild_entries")
+        conn.execute("DELETE FROM library_jobs")
+        conn.execute("DELETE FROM metadata_index_jobs")
+        conn.execute("DELETE FROM image_resources")
+        conn.execute("DELETE FROM image_metadata")
+        conn.execute("DELETE FROM file_index_fts")
+        conn.execute("DELETE FROM file_index")
+        conn.execute("DELETE FROM folder_index_state")
+        conn.execute("DELETE FROM assets")
+        conn.execute("DELETE FROM integrity_check_runs")
+        conn.execute(
+            """
+            UPDATE libraries
+            SET state = 'discovering',
+                last_scan_at = NULL,
+                last_error = NULL,
+                updated_at = ?
+            """,
+            (now,),
+        )
+        return counts, derivative_result
+
+    # One atomic maintenance op: the catalog is cleared completely or not at all.
+    return run_write(clear, lane=LANE_NORMAL)
 
 
 def _clear_imported_data() -> tuple[dict[str, int], dict[str, int]]:
@@ -273,7 +273,8 @@ def reset_catalog_database(*, confirm_phrase: str) -> dict[str, Any]:
     with _maintenance_operation():
         _raise_if_active_work()
         initialize_database()
-        with _DB_LOCK, _connect() as conn:
+
+        def reset(conn: sqlite3.Connection) -> tuple[dict[str, int], dict[str, Any], int]:
             counts = {
                 "libraries_deleted": _count_rows_conn(conn, "libraries"),
                 "import_paths_deleted": _count_rows_conn(conn, "library_import_paths"),
@@ -283,27 +284,24 @@ def reset_catalog_database(*, confirm_phrase: str) -> dict[str, Any]:
                 "metadata_jobs_deleted": _count_rows_conn(conn, "metadata_index_jobs"),
                 "library_jobs_deleted": _count_rows_conn(conn, "library_jobs"),
             }
-            conn.execute("BEGIN IMMEDIATE")
-            try:
-                derivative_result = scheduler.clear_database_rows(conn)
-                conn.execute("DELETE FROM catalog_rebuild_entries")
-                conn.execute("DELETE FROM library_jobs")
-                conn.execute("DELETE FROM metadata_index_jobs")
-                conn.execute("DELETE FROM image_resources")
-                conn.execute("DELETE FROM image_metadata")
-                conn.execute("DELETE FROM file_index_fts")
-                conn.execute("DELETE FROM file_index")
-                conn.execute("DELETE FROM folder_index_state")
-                conn.execute("DELETE FROM assets")
-                conn.execute("DELETE FROM library_exclusion_patterns")
-                conn.execute("DELETE FROM library_import_paths")
-                conn.execute("DELETE FROM libraries")
-                conn.execute("DELETE FROM integrity_check_runs")
-                sequences_reset = _reset_autoincrement_sequences_conn(conn)
-                conn.execute("COMMIT")
-            except Exception:
-                conn.execute("ROLLBACK")
-                raise
+            derivative_result = scheduler.clear_database_rows(conn)
+            conn.execute("DELETE FROM catalog_rebuild_entries")
+            conn.execute("DELETE FROM library_jobs")
+            conn.execute("DELETE FROM metadata_index_jobs")
+            conn.execute("DELETE FROM image_resources")
+            conn.execute("DELETE FROM image_metadata")
+            conn.execute("DELETE FROM file_index_fts")
+            conn.execute("DELETE FROM file_index")
+            conn.execute("DELETE FROM folder_index_state")
+            conn.execute("DELETE FROM assets")
+            conn.execute("DELETE FROM library_exclusion_patterns")
+            conn.execute("DELETE FROM library_import_paths")
+            conn.execute("DELETE FROM libraries")
+            conn.execute("DELETE FROM integrity_check_runs")
+            sequences_reset = _reset_autoincrement_sequences_conn(conn)
+            return counts, derivative_result, sequences_reset
+
+        counts, derivative_result, sequences_reset = run_write(reset, lane=LANE_NORMAL)
         cache_result = scheduler.clear_cache_files(derivative_result.pop("cache_paths"))
         derivative_result = {**derivative_result, **cache_result}
         return {

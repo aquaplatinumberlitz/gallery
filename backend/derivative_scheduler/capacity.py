@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from ..metadata_store import _connect
+from ..metadata_store import _connect_read
 from ..metadata_store.db_writer import LANE_NORMAL, run_write
 from ._common import logger
 
@@ -151,13 +151,8 @@ class CapacityMixin:
                 )
             return selected
 
-        def select_and_evict_directly() -> list[tuple[int, str, int]] | bool:
-            with _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                return select_and_evict(conn)
-
         with self._eviction_lock, self._file_lock:
-            evicted = run_write(select_and_evict, lane=lane, fallback=select_and_evict_directly)
+            evicted = run_write(select_and_evict, lane=lane)
             if evicted is True or evicted is False:
                 return evicted
             selected = evicted
@@ -192,20 +187,15 @@ class CapacityMixin:
                         (cache_path, byte_size, derivative_id, cache_path),
                     )
 
-            def finalize_directly() -> None:
-                with _connect() as conn:
-                    conn.execute("BEGIN IMMEDIATE")
-                    finalize(conn)
+            run_write(finalize, lane=lane)
 
-            run_write(finalize, lane=lane, fallback=finalize_directly)
-
-            with _connect() as conn:
+            with _connect_read() as conn:
                 return self._capacity_available(conn, estimated_bytes)
 
     def _enforce_quota(self) -> None:
         if self._reserve_capacity(0):
             return
-        with _connect() as conn:
+        with _connect_read() as conn:
             total = int(
                 conn.execute(
                     "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"

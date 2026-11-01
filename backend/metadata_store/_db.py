@@ -3,60 +3,12 @@
 from __future__ import annotations
 
 import sqlite3
-import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TypeVar
 
 from .path_utils import _compare_natural_sql
 
-_WRITER_THREAD = threading.local()
-_T = TypeVar("_T")
-
-
-class WriterThreadLockError(RuntimeError):
-    """Raised when the database writer thread tries to take ``_DB_LOCK``.
-
-    Code running on the writer thread (inside a writer op) must never wait for the global lock: a
-    thread that holds it may itself be waiting for the writer, and the two would deadlock. The error
-    turns that hang into an immediate, attributable failure of the one op.
-    """
-
-
-def mark_writer_thread(active: bool) -> None:
-    """Flag the calling thread as the database writer thread (set once, when the thread starts)."""
-    _WRITER_THREAD.active = active
-
-
-class _DatabaseLock:
-    """The process-wide reentrant write lock, refusing to be taken by the database writer thread."""
-
-    __slots__ = ("_lock",)
-
-    def __init__(self) -> None:
-        self._lock = threading.RLock()
-
-    def acquire(self, blocking: bool = True, timeout: float = -1) -> bool:
-        if getattr(_WRITER_THREAD, "active", False):
-            raise WriterThreadLockError("the database writer thread must not acquire _DB_LOCK")
-        return self._lock.acquire(blocking, timeout)
-
-    def release(self) -> None:
-        self._lock.release()
-
-    def __enter__(self) -> bool:
-        return self.acquire()
-
-    def __exit__(self, *_exc: object) -> None:
-        self._lock.release()
-
-    def is_owned(self) -> bool:
-        """Return whether the calling thread currently holds the lock."""
-        return bool(self._lock._is_owned())  # type: ignore[attr-defined]
-
-
-_DB_LOCK = _DatabaseLock()
 _DB_INITIALIZED = False
 _DB_INITIALIZED_PATH: Path | None = None
 METADATA_JOB_STATES = ("queued", "running", "done", "failed", "stale", "skipped")
@@ -128,7 +80,7 @@ def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
 def _connect_read() -> sqlite3.Connection:
     """Open a read-only connection for status snapshots.
 
-    The connection never takes ``_DB_LOCK`` and refuses writes (``query_only``), so a
+    The connection takes no Python lock and refuses writes (``query_only``), so a
     status read cannot queue behind, or block, any worker. Transactions are explicit
     (``isolation_level=None``) so callers choose exactly when a snapshot starts.
     """
@@ -142,12 +94,27 @@ def _connect_read() -> sqlite3.Connection:
     return conn
 
 
+def _connect_readonly(*, timeout: float = 30.0) -> sqlite3.Connection:
+    """Open an OS-level read-only connection (``mode=ro``) that may still create TEMP tables.
+
+    For read paths that stage intermediate rows in a temp table (facets) or need a short busy timeout
+    (raw workflow search). Writes to the database fail at the file level; TEMP objects live in a private
+    temp store, which ``PRAGMA query_only`` would forbid.
+    """
+    db_path = _gallery_metadata_db_path()
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=timeout, isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
+    conn.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
+    return conn
+
+
 @contextmanager
 def _read_snapshot(conn: sqlite3.Connection | None = None) -> Iterator[sqlite3.Connection]:
     """Yield a connection whose reads all come from one consistent WAL snapshot.
 
     Opens a read connection, starts one deferred read transaction (the snapshot is
-    fixed by the first read), and always rolls back and closes it. ``_DB_LOCK`` is not
+    fixed by the first read), and always rolls back and closes it. No Python lock is
     taken: WAL readers do not block the writer and the writer does not block them.
     Pass ``conn`` to join a snapshot owned by an outer status build; it is yielded
     unchanged and left open for its owner.
@@ -171,23 +138,3 @@ def init_db() -> None:
     from ._schema import initialize_database
 
     initialize_database()
-
-
-def run_direct_immediate(
-    op: Callable[[sqlite3.Connection], _T], *, connect: Callable[[], sqlite3.Connection] | None = None
-) -> _T:
-    """Run ``op(conn)`` in one direct ``BEGIN IMMEDIATE`` transaction under ``_DB_LOCK`` (the flag-off path).
-
-    Every catalog write below is a function of a connection (so it can run as a database writer op) plus
-    this wrapper as its ``run_write`` fallback; ``_DB_LOCK`` is only ever taken here, never while waiting
-    for the writer.
-    """
-    with _DB_LOCK, (connect or _connect)() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            result = op(conn)
-        except Exception:
-            conn.execute("ROLLBACK")
-            raise
-        conn.execute("COMMIT")
-        return result

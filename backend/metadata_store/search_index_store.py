@@ -9,8 +9,9 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from ._db import _DB_LOCK, _connect
+from ._db import _connect_read
 from ._schema import initialize_database
+from .db_writer import LANE_NORMAL, LANE_PRIORITY, run_write
 
 ACTIVE_SEARCH_INDEX_JOB_STATES = ("queued", "running", "cancel_requested", "interrupted")
 SEARCH_INDEX_TERMINAL_STATES = ("cancelled", "succeeded", "failed")
@@ -61,6 +62,10 @@ def _serialize_state(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
     return state
 
 
+class _AbortOp(Exception):
+    """Raised inside a writer op to roll the whole op back and return nothing."""
+
+
 def _serialize_job(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
     job = dict(row)
     job.pop("claim_token", None)
@@ -79,7 +84,8 @@ def ensure_search_index_state(
     initialize_database()
     now = time.time()
     desired_state = "pending" if enabled else "disabled"
-    with _DB_LOCK, _connect() as conn:
+
+    def op(conn: sqlite3.Connection) -> dict[str, Any]:
         if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
             raise KeyError(library_id)
         conn.execute(
@@ -104,7 +110,9 @@ def ensure_search_index_state(
             "SELECT * FROM search_index_states WHERE index_name = ? AND library_id = ?",
             (index_name, library_id),
         ).fetchone()
-    return _serialize_state(row)
+        return _serialize_state(row)
+
+    return run_write(op, lane=LANE_NORMAL)
 
 
 def list_search_index_states(*, library_id: int | None = None) -> list[dict[str, Any]]:
@@ -116,7 +124,7 @@ def list_search_index_states(*, library_id: int | None = None) -> list[dict[str,
         query += " WHERE library_id = ?"
         params = (library_id,)
     query += " ORDER BY library_id, index_name"
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         result: list[dict[str, Any]] = []
         for row in conn.execute(query, params):
             item = _serialize_state(row)
@@ -176,7 +184,7 @@ def mark_search_index_asset_stale_conn(
 def get_search_index_job(job_id: int) -> dict[str, Any] | None:
     """Return one public durable search-index job."""
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (job_id,)).fetchone()
     return _serialize_job(row) if row is not None else None
 
@@ -194,69 +202,66 @@ def create_search_index_job(
         raise ValueError("Invalid search index rebuild mode")
     initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
-                raise KeyError(library_id)
-            placeholders = ",".join("?" for _ in ACTIVE_SEARCH_INDEX_JOB_STATES)
-            active = conn.execute(
-                f"""
-                SELECT id FROM search_index_jobs
-                WHERE index_name = ? AND library_id = ? AND state IN ({placeholders})
-                LIMIT 1
-                """,
-                (index_name, library_id, *ACTIVE_SEARCH_INDEX_JOB_STATES),
-            ).fetchone()
-            if active is not None:
-                raise SearchIndexJobConflict(int(active["id"]))
-            target_count = int(
-                conn.execute(
-                    """
-                    SELECT count(*) FROM assets
-                    WHERE library_id = ? AND offline = 0 AND deleted_at IS NULL
-                      AND type IN ('image', 'video')
-                    """,
-                    (library_id,),
-                ).fetchone()[0]
-            )
-            cursor = conn.execute(
-                """
-                INSERT INTO search_index_jobs (
-                  index_name, library_id, mode, state, processed_count,
-                  target_count, failed_count, requested_at
-                ) VALUES (?, ?, ?, 'queued', 0, ?, 0, ?)
-                """,
-                (index_name, library_id, mode, target_count, now),
-            )
-            job_id = int(cursor.lastrowid)
+
+    def op(conn: sqlite3.Connection) -> Any:
+        if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
+            raise KeyError(library_id)
+        placeholders = ",".join("?" for _ in ACTIVE_SEARCH_INDEX_JOB_STATES)
+        active = conn.execute(
+            f"""
+            SELECT id FROM search_index_jobs
+            WHERE index_name = ? AND library_id = ? AND state IN ({placeholders})
+            LIMIT 1
+            """,
+            (index_name, library_id, *ACTIVE_SEARCH_INDEX_JOB_STATES),
+        ).fetchone()
+        if active is not None:
+            raise SearchIndexJobConflict(int(active["id"]))
+        target_count = int(
             conn.execute(
                 """
-                INSERT INTO search_index_states (
-                  index_name, library_id, state, schema_version, extractor_version,
-                  indexed_count, target_count, failed_count, active_job_id, updated_at
-                ) VALUES (?, ?, 'pending', ?, ?, 0, ?, 0, ?, ?)
-                ON CONFLICT(index_name, library_id) DO UPDATE SET
-                  state = CASE
-                    WHEN search_index_states.state IN ('ready', 'degraded') THEN search_index_states.state
-                    ELSE 'pending'
-                  END,
-                  schema_version = excluded.schema_version,
-                  extractor_version = excluded.extractor_version,
-                  target_count = excluded.target_count,
-                  active_job_id = excluded.active_job_id,
-                  updated_at = excluded.updated_at,
-                  error_code = NULL,
-                  error_summary = NULL
+                SELECT count(*) FROM assets
+                WHERE library_id = ? AND offline = 0 AND deleted_at IS NULL
+                  AND type IN ('image', 'video')
                 """,
-                (index_name, library_id, schema_version, extractor_version, target_count, job_id, now),
-            )
-            row = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (job_id,)).fetchone()
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-    return _serialize_job(row)
+                (library_id,),
+            ).fetchone()[0]
+        )
+        cursor = conn.execute(
+            """
+            INSERT INTO search_index_jobs (
+              index_name, library_id, mode, state, processed_count,
+              target_count, failed_count, requested_at
+            ) VALUES (?, ?, ?, 'queued', 0, ?, 0, ?)
+            """,
+            (index_name, library_id, mode, target_count, now),
+        )
+        job_id = int(cursor.lastrowid)
+        conn.execute(
+            """
+            INSERT INTO search_index_states (
+              index_name, library_id, state, schema_version, extractor_version,
+              indexed_count, target_count, failed_count, active_job_id, updated_at
+            ) VALUES (?, ?, 'pending', ?, ?, 0, ?, 0, ?, ?)
+            ON CONFLICT(index_name, library_id) DO UPDATE SET
+              state = CASE
+                WHEN search_index_states.state IN ('ready', 'degraded') THEN search_index_states.state
+                ELSE 'pending'
+              END,
+              schema_version = excluded.schema_version,
+              extractor_version = excluded.extractor_version,
+              target_count = excluded.target_count,
+              active_job_id = excluded.active_job_id,
+              updated_at = excluded.updated_at,
+              error_code = NULL,
+              error_summary = NULL
+            """,
+            (index_name, library_id, schema_version, extractor_version, target_count, job_id, now),
+        )
+        row = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (job_id,)).fetchone()
+        return _serialize_job(row)
+
+    return run_write(op, lane=LANE_PRIORITY)
 
 
 def claim_next_search_index_job(
@@ -267,109 +272,107 @@ def claim_next_search_index_job(
     """Claim one queued/interrupted job with a fresh fencing token."""
     initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            expired = conn.execute(
-                """
-                SELECT * FROM search_index_jobs
-                WHERE state IN ('running', 'cancel_requested')
-                  AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
-                ORDER BY id
-                """,
-                (now,),
-            ).fetchall()
-            for stale in expired:
-                next_state = "cancelled" if stale["state"] == "cancel_requested" else "interrupted"
-                conn.execute(
-                    """
-                    UPDATE search_index_jobs
-                    SET state = ?, claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL,
-                        finished_at = CASE WHEN ? = 'cancelled' THEN ? ELSE finished_at END,
-                        error_code = CASE WHEN ? = 'interrupted' THEN 'lease_expired' ELSE error_code END,
-                        error_summary = CASE WHEN ? = 'interrupted' THEN 'Search index lease expired' ELSE error_summary END
-                    WHERE id = ? AND state = ? AND claim_token IS ?
-                    """,
-                    (
-                        next_state,
-                        next_state,
-                        now,
-                        next_state,
-                        next_state,
-                        int(stale["id"]),
-                        stale["state"],
-                        stale["claim_token"],
-                    ),
-                )
-                if next_state == "cancelled":
-                    conn.execute(
-                        "UPDATE search_index_states SET active_job_id = NULL, updated_at = ? WHERE active_job_id = ?",
-                        (now, int(stale["id"])),
-                    )
-                else:
-                    conn.execute(
-                        """
-                        UPDATE search_index_states
-                        SET state = CASE WHEN indexed_count > 0 THEN 'degraded' ELSE 'pending' END,
-                            updated_at = ?, error_code = 'lease_expired',
-                            error_summary = 'Search index lease expired'
-                        WHERE active_job_id = ?
-                        """,
-                        (now, int(stale["id"])),
-                    )
-            running = conn.execute(
-                "SELECT 1 FROM search_index_jobs WHERE state IN ('running', 'cancel_requested') LIMIT 1"
-            ).fetchone()
-            if running is not None:
-                conn.commit()
-                return None
-            row = conn.execute(
-                """
-                SELECT * FROM search_index_jobs
-                WHERE state IN ('queued', 'interrupted')
-                ORDER BY requested_at, id
-                LIMIT 1
-                """
-            ).fetchone()
-            if row is None:
-                conn.commit()
-                return None
-            token = uuid.uuid4().hex
-            cursor = conn.execute(
-                """
-                UPDATE search_index_jobs
-                SET state = 'running', started_at = COALESCE(started_at, ?),
-                    claimed_by = ?, claim_token = ?, lease_expires_at = ?
-                WHERE id = ? AND state IN ('queued', 'interrupted')
-                """,
-                (now, worker_id, token, now + max(1.0, lease_seconds), int(row["id"])),
-            )
-            if cursor.rowcount != 1:
-                conn.rollback()
-                return None
+
+    def op(conn: sqlite3.Connection) -> Any:
+        expired = conn.execute(
+            """
+            SELECT * FROM search_index_jobs
+            WHERE state IN ('running', 'cancel_requested')
+              AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+            ORDER BY id
+            """,
+            (now,),
+        ).fetchall()
+        for stale in expired:
+            next_state = "cancelled" if stale["state"] == "cancel_requested" else "interrupted"
             conn.execute(
                 """
-                UPDATE search_index_states
-                SET state = 'building', active_job_id = ?, started_at = COALESCE(started_at, ?), updated_at = ?
-                WHERE index_name = ? AND library_id = ?
+                UPDATE search_index_jobs
+                SET state = ?, claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL,
+                    finished_at = CASE WHEN ? = 'cancelled' THEN ? ELSE finished_at END,
+                    error_code = CASE WHEN ? = 'interrupted' THEN 'lease_expired' ELSE error_code END,
+                    error_summary = CASE WHEN ? = 'interrupted' THEN 'Search index lease expired' ELSE error_summary END
+                WHERE id = ? AND state = ? AND claim_token IS ?
                 """,
-                (int(row["id"]), now, now, row["index_name"], int(row["library_id"])),
+                (
+                    next_state,
+                    next_state,
+                    now,
+                    next_state,
+                    next_state,
+                    int(stale["id"]),
+                    stale["state"],
+                    stale["claim_token"],
+                ),
             )
-            claimed = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (int(row["id"]),)).fetchone()
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-    job = dict(claimed)
-    job["claim_token"] = token
-    return job
+            if next_state == "cancelled":
+                conn.execute(
+                    "UPDATE search_index_states SET active_job_id = NULL, updated_at = ? WHERE active_job_id = ?",
+                    (now, int(stale["id"])),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE search_index_states
+                    SET state = CASE WHEN indexed_count > 0 THEN 'degraded' ELSE 'pending' END,
+                        updated_at = ?, error_code = 'lease_expired',
+                        error_summary = 'Search index lease expired'
+                    WHERE active_job_id = ?
+                    """,
+                    (now, int(stale["id"])),
+                )
+        running = conn.execute(
+            "SELECT 1 FROM search_index_jobs WHERE state IN ('running', 'cancel_requested') LIMIT 1"
+        ).fetchone()
+        if running is not None:
+            return None
+        row = conn.execute(
+            """
+            SELECT * FROM search_index_jobs
+            WHERE state IN ('queued', 'interrupted')
+            ORDER BY requested_at, id
+            LIMIT 1
+            """
+        ).fetchone()
+        if row is None:
+            return None
+        token = uuid.uuid4().hex
+        cursor = conn.execute(
+            """
+            UPDATE search_index_jobs
+            SET state = 'running', started_at = COALESCE(started_at, ?),
+                claimed_by = ?, claim_token = ?, lease_expires_at = ?
+            WHERE id = ? AND state IN ('queued', 'interrupted')
+            """,
+            (now, worker_id, token, now + max(1.0, lease_seconds), int(row["id"])),
+        )
+        if cursor.rowcount != 1:
+            raise _AbortOp  # roll back the lease-expiry transitions made above as well
+        conn.execute(
+            """
+            UPDATE search_index_states
+            SET state = 'building', active_job_id = ?, started_at = COALESCE(started_at, ?), updated_at = ?
+            WHERE index_name = ? AND library_id = ?
+            """,
+            (int(row["id"]), now, now, row["index_name"], int(row["library_id"])),
+        )
+        claimed = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (int(row["id"]),)).fetchone()
+        job = dict(claimed)
+        job["claim_token"] = token
+        return job
+
+    try:
+        return run_write(op, lane=LANE_PRIORITY)
+    except _AbortOp:
+        return None
 
 
 def renew_search_index_job_lease(job_id: int, claim_token: str, *, lease_seconds: float = 300) -> bool:
     """Renew an exact running/cancel-requested claim."""
     initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+
+    def op(conn: sqlite3.Connection) -> bool:
         cursor = conn.execute(
             """
             UPDATE search_index_jobs SET lease_expires_at = ?
@@ -377,7 +380,9 @@ def renew_search_index_job_lease(job_id: int, claim_token: str, *, lease_seconds
             """,
             (now + max(1.0, lease_seconds), job_id, claim_token),
         )
-    return cursor.rowcount == 1
+        return cursor.rowcount == 1
+
+    return run_write(op, lane=LANE_PRIORITY)
 
 
 def list_search_index_asset_batch(
@@ -404,7 +409,7 @@ def list_search_index_asset_batch(
         """
         params.extend((extractor_version, str(job["index_name"])))
     params.append(batch_limit)
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         rows = conn.execute(
             f"""
             SELECT asset.*
@@ -441,81 +446,78 @@ def record_search_index_extraction(
         raise ValueError("Invalid search extraction status")
     initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            job = conn.execute(
-                """
-                SELECT * FROM search_index_jobs
-                WHERE id = ? AND claim_token = ?
-                  AND state IN ('running', 'cancel_requested')
-                  AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
-                """,
-                (job_id, claim_token, now),
-            ).fetchone()
-            if job is None:
-                raise SearchIndexClaimLost(job_id)
-            if status != "failed":
-                persist(conn, asset, payload)
-            conn.execute(
-                """
-                INSERT INTO asset_search_extractions (
-                  asset_id, index_name, source_fingerprint, extractor_version,
-                  status, error_code, indexed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(asset_id, index_name) DO UPDATE SET
-                  source_fingerprint = CASE
-                    WHEN excluded.status = 'failed'
-                     AND asset_search_extractions.status IN ('ready', 'not_applicable', 'skipped')
-                    THEN asset_search_extractions.source_fingerprint
-                    ELSE excluded.source_fingerprint
-                  END,
-                  extractor_version = CASE
-                    WHEN excluded.status = 'failed'
-                     AND asset_search_extractions.status IN ('ready', 'not_applicable', 'skipped')
-                    THEN asset_search_extractions.extractor_version
-                    ELSE excluded.extractor_version
-                  END,
-                  status = CASE
-                    WHEN excluded.status = 'failed'
-                     AND asset_search_extractions.status IN ('ready', 'not_applicable', 'skipped')
-                    THEN asset_search_extractions.status
-                    ELSE excluded.status
-                  END,
-                  error_code = excluded.error_code,
-                  indexed_at = excluded.indexed_at
-                """,
-                (
-                    int(asset["id"]),
-                    index_name,
-                    source_fingerprint(asset),
-                    extractor_version,
-                    status,
-                    _sanitize_error_code(error_code, "extraction_failed") if error_code else None,
-                    now,
-                ),
-            )
-            conn.execute(
-                """
-                UPDATE search_index_jobs
-                SET cursor_asset_id = ?, processed_count = processed_count + 1,
-                    failed_count = failed_count + ?, skipped_count = skipped_count + ?,
-                    lease_expires_at = ?
-                WHERE id = ? AND claim_token = ?
-                """,
-                (
-                    int(asset["id"]),
-                    int(status == "failed"),
-                    int(status == "skipped"),
-                    now + max(1.0, lease_seconds),
-                    job_id,
-                    claim_token,
-                ),
-            )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
+
+    def op(conn: sqlite3.Connection) -> None:
+        job = conn.execute(
+            """
+            SELECT * FROM search_index_jobs
+            WHERE id = ? AND claim_token = ?
+              AND state IN ('running', 'cancel_requested')
+              AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
+            """,
+            (job_id, claim_token, now),
+        ).fetchone()
+        if job is None:
+            raise SearchIndexClaimLost(job_id)
+        if status != "failed":
+            persist(conn, asset, payload)
+        conn.execute(
+            """
+            INSERT INTO asset_search_extractions (
+              asset_id, index_name, source_fingerprint, extractor_version,
+              status, error_code, indexed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(asset_id, index_name) DO UPDATE SET
+              source_fingerprint = CASE
+                WHEN excluded.status = 'failed'
+                 AND asset_search_extractions.status IN ('ready', 'not_applicable', 'skipped')
+                THEN asset_search_extractions.source_fingerprint
+                ELSE excluded.source_fingerprint
+              END,
+              extractor_version = CASE
+                WHEN excluded.status = 'failed'
+                 AND asset_search_extractions.status IN ('ready', 'not_applicable', 'skipped')
+                THEN asset_search_extractions.extractor_version
+                ELSE excluded.extractor_version
+              END,
+              status = CASE
+                WHEN excluded.status = 'failed'
+                 AND asset_search_extractions.status IN ('ready', 'not_applicable', 'skipped')
+                THEN asset_search_extractions.status
+                ELSE excluded.status
+              END,
+              error_code = excluded.error_code,
+              indexed_at = excluded.indexed_at
+            """,
+            (
+                int(asset["id"]),
+                index_name,
+                source_fingerprint(asset),
+                extractor_version,
+                status,
+                _sanitize_error_code(error_code, "extraction_failed") if error_code else None,
+                now,
+            ),
+        )
+        conn.execute(
+            """
+            UPDATE search_index_jobs
+            SET cursor_asset_id = ?, processed_count = processed_count + 1,
+                failed_count = failed_count + ?, skipped_count = skipped_count + ?,
+                lease_expires_at = ?
+            WHERE id = ? AND claim_token = ?
+            """,
+            (
+                int(asset["id"]),
+                int(status == "failed"),
+                int(status == "skipped"),
+                now + max(1.0, lease_seconds),
+                job_id,
+                claim_token,
+            ),
+        )
+
+    run_write(op, lane=LANE_NORMAL)
 
 
 def _current_extraction_counts(conn: sqlite3.Connection, index_name: str, library_id: int) -> tuple[int, int, int, int]:
@@ -555,167 +557,153 @@ def finish_search_index_job(
         raise ValueError("Invalid terminal search index job state")
     initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            row = conn.execute(
-                """
-                SELECT * FROM search_index_jobs
-                WHERE id = ? AND claim_token = ?
-                  AND state IN ('running', 'cancel_requested')
-                  AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
-                """,
-                (job_id, claim_token, now),
-            ).fetchone()
-            if row is None:
-                conn.rollback()
-                return None
-            code = _sanitize_error_code(error_code) if state == "failed" else None
-            summary = _sanitize_error_summary(error_summary) if state == "failed" else None
-            conn.execute(
-                """
-                UPDATE search_index_jobs
-                SET state = ?, finished_at = ?, claimed_by = NULL, claim_token = NULL,
-                    lease_expires_at = NULL, error_code = ?, error_summary = ?
-                WHERE id = ? AND claim_token = ?
-                """,
-                (state, now, code, summary, job_id, claim_token),
-            )
-            indexed_count, target_count, failed_count, skipped_count = _current_extraction_counts(
-                conn, str(row["index_name"]), int(row["library_id"])
-            )
-            failed_count = max(failed_count, int(row["failed_count"] or 0))
-            skipped_count = max(skipped_count, int(row["skipped_count"] or 0))
-            if state == "succeeded":
-                index_state = "degraded" if failed_count or skipped_count else "ready"
-            elif indexed_count > 0 or target_count == 0:
-                index_state = "degraded"
-            else:
-                index_state = "failed" if state == "failed" else "pending"
-            conn.execute(
-                """
-                UPDATE search_index_states
-                SET state = ?, indexed_count = ?, target_count = ?, failed_count = ?, skipped_count = ?,
-                    active_job_id = NULL, completed_at = ?, updated_at = ?,
-                    error_code = ?, error_summary = ?
-                WHERE index_name = ? AND library_id = ? AND active_job_id = ?
-                """,
-                (
-                    index_state,
-                    indexed_count,
-                    target_count,
-                    failed_count,
-                    skipped_count,
-                    now,
-                    now,
-                    code,
-                    summary,
-                    row["index_name"],
-                    int(row["library_id"]),
-                    job_id,
-                ),
-            )
-            result = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (job_id,)).fetchone()
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-    return _serialize_job(result)
+
+    def op(conn: sqlite3.Connection) -> dict[str, Any] | None:
+        row = conn.execute(
+            """
+            SELECT * FROM search_index_jobs
+            WHERE id = ? AND claim_token = ?
+              AND state IN ('running', 'cancel_requested')
+              AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
+            """,
+            (job_id, claim_token, now),
+        ).fetchone()
+        if row is None:
+            return None
+        code = _sanitize_error_code(error_code) if state == "failed" else None
+        summary = _sanitize_error_summary(error_summary) if state == "failed" else None
+        conn.execute(
+            """
+            UPDATE search_index_jobs
+            SET state = ?, finished_at = ?, claimed_by = NULL, claim_token = NULL,
+                lease_expires_at = NULL, error_code = ?, error_summary = ?
+            WHERE id = ? AND claim_token = ?
+            """,
+            (state, now, code, summary, job_id, claim_token),
+        )
+        indexed_count, target_count, failed_count, skipped_count = _current_extraction_counts(
+            conn, str(row["index_name"]), int(row["library_id"])
+        )
+        failed_count = max(failed_count, int(row["failed_count"] or 0))
+        skipped_count = max(skipped_count, int(row["skipped_count"] or 0))
+        if state == "succeeded":
+            index_state = "degraded" if failed_count or skipped_count else "ready"
+        elif indexed_count > 0 or target_count == 0:
+            index_state = "degraded"
+        else:
+            index_state = "failed" if state == "failed" else "pending"
+        conn.execute(
+            """
+            UPDATE search_index_states
+            SET state = ?, indexed_count = ?, target_count = ?, failed_count = ?, skipped_count = ?,
+                active_job_id = NULL, completed_at = ?, updated_at = ?,
+                error_code = ?, error_summary = ?
+            WHERE index_name = ? AND library_id = ? AND active_job_id = ?
+            """,
+            (
+                index_state,
+                indexed_count,
+                target_count,
+                failed_count,
+                skipped_count,
+                now,
+                now,
+                code,
+                summary,
+                row["index_name"],
+                int(row["library_id"]),
+                job_id,
+            ),
+        )
+        result = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (job_id,)).fetchone()
+        return _serialize_job(result)
+
+    return run_write(op, lane=LANE_PRIORITY)
 
 
 def request_search_index_job_cancel(job_id: int) -> dict[str, Any] | None:
     """Request idempotent cancellation, immediately cancelling unclaimed work."""
     initialize_database()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            row = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (job_id,)).fetchone()
-            if row is None:
-                conn.commit()
-                return None
-            current = str(row["state"])
-            if current in SEARCH_INDEX_TERMINAL_STATES or current == "cancel_requested":
-                conn.commit()
-                return _serialize_job(row)
-            if current in {"queued", "interrupted"}:
-                conn.execute(
-                    "UPDATE search_index_jobs SET state = 'cancelled', finished_at = ? WHERE id = ?",
-                    (now, job_id),
-                )
-                conn.execute(
-                    """
-                    UPDATE search_index_states
-                    SET state = CASE WHEN indexed_count > 0 OR target_count = 0 THEN 'degraded' ELSE 'pending' END,
-                        active_job_id = NULL, updated_at = ?
-                    WHERE active_job_id = ?
-                    """,
-                    (now, job_id),
-                )
-            else:
-                conn.execute("UPDATE search_index_jobs SET state = 'cancel_requested' WHERE id = ?", (job_id,))
-            updated = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (job_id,)).fetchone()
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-    return _serialize_job(updated)
+
+    def op(conn: sqlite3.Connection) -> dict[str, Any] | None:
+        row = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (job_id,)).fetchone()
+        if row is None:
+            return None
+        current = str(row["state"])
+        if current in SEARCH_INDEX_TERMINAL_STATES or current == "cancel_requested":
+            return _serialize_job(row)
+        if current in {"queued", "interrupted"}:
+            conn.execute(
+                "UPDATE search_index_jobs SET state = 'cancelled', finished_at = ? WHERE id = ?",
+                (now, job_id),
+            )
+            conn.execute(
+                """
+                UPDATE search_index_states
+                SET state = CASE WHEN indexed_count > 0 OR target_count = 0 THEN 'degraded' ELSE 'pending' END,
+                    active_job_id = NULL, updated_at = ?
+                WHERE active_job_id = ?
+                """,
+                (now, job_id),
+            )
+        else:
+            conn.execute("UPDATE search_index_jobs SET state = 'cancel_requested' WHERE id = ?", (job_id,))
+        updated = conn.execute("SELECT * FROM search_index_jobs WHERE id = ?", (job_id,)).fetchone()
+        return _serialize_job(updated)
+
+    return run_write(op, lane=LANE_PRIORITY)
 
 
 def recover_search_index_jobs(*, reason: str = "Interrupted by server restart") -> list[dict[str, Any]]:
     """Mark stale running work interrupted so the next claim resumes its cursor."""
     initialize_database()
     now = time.time()
-    recovered: list[dict[str, Any]] = []
-    with _DB_LOCK, _connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            rows = conn.execute(
-                "SELECT * FROM search_index_jobs WHERE state IN ('running', 'cancel_requested')"
-            ).fetchall()
-            for row in rows:
-                next_state = "cancelled" if row["state"] == "cancel_requested" else "interrupted"
+
+    def op(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+        recovered: list[dict[str, Any]] = []
+        rows = conn.execute("SELECT * FROM search_index_jobs WHERE state IN ('running', 'cancel_requested')").fetchall()
+        for row in rows:
+            next_state = "cancelled" if row["state"] == "cancel_requested" else "interrupted"
+            conn.execute(
+                """
+                UPDATE search_index_jobs
+                SET state = ?, claimed_by = NULL, claim_token = NULL,
+                    lease_expires_at = NULL, finished_at = CASE WHEN ? = 'cancelled' THEN ? ELSE finished_at END,
+                    error_code = CASE WHEN ? = 'interrupted' THEN 'interrupted' ELSE error_code END,
+                    error_summary = CASE WHEN ? = 'interrupted' THEN ? ELSE error_summary END
+                WHERE id = ? AND claim_token IS ?
+                """,
+                (next_state, next_state, now, next_state, next_state, reason, int(row["id"]), row["claim_token"]),
+            )
+            if next_state == "cancelled":
+                conn.execute(
+                    "UPDATE search_index_states SET active_job_id = NULL, updated_at = ? WHERE active_job_id = ?",
+                    (now, int(row["id"])),
+                )
+            else:
                 conn.execute(
                     """
-                    UPDATE search_index_jobs
-                    SET state = ?, claimed_by = NULL, claim_token = NULL,
-                        lease_expires_at = NULL, finished_at = CASE WHEN ? = 'cancelled' THEN ? ELSE finished_at END,
-                        error_code = CASE WHEN ? = 'interrupted' THEN 'interrupted' ELSE error_code END,
-                        error_summary = CASE WHEN ? = 'interrupted' THEN ? ELSE error_summary END
-                    WHERE id = ? AND claim_token IS ?
+                    UPDATE search_index_states
+                    SET state = CASE WHEN indexed_count > 0 THEN 'degraded' ELSE 'pending' END,
+                        updated_at = ?, error_code = 'interrupted', error_summary = ?
+                    WHERE active_job_id = ?
                     """,
-                    (next_state, next_state, now, next_state, next_state, reason, int(row["id"]), row["claim_token"]),
+                    (now, reason, int(row["id"])),
                 )
-                if next_state == "cancelled":
-                    conn.execute(
-                        "UPDATE search_index_states SET active_job_id = NULL, updated_at = ? WHERE active_job_id = ?",
-                        (now, int(row["id"])),
-                    )
-                else:
-                    conn.execute(
-                        """
-                        UPDATE search_index_states
-                        SET state = CASE WHEN indexed_count > 0 THEN 'degraded' ELSE 'pending' END,
-                            updated_at = ?, error_code = 'interrupted', error_summary = ?
-                        WHERE active_job_id = ?
-                        """,
-                        (now, reason, int(row["id"])),
-                    )
-                updated = dict(row)
-                updated["state"] = next_state
-                updated.pop("claim_token", None)
-                recovered.append(updated)
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-    return recovered
+            updated = dict(row)
+            updated["state"] = next_state
+            updated.pop("claim_token", None)
+            recovered.append(updated)
+        return recovered
+
+    return run_write(op, lane=LANE_NORMAL)
 
 
 def search_index_job_control_state(job_id: int, claim_token: str) -> str | None:
     """Return the state for an exact live claim, or None after claim loss."""
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             """
             SELECT state FROM search_index_jobs

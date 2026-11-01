@@ -108,12 +108,12 @@ class TestAssetDoneNoMetadata:
         source_stat = Path(path).stat()
         size = source_stat.st_size
         mtime_ns = source_stat.st_mtime_ns
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size, metadata_state="done")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             count = _checker._check_asset_done_no_metadata(conn)
         assert count == 1
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             row = conn.execute("SELECT metadata_state FROM assets WHERE path = ?", (path,)).fetchone()
             assert row["metadata_state"] == "pending"
             job = conn.execute("SELECT state FROM metadata_index_jobs WHERE path = ?", (path,)).fetchone()
@@ -128,10 +128,10 @@ class TestAssetDoneNoMetadata:
         source_stat = Path(path).stat()
         size = source_stat.st_size
         mtime_ns = source_stat.st_mtime_ns
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size, metadata_state="done")
             _image_metadata_row(conn, path, mtime_ns, size)
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             count = _checker._check_asset_done_no_metadata(conn)
         assert count == 0
 
@@ -143,10 +143,10 @@ class TestAssetDoneNoMetadata:
         size = 1024
         old_mtime_ns = int(time.time() * 1e9) - 1_000_000_000
         new_mtime_ns = int(time.time() * 1e9)
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, new_mtime_ns, size, metadata_state="done")
             _image_metadata_row(conn, path, old_mtime_ns, size)
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             count = _checker._check_asset_done_no_metadata(conn)
         assert count == 1
 
@@ -166,14 +166,14 @@ class TestJobDoneAssetNotDone:
         source_stat = Path(path).stat()
         size = source_stat.st_size
         mtime_ns = source_stat.st_mtime_ns
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size, metadata_state="pending")
             _image_metadata_row(conn, path, mtime_ns, size)
             _metadata_job_row(conn, path, state="done", mtime_ns=mtime_ns, size=size)
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             count = _checker._check_job_done_asset_not_done(conn)
         assert count == 1
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             row = conn.execute("SELECT metadata_state FROM assets WHERE path = ?", (path,)).fetchone()
             assert row["metadata_state"] == "done"
 
@@ -186,10 +186,10 @@ class TestJobDoneAssetNotDone:
         source_stat = Path(path).stat()
         size = source_stat.st_size
         mtime_ns = source_stat.st_mtime_ns
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size, metadata_state="pending")
             _metadata_job_row(conn, path, state="done", mtime_ns=mtime_ns, size=size)
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             count = _checker._check_job_done_asset_not_done(conn)
         assert count == 0
 
@@ -202,12 +202,12 @@ class TestJobDoneAssetNotDone:
 class TestJobActiveNoAsset:
     def test_queued_job_failed_when_asset_missing(self, _checker, tmp_path: Path):
         path = str(tmp_path / "orphan.png")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _metadata_job_row(conn, path, state="queued")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             count = _checker._check_job_active_no_asset(conn)
         assert count == 1
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             row = conn.execute("SELECT state FROM metadata_index_jobs WHERE path = ?", (path,)).fetchone()
             assert row["state"] == "failed"
 
@@ -218,10 +218,10 @@ class TestJobActiveNoAsset:
         path = str(root / "img.png")
         size = 1024
         mtime_ns = int(time.time() * 1e9)
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
             _metadata_job_row(conn, path, state="queued")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             count = _checker._check_job_active_no_asset(conn)
         assert count == 0
 
@@ -242,7 +242,7 @@ class TestDerivativeReadyNoFile:
         size = source_stat.st_size
         mtime_ns = source_stat.st_mtime_ns
         missing_path = str(root / "missing.webp")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
             asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
             conn.execute(
@@ -252,7 +252,7 @@ class TestDerivativeReadyNoFile:
             )
         count = _checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 1
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             row = conn.execute(
                 "SELECT status, last_error, cache_path, byte_size FROM asset_derivatives WHERE asset_id = ?",
                 (asset_id,),
@@ -275,7 +275,7 @@ class TestDerivativeReadyNoFile:
         source.write_bytes(b"x" * 1024)
         stat = source.stat()
         lib_id = int(create_library([root], name="Lib")["id"])
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, str(source), lib_id, stat.st_mtime_ns, stat.st_size)
             asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(source),)).fetchone()[0]
             conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (asset_id,))
@@ -289,7 +289,7 @@ class TestDerivativeReadyNoFile:
                 (asset_id, stat.st_mtime_ns, stat.st_size),
             )
         assert _checker.run_all_checks()["derivative_ready_requeued"] == 0
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             derivative = conn.execute("SELECT status FROM asset_derivatives").fetchone()
             jobs = conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0]
         assert derivative["status"] == "skipped"
@@ -306,7 +306,7 @@ class TestDerivativeReadyNoFile:
         size = source_stat.st_size
         mtime_ns = source_stat.st_mtime_ns
         missing_path = str(root / "missing.webp")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
             asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
             conn.execute(
@@ -324,7 +324,7 @@ class TestDerivativeReadyNoFile:
             )
         count = _checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 1
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             # Only one queued/running derivative_jobs row should exist
             rows = conn.execute(
                 "SELECT id, state FROM derivative_jobs WHERE derivative_id = ? AND state IN ('queued', 'running')",
@@ -342,7 +342,7 @@ class TestDerivativeReadyNoFile:
         source_stat = Path(path).stat()
         size = source_stat.st_size
         mtime_ns = source_stat.st_mtime_ns
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
             asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
             # cache_path = NULL means no derivative was ever generated
@@ -353,7 +353,7 @@ class TestDerivativeReadyNoFile:
             )
         count = _checker.run_all_checks()["derivative_ready_requeued"]
         assert count == 1
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             row = conn.execute(
                 "SELECT status, last_error FROM asset_derivatives "
                 "WHERE asset_id = ? AND kind = 'thumbnail' AND variant = 'thumb_512'",
@@ -371,7 +371,7 @@ class TestDerivativeReadyNoFile:
         mtime_ns = int(time.time() * 1e9)
         cache_file = tmp_path / "exists.webp"
         cache_file.write_bytes(b"fake derivative")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
             asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
             conn.execute(
@@ -400,7 +400,7 @@ class TestDerivativeJobDoneNotReady:
         mtime_ns = int(time.time() * 1e9)
         cache_file = tmp_path / "exists.webp"
         cache_file.write_bytes(b"fake derivative")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
             asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
             conn.execute(
@@ -416,10 +416,10 @@ class TestDerivativeJobDoneNotReady:
                 "INSERT INTO derivative_jobs (derivative_id, state, created_at, updated_at) VALUES (?, 'done', ?, ?)",
                 (ad_id, now, now),
             )
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             result = _checker._check_derivative_job_done_not_ready(conn)
         assert result == {"repaired": 1, "failed": 0}
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             row = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (ad_id,)).fetchone()
             assert row["status"] == "ready"
 
@@ -430,7 +430,7 @@ class TestDerivativeJobDoneNotReady:
         path = str(root / "img.png")
         size = 1024
         mtime_ns = int(time.time() * 1e9)
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _asset_row(conn, path, lib_id, mtime_ns, size)
             asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (path,)).fetchone()[0]
             conn.execute(
@@ -446,10 +446,10 @@ class TestDerivativeJobDoneNotReady:
                 "INSERT INTO derivative_jobs (derivative_id, state, created_at, updated_at) VALUES (?, 'done', ?, ?)",
                 (ad_id, now, now),
             )
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             result = _checker._check_derivative_job_done_not_ready(conn)
         assert result == {"repaired": 0, "failed": 1}
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             row = conn.execute("SELECT state, error FROM derivative_jobs WHERE derivative_id = ?", (ad_id,)).fetchone()
             assert row["state"] == "failed"
             assert "cache file missing" in row["error"]
@@ -463,12 +463,12 @@ class TestDerivativeJobDoneNotReady:
 class TestJobActiveNoFile:
     def test_queued_job_failed_when_file_missing(self, _checker, tmp_path: Path):
         path = str(tmp_path / "nonexistent.png")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _metadata_job_row(conn, path, state="queued")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             count = _checker._check_job_active_no_file(conn)
         assert count == 1
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             row = conn.execute("SELECT state, error FROM metadata_index_jobs WHERE path = ?", (path,)).fetchone()
             assert row["state"] == "failed"
             assert "file missing" in row["error"]
@@ -477,9 +477,9 @@ class TestJobActiveNoFile:
         root = isolated_gallery_root
         path = root / "exists.png"
         create_test_image(path)
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             _metadata_job_row(conn, str(path), state="queued")
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             count = _checker._check_job_active_no_file(conn)
         assert count == 0
 
@@ -523,7 +523,7 @@ class TestLifecycle:
 
 class TestEmptyDB:
     def test_all_checks_return_zero(self, _checker):
-        with _DB_LOCK, _connect():
+        with _connect():
             results = _checker.run_all_checks()
         for key, val in results.items():
             assert val == 0, f"{key} should be 0 but got {val}"
@@ -617,7 +617,7 @@ class TestRunAndPersist:
         }
         assert summary["started_at"] is not None
         assert summary["finished_at"] is not None
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             row = conn.execute("SELECT * FROM integrity_check_runs").fetchone()
         assert row is not None
         assert row["trigger"] == "manual"
@@ -650,7 +650,7 @@ class TestRunAndPersist:
         assert summary["status"] == "error"
         assert "simulated crash" in summary["error"]
         assert summary["trigger"] == "daemon"
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             row = conn.execute("SELECT * FROM integrity_check_runs").fetchone()
         assert row["status"] == "error"
         assert "simulated crash" in row["error"]
@@ -658,7 +658,7 @@ class TestRunAndPersist:
     def test_get_latest_run_returns_none_when_empty(self):
         from backend.metadata_store.maintenance_store import get_latest_run
 
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             result = get_latest_run(conn)
         assert result is None
 
@@ -666,7 +666,7 @@ class TestRunAndPersist:
         from backend.metadata_store.maintenance_store import get_latest_run, insert_run
 
         now = time.time()
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             insert_run(
                 conn,
                 {
@@ -750,7 +750,7 @@ class TestRunAllChecksDerivativeContracts:
                 "INSERT INTO derivative_jobs (derivative_id, priority, state, lease_expires_at) VALUES (?, 3, 'running', julianday('now', '-1 day'))",
                 (did,),
             )
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             result = _checker._check_abandoned_derivative_jobs(conn)
         assert result["skipped"] == 1
 
@@ -773,7 +773,7 @@ class TestRunAllChecksDerivativeContracts:
                 "INSERT INTO derivative_jobs (derivative_id, priority, state, attempts, lease_expires_at) VALUES (?, 3, 'running', 3, julianday('now', '-1 day'))",
                 (did,),
             )
-        with _DB_LOCK, _connect() as conn:
+        with _connect() as conn:
             result = _checker._check_abandoned_derivative_jobs(conn)
         assert result["failed"] == 1
 

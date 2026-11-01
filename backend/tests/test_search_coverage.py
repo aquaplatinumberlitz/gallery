@@ -468,7 +468,7 @@ def test_register_library_import_paths_saved(isolated_metadata_db, isolated_gall
     isolated_gallery_root.mkdir(parents=True, exist_ok=True)
     register_library(isolated_gallery_root)
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         import_paths = conn.execute("SELECT path FROM library_import_paths WHERE library_id = ?", (1,)).fetchall()
         assert len(import_paths) >= 1
         assert import_paths[0]["path"] == str(isolated_gallery_root.resolve())

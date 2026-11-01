@@ -10,8 +10,8 @@ from typing import Any, TypedDict, cast
 from ..catalog_maintenance_gate import MaintenanceGateBusy, maintenance_gate
 from ..config import THUMBNAIL_CACHE_DIR
 from ..files import IMAGE_EXTENSIONS, is_index_excluded_path
-from ._db import _DB_LOCK, _active_asset_where, _connect
-from .db_writer import writer_connection
+from ._db import _active_asset_where, _connect_read
+from .db_writer import LANE_NORMAL, LANE_PRIORITY, run_write, writer_connection
 from .path_utils import _catalog_paths_overlap, _path_is_within
 from .types import CatalogMaintenanceBusy, LibraryOverlapError
 
@@ -172,7 +172,7 @@ def _serialize_library_conn(conn: sqlite3.Connection, row: sqlite3.Row) -> Libra
 def get_library_stats(library_id: int) -> dict[str, int]:
     """Return media counts and storage use for one registered library."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
             raise KeyError(library_id)
         row = conn.execute(
@@ -206,7 +206,7 @@ def get_library_stats(library_id: int) -> dict[str, int]:
 def list_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
     """Return unavailable image/video catalog rows for one library."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
             raise KeyError(library_id)
         rows = conn.execute(
@@ -237,9 +237,8 @@ def list_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
 def forget_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
     """Delete unavailable media tombstones without touching source files."""
     _initialize_database()
-    cache_paths: list[str] = []
-    result: list[dict[str, Any]] = []
-    with _DB_LOCK, _connect() as conn:
+
+    def forget(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], list[str]]:
         if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
             raise KeyError(library_id)
         rows = conn.execute(
@@ -255,7 +254,7 @@ def forget_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
             (library_id,),
         ).fetchall()
         if not rows:
-            return []
+            return [], []
         paths = {str(row["path"]) for row in rows}
         cache_paths = [
             str(row["cache_path"])
@@ -317,6 +316,9 @@ def forget_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
             }
             for row in rows
         ]
+        return result, cache_paths
+
+    result, cache_paths = run_write(forget, lane=LANE_NORMAL)
     _unlink_generated_cache_files(cache_paths)
     return result
 
@@ -324,7 +326,7 @@ def forget_offline_library_assets(library_id: int) -> list[dict[str, Any]]:
 def get_gallery_stats() -> dict[str, int]:
     """Return aggregate media counts and storage use across all libraries."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             """
             SELECT
@@ -352,12 +354,12 @@ def get_gallery_stats() -> dict[str, int]:
 def list_libraries(*, conn: sqlite3.Connection | None = None) -> list[LibraryRecord]:
     """Return all registered libraries in stable ID order.
 
-    Pass ``conn`` (a status read snapshot) to read without taking ``_DB_LOCK``.
+    Pass ``conn`` (a status read snapshot).
     """
     _initialize_database()
     if conn is not None:
         return _list_libraries_conn(conn)
-    with _DB_LOCK, _connect() as owned:
+    with _connect_read() as owned:
         return _list_libraries_conn(owned)
 
 
@@ -409,7 +411,7 @@ def _list_libraries_conn(conn: sqlite3.Connection) -> list[LibraryRecord]:
 def get_library(library_id: int) -> LibraryRecord | None:
     """Return one registered library."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
         return _serialize_library_conn(conn, row) if row else None
 
@@ -429,8 +431,8 @@ def get_library_for_path(path: str | Path) -> LibraryRecord | None:
     """Return the most-specific registered library containing path."""
     _initialize_database()
     if (writer_conn := writer_connection()) is not None:
-        return _library_for_path_conn(writer_conn, path)  # inside a writer op: never take _DB_LOCK
-    with _DB_LOCK, _connect() as conn:
+        return _library_for_path_conn(writer_conn, path)  # inside an op: read through the op's own connection
+    with _connect_read() as conn:
         return _library_for_path_conn(conn, path)
 
 
@@ -450,9 +452,9 @@ def get_asset_state_for_path(path: str | Path) -> dict[str, Any] | None:
         LIMIT 1
         """
     if (writer_conn := writer_connection()) is not None:
-        row = writer_conn.execute(query, (resolved,)).fetchone()  # inside a writer op: never take _DB_LOCK
+        row = writer_conn.execute(query, (resolved,)).fetchone()  # inside an op: read through the op's own connection
     else:
-        with _DB_LOCK, _connect() as conn:
+        with _connect_read() as conn:
             row = conn.execute(query, (resolved,)).fetchone()
     if row is None:
         return None
@@ -471,7 +473,7 @@ def has_active_image_sibling_for_sidecar(path: str | Path) -> bool:
         return False
     suffix_placeholders = ",".join("?" for _ in IMAGE_EXTENSIONS)
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             f"""
             SELECT 1
@@ -496,7 +498,7 @@ def has_active_image_sibling_for_sidecar(path: str | Path) -> bool:
 def get_first_library_root() -> Path | None:
     """Return the first registered library root, if one exists."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             """
             SELECT lip.path
@@ -630,7 +632,8 @@ def create_library(
     display_name = (name or Path(canonical_paths[0]).name or canonical_paths[0]).strip()
     now = time.time()
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+
+    def create(conn: sqlite3.Connection) -> dict[str, Any]:
         _assert_no_import_path_overlap_conn(conn, canonical_paths)
         cursor = conn.execute(
             """
@@ -660,6 +663,8 @@ def create_library(
         if initial_scan_job_id is not None:
             library["initial_scan_job_id"] = initial_scan_job_id
         return library
+
+    return run_write(create, lane=LANE_PRIORITY)
 
 
 def update_library(
@@ -731,7 +736,8 @@ def _update_library(
         raise ValueError("Duplicate exclusion patterns are not allowed")
     now = time.time()
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+
+    def update(conn: sqlite3.Connection) -> dict[str, Any] | None:
         row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
         if row is None:
             return None
@@ -761,6 +767,8 @@ def _update_library(
         row = conn.execute("SELECT * FROM libraries WHERE id = ?", (library_id,)).fetchone()
         return _serialize_library_conn(conn, row)
 
+    return run_write(update, lane=LANE_NORMAL)
+
 
 def register_library(root_path: str | Path, name: str | None = None) -> dict[str, Any]:
     """Register a canonical, non-overlapping library root."""
@@ -779,10 +787,10 @@ def unregister_library(library_id: int) -> bool:
 def _unregister_library(library_id: int) -> bool:
     """Delete catalog records for a library without touching source files."""
     _initialize_database()
-    cache_paths: list[str] = []
-    with _DB_LOCK, _connect() as conn:
+
+    def unregister(conn: sqlite3.Connection) -> tuple[bool, list[str]]:
         if conn.execute("SELECT 1 FROM libraries WHERE id = ?", (library_id,)).fetchone() is None:
-            return False
+            return False, []
         if _library_has_active_work_conn(conn, library_id):
             raise CatalogMaintenanceBusy()
         roots = [
@@ -816,8 +824,12 @@ def _unregister_library(library_id: int) -> bool:
         conn.execute("DELETE FROM assets WHERE library_id = ?", (library_id,))
         _delete_path_owned_rows_conn(conn, paths)
         conn.execute("DELETE FROM libraries WHERE id = ?", (library_id,))
-    _unlink_generated_cache_files(cache_paths)
-    return True
+        return True, cache_paths
+
+    removed, cache_paths = run_write(unregister, lane=LANE_NORMAL)
+    if removed:
+        _unlink_generated_cache_files(cache_paths)
+    return removed
 
 
 def update_library_state(
@@ -829,7 +841,8 @@ def update_library_state(
 ) -> None:
     """Persist discovery/indexing lifecycle state for a library."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+
+    def update(conn: sqlite3.Connection) -> None:
         conn.execute(
             """
             UPDATE libraries
@@ -840,11 +853,13 @@ def update_library_state(
             (state, last_error, time.time(), int(scan_completed), time.time(), library_id),
         )
 
+    run_write(update, lane=LANE_PRIORITY)
+
 
 def get_library_progress(library_id: int) -> dict[str, Any]:
     """Return asset coverage, library state, and the newest active job."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         library = conn.execute("SELECT state FROM libraries WHERE id = ?", (library_id,)).fetchone()
         if library is None:
             raise KeyError(library_id)

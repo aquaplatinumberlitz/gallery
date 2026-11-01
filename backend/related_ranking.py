@@ -19,7 +19,7 @@ from .generation_signatures import (
     normalize_prompt_atoms,
     select_prompt_atoms_for_fts,
 )
-from .metadata_store._db import _DB_LOCK, _connect, _table_exists
+from .metadata_store._db import _connect_read, _table_exists
 from .metadata_store.path_utils import canonicalize_catalog_path, named_path_scope_sql
 from .models import RelatedSearchResultV1
 from .search_scope import SearchScopeContext
@@ -684,7 +684,7 @@ def rank_related_metadata(
     limit: int,
 ) -> list[RelatedSearchResultV1]:
     """Collect bounded persisted candidates, then score them outside SQLite."""
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         reference = _reference_row(conn, reference_asset_id)
         if reference is None:
             return []

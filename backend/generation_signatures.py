@@ -304,11 +304,11 @@ def _metadata_source_conn(conn: sqlite3.Connection, asset: dict[str, Any]) -> di
 
 
 def _metadata_source(asset: dict[str, Any]) -> dict[str, Any] | None:
-    from .metadata_store._db import _DB_LOCK, _connect
+    from .metadata_store._db import _connect_read
     from .metadata_store._schema import initialize_database
 
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         return _metadata_source_conn(conn, asset)
 
 

@@ -10,7 +10,7 @@ from ..config import (
     DERIVATIVE_RECONCILE_BATCH_SIZE,
     DERIVATIVE_VARIANTS,
 )
-from ..metadata_store import _connect
+from ..metadata_store import _connect_read
 from ..metadata_store.db_writer import LANE_NORMAL, LANE_PRIORITY, run_write
 from ._common import _ensure_database
 from .capacity import CapacityLedger
@@ -117,12 +117,7 @@ class SchedulingMixin:
                     part.jobs_created += 1
                 return part
 
-            def repair_directly(batch: list[int] = batch) -> DerivativeRepairSummary:
-                with _connect() as conn:
-                    conn.execute("BEGIN IMMEDIATE")
-                    return repair(conn, batch)
-
-            part = run_write(repair, lane=LANE_NORMAL, fallback=repair_directly)
+            part = run_write(repair, lane=LANE_NORMAL)
             for field in vars(part):
                 setattr(summary, field, getattr(summary, field) + getattr(part, field))
             self._wake_event.set()
@@ -317,7 +312,7 @@ class SchedulingMixin:
         quality = quality or int(default_variant["quality"])
         format = format or "webp"
         _ensure_database()
-        with _connect() as conn:
+        with _connect_read() as conn:
             asset = conn.execute(
                 "SELECT path FROM assets WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
                 (asset_id,),
@@ -357,13 +352,8 @@ class SchedulingMixin:
             )
             return coalesced_id, coalesced_outcome, estimated
 
-        def coalesce_directly(known_estimate: int | None = None) -> tuple[int, str, int]:
-            with _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                return coalesce(conn, known_estimate)
-
         with self._eviction_lock:
-            derivative_id, outcome, estimated_bytes = run_write(coalesce, lane=lane, fallback=coalesce_directly)
+            derivative_id, outcome, estimated_bytes = run_write(coalesce, lane=lane)
             if outcome in {"capacity_needed", "capacity_needed_created"} and self._reserve_capacity(
                 estimated_bytes, lane=lane
             ):
@@ -371,7 +361,6 @@ class SchedulingMixin:
                 derivative_id, outcome, estimated_bytes = run_write(
                     lambda conn: coalesce(conn, known),
                     lane=lane,
-                    fallback=lambda: coalesce_directly(known),
                 )
         if outcome in {"created", "requeued", "active"}:
             self._wake_event.set()

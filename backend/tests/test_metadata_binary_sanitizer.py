@@ -90,7 +90,7 @@ def test_metadata_indexing_sanitizes_pil_binary_info(
 
     job_row_data = queued.enqueued[0]
     create_library([tmp_path], name="TestLib")
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute(
             """INSERT INTO assets (library_id, path, parent_path, name, type, mtime_ns, size,
                indexed_at, metadata_state) VALUES (

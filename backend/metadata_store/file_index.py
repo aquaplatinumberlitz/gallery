@@ -15,7 +15,7 @@ from typing import Any
 from ..files import asset_type_for_path, is_asset_path, is_index_excluded_path
 from ..metadata_extract import parse_int
 from ._asset_store import _upsert_asset_conn
-from ._db import _DB_LOCK, _connect
+from ._db import _connect_read
 from .db_writer import LANE_NORMAL, SCAN_OP_ROWS, get_active_writer, run_write
 from .library_store import _find_library_for_path_conn, _library_exclusion_patterns_conn, get_library_for_path
 from .metadata_persist import index_images
@@ -143,18 +143,8 @@ def _bulk_index_records(
                     library_id=library_id,
                 )
 
-        def write_directly(batch: list[tuple[Any, ...]] = batch, write=write) -> None:
-            with _DB_LOCK, _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                try:
-                    write(conn, batch)
-                except Exception:
-                    conn.execute("ROLLBACK")
-                    raise
-                conn.execute("COMMIT")
-
         # A scan batch: one fenced normal-lane writer op (claim assertion, upserts, claim refresh).
-        run_write(write, lane=LANE_NORMAL, fallback=write_directly)
+        run_write(write, lane=LANE_NORMAL)
 
 
 def _initialize_database() -> None:
@@ -203,7 +193,8 @@ def index_file(
     resolved_parent = str(Path(parent_path).resolve())
     normalized_type = _normalize_file_type(type)
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+
+    def index(conn: sqlite3.Connection) -> bool:
         library = _find_library_for_path_conn(conn, resolved_path)
         library_id = int(library["id"]) if library is not None else None
         if library is not None and is_index_excluded_path(
@@ -266,16 +257,19 @@ def index_file(
             "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
             (name, resolved_path, normalized_type, resolved_parent),
         )
-    return True
+        return True
+
+    return run_write(index, lane=LANE_NORMAL)
 
 
-def _cleanup_stale_index_conn(
+def _stale_index_paths(
     conn: sqlite3.Connection,
     root_path: str | Path | None = None,
     *,
     remove_outside_scope: bool = True,
     max_candidates: int | None = None,
-) -> int:
+) -> list[str]:
+    """Return indexed paths that are missing from disk or outside ``root_path`` (reads and stats only)."""
     root = Path(root_path).resolve() if root_path is not None else None
     candidate_paths: set[str] = set()
     for table in ("file_index", "file_index_fts", "image_metadata", "metadata_index_jobs"):
@@ -303,14 +297,29 @@ def _cleanup_stale_index_conn(
         if not path.exists():
             stale_paths.append(path_value)
 
-    if not stale_paths:
-        return 0
+    return stale_paths
 
+
+def _delete_stale_index_paths(conn: sqlite3.Connection, stale_paths: list[str]) -> int:
     conn.executemany("DELETE FROM file_index_fts WHERE path = ?", ((path,) for path in stale_paths))
     conn.executemany("DELETE FROM file_index WHERE path = ?", ((path,) for path in stale_paths))
     conn.executemany("DELETE FROM image_metadata WHERE path = ?", ((path,) for path in stale_paths))
     conn.executemany("DELETE FROM metadata_index_jobs WHERE path = ?", ((path,) for path in stale_paths))
     return len(stale_paths)
+
+
+def _cleanup_stale_index_conn(
+    conn: sqlite3.Connection,
+    root_path: str | Path | None = None,
+    *,
+    remove_outside_scope: bool = True,
+    max_candidates: int | None = None,
+) -> int:
+    """Remove stale rows using the caller's write connection (reads, stats, and deletes together)."""
+    stale_paths = _stale_index_paths(
+        conn, root_path, remove_outside_scope=remove_outside_scope, max_candidates=max_candidates
+    )
+    return _delete_stale_index_paths(conn, stale_paths) if stale_paths else 0
 
 
 def _cleanup_ignored_index_conn(conn: sqlite3.Connection, root_path: str | Path | None = None) -> int:
@@ -352,17 +361,25 @@ def cleanup_stale_index(
             state, root_path, remove_outside_scope=remove_outside_scope, max_candidates=max_candidates
         )
 
-    with _DB_LOCK, _connect() as conn:
-        return _cleanup_stale_index_conn(
+    # A clean index costs the writer nothing: look on a read connection first. Only when something looks
+    # stale does a writer op repeat the check and delete (a path that reappeared meanwhile is kept).
+    with _connect_read() as read_conn:
+        if not _stale_index_paths(
+            read_conn, root_path, remove_outside_scope=remove_outside_scope, max_candidates=max_candidates
+        ):
+            return 0
+    return run_write(
+        lambda conn: _cleanup_stale_index_conn(
             conn, root_path, remove_outside_scope=remove_outside_scope, max_candidates=max_candidates
-        )
+        ),
+        lane=LANE_NORMAL,
+    )
 
 
 def cleanup_ignored_index(root_path: str | Path | None = None) -> int:
     """Remove ignored dependency/cache/app-build paths from persisted index rows only."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
-        return _cleanup_ignored_index_conn(conn, root_path)
+    return run_write(lambda conn: _cleanup_ignored_index_conn(conn, root_path), lane=LANE_NORMAL)
 
 
 def _scoped_path_where(root: Path) -> tuple[str, list[Any]]:
@@ -377,13 +394,14 @@ def clear_index_records(root_path: str | Path) -> dict[str, int]:
     tables = ("file_index_fts", "file_index", "image_metadata", "metadata_index_jobs", "folder_index_state")
     deleted: dict[str, int] = {}
 
-    with _DB_LOCK, _connect() as conn:
+    def clear(conn: sqlite3.Connection) -> dict[str, int]:
         for table in tables:
             row = conn.execute(f"SELECT count(*) AS total FROM {table} WHERE {where}", params).fetchone()
             deleted[table] = int(row["total"] if row else 0)
             conn.execute(f"DELETE FROM {table} WHERE {where}", params)
+        return deleted
 
-    return deleted
+    return run_write(clear, lane=LANE_NORMAL)
 
 
 def index_directory_tree(

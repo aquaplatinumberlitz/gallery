@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ..catalog_maintenance_gate import maintenance_producer
 from ..config import DERIVATIVE_RECONCILE_YIELD_SECONDS
-from ..metadata_store import _connect
+from ..metadata_store import _connect_read
 from ..metadata_store.db_writer import LANE_NORMAL, run_write
 from ._common import _ensure_database, logger
 from .capacity import CapacityLedger
@@ -176,16 +176,11 @@ class SupersedeMixin:
                 scope_params=scope_params,
             )
 
-        def retire_directly() -> list[_Retired]:
-            with _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                return retire(conn)
-
         while True:
             with self._eviction_lock:
                 # One bounded writer op per batch; the files are unlinked only after its Future resolved
                 # (the batch committed), never when the op failed.
-                retired = run_write(retire, lane=LANE_NORMAL, fallback=retire_directly)
+                retired = run_write(retire, lane=LANE_NORMAL)
                 self._discard_retired_files(path for _id, path in retired if path)
             retired_total += len(retired)
             if len(retired) < _STANDALONE_ROW_LIMIT:
@@ -206,7 +201,7 @@ class SupersedeMixin:
         if not pending:
             return
         referenced: set[str] = set()
-        with _connect() as conn:
+        with _connect_read() as conn:
             for start in range(0, len(pending), _ID_CHUNK):
                 chunk = pending[start : start + _ID_CHUNK]
                 referenced.update(
@@ -234,7 +229,7 @@ class SupersedeMixin:
             self._deferred_unlinks.discard(cache_path)
             if cache_path in self._generating_paths:
                 return
-            with _connect() as conn:
+            with _connect_read() as conn:
                 referenced = conn.execute(
                     "SELECT 1 FROM asset_derivatives WHERE cache_path = ? LIMIT 1", (cache_path,)
                 ).fetchone()

@@ -5,14 +5,14 @@ import os
 import sqlite3
 import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
 from .catalog_maintenance_gate import maintenance_producer
 from .config import DERIVATIVE_RECONCILE_BATCH_SIZE, DERIVATIVE_VARIANTS
-from .metadata_store import _DB_LOCK, _connect, _read_snapshot
+from .metadata_store import _read_snapshot
 from .metadata_store.db_writer import LANE_NORMAL, run_write
 from .metadata_store.identity import (
     asset_matches_image_metadata_sql,
@@ -21,6 +21,9 @@ from .metadata_store.identity import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Rows repaired by one writer op of the integrity pass (keeps each transaction well under the write budget).
+_REPAIR_CHUNK_ROWS = 250
 
 
 class IntegrityCheckAlreadyRunning(RuntimeError):
@@ -170,9 +173,8 @@ class IntegrityChecker:
             }
         finally:
             try:
-                with _DB_LOCK, _connect() as conn:
-                    run_id = insert_run(conn, summary)
-                    summary["id"] = run_id
+                run_id = run_write(lambda conn: insert_run(conn, summary), lane=LANE_NORMAL)
+                summary["id"] = run_id
             except Exception as e:
                 logger.exception("Failed to persist integrity check run")
                 summary["status"] = "error"
@@ -206,27 +208,35 @@ class IntegrityChecker:
         total["derivative_superseded_retired"] = scheduler.retire_superseded_derivatives()
         if total["derivative_superseded_retired"]:
             logger.info("Integrity: retired %s superseded ready derivative(s)", total["derivative_superseded_retired"])
+
         # All checks that mutate metadata/catalog rows finish before desired
         # derivative reconciliation starts.  The reconciler opens its own
         # BEGIN IMMEDIATE transaction; calling it while this connection owns
         # pending writes self-deadlocks SQLite.
-        with _DB_LOCK, _connect() as conn:
+        def repair_rows(conn: sqlite3.Connection) -> tuple[dict[str, int], list[str]]:
+            counts: dict[str, int] = {}
             # Metadata jobs stay ``running`` only while a live, unexpired claim owns them. Expired or
             # ownerless claims (for example after a lost failure write) are requeued, attempt-aware.
             recovered = recover_running_metadata_jobs(conn, expired_only=True)
-            total["metadata_running_recovered"] = recovered["reset"] + recovered["failed"]
-            total["file_index_ownership_mismatch"] = self._check_file_index_ownership_mismatch(conn)
-            total["asset_done_but_no_metadata"] = self._check_asset_done_no_metadata(conn)
-            total["job_done_asset_not_done"] = self._check_job_done_asset_not_done(conn)
-            total["job_active_no_asset"] = self._check_job_active_no_asset(conn)
-            unsupported_paths = self._terminalize_unsupported_derivatives(conn)
-            ready_rows = conn.execute(
+            counts["metadata_running_recovered"] = recovered["reset"] + recovered["failed"]
+            counts["file_index_ownership_mismatch"] = self._check_file_index_ownership_mismatch(conn)
+            counts["asset_done_but_no_metadata"] = self._check_asset_done_no_metadata(conn)
+            counts["job_done_asset_not_done"] = self._check_job_done_asset_not_done(conn)
+            counts["job_active_no_asset"] = self._check_job_active_no_asset(conn)
+            return counts, self._terminalize_unsupported_derivatives(conn)
+
+        # The metadata/catalog repairs are one normal-lane writer op; the candidate rows for the derivative
+        # checks below are then read on one consistent snapshot (they see the repairs' committed result).
+        row_counts, unsupported_paths = run_write(repair_rows, lane=LANE_NORMAL)
+        total.update(row_counts)
+        with _read_snapshot() as snapshot:
+            ready_rows = snapshot.execute(
                 """SELECT d.id, d.cache_path, d.source_mtime_ns, d.source_size,
                           a.id AS asset_id, a.path, a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
                    FROM asset_derivatives d LEFT JOIN assets a ON a.id = d.asset_id
                    WHERE d.status = 'ready'"""
             ).fetchall()
-            abandoned_rows = conn.execute(
+            abandoned_rows = snapshot.execute(
                 """SELECT j.id AS job_id, j.attempts, j.claim_token, d.id AS derivative_id,
                           d.source_mtime_ns, d.source_size, a.id AS asset_id, a.path,
                           a.type, a.deleted_at, a.offline, a.mtime_ns, a.size
@@ -235,17 +245,17 @@ class IntegrityChecker:
                    WHERE j.state = 'running'
                      AND (j.lease_expires_at IS NULL OR j.lease_expires_at <= julianday('now'))"""
             ).fetchall()
-            done_rows = conn.execute(
+            done_rows = snapshot.execute(
                 """SELECT ad.id, ad.cache_path, dj.id AS job_id FROM derivative_jobs dj
                    JOIN asset_derivatives ad ON ad.id = dj.derivative_id
                    WHERE dj.state = 'done' AND ad.status != 'ready'"""
             ).fetchall()
-            active_file_rows = conn.execute(
+            active_file_rows = snapshot.execute(
                 "SELECT path FROM metadata_index_jobs WHERE state IN ('queued', 'running')"
             ).fetchall()
-            expected_ids = self._find_expected_row_missing(conn)
-            queued_ids = self._find_queued_without_job(conn)
-            deferred_ids = self._find_policy_deferred(conn)
+            expected_ids = self._find_expected_row_missing(snapshot)
+            queued_ids = self._find_queued_without_job(snapshot)
+            deferred_ids = self._find_policy_deferred(snapshot)
 
         for cache_path in unsupported_paths:
             with suppress(OSError):
@@ -267,25 +277,38 @@ class IntegrityChecker:
                 source_stats[str(row["path"])] = None
         active_file_exists = {str(row["path"]): Path(row["path"]).is_file() for row in active_file_rows}
 
-        with _DB_LOCK, _connect() as conn:
-            derivative_ready = self._check_derivative_ready_no_file_details(
-                conn, rows=ready_rows, cache_exists=cache_exists
-            )
-            total["derivative_ready_no_file"] = derivative_ready["requeued"] + derivative_ready["skipped"]
-            total["derivative_ready_requeued"] = derivative_ready["requeued"]
-            total["derivative_ready_skipped"] = derivative_ready["skipped"]
-            abandoned = self._check_abandoned_derivative_jobs(conn, rows=abandoned_rows, source_stats=source_stats)
-            total["derivative_abandoned_jobs"] = sum(abandoned.values())
-            total["derivative_abandoned_requeued"] = abandoned["requeued"]
-            total["derivative_abandoned_skipped"] = abandoned["skipped"]
-            total["derivative_abandoned_failed"] = abandoned["failed"]
-            result = self._check_derivative_job_done_not_ready(conn, rows=done_rows, cache_exists=cache_exists)
-            total["derivative_done_not_ready"] = result["repaired"] + result["failed"]
-            total["derivative_done_repaired"] = result["repaired"]
-            total["derivative_done_failed"] = result["failed"]
-            total["job_active_no_file"] = self._check_job_active_no_file(
-                conn, rows=active_file_rows, file_exists=active_file_exists
-            )
+        derivative_ready = self._apply_in_chunks(
+            ready_rows,
+            lambda conn, chunk: self._check_derivative_ready_no_file_details(
+                conn, rows=chunk, cache_exists=cache_exists
+            ),
+        )
+        total["derivative_ready_no_file"] = derivative_ready["requeued"] + derivative_ready["skipped"]
+        total["derivative_ready_requeued"] = derivative_ready["requeued"]
+        total["derivative_ready_skipped"] = derivative_ready["skipped"]
+        abandoned = self._apply_in_chunks(
+            abandoned_rows,
+            lambda conn, chunk: self._check_abandoned_derivative_jobs(conn, rows=chunk, source_stats=source_stats),
+            keys=("requeued", "skipped", "failed"),
+        )
+        total["derivative_abandoned_jobs"] = sum(abandoned.values())
+        total["derivative_abandoned_requeued"] = abandoned["requeued"]
+        total["derivative_abandoned_skipped"] = abandoned["skipped"]
+        total["derivative_abandoned_failed"] = abandoned["failed"]
+        result = self._apply_in_chunks(
+            done_rows,
+            lambda conn, chunk: self._check_derivative_job_done_not_ready(conn, rows=chunk, cache_exists=cache_exists),
+            keys=("repaired", "failed"),
+        )
+        total["derivative_done_not_ready"] = result["repaired"] + result["failed"]
+        total["derivative_done_repaired"] = result["repaired"]
+        total["derivative_done_failed"] = result["failed"]
+        job_active = self._apply_in_chunks(
+            active_file_rows,
+            lambda conn, chunk: {"n": self._check_job_active_no_file(conn, rows=chunk, file_exists=active_file_exists)},
+            keys=("n",),
+        )
+        total["job_active_no_file"] = job_active["n"]
 
         expected_summary = (
             scheduler.reconcile_desired_derivatives(asset_ids=expected_ids, reason="integrity")
@@ -324,11 +347,32 @@ class IntegrityChecker:
         return total
 
     @staticmethod
+    def _apply_in_chunks(
+        rows: Sequence[sqlite3.Row],
+        apply: Callable[[sqlite3.Connection, Sequence[sqlite3.Row]], dict[str, int]],
+        *,
+        keys: Sequence[str] = ("requeued", "skipped"),
+        chunk_size: int = _REPAIR_CHUNK_ROWS,
+    ) -> dict[str, int]:
+        """Apply a row-driven repair as one bounded normal-lane writer op per ``chunk_size`` rows.
+
+        The rows were collected and their files checked beforehand, and each repair write is fenced on
+        the row's own state, so splitting the pass changes nothing but how long each transaction lasts.
+        """
+        totals = dict.fromkeys(keys, 0)
+        for start in range(0, len(rows), chunk_size):
+            chunk = rows[start : start + chunk_size]
+            counts = run_write(lambda conn, chunk=chunk: apply(conn, chunk), lane=LANE_NORMAL)
+            for key in keys:
+                totals[key] += counts.get(key, 0)
+        return totals
+
+    @staticmethod
     def _repair_runtime_counters() -> int:
         """Recompute the runtime counters from the source tables and repair drift; return how many drifted.
 
         Drift is detected on a read snapshot so a clean database costs the writer nothing; only a drifted
-        one runs a repair op (a normal-lane writer op, or a direct transaction with the flag off), which
+        one runs a repair op (a normal-lane writer op), which
         recomputes inside the write transaction so no writer can change the counted rows in between.
         """
         from .metadata_store.runtime_counters import verify_runtime_counters
@@ -340,12 +384,7 @@ class IntegrityChecker:
         def repair(conn: sqlite3.Connection) -> int:
             return len(verify_runtime_counters(conn, repair=True))
 
-        def repair_directly() -> int:
-            with _DB_LOCK, _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                return repair(conn)
-
-        repaired = run_write(repair, lane=LANE_NORMAL, fallback=repair_directly)
+        repaired = run_write(repair, lane=LANE_NORMAL)
         if repaired:
             logger.warning("Integrity: repaired %s drifted runtime counter(s)", repaired)
         return repaired

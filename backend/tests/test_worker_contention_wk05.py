@@ -366,7 +366,7 @@ def test_requeue_stores_the_next_attempt_and_clears_the_claim(one_job, monkeypat
     job = store.claim_next_metadata_job(worker_id="w", lease_seconds=30)
     assert job is not None
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert store.requeue_metadata_job(conn, job, "database is locked", delay_seconds=12.5) is True
 
     row = metadata_job_row(db_path, image)
@@ -381,7 +381,7 @@ def test_a_rescan_does_not_reset_the_backoff_of_a_queued_retry(one_job, monkeypa
     clock = install_metadata_clock(monkeypatch)
     store = _store()
     job = store.claim_next_metadata_job(worker_id="w", lease_seconds=30)
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         store.requeue_metadata_job(conn, job, "database is locked", delay_seconds=30)
     due_at = metadata_job_row(db_path, image)["next_attempt_at"]
 

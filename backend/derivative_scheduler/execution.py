@@ -13,7 +13,7 @@ from PIL import UnidentifiedImageError
 from ..config import DERIVATIVE_LEASE_HEARTBEAT_SECONDS
 from ..errors import APIError
 from ..lease_heartbeat import LeaseHeartbeat
-from ..metadata_store import _connect
+from ..metadata_store import _connect_read
 from ..metadata_store.db_writer import LANE_PRIORITY, DatabaseWriterUnavailable, run_write
 from ._common import (
     _MAX_ATTEMPTS,
@@ -38,7 +38,7 @@ class JobExecutionMixin:
         return True
 
     def _claim_job(self, worker_id: str | None = None) -> sqlite3.Row | None:
-        """Claim the next runnable job in one priority-lane writer op (a direct transaction with the flag off)."""
+        """Claim the next runnable job in one priority-lane writer op."""
         _ensure_database()
         worker_id = worker_id or f"{self._instance_id}:{threading.current_thread().name}"
 
@@ -84,12 +84,7 @@ class JobExecutionMixin:
                 (row["job_id"], claim_token),
             ).fetchone()
 
-        def claim_directly() -> sqlite3.Row | None:
-            with _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                return claim(conn)
-
-        job = run_write(claim, lane=LANE_PRIORITY, fallback=claim_directly)
+        job = run_write(claim, lane=LANE_PRIORITY)
         if job is None:
             self._reconcile_queued_jobs()
         return job
@@ -118,12 +113,8 @@ class JobExecutionMixin:
                 == 1
             )
 
-        def renew_directly() -> bool:
-            with _connect() as conn:  # never takes ``_DB_LOCK``: unrelated readers cannot starve a renewal
-                return renew(conn)
-
         try:
-            renewed = run_write(renew, lane=LANE_PRIORITY, fallback=renew_directly)
+            renewed = run_write(renew, lane=LANE_PRIORITY)
         except (sqlite3.Error, DatabaseWriterUnavailable):
             logger.warning("Derivative lease renewal failed for job %s", job_id)
             with self._lifecycle_lock:
@@ -187,12 +178,8 @@ class JobExecutionMixin:
                 )
                 return True
 
-            def complete_directly() -> bool:
-                with _connect() as conn:
-                    return complete(conn)
-
             with self._eviction_lock:
-                applied = run_write(complete, lane=LANE_PRIORITY, fallback=complete_directly)
+                applied = run_write(complete, lane=LANE_PRIORITY)
             if not applied:
                 logger.info("Ignored stale completion for derivative job %s", job["job_id"])
                 return
@@ -215,7 +202,7 @@ class JobExecutionMixin:
 
     def _validate_claimed_source(self, job: sqlite3.Row, source: Path) -> None:
         """Revalidate applicability after claim and before cache/render work."""
-        with _connect() as conn:
+        with _connect_read() as conn:
             asset = conn.execute(
                 "SELECT path, mtime_ns, size FROM assets "
                 "WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
@@ -270,11 +257,7 @@ class JobExecutionMixin:
             )
             return True
 
-        def fail_directly() -> bool:
-            with _connect() as conn:
-                return fail(conn)
-
-        if not run_write(fail, lane=LANE_PRIORITY, fallback=fail_directly):
+        if not run_write(fail, lane=LANE_PRIORITY):
             logger.info("Ignored stale failure for derivative job %s", job["job_id"])
             return
         if retry:

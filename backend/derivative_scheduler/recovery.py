@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from ..catalog_maintenance_gate import maintenance_producer, producer_gate
-from ..metadata_store import _connect
+from ..metadata_store import _connect_read
 from ..metadata_store.db_writer import LANE_NORMAL, run_write
 from ._common import (
     _MAX_ATTEMPTS,
@@ -81,7 +81,7 @@ class RecoveryMixin:
         Candidates are found on a plain read connection (this runs every idle claim, so a clean queue must
         cost the writer nothing); the fenced updates run as one normal-lane writer op.
         """
-        with _connect() as conn:
+        with _connect_read() as conn:
             rows = conn.execute(
                 """
                 SELECT j.id AS job_id, d.id AS derivative_id, d.source_mtime_ns, d.source_size,
@@ -126,11 +126,7 @@ class RecoveryMixin:
                         (message, row["derivative_id"]),
                     )
 
-        def terminalize_directly() -> None:
-            with _connect() as conn:
-                terminalize(conn)
-
-        run_write(terminalize, lane=LANE_NORMAL, fallback=terminalize_directly)
+        run_write(terminalize, lane=LANE_NORMAL)
 
     def _recover_running_jobs(self, *, claimed_by: str | None = None, expired_only: bool = False) -> int:
         """Recover abandoned claims using the same policy at startup and runtime.
@@ -140,7 +136,7 @@ class RecoveryMixin:
         finished in the meantime is left alone. All transitions are one normal-lane writer op.
         """
         _ensure_database()
-        with _connect() as conn:
+        with _connect_read() as conn:
             clauses = ["j.state = 'running'"]
             params: list[Any] = []
             if claimed_by is not None:
@@ -200,11 +196,7 @@ class RecoveryMixin:
                     recovered += 1
             return recovered
 
-        def recover_directly() -> int:
-            with _connect() as conn:
-                return recover(conn)
-
-        recovered = run_write(recover, lane=LANE_NORMAL, fallback=recover_directly)
+        recovered = run_write(recover, lane=LANE_NORMAL)
         if recovered:
             self._wake_event.set()
         return recovered

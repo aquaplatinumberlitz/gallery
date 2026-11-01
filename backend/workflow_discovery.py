@@ -9,7 +9,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from .metadata_store._db import _DB_LOCK, _connect
+from .metadata_store._db import _connect_read
 from .metadata_store._schema import initialize_database
 
 WORKFLOW_EXTRACTOR_VERSION = 1
@@ -244,7 +244,7 @@ def _json_workflow_from_raw(raw: str) -> dict[str, Any] | None:
 
 def _workflow_source(asset: dict[str, Any]) -> tuple[dict[str, Any] | None, bool]:
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             "SELECT metadata_json, raw_metadata_text, tool FROM image_metadata WHERE path = ?",
             (str(asset["path"]),),

@@ -13,9 +13,9 @@ from ..files import is_image_path, is_index_excluded_path
 from ..generation_signatures import invalidate_generation_signature_conn, schedule_generation_signature_backfill
 from ..metadata_extract import ExtractedMetadata, metadata_sidecar_identity, parse_float, parse_int, safe_text
 from ._asset_store import _upsert_asset_conn
-from ._db import _DB_LOCK, _connect
+from ._db import _connect_read
 from ._resources import _replace_image_resources_conn
-from .db_writer import LANE_NORMAL, LANE_PRIORITY, current_writer, run_write
+from .db_writer import LANE_NORMAL, LANE_PRIORITY, run_write, writer_connection
 from .identity import image_metadata_params_match_sql
 from .metadata_queue import _mark_current_metadata_done, _metadata_job_from_path
 from .types import CachedDimensions
@@ -252,14 +252,18 @@ def upsert_extracted_metadata(metadata: ExtractedMetadata, *, mark_job_done: boo
     if is_index_excluded_path(metadata.path):
         return False
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+
+    def persist(conn: sqlite3.Connection) -> int | None:
         library_id = _upsert_extracted_metadata_conn(conn, metadata)
-        if library_id is None:
-            return False
-        if mark_job_done:
+        if library_id is not None and mark_job_done:
             job = _metadata_job_from_path(metadata.path)
             if job is not None and job.mtime == metadata.mtime and job.size == metadata.size:
                 _mark_current_metadata_done(conn, job, metadata.indexed_at)
+        return library_id
+
+    library_id = run_write(persist, lane=LANE_NORMAL)
+    if library_id is None:
+        return False
     _schedule_derived_search_backfills(library_id)
     return True
 
@@ -268,7 +272,7 @@ def schedule_derived_search_backfills(library_id: int) -> None:
     """Schedule the metadata-derived discovery/relation backfills for ``library_id``.
 
     Callers that persist metadata inside a database writer op run this after the op's Future resolved:
-    scheduling may take ``_DB_LOCK``, which the writer thread must never do.
+    scheduling a backfill waits on the writer, which an op must never do.
     """
     _schedule_derived_search_backfills(library_id)
 
@@ -276,14 +280,14 @@ def schedule_derived_search_backfills(library_id: int) -> None:
 def upsert_metadata_batch(metadata_items: Iterable[ExtractedMetadata]) -> int:
     """Write extracted metadata rows in one bounded SQLite transaction.
 
-    Normally one database writer op (or a direct transaction with the writer flag off); called from
+    One database writer op; called from
     inside a writer op it joins that op's transaction. Derived-search backfills are scheduled here,
     after the commit, except on the writer thread where the caller schedules them after the op resolves.
     """
     rows = list(metadata_items)
     if not rows:
         return 0
-    inside_writer_op = current_writer() is not None
+    inside_writer_op = writer_connection() is not None
     if not inside_writer_op:
         _initialize_database()
 
@@ -297,11 +301,7 @@ def upsert_metadata_batch(metadata_items: Iterable[ExtractedMetadata]) -> int:
                 library_ids.add(library_id)
         return persisted, sorted(library_ids)
 
-    def upsert_directly() -> tuple[int, list[int]]:
-        with _DB_LOCK, _connect() as conn:
-            return upsert(conn)
-
-    persisted, library_ids = run_write(upsert, lane=LANE_NORMAL, fallback=upsert_directly)
+    persisted, library_ids = run_write(upsert, lane=LANE_NORMAL)
     if not inside_writer_op:
         for library_id in library_ids:
             _schedule_derived_search_backfills(library_id)
@@ -318,15 +318,15 @@ def index_image(path: Path) -> bool:
         return False
 
     _initialize_database()
-    library_id: int | None = None
-    with _DB_LOCK, _connect() as conn:
+    # The staleness check reads, the metadata extraction reads the image: both stay off the writer.
+    with _connect_read() as conn:
         if not _needs_reindex(conn, path, stat.st_mtime, stat.st_mtime_ns, stat.st_size):
             return False
-        try:
-            metadata = _extract_metadata(path)
-        except Exception:  # noqa: BLE001
-            return False
-        library_id = _upsert_extracted_metadata_conn(conn, metadata)
+    try:
+        metadata = _extract_metadata(path)
+    except Exception:  # noqa: BLE001
+        return False
+    library_id = run_write(lambda conn: _upsert_extracted_metadata_conn(conn, metadata), lane=LANE_NORMAL)
     if library_id is not None:
         _schedule_derived_search_backfills(library_id)
     return library_id is not None
@@ -353,7 +353,7 @@ def get_lightbox_metadata(path: str | Path) -> dict | None:
         return None
 
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             f"""
             SELECT * FROM image_metadata
@@ -412,7 +412,7 @@ def get_cached_dimensions_for_files(files: Iterable[tuple[str | Path, float, int
     expected = {path: (mtime, size) for path, mtime, size in file_rows}
     paths = list(expected)
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         for start in range(0, len(paths), 900):
             chunk = paths[start : start + 900]
             placeholders = ",".join("?" for _ in chunk)
@@ -516,12 +516,8 @@ def upsert_image_dimensions(
             expected_size=stat.st_size,
         )
 
-    def upsert_directly() -> None:
-        with _DB_LOCK, _connect() as conn:
-            upsert(conn)
-
     # Part of a derivative render (a worker thread, or the request when no scheduler runs): a small priority op.
-    run_write(upsert, lane=LANE_PRIORITY, fallback=upsert_directly)
+    run_write(upsert, lane=LANE_PRIORITY)
     return True
 
 
@@ -569,8 +565,8 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
     source_path, source_mtime_ns, source_size = metadata_sidecar_identity(image_path)
 
     _initialize_database()
-    library_id: int | None = None
-    with _DB_LOCK, _connect() as conn:
+
+    def persist(conn: sqlite3.Connection) -> int | None:
         conn.execute(
             """
             INSERT INTO image_metadata (
@@ -684,6 +680,10 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
             if owner is not None:
                 library_id = int(owner["library_id"])
                 _invalidate_derived_search_asset_conn(conn, asset_id, library_id)
+                return library_id
+        return None
+
+    library_id = run_write(persist, lane=LANE_NORMAL)
     if library_id is not None:
         _schedule_derived_search_backfills(library_id)
     return True

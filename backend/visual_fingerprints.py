@@ -12,7 +12,7 @@ from typing import Any
 from PIL import Image, ImageOps
 
 from .config import GALLERY_RELATED_VISUAL_ENABLED
-from .metadata_store._db import _DB_LOCK, _connect
+from .metadata_store._db import _connect_read
 from .metadata_store.db_writer import LANE_NORMAL, run_write
 from .metadata_store.path_utils import canonicalize_catalog_path, named_path_scope_sql
 from .models import RelatedSearchResultV1
@@ -77,7 +77,7 @@ def compute_visual_fingerprint(path: str | Path) -> dict[str, bytes]:
 
 
 def _current_derivative(asset: dict[str, Any]) -> dict[str, Any] | None:
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         rows = conn.execute(
             """
             SELECT kind, variant, cache_path
@@ -219,8 +219,8 @@ def notify_derivative_ready(asset_id: int) -> None:
     """Invalidate a pending visual extraction and queue durable retry work.
 
     Called by a derivative worker right after a derivative became ``ready``. The invalidation is a
-    normal-lane database writer op (a direct ``_DB_LOCK`` transaction with the flag off); the backfill
-    scheduling takes ``_DB_LOCK``, so it runs after the op resolved, never inside it.
+    normal-lane database writer op; the backfill
+    scheduling waits on the writer, so it runs after the op resolved, never inside it.
     """
     if not GALLERY_RELATED_VISUAL_ENABLED:
         return
@@ -254,11 +254,7 @@ def notify_derivative_ready(asset_id: int) -> None:
         )
         return int(asset["library_id"])
 
-    def invalidate_directly() -> int | None:
-        with _DB_LOCK, _connect() as conn:
-            return invalidate(conn)
-
-    library_id = run_write(invalidate, lane=LANE_NORMAL, fallback=invalidate_directly)
+    library_id = run_write(invalidate, lane=LANE_NORMAL)
     if library_id is not None:
         schedule_visual_fingerprint_backfill(library_id)
 
@@ -406,7 +402,7 @@ def query_visual_variants(
     limit: int,
 ) -> list[RelatedSearchResultV1]:
     """Rank persisted visual near-duplicates without decoding in the request."""
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         reference = _current_reference(conn, reference_asset_id)
         if reference is None:
             return []

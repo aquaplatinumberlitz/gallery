@@ -8,7 +8,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
-from ..metadata_store import _connect
+from ..metadata_store import _connect_read
 from ..metadata_store.db_writer import LANE_NORMAL, post_write
 from ._common import _ensure_database
 
@@ -23,7 +23,7 @@ class LookupMixin:
     def get_derivative_status(self, asset_id: int, kind: str, variant: str) -> str | None:
         """Return the current derivative state for the latest source version."""
         _ensure_database()
-        with _connect() as conn:
+        with _connect_read() as conn:
             asset = conn.execute("SELECT path FROM assets WHERE id = ?", (asset_id,)).fetchone()
             if asset is None:
                 return None
@@ -55,7 +55,7 @@ class LookupMixin:
     ) -> dict[str, Any] | None:
         """Return and touch a ready derivative for the current source version."""
         _ensure_database()
-        with _connect() as conn:
+        with _connect_read() as conn:
             if source_mtime_ns is None or source_size is None:
                 asset = conn.execute("SELECT path FROM assets WHERE id = ?", (asset_id,)).fetchone()
                 if asset is None:
@@ -95,18 +95,14 @@ class LookupMixin:
         Reads stay on plain connections; the ``last_accessed_at`` update is a best-effort, fire-and-forget
         normal-lane writer op (an HTTP request must never wait for a batch). It only orders the LRU
         eviction, so it may be dropped under maintenance or backpressure. The queued Future is remembered
-        so ``release_serving`` can flush it once the response is done. With the writer flag off the update
-        is applied inline as before.
+        so ``release_serving`` can flush it once the response is done. With no active writer (scripts,
+        plain unit tests) the update is applied inline.
         """
 
         def touch(conn: sqlite3.Connection) -> None:
             conn.execute("UPDATE asset_derivatives SET last_accessed_at = ? WHERE id = ?", (accessed_at, derivative_id))
 
-        def touch_directly() -> None:
-            with _connect() as conn:
-                touch(conn)
-
-        future = post_write(touch, lane=LANE_NORMAL, fallback=touch_directly)
+        future = post_write(touch, lane=LANE_NORMAL)
         if future is not None and not future.done():
             self._pending_touches[cache_path] = future
             future.add_done_callback(
@@ -150,7 +146,7 @@ class LookupMixin:
         without polling by source identity or parsing error strings.
         """
         _ensure_database()
-        with _connect() as conn:
+        with _connect_read() as conn:
             row = conn.execute(
                 """
                 SELECT d.id, d.status, d.cache_path, d.last_error,
@@ -188,7 +184,7 @@ class LookupMixin:
     def find_asset_id(self, path: Path) -> int | None:
         """Resolve a source path to its active asset ID."""
         _ensure_database()
-        with _connect() as conn:
+        with _connect_read() as conn:
             row = conn.execute(
                 "SELECT id FROM assets WHERE path = ? AND type = 'image' "
                 "AND deleted_at IS NULL AND offline = 0 ORDER BY id LIMIT 1",
@@ -199,7 +195,7 @@ class LookupMixin:
     def get_asset_path(self, asset_id: int) -> Path | None:
         """Return the active source path for an asset ID."""
         _ensure_database()
-        with _connect() as conn:
+        with _connect_read() as conn:
             row = conn.execute(
                 "SELECT path FROM assets WHERE id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
                 (asset_id,),

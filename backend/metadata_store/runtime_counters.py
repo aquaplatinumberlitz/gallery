@@ -8,7 +8,7 @@ full aggregate queries on every poll. ``runtime_counters`` (``name``, ``value``)
 
 Maintenance is done by triggers (see ``_schema_ddl.RUNTIME_COUNTERS_STATEMENTS``) rather than by the writer
 ops that change the counted states. The counted rows are changed from dozens of places (the writer ops, the
-flag-off direct transactions, recovery, the integrity checker, destructive maintenance, migrations, tests'
+the no-active-writer path, recovery, the integrity checker, destructive maintenance, migrations, tests'
 raw SQL), and a trigger is part of the very statement that changes the row, so it is correct for all of them
 and rolls back with them. A counter can only drift through something that bypasses triggers (for example
 ``INSERT OR REPLACE`` with recursive triggers off, or a database written by an older release), so

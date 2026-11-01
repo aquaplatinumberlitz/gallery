@@ -11,7 +11,6 @@ from typing import Any
 from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE
 from ..files import asset_type_for_path, is_asset_path, is_index_excluded_path
 from ._db import _active_asset_where
-from ._db import run_direct_immediate as _run_direct
 from .db_writer import LANE_NORMAL, run_write
 from .library_store import get_library
 from .path_utils import canonicalize_catalog_path, catalog_path_contains, path_scope_sql
@@ -90,7 +89,7 @@ def enumerate_to_rebuild_staging(
                 library_id=library_id,
             )
 
-        run_write(write, lane=LANE_NORMAL, fallback=lambda: _run_direct(write))
+        run_write(write, lane=LANE_NORMAL)
 
     def stage_entry(
         *,
@@ -354,7 +353,7 @@ def activate_rebuild_staging(
 
     # One atomic op by contract: a failed activation leaves the canonical generation and the staging rows
     # untouched, so it is never split. (A very large library holds the write lock for the whole merge.)
-    return run_write(activate, lane=LANE_NORMAL, fallback=lambda: _run_direct(activate))
+    return run_write(activate, lane=LANE_NORMAL)
 
 
 def delete_rebuild_staging(job_id: int, *, claim_token: str | None = None) -> None:
@@ -368,7 +367,7 @@ def delete_rebuild_staging(job_id: int, *, claim_token: str | None = None) -> No
             assert_catalog_job_claim_conn(conn, job_id, claim_token)
         conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
 
-    run_write(delete, lane=LANE_NORMAL, fallback=lambda: _run_direct(delete))
+    run_write(delete, lane=LANE_NORMAL)
 
 
 def delete_rebuild_staging_for_lost_claim(job_id: int, claim_token: str) -> bool:
@@ -394,7 +393,7 @@ def delete_rebuild_staging_for_lost_claim(job_id: int, claim_token: str) -> bool
         conn.execute("DELETE FROM catalog_rebuild_entries WHERE job_id = ?", (job_id,))
         return True
 
-    return run_write(delete, lane=LANE_NORMAL, fallback=lambda: _run_direct(delete))
+    return run_write(delete, lane=LANE_NORMAL)
 
 
 def _reconcile_assets_conn(
@@ -466,4 +465,4 @@ def reconcile_library_assets(
             )
         return reconciled
 
-    return run_write(reconcile, lane=LANE_NORMAL, fallback=lambda: _run_direct(reconcile))
+    return run_write(reconcile, lane=LANE_NORMAL)

@@ -528,7 +528,7 @@ def test_asset_folder_metadata_excludes_offline_children(
     assert finished["state"] == "succeeded"
 
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute("UPDATE assets SET offline = 1 WHERE path = ?", (str(offline.resolve()),))
 
     listing = get_asset_folder_listing(isolated_gallery_root)

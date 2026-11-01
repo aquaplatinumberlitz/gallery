@@ -16,7 +16,7 @@ from .config import (
     GALLERY_SEARCH_WORKFLOW_RAW_INDEX_BUDGET_BYTES,
     GALLERY_SEARCH_WORKFLOW_RAW_MAX_DOCUMENT_BYTES,
 )
-from .metadata_store._db import _DB_LOCK, _connect, _gallery_metadata_db_path
+from .metadata_store._db import _connect_read, _connect_readonly
 from .metadata_store._schema import initialize_database
 from .metadata_store.path_utils import canonicalize_catalog_path, named_path_scope_sql
 
@@ -61,7 +61,7 @@ def _workflow_json_from_raw(raw: str) -> dict[str, Any] | None:
 
 def _raw_workflow_source(asset: dict[str, Any]) -> tuple[dict[str, Any] | None, bool]:
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         row = conn.execute(
             "SELECT raw_metadata_text, tool, metadata_json FROM image_metadata WHERE path = ?",
             (str(asset["path"]),),
@@ -92,7 +92,7 @@ def extract_raw_workflow(asset: dict[str, Any]):  # noqa: ANN201
     byte_length = len(canonical_text.encode("utf-8"))
     if byte_length > GALLERY_SEARCH_WORKFLOW_RAW_MAX_DOCUMENT_BYTES:
         return SearchExtractionResult(status="skipped", error_code="raw_document_too_large", payload=None)
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         current_bytes = int(
             conn.execute(
                 "SELECT coalesce(sum(byte_length), 0) FROM workflow_raw_documents WHERE asset_id != ?",
@@ -214,11 +214,8 @@ def _validate_query(query: str) -> str:
 
 
 def _readonly_connection() -> sqlite3.Connection:
-    database = _gallery_metadata_db_path()
-    conn = sqlite3.connect(f"file:{database}?mode=ro", uri=True, timeout=0.25)
-    conn.row_factory = sqlite3.Row
+    conn = _connect_readonly(timeout=0.25)
     conn.execute("PRAGMA query_only=ON")
-    conn.execute("PRAGMA busy_timeout=250")
     return conn
 
 

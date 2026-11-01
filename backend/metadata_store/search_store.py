@@ -10,7 +10,7 @@ from typing import Any
 
 from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
 from ..metadata_extract import contains_cjk
-from ._db import _DB_LOCK, _connect
+from ._db import _connect_read
 from ._schema import initialize_database
 from .browse_store import catalog_folder_aggregates_conn
 from .identity import (
@@ -786,7 +786,7 @@ def search_metadata(query: str, limit: int = 100, offset: int = 0) -> dict[str, 
     if not trimmed:
         return {"query": query, "total": 0, "results": []}
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         rows: list[sqlite3.Row] = []
         total = 0
         try:
@@ -845,7 +845,7 @@ def search_index(
     if normalized_scope == "folder" and root is None:
         return _empty_search_response(query, normalized_scope, "", limit)
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         if is_first_search_page(cursor):
             album_rows, root = _search_file_index_fts(
                 conn,
@@ -939,7 +939,7 @@ def search_index_fielded(
     # ─────────────────────────────────────────────────────────────────────
     album_query = parsed.residual_text if parsed.residual_text else ""
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         if album_query and is_first_search_page(cursor):
             album_rows, root = _search_file_index_fts(
                 conn,
@@ -1012,7 +1012,7 @@ def search_index_count(
         return 0
 
     parsed = parse_fielded_query(trimmed)
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         return search_ranked_media_count(
             conn,
             trimmed,

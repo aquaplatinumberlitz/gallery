@@ -34,10 +34,9 @@ from .lease_heartbeat import LeaseHeartbeat
 from .metadata_extract import ExtractedMetadata as ExtractedMetadata  # noqa: F401 — monkeypatched by tests
 from .metadata_extract import extract_metadata
 from .metadata_store import (
-    _DB_LOCK,
     MAX_METADATA_JOB_ATTEMPTS,
     MetadataIndexJob,
-    _connect,
+    _connect_read,
     _persist_metadata_index_jobs,
     _read_snapshot,
     assert_catalog_job_claim,
@@ -65,7 +64,6 @@ from .metadata_store.db_writer import (
     LANE_NORMAL,
     LANE_PRIORITY,
     DatabaseWriterUnavailable,
-    get_active_writer,
     run_write,
 )
 from .metadata_store.path_utils import path_scope_sql
@@ -137,7 +135,7 @@ def _metadata_runtime_scope_sql(
 def get_indexer_runtime_status(scope_path: str | Path | None = None, *, conn: Any | None = None) -> dict[str, Any]:
     """Return runtime status from the SQLite metadata queue and worker pool.
 
-    Reads one WAL snapshot without taking ``_DB_LOCK``; pass ``conn`` to join the
+    Reads one WAL snapshot; pass ``conn`` to join the
     snapshot of an enclosing status build.
     """
     initialize_database()
@@ -360,11 +358,7 @@ def recover_abandoned_metadata_jobs(*, expired_only: bool = True, now: float | N
     def recover(conn: sqlite3.Connection) -> dict[str, int]:
         return recover_running_metadata_jobs(conn, expired_only=expired_only, now=now)
 
-    def recover_directly() -> dict[str, int]:
-        with _DB_LOCK, _connect() as conn:
-            return recover(conn)
-
-    return run_write(recover, lane=LANE_NORMAL, fallback=recover_directly)
+    return run_write(recover, lane=LANE_NORMAL)
 
 
 @dataclass(frozen=True)
@@ -603,8 +597,7 @@ class MetadataLifecycleWorker:
     def _renew_lease(self, job: MetadataIndexJob) -> bool:
         """Extend the lease of a still-owned claim (and of this worker's unstarted claims).
 
-        A priority-lane writer op; with the writer flag off a direct connection that never takes
-        ``_DB_LOCK``, so unrelated readers cannot starve it.
+        A priority-lane writer op, so unrelated readers and bulk writes cannot starve it.
         """
         with self._pending_lock:
             pending = list(self._pending_claims.values())
@@ -615,19 +608,15 @@ class MetadataLifecycleWorker:
                 renew_metadata_job_lease(conn, waiting, lease_seconds=self.lease_seconds)
             return renewed
 
-        def renew_directly() -> bool:
-            with _connect() as conn:
-                return renew(conn)
-
         try:
-            return run_write(renew, lane=LANE_PRIORITY, fallback=renew_directly)
+            return run_write(renew, lane=LANE_PRIORITY)
         except (sqlite3.Error, DatabaseWriterUnavailable):
             self._logger.warning("Metadata lease renewal failed for %s", job.path)
             return False
 
     def _owns_claim(self, job: MetadataIndexJob) -> bool:
         try:
-            with _connect() as conn:
+            with _connect_read() as conn:
                 return owns_metadata_job_claim(conn, job)
         except sqlite3.Error:
             return True  # cannot tell; the fenced completion write decides
@@ -635,18 +624,12 @@ class MetadataLifecycleWorker:
     def _persist(self, write: Callable[[sqlite3.Connection], Any]) -> Any:
         """Run one short job-state write, retrying SQLite lock/busy contention a bounded number of times.
 
-        The write is a priority-lane database writer op (a terminal job write); with the writer flag off
-        it runs in a direct transaction under ``_DB_LOCK``.
+        The write is a priority-lane database writer op (a terminal job write).
         """
-
-        def write_directly() -> Any:
-            with _DB_LOCK, _connect() as conn:
-                return write(conn)
-
         attempt = 0
         while True:
             try:
-                return run_write(write, lane=LANE_PRIORITY, fallback=write_directly)
+                return run_write(write, lane=LANE_PRIORITY)
             except sqlite3.OperationalError as exc:
                 if attempt >= len(self._write_retry_delays) or not is_transient_metadata_error(exc):
                     raise
@@ -680,36 +663,17 @@ class MetadataLifecycleWorker:
                 self._logger.info("Metadata job %s lost its claim during extraction; discarding the result", job.path)
                 return
 
-            if get_active_writer() is not None:
-                heartbeat.stop()
-                completion = self._persist(lambda conn: self._persist_and_complete(conn, job, metadata))
-                if completion.claim_lost:
-                    self._logger.info(
-                        "Metadata job %s lost its claim before its result was written; discarding the result", job.path
-                    )
-                    return
-                if completion.persisted and completion.library_id is not None:
-                    # After the commit and outside the writer: scheduling may take ``_DB_LOCK``.
-                    schedule_derived_search_backfills(completion.library_id)
-                applied, asset_id = completion.applied, completion.asset_id
-            else:
-                # Write image_metadata in its own short transaction
-                from .metadata_store import upsert_metadata_batch as _upbatch
-
-                _upbatch([metadata])
-                heartbeat.stop()
-
-                # Complete job + materialize asset state in another short transaction
-                def _complete(conn: sqlite3.Connection) -> tuple[bool, Any]:
-                    applied = complete_metadata_job(conn, job)
-                    asset = conn.execute(
-                        "SELECT id FROM assets WHERE path = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0",
-                        (job.path,),
-                    ).fetchone()
-                    return applied, asset
-
-                applied, asset = self._persist(_complete)
-                asset_id = int(asset["id"]) if asset is not None else None
+            heartbeat.stop()
+            completion = self._persist(lambda conn: self._persist_and_complete(conn, job, metadata))
+            if completion.claim_lost:
+                self._logger.info(
+                    "Metadata job %s lost its claim before its result was written; discarding the result", job.path
+                )
+                return
+            if completion.persisted and completion.library_id is not None:
+                # After the commit and outside the op: scheduling a backfill waits on the writer.
+                schedule_derived_search_backfills(completion.library_id)
+            applied, asset_id = completion.applied, completion.asset_id
             if not applied:
                 self._logger.info("Ignored stale completion for metadata job %s", job.path)
                 return
@@ -810,10 +774,15 @@ def recover_metadata_index_jobs() -> dict[str, int]:
         done_repaired, done_demoted, done_skipped, total
     """
     initialize_database()
-    with _DB_LOCK, _connect() as conn:
-        recovered = recover_running_metadata_jobs(conn, expired_only=False)
-        mtime_repair_result = repair_legacy_asset_mtime_ns(conn)
-        repair_result = repair_inconsistent_asset_states(conn)
+
+    def recover(conn: sqlite3.Connection) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+        return (
+            recover_running_metadata_jobs(conn, expired_only=False),
+            repair_legacy_asset_mtime_ns(conn),
+            repair_inconsistent_asset_states(conn),
+        )
+
+    recovered, mtime_repair_result, repair_result = run_write(recover, lane=LANE_NORMAL)
 
     metadata_worker.wake()
 
@@ -842,7 +811,7 @@ def get_metadata_lifecycle_status(scope_path: str | Path | None = None, *, conn:
 
     Provides 15 counters covering job queue depth, inconsistency detection,
     worker health, and throughput. Reads one WAL snapshot without taking
-    ``_DB_LOCK``; pass ``conn`` to join the snapshot of an enclosing status build.
+    pass ``conn`` to join the snapshot of an enclosing status build.
     """
     initialize_database()
     now = time.time()

@@ -14,7 +14,6 @@ from fastapi.responses import JSONResponse
 from . import indexer as metadata_indexer
 from .browse import router as browse_router
 from .config import (
-    DB_WRITER_ENABLED,
     ENABLE_METRICS,
     ENABLE_PROFILER,
     GALLERY_CATALOG_SERVICE_ENABLED,
@@ -119,12 +118,11 @@ async def _lifespan(_app: FastAPI):
     lifecycle = _LifecycleRegistry()
     try:
         validate_trusted_proxy_configuration()
+        # First to start and last to stop: startup recovery and every worker below hand their writes to it.
+        lifecycle.start("db-writer", database_writer.start, database_writer.stop)
         recover_stale_jobs()
         if metadata_indexer.METADATA_INDEXER_ENABLED:
             recover_metadata_index_jobs()
-        if DB_WRITER_ENABLED:
-            # First to start and last to stop: every worker below may hand writes to it.
-            lifecycle.start("db-writer", database_writer.start, database_writer.stop)
         if GALLERY_CATALOG_SERVICE_ENABLED:
             lifecycle.start("catalog", start, stop)
             if GALLERY_CATALOG_STARTUP_CATCHUP_ENABLED:

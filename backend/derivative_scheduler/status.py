@@ -17,7 +17,7 @@ class StatusMixin:
     def library_status(self, library_id: int) -> dict[str, Any]:
         """Return warm coverage and quota utilization for one library.
 
-        Every counter comes from one WAL snapshot read without ``_DB_LOCK``.
+        Every counter comes from one WAL snapshot.
         """
         _ensure_database()
         configured_variant_specs = [

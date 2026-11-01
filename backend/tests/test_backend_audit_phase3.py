@@ -60,7 +60,7 @@ def test_scheduled_refresh_fairness_visits_every_library(
     refresh._run_refresh_tick()
     refresh._run_refresh_tick()
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         scheduled = {
             int(row["library_id"])
             for row in conn.execute("SELECT library_id FROM library_jobs WHERE trigger = 'scheduled'")
@@ -100,7 +100,7 @@ def test_catalog_supervisor_restores_dead_worker_without_status_request(monkeypa
 
 def test_global_runtime_is_observational(monkeypatch: pytest.MonkeyPatch):
     worker_count_before = len(scan_worker._worker_threads)
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         jobs_before = conn.execute("SELECT count(*) FROM library_jobs").fetchone()[0]
 
     monkeypatch.setattr(
@@ -110,7 +110,7 @@ def test_global_runtime_is_observational(monkeypatch: pytest.MonkeyPatch):
     )
     runtime = build_global_runtime()
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         jobs_after = conn.execute("SELECT count(*) FROM library_jobs").fetchone()[0]
     assert len(scan_worker._worker_threads) == worker_count_before
     assert jobs_after == jobs_before

@@ -37,7 +37,7 @@ def _catalog_image(root: Path) -> tuple[Path, int]:
     library = create_library([root], name=root.name)
     stat = image.stat()
     assert index_file(image, image.name, image.parent, "image", stat.st_mtime, stat.st_size, 64, 64)
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         asset_id = int(conn.execute("SELECT id FROM assets WHERE library_id = ?", (library["id"],)).fetchone()[0])
     return image, asset_id
 
@@ -58,7 +58,7 @@ def test_http_quota_zero_returns_507_without_rendering(
     response = isolated_app.get("/api/thumbnail", params={"path": image, "max_long_edge": 128})
 
     assert response.status_code == 507
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         assert conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0] == 0
         assert conn.execute("SELECT status FROM asset_derivatives").fetchone()[0] == "deferred_capacity"
 
@@ -82,7 +82,7 @@ def test_renewed_claim_is_not_reclaimed_by_integrity_snapshot(
     derivative_id = local.schedule_derivative(asset_id, "thumbnail", "thumb_128", max_long_edge=128, quality=78)
     claimed = local._claim_job("lease-worker")
     assert claimed is not None
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute(
             "UPDATE derivative_jobs SET lease_expires_at = julianday('now', '-1 second') WHERE id = ?",
             (claimed["job_id"],),
@@ -122,7 +122,7 @@ def test_integrity_removes_unsupported_variant_cache(
     stat = image.stat()
     cache_path = tmp_path / "legacy.webp"
     cache_path.write_bytes(b"legacy")
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute(
             """
             INSERT INTO asset_derivatives (
@@ -135,7 +135,7 @@ def test_integrity_removes_unsupported_variant_cache(
 
     integrity_checker.run_all_checks()
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         row = conn.execute(
             "SELECT status, cache_path FROM asset_derivatives WHERE variant = 'thumb_256_legacy'"
         ).fetchone()

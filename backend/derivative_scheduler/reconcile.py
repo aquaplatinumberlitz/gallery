@@ -15,7 +15,7 @@ from ..config import (
     DERIVATIVE_RECONCILE_YIELD_SECONDS,
     DERIVATIVE_VARIANTS,
 )
-from ..metadata_store import _connect
+from ..metadata_store import _connect_read
 from ..metadata_store.db_writer import LANE_NORMAL, run_write
 from ._common import (
     _CAPACITY_DEFERRED_AUTOMATIC_REASONS,
@@ -52,7 +52,7 @@ class ReconcileMixin:
         respect_warm_policy: bool,
     ) -> list[sqlite3.Row]:
         """Select the active image assets belonging to one reconciliation scope."""
-        with _connect() as conn:
+        with _connect_read() as conn:
             scope_clause = ""
             scope_params: list[Any] = []
             if scope_path is not None:
@@ -205,14 +205,9 @@ class ReconcileMixin:
                         self._record_reconcile_outcome(part, outcome)
             return pending, retired_paths
 
-        def coalesce_directly() -> tuple[list[PendingCapacity], list[str]]:
-            with _connect() as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                return coalesce(conn)
-
         # One writer op (one transaction, one ledger). ``reconcile_desired_derivatives`` hands this method
         # batches of at most ``RECONCILE_OP_ASSETS`` assets, which keeps each op inside the write budget.
-        pending_capacity, retired_paths = run_write(coalesce, lane=LANE_NORMAL, fallback=coalesce_directly)
+        pending_capacity, retired_paths = run_write(coalesce, lane=LANE_NORMAL)
         # The op committed (its Future resolved): only now are the retired files unlinked.
         self._discard_retired_files(retired_paths)
         for field, value in vars(part).items():
@@ -238,12 +233,7 @@ class ReconcileMixin:
             def coalesce_pending(conn: sqlite3.Connection, coalesce_args=coalesce_args) -> tuple[int, str]:
                 return self._coalesce_derivative_job(conn, **coalesce_args)
 
-            def coalesce_pending_directly(coalesce_pending=coalesce_pending) -> tuple[int, str]:
-                with _connect() as conn:
-                    conn.execute("BEGIN IMMEDIATE")
-                    return coalesce_pending(conn)
-
-            _derivative_id, outcome = run_write(coalesce_pending, lane=LANE_NORMAL, fallback=coalesce_pending_directly)
+            _derivative_id, outcome = run_write(coalesce_pending, lane=LANE_NORMAL)
             if created_pending and outcome == "requeued":
                 outcome = "created"
             self._record_reconcile_outcome(summary, outcome)
@@ -315,7 +305,7 @@ class ReconcileMixin:
         # functional; normal production calls always use the reconciler below.
         if "schedule_derivative" in self.__dict__:
             _ensure_database()
-            with _connect() as conn:
+            with _connect_read() as conn:
                 assets = conn.execute(
                     "SELECT id FROM assets WHERE library_id = ? AND type = 'image' AND deleted_at IS NULL AND offline = 0 ORDER BY id",
                     (library_id,),

@@ -38,9 +38,6 @@ from ..models import VideoFileNode as VideoFileNode
 from . import _db as _db
 from . import path_utils as path_utils
 from ._db import (
-    _DB_LOCK as _DB_LOCK,
-)
-from ._db import (
     MAX_METADATA_JOB_ATTEMPTS as MAX_METADATA_JOB_ATTEMPTS,
 )
 from ._db import (
@@ -48,6 +45,9 @@ from ._db import (
 )
 from ._db import (
     _connect_read as _connect_read,
+)
+from ._db import (
+    _connect_readonly as _connect_readonly,
 )
 from ._db import (
     _read_snapshot as _read_snapshot,

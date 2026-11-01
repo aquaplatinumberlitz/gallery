@@ -58,7 +58,7 @@ def test_normal_sidecar_is_bounded_and_persists_same_descriptor_identity(
     assert response.status_code == 200
     assert response.json()["prompt"] == "normal sidecar prompt"
     sidecar_stat = sidecar.stat()
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         row = conn.execute(
             "SELECT source_path, source_mtime_ns, source_size FROM image_metadata WHERE path = ?",
             (str(image.resolve()),),

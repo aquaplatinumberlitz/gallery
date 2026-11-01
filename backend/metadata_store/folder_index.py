@@ -12,7 +12,8 @@ from typing import Any
 
 from ..files import is_image_path
 from ..models import FileNode, VideoFileNode
-from ._db import _DB_LOCK, _connect
+from ._db import _connect_read
+from .db_writer import LANE_NORMAL, run_write
 from .identity import (
     active_catalog_file_sql,
     asset_owns_file_index_sql,
@@ -75,7 +76,8 @@ def update_folder_index_state(
                 dir_mtime_ns = Path(folder_path).stat().st_mtime_ns
             except OSError:
                 return False
-        with _DB_LOCK, _connect() as conn:
+
+        def upsert(conn: sqlite3.Connection) -> None:
             conn.execute(
                 """
                 INSERT INTO folder_index_state (
@@ -105,6 +107,8 @@ def update_folder_index_state(
                     now,
                 ),
             )
+
+        run_write(upsert, lane=LANE_NORMAL)
         return True
     except Exception:  # noqa: BLE001
         return False
@@ -115,7 +119,7 @@ def get_folder_index_state(folder_path: str | Path) -> dict | None:
     _initialize_database()
     try:
         resolved = str(Path(folder_path).resolve())
-        with _DB_LOCK, _connect() as conn:
+        with _connect_read() as conn:
             row = conn.execute(
                 "SELECT * FROM folder_index_state WHERE path = ?",
                 (resolved,),
@@ -163,7 +167,7 @@ def get_warm_folder_listing(
         return None
 
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         registered_library = _find_library_for_path_conn(conn, resolved)
         direct_child = catalog_direct_child_sql(parent_path_sql=":folder_path", path_sql="fi.path")
         import_owned = (
@@ -353,7 +357,7 @@ def get_warm_folder_listing(
 def get_folder_indexed_paths() -> list[dict]:
     """Return persisted folder index state rows ordered by most recent update."""
     _initialize_database()
-    with _DB_LOCK, _connect() as conn:
+    with _connect_read() as conn:
         rows = conn.execute(
             "SELECT path, dir_mtime_ns, complete, image_count, updated_at FROM folder_index_state ORDER BY updated_at DESC"
         ).fetchall()

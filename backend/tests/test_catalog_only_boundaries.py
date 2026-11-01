@@ -64,7 +64,7 @@ def _seed_boundary_rows(root: Path) -> dict[str, Path]:
     )
     paths["unowned"] = unowned
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute("UPDATE assets SET offline = 1 WHERE path = ?", (str(paths["offline"].resolve()),))
         conn.execute(
             "UPDATE assets SET deleted_at = ? WHERE path = ?",
@@ -147,7 +147,7 @@ def test_all_metadata_boundaries_require_current_active_assets(
 def test_catalog_ownership_predicate_uses_library_path_index(isolated_gallery_root: Path) -> None:
     _seed_boundary_rows(isolated_gallery_root)
     predicate = active_catalog_file_sql(fi_alias="fi")
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         plan = [
             str(row["detail"])
             for row in conn.execute(f"EXPLAIN QUERY PLAN SELECT count(*) FROM file_index AS fi WHERE {predicate}")
@@ -177,7 +177,7 @@ def test_corrupt_parent_and_outside_import_paths_are_hidden_from_catalog_readers
     create_test_png(outside)
     outside_stat = outside.stat()
     now = time.time()
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         conn.execute(
             """
             INSERT INTO assets(

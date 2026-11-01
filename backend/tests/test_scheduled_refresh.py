@@ -189,7 +189,7 @@ def test_busy_coalesced_jobs_do_not_starve_scheduled_refresh(
     refresh._run_refresh_tick()
     refresh._run_refresh_tick()
 
-    with _DB_LOCK, _connect() as conn:
+    with _connect() as conn:
         attempted = {
             int(row["id"])
             for row in conn.execute("SELECT id FROM libraries WHERE last_scheduled_attempt_at IS NOT NULL")
