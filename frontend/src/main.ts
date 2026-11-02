@@ -11,6 +11,8 @@ import { installVueQuery, queryClient } from "./query";
 import { queryKeys } from "./query/keys";
 import { fetchLibraries } from "./services/api";
 import { router } from "./router";
+import type { RegisteredLibrary } from "./types";
+import { startHomeBrowsePrefetch } from "./utils/homeBrowsePrefetch";
 import { BREAKPOINTS } from "./composables/useDevice";
 
 // Reload BlackBox monitor — installs BEFORE Vue init to patch WebSocket
@@ -34,7 +36,12 @@ const reloadBlackBoxReady: Promise<void> = reloadBlackBoxRequested()
 // the next thing App renders. Both previously waited until the route chunk tree had
 // loaded and the app had mounted. Same query key/fn and module specifiers as their
 // consumers, so TanStack Query and the module cache dedupe them.
-void queryClient.prefetchQuery({ queryKey: queryKeys.libraries(), queryFn: fetchLibraries });
+const librariesReady = queryClient.prefetchQuery({ queryKey: queryKeys.libraries(), queryFn: fetchLibraries });
+// The root browse page (and first cover) of the library the gallery opens on follows as soon as the list is
+// known, before the route chunks have loaded and the app has mounted. Best effort; see homeBrowsePrefetch.ts.
+void startHomeBrowsePrefetch(queryClient, librariesReady, () =>
+  queryClient.getQueryData<RegisteredLibrary[]>(queryKeys.libraries()),
+);
 const viewportWidth = window.innerWidth;
 void (
   viewportWidth < BREAKPOINTS.mobile
