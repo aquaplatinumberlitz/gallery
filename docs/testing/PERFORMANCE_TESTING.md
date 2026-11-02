@@ -98,7 +98,7 @@ In-app flows:
 Known gaps against the standard:
 - Slow-4G LCP is 2.7–2.8 s, against the 2.5 s stretch target.
 - Mobile INP sits under 200 ms but above RAIL's 100 ms response goal.
-- Scroll frame rate has not been verified on real hardware.
+- Scroll smoothness was confirmed by hand on the owner's phone (2026-11-02, fast scrolling in a large album, no visible jank). Frame times were not instrumented on the device.
 
 When these numbers are re-measured, update this snapshot and keep the date and
 commit.
