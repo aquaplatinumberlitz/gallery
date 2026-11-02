@@ -142,6 +142,45 @@ median of 3 runs.
   ST-5 ≤ 100 ms on mobile typical 4G. No regression on desktop or on other
   flows.
 
+### Track P: mount-critical payload (Sonnet, branch `perf/st-payload`, after the CLS fix is merged)
+
+Track L measured about 305 KB gzip that must arrive before the app mounts. On
+slow 4G each ~20 KB removed from that chain moves LCP about 0.1 s.
+Target: ST-1 ≤ 2.5 s (Track L reached 2.58 s), with no visual change and no
+regression elsewhere.
+
+- **P1. Brotli.**
+  - Emit pre-compressed `.br` (and keep `.gz`) for `/assets/` at build time,
+    via a Vite compression plugin or a post-build script. Document the new
+    dependency in `docs/THIRD_PARTY_LIBRARIES.md`.
+  - Add `brotli_static on;` / `gzip_static on;` for `/assets/` in
+    `frontend/gallery-nginx-prod.conf`.
+  - In `docs/CONFIGURATION.md`, document the Ubuntu nginx Brotli module
+    package and its `load_module` lines, and keep dynamic gzip as the fallback.
+  - Teach `scripts/perf/web_vitals/serve_dist_h2.cjs` to serve `.br` when the
+    client accepts it, so the lab matches.
+  - Deploying the nginx module on the VPS is a separate step, done by the
+    VPS session after review.
+- **P2. Tooltip and popover content off the critical path.**
+  - Tooltip and popover triggers keep rendering immediately.
+  - Their content and positioning code (reka-ui content components,
+    floating-ui) load on first hover/focus, or after load + idle.
+  - Nothing changes visually or in behaviour; the first tooltip shown keeps
+    its delay and position.
+- **P3. Search-only code off the home critical path.**
+  - Move fuse.js, the search results panel and other search-only modules
+    out of the home route's static graph.
+  - Load them when search becomes active, and warm them after load + idle.
+- **P4. motion-v investigation only.**
+  - Check whether the installed motion-v supports a LazyMotion / `m` /
+    feature-bundle pattern like framer-motion's.
+  - If it does, and switching keeps animations identical, implement it.
+  - If not, document why, and leave motion-v as it is. Do not replace
+    animations with CSS.
+- **Evidence.** Show the effect of each item on mount-critical bytes and on
+  slow-4G LCP, main against the branch, median of 3. Keep only the items
+  that help.
+
 ## Rules (all tracks)
 
 - No visual change. Never weaken, delete or skip assertions. Quote
