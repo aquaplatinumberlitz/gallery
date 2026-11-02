@@ -3,6 +3,7 @@ import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 import vitePluginIstanbul from "vite-plugin-istanbul";
+import { precompressAssets } from "./src/build/precompressAssets";
 
 const DEV_PORT = Number(process.env.VITE_PORT) || 4702;
 const API_TARGET = process.env.VITE_API_URL || "http://localhost:4701";
@@ -73,7 +74,8 @@ ${groups
   };
 }
 
-const plugins = [tailwindcss(), vue(), earlyChunkPreload()];
+// Pre-compressed .br/.gz siblings of every text asset, served by nginx `brotli_static` / `gzip_static`.
+const plugins = [tailwindcss(), vue(), earlyChunkPreload(), precompressAssets()];
 if (process.env.VITE_COVERAGE === "true") {
   plugins.push(
     vitePluginIstanbul({

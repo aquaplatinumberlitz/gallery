@@ -2,19 +2,21 @@
 // Serve frontend/dist over TLS + HTTP/2 (HTTP/1.1 still allowed). Port of the scratch h2server2.cjs.
 //
 // Purpose:
-// Match what nginx `listen 443 ssl http2` with gzip and immutable /assets/ gives the browser. Use this for
+// Match what nginx `listen 443 ssl http2` with pre-compressed (brotli/gzip) and immutable /assets/ gives the browser. Use this for
 // the measurement profiles, which the standard describes as HTTP/2 + gzip + immutable /assets/.
 //
 // Guarantees:
 // * binds 127.0.0.1 only
-// * all static responses use gzip (text assets) and Cache-Control: immutable under /assets/, no-cache elsewhere
+// * text assets under /assets/ are served from a pre-compressed `.br` (client sends `br`) or `.gz` sibling, like nginx
+//   `brotli_static on; gzip_static on;`, and fall back to dynamic gzip; other text files use dynamic gzip.
+//   Cache-Control: immutable under /assets/, no-cache elsewhere. `--no-brotli` mimics a server without the module.
 // * /api is forwarded to the backend with X-Gallery-Proxy-Secret; hop-by-hop headers are dropped
 // * with no --cert/--key, a self-signed localhost certificate is generated into a temp directory that is
 //   removed on exit; pass ignoreHTTPSErrors in the browser (the measurement scripts already do)
 //
 // Usage:
 //   node scripts/perf/web_vitals/serve_dist_h2.cjs --secret-file PATH [--dist DIR] [--port 8443]
-//        [--backend-port 4701] [--cert CERT.pem --key KEY.pem]
+//        [--backend-port 4701] [--cert CERT.pem --key KEY.pem] [--no-brotli]
 //
 // Manual certificate (equivalent to what the script does when --cert/--key are omitted):
 //   openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 2 \
@@ -28,14 +30,22 @@ const http2 = require("http2");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const zlib = require("zlib");
-const { parseArgs, intArg, readProxySecret, assertDist, generateSelfSignedCert, DEFAULT_DIST } = require("./lib.cjs");
+const {
+  parseArgs,
+  intArg,
+  readProxySecret,
+  assertDist,
+  generateSelfSignedCert,
+  negotiateStatic,
+  DEFAULT_DIST,
+} = require("./lib.cjs");
 
 const args = parseArgs();
 const PORT = intArg(args.port, 8443);
 const BACKEND_PORT = intArg(args["backend-port"], 4701);
 const DIST = path.resolve(typeof args.dist === "string" ? args.dist : DEFAULT_DIST);
 const SECRET = readProxySecret(args);
+const ALLOW_BROTLI = !args["no-brotli"];
 assertDist(DIST);
 
 let tls;
@@ -84,16 +94,18 @@ srv.on("request", (req, res) => {
   let f = path.join(DIST, decodeURIComponent(req.url.split("?")[0]));
   if (!f.startsWith(DIST) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(DIST, "index.html");
   const ext = path.extname(f);
-  const body = fs.readFileSync(f);
+  const inAssets = f.includes("/assets/");
   const h = {
     "content-type": types[ext] || "application/octet-stream",
-    "cache-control": f.includes("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
+    "cache-control": inAssets ? "public, max-age=31536000, immutable" : "no-cache",
+    vary: "Accept-Encoding",
   };
-  if (/gzip/.test(req.headers["accept-encoding"] || "") && types[ext]) {
-    h["content-encoding"] = "gzip";
-    res.writeHead(200, h);
-    return res.end(zlib.gzipSync(body, { level: 6 }));
-  }
+  const { body, encoding } = negotiateStatic(f, req.headers["accept-encoding"], {
+    textType: !!types[ext],
+    staticDir: inAssets,
+    allowBrotli: ALLOW_BROTLI,
+  });
+  if (encoding) h["content-encoding"] = encoding;
   res.writeHead(200, h);
   res.end(body);
 });

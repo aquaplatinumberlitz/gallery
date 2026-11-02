@@ -16,6 +16,7 @@ const { execFileSync } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const zlib = require("zlib");
 const { createRequire } = require("module");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
@@ -100,6 +101,31 @@ function generateSelfSignedCert() {
   return { key: fs.readFileSync(key), cert: fs.readFileSync(cert), dir };
 }
 
+// Pick the encoding nginx would use for a static file and return the body to send.
+//
+// Order for files under /assets/: a pre-compressed `<file>.br` when the client accepts `br` (nginx `brotli_static on`),
+// then `<file>.gz` when it accepts gzip (`gzip_static on`), then dynamic gzip for text types (`gzip on`), then the
+// plain file. Other paths (index.html) get dynamic gzip only, as in the nginx template.
+// Options: `textType` (the file is compressible text), `staticDir` (the file is under /assets/), `allowBrotli`
+// (false mimics a server without the Brotli module), `gzipLevel` (dynamic gzip level, 6 by default).
+// Returns `{ body, encoding }` where `encoding` is "br", "gzip" or null.
+function negotiateStatic(file, acceptEncoding, { textType, staticDir, allowBrotli = true, gzipLevel = 6 }) {
+  const accepts = (name) => new RegExp(`(^|[\\s,])${name}(\\s*(;|,|$))`).test(acceptEncoding || "");
+  if (staticDir && textType) {
+    if (allowBrotli && accepts("br") && fs.existsSync(`${file}.br`)) {
+      return { body: fs.readFileSync(`${file}.br`), encoding: "br" };
+    }
+    if (accepts("gzip") && fs.existsSync(`${file}.gz`)) {
+      return { body: fs.readFileSync(`${file}.gz`), encoding: "gzip" };
+    }
+  }
+  const body = fs.readFileSync(file);
+  if (textType && accepts("gzip")) {
+    return { body: zlib.gzipSync(body, { level: gzipLevel }), encoding: "gzip" };
+  }
+  return { body, encoding: null };
+}
+
 // Playwright is pinned as a devDependency of frontend/ (@playwright/test). Resolve it from the current directory
 // first, so running from frontend/ uses the pinned version, then fall back to a plain `playwright` install.
 function loadChromium() {
@@ -129,5 +155,6 @@ module.exports = {
   readProxySecret,
   assertDist,
   generateSelfSignedCert,
+  negotiateStatic,
   loadChromium,
 };
