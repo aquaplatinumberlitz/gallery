@@ -96,8 +96,10 @@ GRID_COLUMN_MAP = {
 
 ### Thumbnail loading
 
-- Thumbnails and album covers are requested only after the card rested in range for 120ms and are cancelled
-  (by clearing `src`) when it leaves before the image loaded; see `useVisibleLoadGate.ts` and
+- Thumbnails and album covers in range while nothing is scrolling load at once (no added delay at album
+  open); while the scroller is actively scrolling a card must rest in range for 120ms first, and pending
+  cards start the moment scrolling stops. Cards are cancelled (by clearing `src`) when they leave before
+  the image loaded; see `useVisibleLoadGate.ts` and
   "Grid Image Loading" in `ARCHITECTURE.md`. First-row cards (`fetchPriority="high"`) and `priority` album
   covers load immediately.
 - The loading look is unchanged by the gate: the card shimmer / cover skeleton stays until `load`; a

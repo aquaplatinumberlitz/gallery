@@ -1,7 +1,62 @@
 import { onBeforeUnmount, onMounted, readonly, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from "vue";
 
-/** How long a card must stay intersecting before its image request may start. */
+/** While the scroll root is scrolling, how long a card must stay intersecting before its request may start. */
 export const VISIBLE_LOAD_DWELL_MS = 120;
+/** The scroll root counts as scrolling until this long after its last scroll event. */
+export const SCROLL_IDLE_MS = 150;
+
+interface ScrollActivity {
+  scrolling: boolean;
+  idleTimer: ReturnType<typeof setTimeout> | null;
+  idleListeners: Set<() => void>;
+  stop: () => void;
+}
+
+// One scroll listener per scroll root, shared by every card inside it.
+const scrollActivities = new WeakMap<EventTarget, ScrollActivity>();
+
+/**
+ * Tracks whether `root` (or the window when null) scrolled within the last SCROLL_IDLE_MS.
+ * `onIdle` runs when scrolling stops. Returns `isScrolling` and a `release` that detaches the card.
+ */
+function trackScrollActivity(root: HTMLElement | null, onIdle: () => void) {
+  const target: EventTarget = root ?? window;
+  let activity = scrollActivities.get(target);
+  if (!activity) {
+    const created: ScrollActivity = {
+      scrolling: false,
+      idleTimer: null,
+      idleListeners: new Set(),
+      stop: () => {},
+    };
+    const onScroll = () => {
+      created.scrolling = true;
+      if (created.idleTimer) clearTimeout(created.idleTimer);
+      created.idleTimer = setTimeout(() => {
+        created.idleTimer = null;
+        created.scrolling = false;
+        for (const listener of [...created.idleListeners]) listener();
+      }, SCROLL_IDLE_MS);
+    };
+    target.addEventListener("scroll", onScroll, { passive: true });
+    created.stop = () => {
+      target.removeEventListener("scroll", onScroll);
+      if (created.idleTimer) clearTimeout(created.idleTimer);
+      scrollActivities.delete(target);
+    };
+    scrollActivities.set(target, created);
+    activity = created;
+  }
+  const shared = activity;
+  shared.idleListeners.add(onIdle);
+  return {
+    isScrolling: () => shared.scrolling,
+    release: () => {
+      shared.idleListeners.delete(onIdle);
+      if (shared.idleListeners.size === 0) shared.stop();
+    },
+  };
+}
 
 type ScrollAxis = "x" | "y";
 
@@ -46,10 +101,12 @@ export interface UseVisibleLoadGateOptions {
 /**
  * Visibility-gated, cancellable image loading.
  *
- * `shouldLoad` turns true after the target has stayed intersecting for `dwellMs`, or at once when
- * `immediate` is true. It turns back to false when the target leaves before the load settled, so the
- * consumer clears `src` and the browser cancels the request. A fast scroll therefore only downloads
- * the images the user actually rests on.
+ * `shouldLoad` turns true as soon as the target is in range while its scroll root is at rest (album
+ * open, settling after a scroll, tab switch, resize). While the root is actively scrolling (a scroll
+ * event within SCROLL_IDLE_MS) the target must stay in range for `dwellMs` first, and a card still
+ * pending when scrolling stops starts at once. `immediate` skips the gate. `shouldLoad` turns back to
+ * false when the target leaves before the load settled, so the consumer clears `src` and the browser
+ * cancels the request. A fast scroll therefore only downloads the images the user actually rests on.
  */
 export function useVisibleLoadGate(options: UseVisibleLoadGateOptions) {
   const { target, dwellMs = VISIBLE_LOAD_DWELL_MS, rootMargin = "200px 0px", axis = "y" } = options;
@@ -61,6 +118,7 @@ export function useVisibleLoadGate(options: UseVisibleLoadGateOptions) {
   let dwellTimer: ReturnType<typeof setTimeout> | null = null;
   let observer: IntersectionObserver | null = null;
   let observed: HTMLElement | null = null;
+  let scrollActivity: ReturnType<typeof trackScrollActivity> | null = null;
 
   const clearDwell = () => {
     if (dwellTimer) {
@@ -69,8 +127,13 @@ export function useVisibleLoadGate(options: UseVisibleLoadGateOptions) {
     }
   };
 
-  const startDwell = () => {
+  /** Loads at once when the root is at rest, otherwise after the dwell. */
+  const startLoad = () => {
     if (shouldLoad.value || dwellTimer) return;
+    if (!scrollActivity?.isScrolling()) {
+      shouldLoad.value = true;
+      return;
+    }
     dwellTimer = setTimeout(() => {
       dwellTimer = null;
       if (visible) shouldLoad.value = true;
@@ -82,14 +145,23 @@ export function useVisibleLoadGate(options: UseVisibleLoadGateOptions) {
     if (!latest) return;
     visible = latest.isIntersecting;
     if (visible) {
-      startDwell();
+      startLoad();
       return;
     }
     clearDwell();
     if (shouldLoad.value && !isSettled() && !isImmediate()) shouldLoad.value = false;
   };
 
+  /** Scrolling stopped: a card still in range must not wait out the rest of its dwell. */
+  const onScrollIdle = () => {
+    if (!visible || shouldLoad.value) return;
+    clearDwell();
+    shouldLoad.value = true;
+  };
+
   const detach = () => {
+    scrollActivity?.release();
+    scrollActivity = null;
     observer?.disconnect();
     observer = null;
     observed = null;
@@ -106,8 +178,10 @@ export function useVisibleLoadGate(options: UseVisibleLoadGateOptions) {
       shouldLoad.value = true;
       return;
     }
+    const root = findScrollRoot(el, axis);
+    scrollActivity = trackScrollActivity(root, onScrollIdle);
     observer = new IntersectionObserver(onIntersect, {
-      root: findScrollRoot(el, axis),
+      root,
       rootMargin,
       threshold: 0,
     });
@@ -119,7 +193,7 @@ export function useVisibleLoadGate(options: UseVisibleLoadGateOptions) {
   const reset = () => {
     clearDwell();
     shouldLoad.value = isImmediate();
-    if (!shouldLoad.value && visible) startDwell();
+    if (!shouldLoad.value && visible) startLoad();
   };
 
   watch(

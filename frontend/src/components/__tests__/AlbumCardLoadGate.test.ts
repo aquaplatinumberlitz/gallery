@@ -73,12 +73,25 @@ describe.each(cards)("$name cover load gate", ({ component, skeleton }) => {
     mount(component as Component, { props: { node, ...props }, attachTo: document.body });
   const frontCover = (wrapper: ReturnType<typeof mountCard>) => wrapper.findAll("img").at(-1)!;
 
-  it("requests the cover only after the card has rested in view", async () => {
+  it("at rest, requests the cover of an in-range card at once", async () => {
     const wrapper = mountCard();
     expect(frontCover(wrapper).attributes("src")).toBeUndefined();
 
     observer().emit(true);
-    await vi.advanceTimersByTimeAsync(VISIBLE_LOAD_DWELL_MS);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(frontCover(wrapper).attributes("src")).toContain("/api/thumbnail");
+  });
+
+  it("while scrolling, requests the cover only after the card has rested in view", async () => {
+    const wrapper = mountCard();
+    expect(frontCover(wrapper).attributes("src")).toBeUndefined();
+
+    window.dispatchEvent(new Event("scroll"));
+    observer().emit(true);
+    await vi.advanceTimersByTimeAsync(VISIBLE_LOAD_DWELL_MS - 1);
+    expect(frontCover(wrapper).attributes("src")).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
 
     expect(frontCover(wrapper).attributes("src")).toContain("/api/thumbnail");
   });

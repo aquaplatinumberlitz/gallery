@@ -7,6 +7,7 @@
  * Run when: Changing PhotoCard loading, fetch priority, or the grid virtualization that mounts cards.
  */
 import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PhotoCard from "../PhotoCard.vue";
 import { VISIBLE_LOAD_DWELL_MS } from "@/composables/useVisibleLoadGate";
@@ -60,10 +61,21 @@ describe("PhotoCard thumbnail load gate", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not request the thumbnail until the card has rested in view", async () => {
+  it("at rest, requests the thumbnail of an in-range card at once, without a dwell", async () => {
     const wrapper = mountCard();
     expect(thumbnail(wrapper).attributes("src")).toBeUndefined();
 
+    observer().emit(true);
+    await nextTick();
+
+    expect(thumbnail(wrapper).attributes("src")).toContain("/api/thumbnail");
+  });
+
+  it("while scrolling, does not request the thumbnail until the card has rested in view", async () => {
+    const wrapper = mountCard();
+    expect(thumbnail(wrapper).attributes("src")).toBeUndefined();
+
+    window.dispatchEvent(new Event("scroll"));
     observer().emit(true);
     await vi.advanceTimersByTimeAsync(VISIBLE_LOAD_DWELL_MS - 1);
     expect(thumbnail(wrapper).attributes("src")).toBeUndefined();

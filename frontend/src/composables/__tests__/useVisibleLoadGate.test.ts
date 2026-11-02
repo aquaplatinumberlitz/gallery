@@ -10,6 +10,7 @@ import { defineComponent, h, nextTick, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import {
   findScrollRoot,
+  SCROLL_IDLE_MS,
   useVisibleLoadGate,
   VISIBLE_LOAD_DWELL_MS,
   type UseVisibleLoadGateOptions,
@@ -43,6 +44,9 @@ class FakeIntersectionObserver {
     );
   }
 }
+
+/** The window is the scroll root when no scrolling ancestor exists; a scroll event starts "active scrolling". */
+const scroll = () => window.dispatchEvent(new Event("scroll"));
 
 const observer = () => FakeIntersectionObserver.instances[FakeIntersectionObserver.instances.length - 1]!;
 
@@ -84,8 +88,9 @@ describe("useVisibleLoadGate", () => {
     expect(api.shouldLoad.value).toBe(false);
   });
 
-  it("loads only after the card stayed visible for the dwell time", () => {
+  it("while scrolling, loads only after the card stayed visible for the dwell time", () => {
     const { api } = mountGate();
+    scroll();
     observer().emit(true);
 
     vi.advanceTimersByTime(VISIBLE_LOAD_DWELL_MS - 1);
@@ -94,8 +99,83 @@ describe("useVisibleLoadGate", () => {
     expect(api.shouldLoad.value).toBe(true);
   });
 
+  it("loads a card that is in range at mount at once when nothing is scrolling", () => {
+    const { api } = mountGate();
+    observer().emit(true);
+
+    expect(api.shouldLoad.value).toBe(true);
+  });
+
+  it("loads a card that comes into range after the root stopped scrolling at once", () => {
+    const { api } = mountGate();
+    scroll();
+    vi.advanceTimersByTime(SCROLL_IDLE_MS);
+
+    observer().emit(true);
+
+    expect(api.shouldLoad.value).toBe(true);
+  });
+
+  it("makes a card entering during active scrolling wait for the dwell", () => {
+    const { api } = mountGate();
+    scroll();
+    observer().emit(true);
+
+    expect(api.shouldLoad.value).toBe(false);
+    vi.advanceTimersByTime(VISIBLE_LOAD_DWELL_MS - 1);
+    expect(api.shouldLoad.value).toBe(false);
+  });
+
+  it("starts a dwell-pending card at once when scrolling stops", () => {
+    const { api } = mountGate({ dwellMs: 1000 });
+    scroll();
+    observer().emit(true);
+    vi.advanceTimersByTime(SCROLL_IDLE_MS - 1);
+    expect(api.shouldLoad.value).toBe(false);
+
+    vi.advanceTimersByTime(1);
+
+    expect(api.shouldLoad.value).toBe(true);
+  });
+
+  it("does not start a pending card that left the range before scrolling stopped", () => {
+    const { api } = mountGate();
+    scroll();
+    observer().emit(true);
+    observer().emit(false);
+
+    vi.advanceTimersByTime(SCROLL_IDLE_MS);
+
+    expect(api.shouldLoad.value).toBe(false);
+  });
+
+  it("keeps treating continuous scrolling as active", () => {
+    const { api } = mountGate({ dwellMs: 1000 });
+    for (let i = 0; i < 5; i++) {
+      scroll();
+      vi.advanceTimersByTime(SCROLL_IDLE_MS - 10);
+    }
+    observer().emit(true);
+
+    expect(api.shouldLoad.value).toBe(false);
+  });
+
+  it("shares one scroll listener per scroll root and removes it on unmount", () => {
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    const first = mountGate();
+    const second = mountGate();
+    expect(add.mock.calls.filter(([type]) => type === "scroll")).toHaveLength(1);
+
+    first.wrapper.unmount();
+    expect(remove.mock.calls.filter(([type]) => type === "scroll")).toHaveLength(0);
+    second.wrapper.unmount();
+    expect(remove.mock.calls.filter(([type]) => type === "scroll")).toHaveLength(1);
+  });
+
   it("never starts a card that scrolls past before the dwell time", () => {
     const { api } = mountGate();
+    scroll();
     observer().emit(true);
     vi.advanceTimersByTime(60);
     observer().emit(false);
@@ -106,6 +186,7 @@ describe("useVisibleLoadGate", () => {
 
   it("cancels an unfinished load when the card leaves, and restarts the dwell on re-entry", () => {
     const { api } = mountGate();
+    scroll();
     observer().emit(true);
     vi.advanceTimersByTime(VISIBLE_LOAD_DWELL_MS);
     expect(api.shouldLoad.value).toBe(true);
@@ -113,6 +194,7 @@ describe("useVisibleLoadGate", () => {
     observer().emit(false);
     expect(api.shouldLoad.value).toBe(false);
 
+    scroll();
     observer().emit(true);
     vi.advanceTimersByTime(VISIBLE_LOAD_DWELL_MS - 1);
     expect(api.shouldLoad.value).toBe(false);
@@ -157,6 +239,7 @@ describe("useVisibleLoadGate", () => {
 
   it("re-arms for a new image on a card that is still in view", () => {
     const { api, settled } = mountGate();
+    scroll();
     observer().emit(true);
     vi.advanceTimersByTime(VISIBLE_LOAD_DWELL_MS);
     settled.value = true;

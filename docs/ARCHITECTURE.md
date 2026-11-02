@@ -1312,9 +1312,13 @@ downloads what the user rests on:
 - `composables/useVisibleLoadGate.ts` observes each `PhotoCard` / `AlbumCard*`
   with an `IntersectionObserver` whose root is the nearest scroll container
   (`findScrollRoot`; a `rootMargin` only grows the root, so the viewport would
-  never see cards just outside the scroller). `shouldLoad` turns true after the
-  card has stayed in range for 120 ms (`VISIBLE_LOAD_DWELL_MS`); photo cards use a
-  200 px vertical margin, album covers a 400 px horizontal one.
+  never see cards just outside the scroller). A card that comes into range while
+  its scroll root is at rest (no scroll event for 150 ms, `SCROLL_IDLE_MS`: album
+  open, settling after a scroll, tab switch, resize) sets `shouldLoad` at once.
+  While the root is actively scrolling the card must stay in range for 120 ms
+  (`VISIBLE_LOAD_DWELL_MS`), and a card still pending when scrolling stops starts
+  immediately. One scroll listener per root is shared by all cards. Photo cards
+  use a 200 px vertical margin, album covers a 400 px horizontal one.
 - The card binds `src` to `shouldLoad ? url : undefined`. When the card leaves
   before the image settled, `shouldLoad` goes back to false and the cleared `src`
   makes the browser cancel the request; unmounting an unfinished `PhotoCard`
