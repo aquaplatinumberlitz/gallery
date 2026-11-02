@@ -2,9 +2,106 @@
 
 Status: Maintained
 
-Last reviewed: 2026-10-27
+Last reviewed: 2026-11-02
 
 This document describes how to measure and profile Gallery API performance.
+
+## User-facing performance standards
+
+These are the targets that perf work and reviews are judged against. They
+describe what a user experiences and are separate from the CI budgets in
+`scripts/perf_budgets.toml` (next section), which guard individual endpoints and
+flows against regressions.
+
+### 1. Primary standard: Google Core Web Vitals
+
+Core Web Vitals are the industry standard, used by Lighthouse, PageSpeed
+Insights, Chrome DevTools and Search Console. A page is "good" when the 75th
+percentile of visits meets all three:
+
+| Metric | Good | Needs improvement | Poor |
+|--------|------|-------------------|------|
+| LCP (Largest Contentful Paint) | ≤ 2.5 s | ≤ 4.0 s | > 4.0 s |
+| INP (Interaction to Next Paint) | ≤ 200 ms | ≤ 500 ms | > 500 ms |
+| CLS (Cumulative Layout Shift) | ≤ 0.1 | ≤ 0.25 | > 0.25 |
+
+FCP ≤ 1.8 s and TTFB ≤ 0.8 s are diagnostics, not pass/fail gates.
+
+Measurement profiles:
+
+| Profile | Network | CPU | Role |
+|---------|---------|-----|------|
+| Desktop | unthrottled | 1× | Must be **good** |
+| Mobile, typical 4G | 85 ms RTT, 9 Mbps down | 4× slowdown | Must be **good** |
+| Mobile, Lighthouse slow 4G | 150 ms RTT, 1.6 Mbps down | 4× slowdown | Stretch target |
+
+The slow-4G profile is not a gate because Lighthouse's mobile preset is far
+slower than typical real users.
+
+The site sits behind Basic Auth, so Google collects no field (CrUX) data for it.
+All numbers are therefore lab measurements: Chromium with CDP network and CPU
+throttling, behind the production nginx shape (HTTP/2, gzip, immutable
+`/assets/`), using photo-like fixtures (thumb_512 ≈ 44 KB, preview_1440
+≈ 250 KB).
+
+### 2. In-app flows: Nielsen response-time limits
+
+Core Web Vitals do not cover what happens after the page has loaded: opening an
+album, scrolling, the lightbox. Those use Nielsen's three limits:
+
+| Limit | Meaning | Applied to |
+|-------|---------|------------|
+| 0.1 s | Feels instantaneous | Next/previous image in the lightbox; feedback to a click or tap (INP covers the measurement) |
+| 1 s | Flow stays uninterrupted | Album open until the visible thumbnails are loaded; lightbox showing an image; revisiting an album |
+| 10 s | Attention is lost | **Hard ceiling for every flow**, including the worst case: opening an album right after import, while derivatives are still being generated |
+
+Target: frequent flows on desktop and on typical 4G stay within 1 s. No flow on
+any profile exceeds 10 s.
+
+### 3. RAIL: animation only
+
+Google's older RAIL model mostly overlaps the above. Its Response target (100 ms)
+is subsumed by INP, and its Load targets by LCP. The part that still applies is
+**Animation**: scrolling the grid and lightbox transitions should hold 60 fps,
+i.e. 16 ms per frame. Headless Chromium in CI and the sandbox rasterizes on the
+CPU, which inflates frame times, so check frame rate on a real phone, not in
+headless runs.
+
+Main-thread tasks over 50 ms are "long tasks" in Google's definition. Keep the
+mobile album-open long task below 200 ms as a working limit, and lower it when
+possible.
+
+### Status snapshot (2026-11-02, `main` @ `5991830`)
+
+Home page:
+
+| Profile | LCP | FCP | CLS | Verdict |
+|---------|-----|-----|-----|---------|
+| Desktop | ≈ 0.5 s | ≈ 0.5 s | ≈ 0 | good |
+| Mobile, typical 4G | 1.4 s | 1.1 s | ≈ 0 | good |
+| Mobile, slow 4G | 2.7–2.8 s | 2.4 s | ≈ 0 | needs improvement (stretch) |
+| Repeat visit, mobile | ≈ 1.3 s | — | — | — |
+
+In-app flows:
+
+| Flow | Desktop | Mobile, typical 4G | Mobile, slow 4G |
+|------|---------|--------------------|-----------------|
+| Click INP (album open, lightbox open) | 64–192 ms | 128–160 ms | 64–160 ms |
+| Lightbox next/previous image | 9–33 ms | 26–46 ms | 48–207 ms |
+| Album open → visible thumbnails | 0.85 s | 0.9–1.3 s | 3.1 s |
+| Album revisit | 0 thumbnail requests (immutable cache) | 0 | 0 |
+| Fast scroll → visible thumbnails settled | 0.8–0.9 s | 0.7–1.4 s | 3.3 s |
+| Lightbox preview sharp | 0.6–0.7 s | 0.6 s | 1.6 s |
+| Album opened right after import (worst case) | 4.8 s | 1.1 s | — |
+| Mobile album-open long task | — | 123 ms | — |
+
+Known gaps against the standard:
+- Slow-4G LCP is 2.7–2.8 s, against the 2.5 s stretch target.
+- Mobile INP sits under 200 ms but above RAIL's 100 ms response goal.
+- Scroll frame rate has not been verified on real hardware.
+
+When these numbers are re-measured, update this snapshot and keep the date and
+commit.
 
 ## Perf budgets — single source of truth
 
