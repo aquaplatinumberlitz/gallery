@@ -47,6 +47,7 @@ class RecoveryMixin:
 
     @maintenance_producer
     def _supervise_once(self) -> None:
+        self.flush_touches()  # trailing edge of the coalesced last_accessed_at touches
         dead_worker_ids: list[str] = []
         replacements: list[threading.Thread] = []
         with self._lifecycle_lock:

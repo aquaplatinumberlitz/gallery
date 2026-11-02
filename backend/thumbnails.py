@@ -18,7 +18,9 @@ from fastapi.responses import FileResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
 from starlette.background import BackgroundTask
 
+from . import config as _config
 from .config import THUMBNAIL_CACHE_DIR
+from .derivative_fastpath import FastPathEntry, FastPathKey, derivative_fast_path, fast_path_key
 from .errors import APIError, ErrorType
 from .files import check_image_limits, content_version, is_image
 from .metadata_store import image_dimensions_unchanged, upsert_image_dimensions
@@ -498,6 +500,26 @@ def _response_headers(etag: str, version: str | None, mtime_ns: int, size: int) 
     }
 
 
+def _check_fast_path(key: FastPathKey) -> tuple[FastPathEntry, os.stat_result] | None:
+    """Return ``(entry, source stat)`` when a remembered resolution is still true of the file on disk.
+
+    Runs in the thread pool (the stat may touch a network mount). An entry whose source identity no longer
+    matches, or whose source is gone, is dropped so the full path re-resolves and reschedules.
+    """
+    entry = derivative_fast_path.get(key)
+    if entry is None:
+        return None
+    try:
+        stat = os.stat(entry.source_path)
+    except OSError:
+        derivative_fast_path.discard(key, entry)
+        return None
+    if stat.st_mtime_ns != entry.mtime_ns or stat.st_size != entry.size:
+        derivative_fast_path.discard(key, entry)
+        return None
+    return entry, stat
+
+
 async def _serve_derivative(
     *,
     request: Request,
@@ -514,6 +536,23 @@ async def _serve_derivative(
 
     normalized_format = _normalize_derivative_format(format)
     variant = derivative_variant(kind, max_long_edge, quality, normalized_format)
+
+    fast_key = fast_path_key(str(_config.GALLERY_METADATA_DB), path, asset_id, kind, variant)
+    if fast_key is not None and derivative_fast_path.enabled:
+        hit = await run_in_threadpool(_check_fast_path, fast_key)
+        if hit is not None:
+            entry, hit_stat = hit
+            hit_headers = _response_headers(entry.etag, version, hit_stat.st_mtime_ns, hit_stat.st_size)
+            if request.headers.get("if-none-match") == entry.etag:
+                return Response(status_code=304, headers=hit_headers)
+            if await run_in_threadpool(scheduler.try_acquire_serving, entry.cache_path):
+                return FileResponse(
+                    entry.cache_path,
+                    media_type=DERIVATIVE_MEDIA_TYPES[normalized_format],
+                    headers=hit_headers,
+                    background=BackgroundTask(scheduler.release_serving, entry.cache_path),
+                )
+            derivative_fast_path.discard(fast_key, entry)
 
     file_path, asset_id, stat = await run_in_threadpool(_resolve_derivative_source, path, asset_id)
 
@@ -613,6 +652,21 @@ async def _serve_derivative(
         if ready is None:
             raise APIError(503, ErrorType.SERVER_ERROR, "Derivative generation timed out")
         cache_path = str(ready["cache_path"])
+        if (
+            fast_key is not None
+            and int(ready["source_mtime_ns"]) == stat.st_mtime_ns
+            and int(ready["source_size"]) == stat.st_size
+        ):
+            derivative_fast_path.put(
+                fast_key,
+                source_path=str(file_path),
+                mtime_ns=stat.st_mtime_ns,
+                size=stat.st_size,
+                asset_id=asset_id,
+                derivative_id=int(ready["id"]),
+                cache_path=cache_path,
+                etag=etag,
+            )
         return FileResponse(
             cache_path,
             media_type=DERIVATIVE_MEDIA_TYPES[normalized_format],
