@@ -296,6 +296,18 @@ describe("usePhotoSwipe", () => {
     expect(registeredEvents).toContain("loadError");
   });
 
+  it("holds neighbour preview loads until the current slide settles", async () => {
+    const { isOpenRef } = setup([makeItem("/img1.png", "img1.png"), makeItem("/img2.png", "img2.png")], 0, false);
+
+    isOpenRef.value = true;
+    await vi.waitFor(() => expect(pswpInstances.length).toBeGreaterThan(0));
+
+    const registeredEvents = pswpInstances[0].on.mock.calls.map((c: any) => c[0]);
+    expect(registeredEvents).toContain("contentLoadImage");
+    expect(registeredEvents).toContain("loadComplete");
+    expect(registeredEvents).toContain("contentDestroy");
+  });
+
   it("exposes test hooks on window in test mode", async () => {
     const { isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
 
@@ -395,6 +407,17 @@ describe("usePhotoSwipe", () => {
       await vi.waitFor(() => {
         expect(store.dimensionsByPath["/img1.png"]).toEqual({ width: 800, height: 600, source: "preview" });
       });
+    });
+
+    it("probes preview dimensions with the item's content version", async () => {
+      const { getPreviewUrl } = await import("@/services/api");
+      const item: FileNode = { ...makeItem("/img1.png", "img1.png"), content_version: "7-8" };
+      const { result, isOpenRef } = setup([item], 0, false);
+
+      isOpenRef.value = true;
+      await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
+
+      await vi.waitFor(() => expect(getPreviewUrl).toHaveBeenCalledWith("/img1.png", 1440, "7-8"));
     });
 
     it("keeps fallback geometry when asynchronous dimension resolution fails", async () => {

@@ -1,4 +1,4 @@
-import axios, { AxiosError } from "axios";
+import { createHttpClient, HttpError, type HttpErrorLike } from "./http";
 import type {
   BrowseResponse,
   FacetsResponse,
@@ -147,7 +147,12 @@ export class GalleryAPIError extends Error {
     this.relatedStatus = relatedStatus;
   }
 
-  static fromAxiosError(error: AxiosError): GalleryAPIError {
+  /** @deprecated Kept for callers of the pre-fetch name; use {@link GalleryAPIError.fromHttpError}. */
+  static fromAxiosError(error: HttpErrorLike): GalleryAPIError {
+    return GalleryAPIError.fromHttpError(error);
+  }
+
+  static fromHttpError(error: HttpErrorLike): GalleryAPIError {
     // Network error - cannot connect to server
     if (!error.response) {
       if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
@@ -312,20 +317,13 @@ export class GalleryAPIError extends Error {
   }
 }
 
-const api = axios.create({
+// Every HttpError (non-2xx, timeout, cancel, network) is rejected as a GalleryAPIError, as the axios
+// response interceptor did; anything else (a programming error) passes through unchanged.
+const api = createHttpClient({
   baseURL: API_BASE,
   timeout: 30000, // 30 second timeout
+  mapError: GalleryAPIError.fromHttpError,
 });
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error instanceof AxiosError) {
-      return Promise.reject(GalleryAPIError.fromAxiosError(error));
-    }
-    return Promise.reject(error);
-  },
-);
 
 export const browseDirectory = async (
   libraryId: number,
@@ -346,8 +344,8 @@ export const browseDirectory = async (
       next_cursor: data.next_cursor ?? data.next_media_cursor ?? null,
     };
   } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
+    if (error instanceof HttpError) {
+      throw GalleryAPIError.fromHttpError(error);
     }
     throw error;
   }
@@ -503,15 +501,41 @@ export const fetchLibraryInspectorMetadata = async (path: string): Promise<Libra
 
 export const getImageUrl = (path: string) => `${API_BASE}/api/image?path=${encodeURIComponent(path)}`;
 
-export const getThumbnailUrl = (path: string, maxLongEdge: number = 512) => {
+/** Backend `content_version` / `cover_versions[i]`. Empty or missing means "unversioned". */
+export type ContentVersion = string | null | undefined;
+
+/**
+ * Appends the optional content version as `v`. With a matching `v` the backend answers
+ * `Cache-Control: public, max-age=31536000, immutable`; without one the URL behaves as before.
+ */
+const withVersion = (params: URLSearchParams, version: ContentVersion) => {
+  if (version) params.set("v", version);
+  return params;
+};
+
+/**
+ * `retry` (1, 2, 3) appends a throwaway `r=<n>` so the browser issues a new request for an image that failed;
+ * the backend ignores unknown query parameters. It is only set on retries.
+ */
+export const getThumbnailUrl = (path: string, maxLongEdge: number = 512, version?: ContentVersion, retry?: number) => {
   const params = new URLSearchParams({ path });
   params.set("max_long_edge", String(maxLongEdge));
+  withVersion(params, version);
+  if (retry && retry > 0) params.set("r", String(retry));
   return `${API_BASE}/api/thumbnail?${params.toString()}`;
 };
 
-export const getPreviewUrl = (path: string, maxLongEdge: number = 1440) => {
+/** Thumbnail derivatives offered to the browser through `srcset` (the largest is the `src` fallback). */
+export const GRID_THUMBNAIL_EDGES = [256, 512] as const;
+
+/** `srcset` value for a grid thumbnail: the 256 and 512 px derivatives with their width descriptors. */
+export const getThumbnailSrcset = (path: string, version?: ContentVersion, retry?: number): string =>
+  GRID_THUMBNAIL_EDGES.map((edge) => `${getThumbnailUrl(path, edge, version, retry)} ${edge}w`).join(", ");
+
+export const getPreviewUrl = (path: string, maxLongEdge: number = 1440, version?: ContentVersion) => {
   const params = new URLSearchParams({ path });
   params.set("max_long_edge", String(maxLongEdge));
+  withVersion(params, version);
   return `${API_BASE}/api/preview?${params.toString()}`;
 };
 

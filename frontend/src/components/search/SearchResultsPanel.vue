@@ -92,8 +92,10 @@ const toFileNode = (result: UnifiedSearchResult): FileNode => ({
   type: normalizeAssetType(result.type),
   has_children: false,
   cover_images: result.cover_images ?? [],
+  cover_versions: result.cover_versions ?? [],
   image_count: result.image_count ?? 0,
   mtime: result.mtime,
+  content_version: result.content_version,
   width: result.width ?? undefined,
   height: result.height ?? undefined,
   duration_ms: result.duration_ms,
@@ -107,6 +109,7 @@ const albumNodes = computed(() =>
       const fallback = props.fallbackFolders.find((folder) => normalizePath(folder.path) === normalizePath(album.path));
       if (fallback?.cover_images?.length) {
         node.cover_images = fallback.cover_images;
+        node.cover_versions = fallback.cover_versions ?? [];
         node.image_count ||= fallback.image_count;
       }
     }
@@ -278,6 +281,9 @@ const displayFolder = (result: UnifiedSearchResult) => {
                 v-else
                 :src="item.path"
                 :name="item.name"
+                :version="item.content_version"
+                :image-width="item.width"
+                :image-height="item.height"
                 :can-find-related="Boolean(item.asset_id)"
                 @dimensions="emit('dimensions', $event)"
                 @click="emit('openMedia', item)"

@@ -168,6 +168,9 @@ class LifecycleMixin:
             self._active_stop_calls -= 1
             self._stop_in_progress = self._active_stop_calls > 0
             self._start_condition.notify_all()
+        # The database writer stops after this component, so the coalesced touches still have somewhere to go.
+        with suppress(Exception):
+            self.flush_touches(wait=True)
 
     def last_shutdown_clean(self) -> bool | None:
         """Return whether the most recent stop() completed within its timeout."""

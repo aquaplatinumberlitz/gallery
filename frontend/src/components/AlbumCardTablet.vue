@@ -1,27 +1,46 @@
 <script setup lang="ts">
 import { albumCountLabel } from "@/utils/albumCountLabel";
+import { ref, watch } from "vue";
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
 import { FolderOpen } from "lucide-vue-next";
 import { useCoverImageLoad } from "../composables/useCoverImageLoad";
+import { useVisibleLoadGate } from "../composables/useVisibleLoadGate";
 import { ALBUM_PLACEHOLDER_SVG } from "../utils/albumCardPlaceholder";
 
 const emit = defineEmits<{
   (e: "click"): void;
 }>();
 
-defineProps<{
+const props = defineProps<{
   node: FileNode;
   /** Above-the-fold cover (likely LCP): load eagerly at high fetch priority instead of lazily. */
   priority?: boolean;
 }>();
 
 // Skeleton shimmer shown over the cover until the cover image finishes loading.
-const { loaded, markCoverSettled } = useCoverImageLoad();
+const { loaded, markCoverSettled, onCoverError, retryAttempt, resetRetry } = useCoverImageLoad();
+
+// Covers start loading after resting in view and are cancelled when scrolled away first (see
+// useVisibleLoadGate). The margin is horizontal because the strip scrolls sideways; above-the-fold
+// covers (`priority`) skip the gate.
+const cardEl = ref<HTMLElement | null>(null);
+const { shouldLoad } = useVisibleLoadGate({
+  target: cardEl,
+  settled: loaded,
+  immediate: () => Boolean(props.priority),
+  axis: "x",
+  rootMargin: "0px 400px",
+});
+// A cover that failed is retried (see useCoverImageLoad); scrolling away cancels that and re-arms it.
+watch(shouldLoad, (now) => {
+  if (!now) resetRetry();
+});
 </script>
 
 <template>
   <div
+    ref="cardEl"
     class="album-card-tablet"
     data-testid="album-card"
     :data-album-name="node.name"
@@ -35,12 +54,16 @@ const { loaded, markCoverSettled } = useCoverImageLoad();
       </div>
       <img
         v-if="node.cover_images?.[0]"
-        :src="getThumbnailUrl(node.cover_images[0])"
+        :src="
+          shouldLoad
+            ? getThumbnailUrl(node.cover_images[0], undefined, node.cover_versions?.[0], retryAttempt)
+            : undefined
+        "
         :loading="priority ? 'eager' : 'lazy'"
         :fetchpriority="priority ? 'high' : 'auto'"
         alt=""
         @load="markCoverSettled"
-        @error="markCoverSettled"
+        @error="onCoverError"
       />
       <div v-else class="placeholder flex-center">
         <span class="fa-placeholder-svg" v-html="ALBUM_PLACEHOLDER_SVG" />

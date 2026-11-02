@@ -65,8 +65,8 @@ export function buildPhotoSwipeItem(
   item: FileNode,
   resolvedDimensions?: LightboxDimensions | null,
 ): PhotoSwipeImageItem {
-  const previewSrc = getPreviewUrl(item.path, LIGHTBOX_PREVIEW_EDGE);
-  const msrc = getThumbnailUrl(item.path, LIGHTBOX_THUMBNAIL_EDGE);
+  const previewSrc = getPreviewUrl(item.path, LIGHTBOX_PREVIEW_EDGE, item.content_version);
+  const msrc = getThumbnailUrl(item.path, LIGHTBOX_THUMBNAIL_EDGE, item.content_version);
 
   const width = resolvedDimensions?.width ?? 1200;
   const height = resolvedDimensions?.height ?? 1200;

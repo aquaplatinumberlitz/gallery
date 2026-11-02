@@ -7,6 +7,7 @@ import { queryKeys } from "../query/keys";
 import { useLightboxStore } from "../stores/lightbox";
 import { registerLightboxDOMReport } from "../debug/lightboxDomReport";
 import { isLightboxNavDebugEnabled, logLightboxNavDebug, summarizeLightboxItems } from "../debug/lightboxNavDebug";
+import { deferNeighbourPreviewsUntilCurrentSettles } from "../utils/lightboxPreviewOrder";
 import {
   buildPhotoSwipeItem,
   hasValidDimensions,
@@ -82,7 +83,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     return hasValidDimensions(metadata) ? { width: metadata.width, height: metadata.height, source: "metadata" } : null;
   };
 
-  const loadPreviewDimensions = (path: string): Promise<LightboxDimensions | null> =>
+  const loadPreviewDimensions = (path: string, version?: string | null): Promise<LightboxDimensions | null> =>
     new Promise((resolve) => {
       if (typeof Image === "undefined") {
         resolve(null);
@@ -105,7 +106,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
         );
       };
       image.onerror = () => resolve(null);
-      image.src = getPreviewUrl(path, LIGHTBOX_PREVIEW_EDGE);
+      image.src = getPreviewUrl(path, LIGHTBOX_PREVIEW_EDGE, version);
     });
 
   const resolveDimensions = (item: FileNode): Promise<LightboxDimensions | null> => {
@@ -120,7 +121,7 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
 
     const promise = fetchMetadataDimensions(item.path)
       .catch(() => null)
-      .then((metadataDimensions) => metadataDimensions ?? loadPreviewDimensions(item.path))
+      .then((metadataDimensions) => metadataDimensions ?? loadPreviewDimensions(item.path, item.content_version))
       .finally(() => {
         pendingDimensions.delete(item.path);
       });
@@ -354,6 +355,8 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       bgClickAction: "close",
     });
     pswp.value = instance;
+    // Neighbour previews wait for the current slide's preview (loaded or failed) before they start.
+    deferNeighbourPreviewsUntilCurrentSettles(instance);
     lastReportedPhotoSwipeIndex = instance.currIndex;
     if (isLightboxNavDebugEnabled()) {
       logLightboxNavDebug("pswp-instance-created", {

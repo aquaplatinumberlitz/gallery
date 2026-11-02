@@ -28,7 +28,11 @@ export interface FileNode {
   children?: FileNode[];
   isOpen?: boolean;
   cover_images?: string[];
+  /** `"<mtime_ns>-<size>"` per cover, aligned with `cover_images`; passed as `v` to /api/thumbnail. */
+  cover_versions?: string[];
   mtime?: number; // Modified time from backend
+  /** `"<mtime_ns>-<size>"` of the media file; passed as `v` to /api/thumbnail and /api/preview. */
+  content_version?: string | null;
   image_count?: number; // Number of images in folder (from backend)
   width?: number | null; // Image width in pixels when available
   height?: number | null; // Image height in pixels when available
@@ -304,9 +308,11 @@ export interface UnifiedSearchResult {
   parent_path: string;
   relative_path: string;
   mtime: number;
+  content_version?: string | null;
   width: number | null;
   height: number | null;
   cover_images?: string[];
+  cover_versions?: string[];
   image_count?: number;
   match_type: string;
   model: string;

@@ -118,6 +118,11 @@ class CapacityMixin:
             ready_used, reserved = self._capacity_usage(conn, estimated_bytes)
             if ready_used + reserved + estimated_bytes <= self.quota_bytes:
                 return True
+            # Eviction order is last_accessed_at: apply the coalesced touches first so a file that is being
+            # served right now is not picked as least recently used.
+            touches = self._drain_touches()
+            if touches:
+                self._apply_touches(conn, touches)
             needed = ready_used + reserved + estimated_bytes - self.quota_bytes
             selected: list[tuple[int, str, int]] = []
             selected_bytes = 0

@@ -15,6 +15,12 @@ interface UseVirtualGridRowsOptions<TRow extends VirtualGridRow> {
   estimateSize: (index: number) => number;
   overscan?: number;
   measureDeps?: WatchSource[];
+  /**
+   * Distance between the top of the scroll content and the first row, for lists that sit below other
+   * content (album strip, section header) inside the scroll element. Rows are positioned relative to
+   * the spacer, so `getVirtualRowStyle` subtracts it again.
+   */
+  scrollMargin?: Ref<number>;
 }
 
 export const chunkItems = <T>(items: readonly T[], chunkSize: number): T[][] => {
@@ -42,6 +48,7 @@ export function useVirtualGridRows<TRow extends VirtualGridRow>({
   estimateSize,
   overscan = 5,
   measureDeps = [],
+  scrollMargin,
 }: UseVirtualGridRowsOptions<TRow>) {
   const virtualizer = useVirtualizer<HTMLElement, HTMLElement>(
     computed(() => ({
@@ -49,6 +56,7 @@ export function useVirtualGridRows<TRow extends VirtualGridRow>({
       getScrollElement: () => scrollElement.value,
       estimateSize,
       overscan,
+      scrollMargin: scrollMargin?.value ?? 0,
       getItemKey: (index: number) => rows.value[index]?.id ?? index,
     })),
   );
@@ -73,7 +81,7 @@ export function useVirtualGridRows<TRow extends VirtualGridRow>({
     top: 0,
     left: 0,
     width: "100%",
-    transform: `translateY(${start}px)`,
+    transform: `translateY(${start - (scrollMargin?.value ?? 0)}px)`,
     ...extraStyle,
   });
 

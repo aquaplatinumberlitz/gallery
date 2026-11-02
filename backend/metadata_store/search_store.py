@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
+from ..files import content_version
 from ..metadata_extract import contains_cjk
 from ._db import _connect_read
 from ._schema import initialize_database
@@ -126,7 +127,7 @@ def _format_file_index_rows(
     rows: list[sqlite3.Row],
     root: Path,
     match_type: str,
-    folder_aggregates: dict[tuple[int, str], tuple[bool, int, list[str]]],
+    folder_aggregates: dict[tuple[int, str], tuple[bool, int, list[str], list[str]]],
 ) -> list[dict[str, Any]]:
     seen: set[str] = set()
     results: list[dict[str, Any]] = []
@@ -149,11 +150,12 @@ def _format_file_index_rows(
             "library_name": str(row["library_name"]),
         }
         if row["type"] == "folder":
-            has_children, image_count, cover_images = folder_aggregates.get(
+            has_children, image_count, cover_images, cover_versions = folder_aggregates.get(
                 (int(row["library_id"]), str(row["path"])),
-                (False, 0, []),
+                (False, 0, [], []),
             )
             result["cover_images"] = cover_images
+            result["cover_versions"] = cover_versions
             result["image_count"] = image_count
             result["has_children"] = has_children
         result.update(
@@ -276,6 +278,18 @@ def _empty_search_response(
     }
 
 
+def _row_content_version(row: sqlite3.Row) -> str | None:
+    """Return ``content_version`` for a media row that carries the catalog asset's identity.
+
+    Rows from the filename/prompt selects expose ``asset_mtime_ns``/``asset_size``; ranked rows expose
+    ``mtime_ns`` and ``asset_size`` (all from the joined ``assets`` row).
+    """
+    mtime_ns = _optional_row_value(row, "asset_mtime_ns")
+    if mtime_ns is None:
+        mtime_ns = _optional_row_value(row, "mtime_ns")
+    return content_version(mtime_ns, _optional_row_value(row, "asset_size"))
+
+
 def _format_media_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for row in rows:
@@ -287,6 +301,7 @@ def _format_media_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, An
                 "parent_path": row["parent_path"],
                 "relative_path": _folder_relative_path(row["parent_path"], root),
                 "mtime": row["mtime"],
+                "content_version": _row_content_version(row),
                 "width": row["width"],
                 "height": row["height"],
                 "duration_ms": _optional_row_value(row, "duration_ms"),
@@ -320,6 +335,7 @@ def _format_rows(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
             "path": row["path"],
             "type": "file",
             "mtime": row["mtime"],
+            "content_version": content_version(_optional_row_value(row, "mtime_ns"), _optional_row_value(row, "size")),
             "width": row["width"],
             "height": row["height"],
             "model": row["model"] or "",
@@ -443,6 +459,8 @@ def _media_file_select(
           fi.height AS height,
           catalog_asset.duration_ms AS duration_ms,
           catalog_asset.mime_type AS mime_type,
+          catalog_asset.mtime_ns AS asset_mtime_ns,
+          catalog_asset.size AS asset_size,
           catalog_asset.id AS asset_id,
           catalog_asset.library_id AS library_id,
           catalog_library.name AS library_name,
@@ -523,6 +541,8 @@ def _media_prompt_select(
           m.height AS height,
           NULL AS duration_ms,
           NULL AS mime_type,
+          catalog_asset.mtime_ns AS asset_mtime_ns,
+          catalog_asset.size AS asset_size,
           catalog_asset.id AS asset_id,
           catalog_asset.library_id AS library_id,
           catalog_library.name AS library_name,

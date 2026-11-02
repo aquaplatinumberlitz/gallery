@@ -77,22 +77,32 @@ contributors. Read it before planning or editing.
 ## Remote Access (VPS)
 
 - VPS forwards ports **4701-4800** ra internet, nên mọi service chỉ được bind
-  `127.0.0.1`; nginx (443, Basic Auth + `X-Gallery-Proxy-Secret`) là lối vào
-  duy nhất. Bind `0.0.0.0:4701` sẽ mở API ra internet không cần xác thực.
-- **Backend** luôn chạy port **4701**. Người dùng được phục vụ bản build
-  `frontend/dist/` qua template `frontend/gallery-nginx-prod.conf` (HTTP/2,
-  gzip, cache `immutable` cho `/assets/`), `/api` → `127.0.0.1:4701`.
-- Mỗi lần deploy/restart:
+  `127.0.0.1`. nginx là lối vào duy nhất: HTTPS + HTTP/2 trên
+  `https://150.230.56.153` (cert Let's Encrypt cho IP), Basic Auth, và header
+  `X-Gallery-Proxy-Secret` cho `/api`. Port 80 chỉ redirect 301 sang HTTPS
+  (trừ ACME).
+- **Backend** chạy bằng systemd unit `gallery-backend.service` trên
+  `127.0.0.1:4701`, với `PRODUCTION=1` và `GALLERY_TRUSTED_PROXY_SECRET` lấy từ
+  `/etc/gallery/backend.env` (root:ubuntu, 640; secret trùng với
+  `/etc/nginx/snippets/gallery-proxy-secret.conf`). Không chạy uvicorn tay bằng
+  `screen`: thiếu env file thì backend từ chối mọi request (403) hoặc không
+  khởi động.
+- Mỗi lần deploy:
   ```bash
-  cd /home/ubuntu/gallery-repo/frontend && corepack pnpm install --frozen-lockfile && corepack pnpm run build
-  screen -dmS gallery-backend bash -c "cd /home/ubuntu/gallery-repo && backend/.venv_linux/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 4701"
+  cd /home/ubuntu/gallery-repo && git pull --ff-only origin main
+  cd frontend && corepack pnpm install --frozen-lockfile && corepack pnpm run build
+  sudo systemctl restart gallery-backend && systemctl status gallery-backend --no-pager
   ```
-- Đổi nginx sang template production (một lần, hoặc khi template đổi):
-  copy `frontend/gallery-nginx-prod.conf` vào site gallery trong
-  `/etc/nginx/sites-available/`, rồi `sudo nginx -t && sudo systemctl reload nginx`.
-- Chỉ khi đang sửa frontend trực tiếp trên VPS mới dùng template
-  `frontend/gallery-nginx-dev.conf` + Vite dev port **4702** (không dùng cho
-  người dùng: cold load mobile ~40 s):
+- nginx site gallery trên VPS phục vụ `frontend/dist/` theo các khối của
+  `frontend/gallery-nginx-prod.conf` (gzip, `immutable` cho `/assets/`,
+  `no-cache` cho `index.html`), nhưng file live còn các location riêng (ACME,
+  `/git/`): sửa tại chỗ sau khi backup, `sudo nginx -t` rồi
+  `sudo systemctl reload nginx`. Không chép đè cả template.
+- Cert: certbot 5.9 ở `/opt/certbot-ip`, config `/etc/letsencrypt-ip`, timer
+  `gallery-cert-renew.timer` (6 giờ; cert IP chỉ sống ~6 ngày) với deploy hook
+  reload nginx.
+- Chỉ khi đang sửa frontend trực tiếp trên VPS mới dùng Vite dev port **4702**
+  (không cho người dùng: cold load mobile ~40 s):
   ```bash
   screen -dmS gallery-frontend bash -c "cd /home/ubuntu/gallery-repo/frontend && ./node_modules/.bin/vite --host 127.0.0.1 --port 4702"
   ```

@@ -42,9 +42,12 @@ DERIVATIVE_VARIANTS = {
     "thumbnail": [
         {"name": "thumb_128", "max_long_edge": 128, "quality": 78},
         {"name": "thumb_512", "max_long_edge": 512, "quality": 78},
+        {"name": "thumb_256", "max_long_edge": 256, "quality": 78},
     ],
     "preview": [{"name": "preview_1440", "max_long_edge": 1440, "quality": 86}],
 }
+DERIVATIVE_FASTPATH_ENTRIES = max(0, int(os.getenv("GALLERY_DERIVATIVE_FASTPATH_ENTRIES", "4096")))
+DERIVATIVE_FASTPATH_TTL_SECONDS = max(0.0, float(os.getenv("GALLERY_DERIVATIVE_FASTPATH_TTL_SECONDS", "5")))
 DERIVATIVE_RECONCILE_ENABLED = _env_flag("GALLERY_DERIVATIVE_RECONCILE_ENABLED", default=True)
 DERIVATIVE_RECONCILE_INTERVAL_SECONDS = max(
     300, int(os.getenv("GALLERY_DERIVATIVE_RECONCILE_INTERVAL_SECONDS", "21600"))

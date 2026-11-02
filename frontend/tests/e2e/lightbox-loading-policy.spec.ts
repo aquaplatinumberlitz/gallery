@@ -46,7 +46,10 @@ type ApiRequest = {
   pathname: string;
   path: string;
   maxLongEdge: string;
+  version: string;
 };
+
+const contentVersionFor = (index: number) => `${1000 + index}-${index}`;
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((request) => request.pathname === pathname);
@@ -60,6 +63,8 @@ async function installStubbedGallery(
   page: Page,
   options: {
     failPreviewFor?: string;
+    /** Holds the response of one slide's preview until `release` resolves (models a slow link). */
+    holdPreviewFor?: { path: string; release: Promise<void> };
     includeScanDimensions?: boolean;
     metadataDimensions?: { width: number; height: number } | null;
     previewNaturalSize?: { width: number; height: number };
@@ -76,6 +81,7 @@ async function installStubbedGallery(
       pathname: url.pathname,
       path: url.searchParams.get("path") ?? "",
       maxLongEdge: url.searchParams.get("max_long_edge") ?? "",
+      version: url.searchParams.get("v") ?? "",
     };
     requests.push(request);
 
@@ -109,6 +115,7 @@ async function installStubbedGallery(
               path,
               type: "image",
               mtime: 1000 + index,
+              content_version: contentVersionFor(index),
               width: includeScanDimensions ? 1600 : null,
               height: includeScanDimensions ? 1000 : null,
             })),
@@ -144,6 +151,10 @@ async function installStubbedGallery(
         body: JSON.stringify([]),
       });
       return;
+    }
+
+    if (url.pathname === "/api/preview" && request.path === options.holdPreviewFor?.path) {
+      await options.holdPreviewFor.release;
     }
 
     if (url.pathname === "/api/preview" && request.path === options.failPreviewFor) {
@@ -208,13 +219,18 @@ async function openLightbox(page: Page, requests: ApiRequest[], index = 0) {
 
 test.use({ viewport: { width: 1280, height: 820 } });
 
-test("grid requests 512 thumbnails only", async ({ page }) => {
+test("grid requests 256/512 versioned thumbnails only", async ({ page }) => {
   const requests = await installStubbedGallery(page);
   await openStubbedGallery(page, requests);
   await expect.poll(() => requestsFor(requests, "/api/thumbnail").length).toBeGreaterThanOrEqual(3);
 
+  // The grid card offers srcset 256w + 512w; which one the browser picks depends on the card width and DPR.
   const thumbnailRequests = requestsFor(requests, "/api/thumbnail");
-  expect(thumbnailRequests.every((request) => request.maxLongEdge === "512")).toBe(true);
+  expect(thumbnailRequests.every((request) => ["256", "512"].includes(request.maxLongEdge))).toBe(true);
+  // Every thumbnail carries its item's content_version, so the response can be cached as immutable.
+  expect(
+    thumbnailRequests.every((request) => request.version === contentVersionFor(imagePaths.indexOf(request.path))),
+  ).toBe(true);
   expect(requestsFor(requests, "/api/preview")).toHaveLength(0);
   expect(requestsFor(requests, "/api/image")).toHaveLength(0);
 });
@@ -227,6 +243,10 @@ test("normal lightbox open uses thumbnail and preview without original", async (
   await expect.poll(() => requestsFor(requests, "/api/preview").length).toBeGreaterThan(0);
   expect(requestsFor(requests, "/api/thumbnail").every((request) => request.maxLongEdge === "512")).toBe(true);
   expect(requestsFor(requests, "/api/preview").every((request) => request.maxLongEdge === "1440")).toBe(true);
+  // The msrc placeholder and the preview carry the item's content_version.
+  for (const request of [...requestsFor(requests, "/api/thumbnail"), ...requestsFor(requests, "/api/preview")]) {
+    expect(request.version).toBe(contentVersionFor(imagePaths.indexOf(request.path)));
+  }
   expect(requestsFor(requests, "/api/image")).toHaveLength(0);
 });
 
@@ -348,6 +368,25 @@ test("next and previous preload neighboring previews without originals", async (
   await expect.poll(() => requestedPath(requests, "/api/preview", imagePaths[2])).toBe(true);
   await page.waitForTimeout(500); // negative assertion window: verify no original image requests during preload
 
+  expect(requestsFor(requests, "/api/image")).toHaveLength(0);
+});
+
+test("neighbour previews wait for the current preview, then preload", async ({ page }) => {
+  let releaseCurrent!: () => void;
+  const release = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const requests = await installStubbedGallery(page, { holdPreviewFor: { path: imagePaths[1], release } });
+  await openStubbedGallery(page, requests);
+  await openLightbox(page, requests, 1);
+
+  // Neighbours are queued by PhotoSwipe once the opening animation ends; give them time to (wrongly) start.
+  await page.waitForTimeout(800); // negative assertion window: neighbours must stay unrequested
+  const previewPaths = () => requestsFor(requests, "/api/preview").map((request) => request.path);
+  expect(previewPaths()).toEqual([imagePaths[1]]);
+
+  releaseCurrent();
+  await expect.poll(() => previewPaths()).toEqual(expect.arrayContaining([imagePaths[0], imagePaths[2]]));
   expect(requestsFor(requests, "/api/image")).toHaveLength(0);
 });
 

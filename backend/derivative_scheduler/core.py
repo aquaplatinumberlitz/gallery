@@ -53,6 +53,13 @@ class DerivativeScheduler(
         self._served_paths: set[str] = set()
         self._deferred_unlinks: set[str] = set()
         self._pending_touches: dict[str, Future] = {}
+        # Coalesced ``last_accessed_at`` touches (derivative id -> julian day), see ``LookupMixin._touch_derivative``.
+        # Sibling claims taken together with a job by ``_claim_job(batch=True)``, picked up by ``_run_job``.
+        self._prefetched_lock = threading.Lock()
+        self._prefetched_siblings: dict[int, list] = {}
+        self._touch_lock = threading.Lock()
+        self._touch_pending: dict[int, float] = {}
+        self._touch_last_flush = float("-inf")
         self._threads: list[threading.Thread] = []
         self._supervisor_thread: threading.Thread | None = None
         self._reconciler_thread: threading.Thread | None = None

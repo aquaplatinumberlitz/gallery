@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, ref, useTemplateRef, watch, type ComponentPublicInstance } from "vue";
+import {
+  computed,
+  inject,
+  onBeforeUnmount,
+  ref,
+  useTemplateRef,
+  watch,
+  type ComponentPublicInstance,
+  type CSSProperties,
+} from "vue";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import { useRelatedAssetsStore } from "../stores/relatedAssets";
@@ -27,6 +36,7 @@ import { useInfiniteLoadSentinel } from "../composables/useInfiniteLoadSentinel"
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
 import { buildSearchRequestV1, buildSearchScopeV1 } from "@/utils/searchRequest";
 import { chunkGridRows, useVirtualGridRows } from "../composables/useVirtualGridRows";
+import { useUniformRowSize, useVirtualScrollMargin } from "../composables/useVirtualGridMetrics";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { GalleryAPIError, type ErrorType } from "../services/api";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
@@ -254,8 +264,10 @@ const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   type: normalizeAssetType(result.type),
   has_children: false,
   cover_images: result.cover_images || [],
+  cover_versions: result.cover_versions || [],
   image_count: result.image_count || 0,
   mtime: result.mtime,
+  content_version: result.content_version,
   width: result.width ?? undefined,
   height: result.height ?? undefined,
   duration_ms: result.duration_ms,
@@ -526,18 +538,50 @@ const mediaRows = computed(() =>
   ),
 );
 
+// Mobile uses the same virtualizer as desktop/tablet. Its rows have no vertical gap and sit below the
+// album strip, so instead of the desktop row-height formula the row height is read from the rendered
+// row (exact, e.g. 184.5px) and the list offset from the scroll top is tracked as a scroll margin.
+const mobileLeadingRef = ref<HTMLElement | null>(null);
+const mobileSpacerRef = ref<HTMLElement | null>(null);
+const { scrollMargin: measuredMobileScrollMargin } = useVirtualScrollMargin(
+  scrollParentRef,
+  mobileSpacerRef,
+  mobileLeadingRef,
+);
+const gridScrollMargin = computed(() => (props.isMobile ? measuredMobileScrollMargin.value : 0));
+// First-frame estimate, used only until the first row has been measured: viewport width minus the
+// mobile grid's side paddings and column gaps (see the `.scroller` / `.virtual-row` mobile styles).
+// It must be close: a collapsed list would put the load-more sentinel in view and fetch a needless page.
+const MOBILE_GRID_SIDE_SPACE = 16;
+const MOBILE_GRID_COLUMN_GAP = 5;
+const { rowSize: mobileRowSize, observeRow: observeMobileRow } = useUniformRowSize(
+  () =>
+    (window.innerWidth - MOBILE_GRID_SIDE_SPACE - MOBILE_GRID_COLUMN_GAP * (columnCount.value - 1)) / columnCount.value,
+);
+
 const browseVirtualGrid = useVirtualGridRows({
   rows: mediaRows,
   scrollElement: scrollParentRef,
-  estimateSize: () => rowHeight.value || 1,
+  estimateSize: () => (props.isMobile ? mobileRowSize.value : rowHeight.value || 1),
   overscan: 5,
-  measureDeps: [rowHeight, columnCount],
+  measureDeps: [rowHeight, columnCount, mobileRowSize, () => props.isMobile],
+  scrollMargin: gridScrollMargin,
 });
 
 const browseVirtualItems = browseVirtualGrid.virtualItems;
 const browseVirtualSpacerStyle = browseVirtualGrid.virtualSpacerStyle;
 const getBrowseVirtualRowStyle = (start: number) =>
   browseVirtualGrid.getVirtualRowStyle(start, { gridTemplateColumns: `repeat(${columnCount.value}, 1fr)` });
+// Mobile rows are placed with `top` instead of a transform: its rows are fractionally tall (e.g. 184.5px)
+// and a fractional translateY is painted anti-aliased, while a fractional `top` is pixel-snapped exactly
+// like the previous native flow, so the card borders stay crisp.
+const getMobileVirtualRowStyle = (start: number): CSSProperties => ({
+  position: "absolute",
+  top: `${start - gridScrollMargin.value}px`,
+  left: 0,
+  width: "100%",
+  gridTemplateColumns: `repeat(${columnCount.value}, 1fr)`,
+});
 
 const skeletonItems = computed(() => Array.from({ length: 12 }, (_, i) => i));
 
@@ -806,6 +850,9 @@ useInfiniteLoadSentinel({
                   v-else
                   :src="item.path"
                   :name="item.name"
+                  :version="item.content_version"
+                  :image-width="item.width"
+                  :image-height="item.height"
                   :fetch-priority="virtualRow.index === 0 ? 'high' : 'auto'"
                   :can-find-related="Boolean(item.asset_id)"
                   @dimensions="handlePhotoDimensions"
@@ -825,43 +872,51 @@ useInfiniteLoadSentinel({
           </div>
         </div>
 
-        <!-- Mobile: native scroll (no virtual scroller) -->
+        <!-- Mobile: same virtualized rows as desktop/tablet, native container scroll -->
         <div
           v-else-if="props.isMobile && mediaRows.length > 0"
-          :ref="setScrollContainerRef"
+          :ref="setVirtualScrollContainerRef"
           class="scroller mobile-scroller"
         >
-          <GlowContainer v-if="folders.length" :disabled="true">
-            <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
-          </GlowContainer>
+          <div ref="mobileLeadingRef" class="mobile-grid-leading">
+            <GlowContainer v-if="folders.length" :disabled="true">
+              <AlbumScroller :folders="folders" @open-folder="handleOpenFolder" />
+            </GlowContainer>
 
-          <GallerySectionHeader v-if="media.length" title="Media" :count="media.length" :badge-icon="Images" />
+            <GallerySectionHeader v-if="media.length" title="Media" :count="media.length" :badge-icon="Images" />
+          </div>
 
-          <div
-            v-for="(row, rowIndex) in mediaRows"
-            :key="row.id"
-            class="virtual-row"
-            :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
-          >
-            <template v-for="item in row.items" :key="item.path">
-              <VideoCard
-                v-if="item.type === 'video'"
-                :src="item.path"
-                :name="item.name"
-                :duration-ms="item.duration_ms"
-                @click="handleOpenVideo(item)"
-              />
-              <PhotoCard
-                v-else
-                :src="item.path"
-                :name="item.name"
-                :fetch-priority="rowIndex === 0 ? 'high' : 'auto'"
-                :can-find-related="Boolean(item.asset_id)"
-                @dimensions="handlePhotoDimensions"
-                @click="handleOpenMedia(item)"
-                @find-related="handleFindRelated(item)"
-              />
-            </template>
+          <div ref="mobileSpacerRef" class="tanstack-virtual-spacer" :style="browseVirtualSpacerStyle">
+            <div
+              v-for="virtualRow in browseVirtualItems"
+              :key="String(virtualRow.key)"
+              :ref="observeMobileRow"
+              class="virtual-row tanstack-virtual-row"
+              :style="getMobileVirtualRowStyle(virtualRow.start)"
+            >
+              <template v-for="item in mediaRows[virtualRow.index]?.items ?? []" :key="item.path">
+                <VideoCard
+                  v-if="item.type === 'video'"
+                  :src="item.path"
+                  :name="item.name"
+                  :duration-ms="item.duration_ms"
+                  @click="handleOpenVideo(item)"
+                />
+                <PhotoCard
+                  v-else
+                  :src="item.path"
+                  :name="item.name"
+                  :version="item.content_version"
+                  :image-width="item.width"
+                  :image-height="item.height"
+                  :fetch-priority="virtualRow.index === 0 ? 'high' : 'auto'"
+                  :can-find-related="Boolean(item.asset_id)"
+                  @dimensions="handlePhotoDimensions"
+                  @click="handleOpenMedia(item)"
+                  @find-related="handleFindRelated(item)"
+                />
+              </template>
+            </div>
           </div>
 
           <div class="scroller-footer" :class="{ 'bars-hidden': !barsVisible }">

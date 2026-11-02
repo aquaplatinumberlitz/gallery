@@ -1,5 +1,5 @@
-import type { AxiosError } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { HttpErrorLike } from "../http";
 
 const { mockApi } = vi.hoisted(() => ({
   mockApi: {
@@ -7,15 +7,14 @@ const { mockApi } = vi.hoisted(() => ({
     post: vi.fn(),
     patch: vi.fn(),
     delete: vi.fn(),
-    interceptors: { response: { use: vi.fn() } },
   },
 }));
 
-vi.mock("axios", async () => {
-  const actual = await vi.importActual<typeof import("axios")>("axios");
+vi.mock("../http", async () => {
+  const actual = await vi.importActual<typeof import("../http")>("../http");
   return {
     ...actual,
-    default: { ...actual.default, create: vi.fn(() => mockApi) },
+    createHttpClient: vi.fn(() => mockApi),
   };
 });
 
@@ -76,7 +75,7 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// GalleryAPIError.fromAxiosError
+// GalleryAPIError.fromHttpError
 // ---------------------------------------------------------------------------
 
 describe("GalleryAPIError", () => {
@@ -89,22 +88,24 @@ describe("GalleryAPIError", () => {
     ["relation_index_not_ready", "relation_index_not_ready"],
     ["reference_not_indexed", "reference_not_indexed"],
   ])("maps %s error", (errorCode, expectedType) => {
-    const err = { response: { data: { detail: { error: errorCode, message: "msg" } } } } as unknown as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).type).toBe(expectedType);
+    const err = { response: { data: { detail: { error: errorCode, message: "msg" } } } } as unknown as HttpErrorLike;
+    expect(GalleryAPIError.fromHttpError(err).type).toBe(expectedType);
   });
 
   it("maps library_not_registered to user-friendly message", () => {
     const error = {
       response: { data: { detail: { error: "library_not_registered", message: "msg" } } },
-    } as unknown as AxiosError;
-    const apiError = GalleryAPIError.fromAxiosError(error);
+    } as unknown as HttpErrorLike;
+    const apiError = GalleryAPIError.fromHttpError(error);
     expect(apiError.type).toBe("library_not_registered");
     expect(apiError.userMessage).toBe(LIBRARY_ERRORS.library_not_registered);
   });
 
   it("parses FastAPI detail wrapped error", () => {
-    const err = { response: { data: { detail: { error: "bad_request", message: "bad" } } } } as unknown as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).type).toBe("bad_request");
+    const err = {
+      response: { data: { detail: { error: "bad_request", message: "bad" } } },
+    } as unknown as HttpErrorLike;
+    expect(GalleryAPIError.fromHttpError(err).type).toBe("bad_request");
   });
 
   it("retains typed Related Assets readiness status", () => {
@@ -128,9 +129,9 @@ describe("GalleryAPIError", () => {
       response: {
         data: { detail: { error: "relation_index_not_ready", message: "building", status } },
       },
-    } as unknown as AxiosError;
+    } as unknown as HttpErrorLike;
 
-    const apiError = GalleryAPIError.fromAxiosError(err);
+    const apiError = GalleryAPIError.fromHttpError(err);
     expect(apiError.relatedStatus).toEqual(status);
     expect(apiError.canRetry).toBe(false);
   });
@@ -147,8 +148,8 @@ describe("GalleryAPIError", () => {
           ],
         },
       },
-    } as unknown as AxiosError;
-    const apiError = GalleryAPIError.fromAxiosError(err);
+    } as unknown as HttpErrorLike;
+    const apiError = GalleryAPIError.fromHttpError(err);
     expect(apiError.type).toBe("bad_request");
     expect(apiError.fieldErrors).toEqual({
       "filters.workflow_groups[1].predicates[2].op": "Unsupported operator",
@@ -167,35 +168,35 @@ describe("GalleryAPIError", () => {
           ],
         },
       },
-    } as unknown as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).fieldErrors).toEqual({
+    } as unknown as HttpErrorLike;
+    expect(GalleryAPIError.fromHttpError(err).fieldErrors).toEqual({
       "filters.workflow_groups[0].predicates[0].value":
         "Value error, workflow_groups[0].predicates[0].value is invalid for integer",
     });
   });
 
   it("handles data without detail wrapper", () => {
-    const err = { response: { data: { error: "not_found", message: "gone" } } } as unknown as AxiosError;
-    expect(GalleryAPIError.fromAxiosError(err).type).toBe("not_found");
+    const err = { response: { data: { error: "not_found", message: "gone" } } } as unknown as HttpErrorLike;
+    expect(GalleryAPIError.fromHttpError(err).type).toBe("not_found");
   });
 
   it("returns timeout for ECONNABORTED", () => {
-    const err = { code: "ECONNABORTED", message: "timeout" } as AxiosError;
-    const r = GalleryAPIError.fromAxiosError(err);
+    const err = { code: "ECONNABORTED", message: "timeout" } as HttpErrorLike;
+    const r = GalleryAPIError.fromHttpError(err);
     expect(r.type).toBe("timeout");
     expect(r.canRetry).toBe(true);
   });
 
   it("returns network for Network Error", () => {
-    const err = { message: "Network Error" } as AxiosError;
-    const r = GalleryAPIError.fromAxiosError(err);
+    const err = { message: "Network Error" } as HttpErrorLike;
+    const r = GalleryAPIError.fromHttpError(err);
     expect(r.type).toBe("network");
     expect(r.canRetry).toBe(true);
   });
 
   it("falls back to server_error for unknown types", () => {
-    const err = { response: { data: { detail: { error: "bogus", message: "?" } } } } as unknown as AxiosError;
-    const r = GalleryAPIError.fromAxiosError(err);
+    const err = { response: { data: { detail: { error: "bogus", message: "?" } } } } as unknown as HttpErrorLike;
+    const r = GalleryAPIError.fromHttpError(err);
     expect(r.type).toBe("server_error");
     expect(r.canRetry).toBe(true);
   });

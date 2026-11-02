@@ -255,8 +255,13 @@ fingerprints, and hash bands. The benchmark measures warm metadata API,
 combined API, direct metadata and visual candidate retrieval, lexical search
 before/during/after bounded writes across signatures, fingerprints, bands, and
 extraction lifecycle rows, relation-owned SQLite growth, and incremental
-Pillow fingerprint-worker RSS. It fails closed against the 150/75/200/300 ms,
-10%, 100 MiB, and 64 MiB budgets and verifies that the controlled same-model
+Pillow fingerprint-worker RSS. Each lexical window takes at least 40 samples
+(`GALLERY_PERF_LEXICAL_ITERATIONS`, default 40). The lexical baseline is the
+p95 of the pooled before and after samples, which the report publishes as
+`baseline_samples`. The lexical backfill regression is
+`(during p95 - baseline p95) / baseline p95`, and it must stay below the
+`backfill_regression_pct` budget (20%). The benchmark fails closed against the
+150/75/200/300 ms, 20%, 100 MiB, and 64 MiB budgets and verifies that the controlled same-model
 unrelated asset is excluded. Fixture validation derives row count from SQLite,
 requires eight bands and two lifecycle extraction rows per asset, and rejects
 environment counts that disagree with persisted data. At the release fixture
@@ -575,6 +580,7 @@ the published-standard-derived limits.
 | `GALLERY_PERF_SEARCH_ROWS`                      | profile-derived                                         | Explicit synthetic search-row override for managed fixture runs               |
 | `GALLERY_PERF_RELATED_ROWS`                     | `[related_assets].rows` (`100000`)                      | Synthetic active relation-corpus size; release evidence uses exactly 100,000  |
 | `GALLERY_PERF_RELATED_ITERATIONS`               | `12`                                                    | Iterations for each Related Assets latency sample class                       |
+| `GALLERY_PERF_LEXICAL_ITERATIONS`               | `40`                                                    | Samples per lexical backfill window; values below 40 are raised to 40         |
 | `GALLERY_PERF_INSPECTOR_METADATA_P95_BUDGET_MS` | `[inspector_metadata].p95_ms` (`200`)                   | p95 budget for `/api/library/inspector/metadata`                              |
 | `GALLERY_PERF_BENCH_THUMBNAIL_COLD_P95_MS`      | `[thumbnail].cold_p95_ms` (`1000`)                      | Cold thumbnail p95 budget                                                     |
 | `GALLERY_PERF_BENCH_THUMBNAIL_WARM_P95_MS`      | `[thumbnail].warm_p95_ms` (`50`)                        | Warm thumbnail p95 budget                                                     |

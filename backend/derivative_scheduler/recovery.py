@@ -25,7 +25,7 @@ class RecoveryMixin:
         while not self._stop_event.is_set():
             try:
                 with producer_gate():
-                    job = self._claim_job(worker_id)
+                    job = self._claim_job(worker_id, batch=True)
                     if job is not None:
                         self._run_job(job)
             except Exception:  # noqa: BLE001
@@ -47,6 +47,7 @@ class RecoveryMixin:
 
     @maintenance_producer
     def _supervise_once(self) -> None:
+        self.flush_touches()  # trailing edge of the coalesced last_accessed_at touches
         dead_worker_ids: list[str] = []
         replacements: list[threading.Thread] = []
         with self._lifecycle_lock:

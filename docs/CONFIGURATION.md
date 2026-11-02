@@ -45,19 +45,35 @@ snippet must set `X-Gallery-Proxy-Secret` to the same value as
 `GALLERY_TRUSTED_PROXY_SECRET`; keep it and the `.htpasswd` file outside the
 repository. Requests are limited to 1 MiB bodies.
 
-Deploy (build the SPA, then start the backend on loopback):
+Deploy on the VPS (the backend runs as the systemd unit `gallery-backend.service`):
 
 ```bash
-cd /home/ubuntu/gallery-repo/frontend
-corepack pnpm install --frozen-lockfile
-corepack pnpm run build
-cd /home/ubuntu/gallery-repo
-PORT=4701 backend/.venv_linux/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 4701
+cd /home/ubuntu/gallery-repo && git pull --ff-only origin main
+cd frontend && corepack pnpm install --frozen-lockfile && corepack pnpm run build
+sudo systemctl restart gallery-backend
 ```
 
-After changing the template, copy `frontend/gallery-nginx-prod.conf` over the
-gallery site in `/etc/nginx/sites-available/` and run
-`sudo nginx -t && sudo systemctl reload nginx`.
+The unit runs `backend/.venv_linux/bin/python -m uvicorn backend.main:app
+--host 127.0.0.1 --port 4701` as `ubuntu`. It reads
+`EnvironmentFile=/etc/gallery/backend.env` (root:ubuntu, mode 640), which holds
+`PRODUCTION=1` and `GALLERY_TRUSTED_PROXY_SECRET`. The same secret is set by the
+root-only nginx snippet `/etc/nginx/snippets/gallery-proxy-secret.conf`. The
+unit uses `KillSignal=SIGINT` so the lifespan shutdown (database writer) completes.
+
+The live VPS site (`/etc/nginx/sites-enabled/gallery`) differs from the template:
+- It serves HTTPS with HTTP/2 on `https://150.230.56.153`, using a Let's Encrypt
+  IP-address certificate (short-lived profile, about 6 days).
+- It has Basic Auth on the 443 server block.
+- Port 80 only keeps the ACME challenge and `/git/`; everything else is a 301 redirect to HTTPS.
+
+Certificates are managed by certbot 5.9 in `/opt/certbot-ip` with config in
+`/etc/letsencrypt-ip`. The `gallery-cert-renew.timer` runs every 6 hours, and
+a deploy hook reloads nginx after renewal.
+
+When the template changes, port its gallery locations into the live file in
+place. Back up first, then run `sudo nginx -t && sudo systemctl reload nginx`.
+Never copy the whole template over the live file, which would drop the ACME
+location and the other routes.
 
 Development frontend command from `frontend/` (dev template only):
 
@@ -113,6 +129,8 @@ curl -I http://150.230.56.153/
 | `GALLERY_DERIVATIVE_RECONCILE_INTERVAL_SECONDS`        | integer, minimum 300   | `21600`                                               | Interval for warm-library desired-state catch-up.                                                         |
 | `GALLERY_DERIVATIVE_RECONCILE_BATCH_SIZE`              | integer, 25–2000       | `250`                                                 | Assets classified in each short derivative reconciliation transaction.                                  |
 | `GALLERY_DERIVATIVE_RECONCILE_YIELD_SECONDS`           | float, minimum 0       | `0.02`                                                | Cooperative pause between background reconciliation batches.                                             |
+| `GALLERY_DERIVATIVE_FASTPATH_ENTRIES`                  | integer, minimum 0      | `4096`                                                | Capacity of the in-process LRU that lets a warm `/api/thumbnail` or `/api/preview` request skip the catalog lookups (validated by the source `stat()` on every hit). `0` disables the fast path. |
+| `GALLERY_DERIVATIVE_FASTPATH_TTL_SECONDS`              | float, minimum 0        | `5`                                                   | Lifetime of a fast-path entry. Bounds how long a catalog-side deactivation (library removed, asset offline or deleted) can go unnoticed for an already-cached derivative; file changes are detected immediately. `0` disables the fast path. |
 | `PATH_SAFETY_ROOT`                                     | path                    | `/`                                                   | Resolved path-safety boundary; does not create or imply a registered library.                            |
 | `GALLERY_ROOT`                                         | path                    | unset                                                 | Deprecated fallback for `PATH_SAFETY_ROOT`; emits a warning when used.                                   |
 | `GALLERY_OPEN_FOLDER`                                  | boolean (`"true"`)      | `false`                                               | Enables the OS "open folder" operation for directories within `PATH_SAFETY_ROOT`.                        |

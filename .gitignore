@@ -19,6 +19,9 @@ package-lock.json
 # OS
 .DS_Store
 
+# Runtime logs (uvicorn, dev servers, and CI captures are never fixtures)
+*.log
+
 # Generated / transient
 data/
 gallery-e2e-backend.log

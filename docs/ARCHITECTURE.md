@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-10-28
+Last reviewed: 2026-11-02
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -363,18 +363,99 @@ runs the same code in a direct transaction.
 | `retire_superseded_derivatives` (500 rows per op)                         | `normal`   | unlink after the op resolved; serving protection unchanged |
 | `_reserve_capacity` / quota enforcement                                   | caller's lane | two ops (select + evict, finalize) with the unlink between them |
 | `_recover_running_jobs`, `_reconcile_queued_jobs` (supervisor, startup)   | `normal`   | candidates and file stats are read outside the op; the fenced updates are one op |
-| `thumbnails._render_derivative_impl` -> `upsert_image_dimensions`         | `priority` | awaited |
-| `last_accessed_at` touch on a warm ready-file lookup                      | `normal`, fire-and-forget | see below |
+| `thumbnails._record_image_dimensions` -> `upsert_image_dimensions`        | `priority` | awaited; skipped when `image_dimensions_unchanged` finds the catalog already holds the values (one read, no op) |
+| sibling claim (inside the worker's `_claim_job(batch=True)` op, or `_claim_siblings`) | `priority` | each sibling gets its own `claim_token` and lease, see "Sibling batching" |
+| `_release_claims` (a preempted background batch)                          | `priority` | fenced by claim token; clears token and lease, hands the attempt back, see "Preemption" |
+| coalesced `last_accessed_at` touches (`flush_touches`)                    | `normal`, fire-and-forget | one op per window, see below |
 
 **HTTP request path.** Thumbnail, preview and image requests keep their reads on plain
 connections and never wait for a batch to commit: the only write of a warm hit, the
 `last_accessed_at` touch (at most once per 60 s per file), is queued with
 `db_writer.post_write` (normal lane, no `.result()`, errors logged, dropped while
 maintenance holds the gate or the lane is full, applied inline on the no-active-writer path). It
-only orders LRU eviction. The queued Future is remembered per cache path and
+only orders LRU eviction. Touches are coalesced: they collect in memory (newest time per
+derivative) and are written as one `executemany` op per 5 s window
+(`LookupMixin._TOUCH_COALESCE_SECONDS`). The first touch after a quiet period is written at
+once; later ones are flushed by the next touch after the window, the supervisor tick,
+`flush_touches()`, an eviction pass (applied inside the `select_and_evict` op, so a file that was
+just served is never picked as least recently used) and `DerivativeScheduler.stop()` (which runs
+before the writer stops). A touch whose op was dropped goes back to the pending set. The queued
+Future of the op that carried a file's touch is remembered per cache path and
 `release_serving` (a background task after the response completed) waits up to 2 s for
 it, so the touch is durable before the serving lease is released. A cold request's
 interactive `schedule_derivative` is the one awaited priority op.
+
+### Image pipeline: generation, versioned URLs, serving fast path
+
+`docs/archived/IMAGE_PIPELINE_PLAN.md` (Track B) added four backend behaviours.
+
+**Sibling batching (B1).** `_run_job` first calls `_claim_siblings`: one priority-lane writer op
+that claims the other still-`queued` jobs of the same asset and the same source identity
+(`source_mtime_ns`/`source_size`, up to 8), each with its own `claim_token`, attempt count and
+lease. `_run_batch` then decodes the source once (`thumbnails.render_derivatives`) and renders the
+variants as a cascade: the requested variant first (a waiting HTTP request is not held back), the
+rest largest to smallest, each resized from the smallest image already produced that is large
+enough (preview -> `thumb_512` -> `thumb_256` -> `thumb_128`) and otherwise from the decoded
+source. Every variant is then handled exactly like a single job: its source identity is
+revalidated, its completion is the same `_complete_claim` writer op fenced by its own claim token
+(a claim recovery took away changes 0 rows), and a failure goes through `_handle_failure` for that
+claim only. One `_LeaseHeartbeatGroup` renews every still-open claim. No new queue exists; a job
+with no queued sibling takes the previous single-variant path unchanged. Workers claim the leader
+and its siblings in one writer op (`_claim_job(worker_id, batch=True)`), so workers that wake
+together cannot each take one variant of the same asset and decode it separately; the siblings are
+handed to `_run_job` through `_prefetched_siblings`, and a job claimed without `batch` (tests,
+`_claim_job()` callers) finds its siblings in `_run_job` instead. An interactive leader (priority
+0-1) only takes interactive siblings.
+
+**Preemption and interactive headroom.** A background batch (leader priority 2-3) holds a worker
+for a whole cascade, seconds under load, so the claim order alone did not keep interactive work
+from waiting behind it. After every variant `_batch_should_yield` does one plain read (no write
+lock): is a runnable priority 0-1 job queued, or did a request raise the priority of a variant
+this batch has claimed but not rendered (with other claims still open)? If so the batch stops
+after the variant it was rendering, `_release_claims` returns the unrendered siblings to
+`queued` in one fenced writer op (`state='running'` and the batch's own claim token required;
+token, lease and `started_at` cleared; the attempt the claim counted is handed back on both the job
+and derivative row, status back to `queued`), and `_run_job` returns, so the worker's next claim is
+the interactive job. A released claim has no token any more, so the preempted worker cannot complete
+it, and its next owner gets a fresh token. A request for a variant that a running batch already
+claimed is covered by the same rule (the batch yields, the requested variant is then claimed at
+priority 0 on its own). Headroom is therefore a bound, not a reserved worker: every worker is back
+at the claim query after at most the variant it is encoding (a single non-batched background job is
+one variant long too), whatever `DERIVATIVE_WORKER_COUNT` is. A reserved worker that never takes
+background work was rejected because it cuts background throughput by 1/N (a third with the default
+three workers) for a case the bound already covers. Waiting HTTP requests poll the catalog with a
+growing interval (30 ms up to 0.4 s) rather than every 50 ms, because dozens of pollers starved the
+render workers of the GIL. All WebP derivatives use
+libwebp `method=4` (about 2x faster than `method=6` for about 7 % more bytes). The bytes behind an
+existing derivative URL are interchangeable (same dimensions and quality setting), so
+`DERIVATIVE_CACHE_VERSION` stays `v3`: bumping it would only change ETags and file names without
+regenerating anything. A render also skips the source-dimension upsert when the catalog already
+holds the values (`image_dimensions_unchanged`).
+
+**`thumb_256` (B2).** `DERIVATIVE_VARIANTS["thumbnail"]` is `thumb_128`, `thumb_512`, `thumb_256`
+(the first entry remains the scheduling default); `/api/thumbnail` accepts `max_long_edge` 128, 256
+and 512. Reconcile, warm-up, integrity and status treat it like any other configured variant.
+
+**Versioned URLs (B3).** Browse (`FileNode`), search (`SearchMediaResult`, also the related
+results) expose `content_version` (`"<mtime_ns>-<size>"` of the asset, `null` for folders or
+unknown identities) and folders (`FileNode`, `SearchAlbumResult`, the browse virtual root) expose
+`cover_versions`, aligned index-for-index with `cover_images` (`""` for a cover without a recorded
+identity). `/api/thumbnail` and `/api/preview` accept an optional `v`. When `v` equals the source's
+`"<st_mtime_ns>-<st_size>"` on disk at request time the response (200 and 304) carries
+`Cache-Control: public, max-age=31536000, immutable`; with the same ETag, an absent, malformed or
+stale `v` keeps `public, max-age=0, must-revalidate`.
+
+**Serving fast path (B4).** `backend/derivative_fastpath.py` holds a bounded in-process LRU
+(`GALLERY_DERIVATIVE_FASTPATH_ENTRIES`, default 4096) from (metadata database, requested path or
+asset id, kind, variant) to (source path, source identity, asset id, derivative id, cache file,
+ETag). A hit skips the authorization read, `find_asset_id` and the ready-derivative read. It is
+validated on every hit by the `stat()` of the source (a different `st_mtime_ns`/`st_size` or a
+missing file drops the entry, so a superseded source can never be answered with its old derivative)
+and by `scheduler.try_acquire_serving`, which checks that the cache file still exists and takes the
+serving lease under the same lock eviction and supersession use. What a stat cannot see is a
+catalog-side deactivation (library removed, asset marked offline/deleted) that leaves the file in
+place: entries therefore expire after `GALLERY_DERIVATIVE_FASTPATH_TTL_SECONDS` (default 5), so such a
+change is honoured within that bound. Setting either variable to 0 disables the fast path.
 
 ### Catalog writes through the writer
 
@@ -602,7 +683,7 @@ Desired-state reconciliation has explicit trigger ownership:
 
 `GET /api/derivatives/status` reports current configured coverage for one
 library both as aggregate `by_kind` counters and ordered per-variant counters
-for `thumb_128`, `thumb_512`, and `preview_1440`. It also reports that
+for `thumb_128`, `thumb_512`, `thumb_256`, and `preview_1440`. It also reports that
 library's ready bytes as `library_used_bytes`, and global quota accounting as
 `quota_used_bytes`, `quota_bytes`, and `quota_utilization`.
 
@@ -694,8 +775,8 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/browse`                         | Return folders and paginated mixed-media rows from catalog rows for a library | `browse.py`         |
 | `GET /api/folders`                        | Return direct non-hidden child folders for sidebar expansion          | `folders.py`        |
 | `GET /api/image`                          | Serve an original image file                                          | `images.py`         |
-| `GET /api/thumbnail`                      | Serve a cached WebP thumbnail, default max long edge 512px            | `thumbnails.py`     |
-| `GET /api/preview`                        | Serve a cached WebP preview, default max long edge 1440px             | `thumbnails.py`     |
+| `GET /api/thumbnail`                      | Serve a cached WebP thumbnail, default max long edge 512px (128, 256 and 512 allowed); optional `v` = item `content_version` | `thumbnails.py`     |
+| `GET /api/preview`                        | Serve a cached WebP preview, default max long edge 1440px; optional `v` = item `content_version` | `thumbnails.py`     |
 | `GET /api/video`                          | Stream an original video with HTTP Range support                      | `video.py`          |
 | `GET /api/video/poster`                   | Serve a cached WebP poster generated with ffmpeg                      | `video.py`          |
 | `GET /api/metadata`                       | Extract and normalize AI generation metadata for one image            | `metadata_parse.py` |
@@ -752,7 +833,7 @@ Backend modules are mostly flat, with selected domain packages.
 - `ENABLE_METRICS` defaults to enabled outside production and exposes `/metrics` with route-level labels.
 - `ENABLE_PROFILER=0` by default. When enabled, selected endpoints are profiled with pyinstrument and HTML reports are written to `backend/profiles/`.
 - Original images are served only by `/api/image`; thumbnails and previews are generated derivatives.
-- Original media and generated derivatives use ETags with `Cache-Control: public, max-age=0, must-revalidate`, so source identity changes are visible on the next request instead of being hidden by immutable browser caching.
+- Original media and generated derivatives use ETags with `Cache-Control: public, max-age=0, must-revalidate`, so source identity changes are visible on the next request instead of being hidden by immutable browser caching. The one exception is a thumbnail or preview URL whose `v` equals the source's current `"<mtime_ns>-<size>"` (the `content_version` the listing returned): its identity is part of the URL, so it is served `public, max-age=31536000, immutable` and a changed source simply produces a new URL.
 - Video streaming supports one byte range, clamps a satisfiable end at EOF, returns `416` for malformed/empty/multi-ranges or invalid starts, and honors strong-ETag and HTTP-date `If-Range`; a mismatched validator receives the full `200` representation.
 - Derivative cache keys include kind, cache version, resolved path, mtime, size, long-edge target, format, and quality. WebP files persist under `backend/.cache/thumbnails/`.
 - Derivative claims use fenced tokens and 15-minute leases. Missing/inactive/current-source races terminate only their job; the supervisor replaces dead workers and recovers abandoned claims.
@@ -926,7 +1007,8 @@ Key paths:
 | `frontend/src/composables/`                               | Query wrappers including Related Assets, device detection, PhotoSwipe lifecycle, metadata/comparison helpers, theme, haptics  |
 | `frontend/src/query/`                                     | TanStack Query client, normalized query keys, browse prefetch helpers                                                          |
 | `frontend/src/stores/`                                    | Pinia stores for gallery UI/navigation, lightbox, Related Assets session UI, and toasts                                        |
-| `frontend/src/services/api.ts`                            | Axios client, endpoint wrappers, URL helpers, API error mapping                                                                |
+| `frontend/src/services/api.ts`                            | `fetch` client instance, endpoint wrappers, URL helpers, API error mapping                                                     |
+| `frontend/src/services/http.ts`                           | Small `fetch` JSON client that replaced Axios: Axios-compatible query encoding, errors, timeout, abort                         |
 | `frontend/src/styles/`                                    | Tailwind 4 entry, shadcn token bridge, SCSS tokens, breakpoints, lightbox styles                                               |
 
 ### State Ownership
@@ -1106,7 +1188,7 @@ Header search or AdvancedSearchDrawer
   `returned`, and `limit`. Legacy `albums`, `photos`, `videos`, and `prompt`
   fields remain for compatibility; the active gallery search UI renders
   `media`.
-- TanStack Query passes its `AbortSignal` through Axios. Canonical media pages
+- TanStack Query passes its `AbortSignal` through the HTTP client. Canonical media pages
   deduplicate by `(library_id, asset_id)` and use the exact case-preserved path
   only for compatibility rows that lack IDs; legacy arrays are consumed only
   when canonical `media` is absent.
@@ -1167,7 +1249,7 @@ Header search or AdvancedSearchDrawer
 - Image-card and lightbox overflow actions open the global Related Assets
   sheet with the current canonical scope. The sheet always sends the combined
   `related` profile and has no match-type tab, selector, or persisted selection.
-  TanStack Query owns each complete reference/scope response and forwards cancellation through Axios.
+  TanStack Query owns each complete reference/scope response and forwards cancellation through the HTTP client.
   Reference changes use a new key and do not show the prior reference's data;
   a failed background refresh retains the last successful response with a
   visible retry action. The ephemeral Pinia store owns only sheet state.
@@ -1262,7 +1344,7 @@ Mobile sheet contract:
 
 | Device                  | Layout              | Sidebar                        | Grid                      |
 | ----------------------- | ------------------- | ------------------------------ | ------------------------- |
-| Mobile `<768px`         | `MobileLayout.vue`  | Overlay/mobile shell           | Native scroll             |
+| Mobile `<768px`         | `MobileLayout.vue`  | Overlay/mobile shell           | TanStack Virtual row grid |
 | Tablet `768-1199px`     | `TabletLayout.vue`  | Drawer/sidebar shell           | TanStack Virtual row grid |
 | Desktop/Wide `>=1200px` | `DesktopLayout.vue` | Persistent/collapsible sidebar | TanStack Virtual row grid |
 
@@ -1295,14 +1377,93 @@ kept short by these rules; keep them when moving components between chunks:
 - Above-the-fold album covers (`priority` prop on `AlbumCard*.vue`, set for the
   first covers by `AlbumCarouselDesktop.vue` / `AlbumScrollerNative.vue`) and the
   first photo row (`fetchPriority="high"` on `PhotoCard.vue` from
-  `GalleryGrid.vue`) load eagerly at high fetch priority; everything else stays
-  `loading="lazy"`.
+  `GalleryGrid.vue`) load eagerly at high fetch priority and skip the visibility
+  gate below; everything else stays `loading="lazy"` and is gated.
 - Cinzel, Inter and JetBrains Mono are self-hosted from
   `frontend/src/assets/fonts/` (`fonts.css`, SIL OFL 1.1 license files beside
   them). The files and `@font-face` rules are the ones Google Fonts served, so
   rendering is unchanged, but there is no third-party render-blocking stylesheet.
 - nginx must serve the build with HTTP/2, gzip and immutable `/assets/` caching
   (see `docs/CONFIGURATION.md`, "Server runtime topology").
+
+## Grid Image Loading
+
+Grid thumbnails and album covers are loaded on demand so a fast scroll only
+downloads what the user rests on:
+
+- `composables/useVisibleLoadGate.ts` observes each `PhotoCard` / `AlbumCard*`
+  with an `IntersectionObserver` whose root is the nearest scroll container
+  (`findScrollRoot`; a `rootMargin` only grows the root, so the viewport would
+  never see cards just outside the scroller). A card that comes into range while
+  its scroll root is at rest (no scroll event for 150 ms, `SCROLL_IDLE_MS`: album
+  open, settling after a scroll, tab switch, resize) sets `shouldLoad` at once.
+  While the root is actively scrolling the card must stay in range for 120 ms
+  (`VISIBLE_LOAD_DWELL_MS`), and a card still pending when scrolling stops starts
+  immediately. One scroll listener per root is shared by all cards. Photo cards
+  use a 200 px vertical margin, album covers a 400 px horizontal one.
+- The card binds `src` to `shouldLoad ? url : undefined`. When the card leaves
+  before the image settled, `shouldLoad` goes back to false and the cleared `src`
+  makes the browser cancel the request; unmounting an unfinished `PhotoCard`
+  (virtual rows) removes `src` explicitly because a detached `<img>` keeps
+  downloading. Loaded images are never cancelled, and an `error` event from a
+  cleared `src` is ignored (`PhotoCard.onImageError`, `useCoverImageLoad`).
+- Skipped by the gate: first-row cards (`fetchPriority="high"`), `priority` album
+  covers, and thumbnails that already loaded once this session
+  (`seenThumbnailUrls` in `PhotoCard.vue`, so a virtual row scrolled back into
+  range does not wait again). The shimmer/skeleton is unchanged: it shows until
+  `load`.
+- **Versioned URLs.** Browse, search and related items carry `content_version` and folders carry
+  `cover_versions` (see "Versioned URLs (B3)"). `getThumbnailUrl(path, edge, version)` and
+  `getPreviewUrl(path, edge, version)` in `services/api.ts` append `&v=<version>` after `max_long_edge`
+  when a non-empty version is given, so the backend answers `immutable` and a revisit costs no request.
+  Every call site passes the version it has: `PhotoCard` (`version` prop from `GalleryGrid`,
+  `SearchResultsPanel`, `RelatedAssetsPanel`), the album cards (`cover_versions[i]` of the cover they
+  show; the search and gallery mappers copy `content_version` / `cover_versions` into `FileNode`), and
+  the lightbox (`buildPhotoSwipeItem` for `src`, `previewSrc` and the `msrc` placeholder, and the
+  preview dimension probe in `usePhotoSwipe.ts`, all from `FileNode.content_version`). An item without a
+  version (inspector rows, prompt-usage samples, older responses, an empty `cover_versions` entry) keeps
+  today's unversioned URL.
+- **`srcset` / `sizes` (`PhotoCard`).** The thumbnail offers
+  `srcset="<256 url> 256w, <512 url> 512w"`; `src` stays the 512 px URL (browsers that ignore `srcset`
+  and the unmeasured case behave as before). `sizes` is the card's rendered width, measured in
+  `onMounted` and kept current by one shared `ResizeObserver` (`useRenderedWidth`), multiplied by the
+  image's long/short edge ratio (`utils/thumbnailSizes.ts`; `imageWidth` / `imageHeight` props, a wide
+  default when unknown). The ratio matters because the card shows the image with `object-fit: cover`:
+  the 256 px derivative of a 3:2 photo is only 171 px high, so it must not be picked for a 230 px card.
+  The result: desktop DPR 1 square-ish cards pick 256, mobile DPR 2+ and 3:2 photos in wide cards keep
+  512, and the picture is never upscaled. `srcset` follows `src` through the F1 gate (set only when the
+  gate allows loading, cleared on cancel and unmount), only applies to the default 512 `thumbnailSize`,
+  and is left out while the card has no measured width (jsdom, `display: none`). The `dimensions`
+  event may therefore report the 256 px natural size; `lightboxStore.rememberDimensions` ignores
+  `source: "thumbnail"` dimensions, so nothing depends on it.
+- **Retry of failed thumbnails and covers.** A cold album can answer `/api/thumbnail` with a 503 after
+  its 10 s generation wait, and the derivative is ready a few seconds later. `<img>` does not expose the
+  status, so every real `error` event (not the one a cleared `src` raises) is retryable:
+  `composables/useImageRetry.ts` retries the same thumbnail up to 3 times after 1.5 s, 4 s and 10 s.
+  A retry adds a throwaway `&r=<n>` to `src` and to every `srcset` candidate (`getThumbnailUrl(..., retry)`;
+  the backend ignores unknown query parameters) so the browser requests again. While a retry is pending
+  `PhotoCard` keeps the shimmer and the album covers keep their skeleton; the error placeholder (and the
+  covers' settled state) only appears after the last retry failed. Leaving the viewport (the F1 gate turning
+  `shouldLoad` off), unmounting or changing the image cancels the pending retry and resets the budget, so
+  a card that comes back starts again from the plain URL. `useCoverImageLoad` exposes the same behaviour as
+  `onCoverError` / `retryAttempt` / `resetRetry` for `AlbumCard*`.
+- `GalleryGrid.vue` virtualizes all three layouts with the same
+  `useVirtualGridRows` (`mediaRows`, `overscan: 5`). Mobile differs only in
+  geometry: its rows are `top`-positioned (a fractional `translateY` would
+  anti-alias the 1 px card border) and have no vertical gap, and the row height
+  and the list offset below the album strip are measured from the DOM
+  (`useUniformRowSize`, `useVirtualScrollMargin` in `useVirtualGridMetrics.ts`)
+  instead of derived from `rowHeight`, because the rows are fractionally tall
+  (e.g. 184.5 px) and `measureElement` rounds. The album strip and section header
+  sit in `.mobile-grid-leading`, the load-more sentinel in `.scroller-footer`,
+  both inside the same `.scroller` container that is provided to
+  `galleryScrollContainerRefKey` (header/bottom-bar visibility).
+- The lightbox starts the current slide's preview first:
+  `utils/lightboxPreviewOrder.ts` (installed by `usePhotoSwipe.ts`) cancels
+  PhotoSwipe's `contentLoadImage` for every non-current slide until the current
+  slide's image has loaded or failed, then re-issues them. Navigating to a held
+  slide loads it immediately; neighbours that finished loading make navigation
+  instant. `preload: [1, 1]` is unchanged.
 
 ## Fragile Contracts
 
