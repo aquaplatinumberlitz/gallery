@@ -1,8 +1,16 @@
+<script lang="ts">
+// Thumbnail URLs that finished loading at least once in this session (module scope, shared by every
+// card). A card mounted again for one of them, e.g. when a virtual row scrolls back into range, skips
+// the visibility dwell: the browser serves it from cache, so there is nothing worth cancelling.
+const seenThumbnailUrls = new Set<string>();
+</script>
+
 <script setup lang="ts">
 import { ref, watch, computed, onBeforeUnmount } from "vue";
 import { getThumbnailUrl, getImageUrl } from "../services/api";
 import { Image } from "lucide-vue-next";
 import AssetActionMenu from "@/components/AssetActionMenu.vue";
+import { useVisibleLoadGate } from "../composables/useVisibleLoadGate";
 
 // ── Global image load cache ──
 // Persists across virtualized mount/unmount cycles so shimmer doesn't re-appear
@@ -37,6 +45,17 @@ const isLoaded = ref(props.src ? loadedImages.has(props.src) : false);
 const hasError = ref(false);
 const isHovering = ref(false);
 const thumbnailSrc = ref("");
+const cardShell = ref<HTMLElement | null>(null);
+const thumbnailEl = ref<HTMLImageElement | null>(null);
+
+// The thumbnail request only starts once the card has rested in view (see useVisibleLoadGate) and is
+// cancelled by clearing `src` when the card leaves first. First-row cards (fetchPriority="high") and
+// thumbnails already loaded in this session skip the gate so the initial viewport and revisits stay instant.
+const { shouldLoad, reset: resetLoadGate } = useVisibleLoadGate({
+  target: cardShell,
+  settled: () => isLoaded.value || hasError.value,
+  immediate: () => props.fetchPriority === "high" || seenThumbnailUrls.has(thumbnailSrc.value),
+});
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 let thumbnailTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -102,6 +121,7 @@ const onImageLoad = (event: Event) => {
   isLoaded.value = true;
   // Register in global cache so shimmer doesn't re-appear on recycle
   if (props.src) loadedImages.add(props.src);
+  if (thumbnailSrc.value) seenThumbnailUrls.add(thumbnailSrc.value);
 
   const img = event.target instanceof HTMLImageElement ? event.target : null;
   if (props.src && img?.naturalWidth && img.naturalHeight) {
@@ -113,7 +133,10 @@ const onImageLoad = (event: Event) => {
   }
 };
 
-const onImageError = () => {
+const onImageError = (event: Event) => {
+  // Clearing `src` to cancel a request can surface as an error event; that is not a failed image.
+  const img = event.target instanceof HTMLImageElement ? event.target : null;
+  if (img && !img.getAttribute("src")) return;
   hasError.value = true;
 };
 
@@ -130,12 +153,16 @@ watch(
       isLoaded.value = false;
     }
     queueThumbnailLoad();
+    resetLoadGate();
   },
   { immediate: true },
 );
 
 onBeforeUnmount(() => {
   clearThumbnailTimer();
+  // Desktop/tablet/mobile grids unmount cards that scroll far away: abort an unfinished request now,
+  // detached images keep downloading otherwise.
+  if (!isLoaded.value) thumbnailEl.value?.removeAttribute("src");
   if (hoverTimer) {
     clearTimeout(hoverTimer);
     hoverTimer = null;
@@ -144,7 +171,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="photo-card-shell" data-testid="photo-card-shell" @mouseenter="onMouseEnter" @mouseleave="onMouseLeave">
+  <div
+    ref="cardShell"
+    class="photo-card-shell"
+    data-testid="photo-card-shell"
+    @mouseenter="onMouseEnter"
+    @mouseleave="onMouseLeave"
+  >
     <div
       data-testid="photo-card"
       class="photo-card"
@@ -164,7 +197,8 @@ onBeforeUnmount(() => {
       <!-- Static Thumbnail (Always visible initially) -->
       <img
         v-if="thumbnailSrc && !hasError"
-        :src="thumbnailSrc"
+        ref="thumbnailEl"
+        :src="shouldLoad ? thumbnailSrc : undefined"
         :loading="props.fetchPriority === 'high' ? 'eager' : 'lazy'"
         decoding="async"
         :fetchpriority="props.fetchPriority"
