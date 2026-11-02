@@ -12,12 +12,15 @@ import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import AlbumCard from "@/components/AlbumCard.vue";
+import AlbumCardMobile from "@/components/AlbumCardMobile.vue";
+import AlbumCardTablet from "@/components/AlbumCardTablet.vue";
 import { IMAGE_PAGE_SIZE } from "@/constants";
 import { useInfiniteBrowseQuery } from "@/composables/useInfiniteBrowseQuery";
 import { queryKeys } from "@/query/keys";
 import { browseDirectory, getThumbnailUrl } from "@/services/api";
 import { ACTIVE_IMPORT_PATH_STORAGE_KEY, ACTIVE_LIBRARY_STORAGE_KEY, SORT_STORAGE_KEY } from "@/stores/gallery";
-import type { BrowseResponse, FileNode, RegisteredLibrary } from "@/types";
+import type { BrowseResponse, FolderTreeNode, RegisteredLibrary } from "@/types";
 import {
   ALBUMS_COLLAPSED_STORAGE_KEY,
   resolveHomeBrowseTarget,
@@ -46,7 +49,7 @@ const libA = library(1, [importPath(11, 1, "/photos/a", 0), importPath(12, 1, "/
 const libB = library(2, [importPath(21, 2, "/photos/b")]);
 const libEmpty = library(3, []);
 
-const album = (name: string, mtime = 0): FileNode => ({
+const album = (name: string, mtime = 0): FolderTreeNode => ({
   name,
   path: `/photos/a/${name}`,
   type: "folder",
@@ -56,7 +59,7 @@ const album = (name: string, mtime = 0): FileNode => ({
   mtime,
 });
 
-const browsePage = (folders: FileNode[]): BrowseResponse => ({
+const browsePage = (folders: FolderTreeNode[]): BrowseResponse => ({
   folders,
   media: [],
   next_cursor: null,
@@ -335,6 +338,21 @@ describe("startHomeBrowsePrefetch", () => {
       await run(makeClient(), [libA]);
       expect(FakeImage.created).toHaveLength(0);
     });
+  });
+});
+
+describe("warmed cover URL matches the album cards", () => {
+  // The browser reuses the warm-up request only when the card asks for exactly the same URL.
+  it.each([
+    ["AlbumCardMobile", AlbumCardMobile],
+    ["AlbumCardTablet", AlbumCardTablet],
+    ["AlbumCard", AlbumCard],
+  ])("%s requests the front cover with the warmed URL", (_name, component) => {
+    const folder = album("alpha");
+    warmAlbumCover(folder);
+    const wrapper = mount(component, { props: { node: folder, priority: true }, attachTo: document.body });
+    expect(wrapper.findAll("img").at(-1)!.attributes("src")).toBe(FakeImage.created[0].src);
+    wrapper.unmount();
   });
 });
 
