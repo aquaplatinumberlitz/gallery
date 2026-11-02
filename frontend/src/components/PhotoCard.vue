@@ -12,6 +12,7 @@ import { Image } from "lucide-vue-next";
 import AssetActionMenu from "@/components/AssetActionMenu.vue";
 import { useVisibleLoadGate } from "../composables/useVisibleLoadGate";
 import { useRenderedWidth } from "../composables/useRenderedWidth";
+import { useImageRetry } from "../composables/useImageRetry";
 import { coverAspectRatio, thumbnailSizes } from "../utils/thumbnailSizes";
 
 // ── Global image load cache ──
@@ -73,7 +74,7 @@ const { shouldLoad, reset: resetLoadGate } = useVisibleLoadGate({
 const cardWidth = useRenderedWidth(cardShell);
 const thumbnailSrcset = computed(() =>
   props.src && props.thumbnailSize === 512 && cardWidth.value > 0
-    ? getThumbnailSrcset(props.src, props.version)
+    ? getThumbnailSrcset(props.src, props.version, retryAttempt.value)
     : undefined,
 );
 const thumbnailSizesAttr = computed(() =>
@@ -81,6 +82,19 @@ const thumbnailSizesAttr = computed(() =>
     ? thumbnailSizes(cardWidth.value, coverAspectRatio(props.imageWidth, props.imageHeight))
     : undefined,
 );
+
+// A real image error (e.g. the 503 a cold album answers after its 10 s generation wait) is retried up to
+// 3 times with backoff before the error placeholder shows; the shimmer stays meanwhile. Retries add `&r=<n>`
+// so the browser requests again. Leaving the viewport cancels a pending retry and restarts the sequence.
+const { retryAttempt, scheduleRetry, resetRetry } = useImageRetry();
+const thumbnailRequestSrc = computed(() =>
+  props.src && thumbnailSrc.value
+    ? getThumbnailUrl(props.src, props.thumbnailSize, props.version, retryAttempt.value)
+    : "",
+);
+watch(shouldLoad, (now) => {
+  if (!now) resetRetry();
+});
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 let thumbnailTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -162,6 +176,7 @@ const onImageError = (event: Event) => {
   // Clearing `src` to cancel a request can surface as an error event; that is not a failed image.
   const img = event.target instanceof HTMLImageElement ? event.target : null;
   if (img && !img.getAttribute("src")) return;
+  if (scheduleRetry()) return;
   hasError.value = true;
 };
 
@@ -169,6 +184,7 @@ watch(
   () => [props.src, props.thumbnailSize, props.loadDelayMs, props.version] as const,
   ([newSrc]) => {
     hasError.value = false;
+    resetRetry();
     shouldPlay.value = false;
     previewSrc.value = "";
     // If image was already loaded in a previous render cycle, skip shimmer
@@ -225,7 +241,7 @@ onBeforeUnmount(() => {
         ref="thumbnailEl"
         :srcset="shouldLoad ? thumbnailSrcset : undefined"
         :sizes="thumbnailSizesAttr"
-        :src="shouldLoad ? thumbnailSrc : undefined"
+        :src="shouldLoad ? thumbnailRequestSrc : undefined"
         :loading="props.fetchPriority === 'high' ? 'eager' : 'lazy'"
         decoding="async"
         :fetchpriority="props.fetchPriority"

@@ -13,6 +13,7 @@ import AlbumCard from "../AlbumCard.vue";
 import AlbumCardMobile from "../AlbumCardMobile.vue";
 import AlbumCardTablet from "../AlbumCardTablet.vue";
 import { VISIBLE_LOAD_DWELL_MS } from "@/composables/useVisibleLoadGate";
+import { IMAGE_RETRY_DELAYS_MS } from "@/composables/useImageRetry";
 import type { FileNode } from "@/types";
 
 class FakeIntersectionObserver {
@@ -131,10 +132,15 @@ describe.each(cards)("$name cover load gate", ({ component, skeleton }) => {
     if (skeleton) expect(wrapper.find(skeleton).exists()).toBe(false);
   });
 
-  it("treats a real error as settled so the skeleton does not shimmer forever", async () => {
+  it("treats a real error as settled once its retries are used up so the skeleton does not shimmer forever", async () => {
     const wrapper = mountCard({ priority: true });
 
     await frontCover(wrapper).trigger("error");
+    // A real error is retried first (AlbumCardRetry.test.ts); the skeleton hides after the last retry fails.
+    for (const delay of IMAGE_RETRY_DELAYS_MS) {
+      await vi.advanceTimersByTimeAsync(delay);
+      await frontCover(wrapper).trigger("error");
+    }
 
     if (skeleton) expect(wrapper.find(skeleton).exists()).toBe(false);
   });

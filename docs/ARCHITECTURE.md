@@ -1436,6 +1436,17 @@ downloads what the user rests on:
   and is left out while the card has no measured width (jsdom, `display: none`). The `dimensions`
   event may therefore report the 256 px natural size; `lightboxStore.rememberDimensions` ignores
   `source: "thumbnail"` dimensions, so nothing depends on it.
+- **Retry of failed thumbnails and covers.** A cold album can answer `/api/thumbnail` with a 503 after
+  its 10 s generation wait, and the derivative is ready a few seconds later. `<img>` does not expose the
+  status, so every real `error` event (not the one a cleared `src` raises) is retryable:
+  `composables/useImageRetry.ts` retries the same thumbnail up to 3 times after 1.5 s, 4 s and 10 s.
+  A retry adds a throwaway `&r=<n>` to `src` and to every `srcset` candidate (`getThumbnailUrl(..., retry)`;
+  the backend ignores unknown query parameters) so the browser requests again. While a retry is pending
+  `PhotoCard` keeps the shimmer and the album covers keep their skeleton; the error placeholder (and the
+  covers' settled state) only appears after the last retry failed. Leaving the viewport (the F1 gate turning
+  `shouldLoad` off), unmounting or changing the image cancels the pending retry and resets the budget, so
+  a card that comes back starts again from the plain URL. `useCoverImageLoad` exposes the same behaviour as
+  `onCoverError` / `retryAttempt` / `resetRetry` for `AlbumCard*`.
 - `GalleryGrid.vue` virtualizes all three layouts with the same
   `useVirtualGridRows` (`mediaRows`, `overscan: 5`). Mobile differs only in
   geometry: its rows are `top`-positioned (a fractional `translateY` would

@@ -66,3 +66,20 @@ describe("getThumbnailSrcset", () => {
     for (const candidate of candidates) expect(candidate.trim().split(/\s+/)).toHaveLength(2);
   });
 });
+
+describe("retry cache-buster", () => {
+  it("appends r=<n> after v only for a retry", () => {
+    expect(getThumbnailUrl("/a.png", 512, "7-3", 2)).toBe("/api/thumbnail?path=%2Fa.png&max_long_edge=512&v=7-3&r=2");
+    expect(getThumbnailUrl("/a.png", 512, undefined, 1)).toBe("/api/thumbnail?path=%2Fa.png&max_long_edge=512&r=1");
+  });
+
+  it.each([undefined, 0])("adds no r for retry %j", (retry) => {
+    expect(getThumbnailUrl("/a.png", 512, "7-3", retry)).toBe("/api/thumbnail?path=%2Fa.png&max_long_edge=512&v=7-3");
+  });
+
+  it("puts r on every srcset candidate", () => {
+    expect(getThumbnailSrcset("/a.png", "7-3", 1)).toBe(
+      "/api/thumbnail?path=%2Fa.png&max_long_edge=256&v=7-3&r=1 256w, /api/thumbnail?path=%2Fa.png&max_long_edge=512&v=7-3&r=1 512w",
+    );
+  });
+});

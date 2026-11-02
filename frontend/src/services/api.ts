@@ -513,10 +513,15 @@ const withVersion = (params: URLSearchParams, version: ContentVersion) => {
   return params;
 };
 
-export const getThumbnailUrl = (path: string, maxLongEdge: number = 512, version?: ContentVersion) => {
+/**
+ * `retry` (1, 2, 3) appends a throwaway `r=<n>` so the browser issues a new request for an image that failed;
+ * the backend ignores unknown query parameters. It is only set on retries.
+ */
+export const getThumbnailUrl = (path: string, maxLongEdge: number = 512, version?: ContentVersion, retry?: number) => {
   const params = new URLSearchParams({ path });
   params.set("max_long_edge", String(maxLongEdge));
   withVersion(params, version);
+  if (retry && retry > 0) params.set("r", String(retry));
   return `${API_BASE}/api/thumbnail?${params.toString()}`;
 };
 
@@ -524,8 +529,8 @@ export const getThumbnailUrl = (path: string, maxLongEdge: number = 512, version
 export const GRID_THUMBNAIL_EDGES = [256, 512] as const;
 
 /** `srcset` value for a grid thumbnail: the 256 and 512 px derivatives with their width descriptors. */
-export const getThumbnailSrcset = (path: string, version?: ContentVersion): string =>
-  GRID_THUMBNAIL_EDGES.map((edge) => `${getThumbnailUrl(path, edge, version)} ${edge}w`).join(", ");
+export const getThumbnailSrcset = (path: string, version?: ContentVersion, retry?: number): string =>
+  GRID_THUMBNAIL_EDGES.map((edge) => `${getThumbnailUrl(path, edge, version, retry)} ${edge}w`).join(", ");
 
 export const getPreviewUrl = (path: string, maxLongEdge: number = 1440, version?: ContentVersion) => {
   const params = new URLSearchParams({ path });

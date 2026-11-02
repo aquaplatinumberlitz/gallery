@@ -11,6 +11,7 @@ import { nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PhotoCard from "../PhotoCard.vue";
 import { VISIBLE_LOAD_DWELL_MS } from "@/composables/useVisibleLoadGate";
+import { IMAGE_RETRY_DELAYS_MS } from "@/composables/useImageRetry";
 
 class FakeIntersectionObserver {
   static instances: FakeIntersectionObserver[] = [];
@@ -143,10 +144,15 @@ describe("PhotoCard thumbnail load gate", () => {
     expect(img.getAttribute("src")).toBeNull();
   });
 
-  it("reports a real image error", async () => {
+  it("reports a real image error once its retries are used up", async () => {
     const wrapper = mountCard({ fetchPriority: "high" });
 
     await thumbnail(wrapper).trigger("error");
+    // A real error is retried first (PhotoCardRetry.test.ts); the placeholder shows after the last retry fails.
+    for (const delay of IMAGE_RETRY_DELAYS_MS) {
+      await vi.advanceTimersByTimeAsync(delay);
+      await thumbnail(wrapper).trigger("error");
+    }
 
     expect(wrapper.text()).toContain("Preview unavailable");
   });

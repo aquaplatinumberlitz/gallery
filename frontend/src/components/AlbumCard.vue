@@ -3,7 +3,7 @@ import { albumCountLabel } from "@/utils/albumCountLabel";
 import type { FileNode } from "../types";
 import { getThumbnailUrl } from "../services/api";
 import { FolderOpen } from "lucide-vue-next";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useCoverImageLoad } from "../composables/useCoverImageLoad";
 import { useVisibleLoadGate } from "../composables/useVisibleLoadGate";
 import { ALBUM_PLACEHOLDER_SVG } from "../utils/albumCardPlaceholder";
@@ -30,7 +30,7 @@ const props = withDefaults(
 // Covers start loading after resting in the carousel viewport and are cancelled when slid away first
 // (see useVisibleLoadGate). The margin is horizontal because the carousel moves sideways; above-the-fold
 // covers (`priority`) skip the gate. No skeleton here: `loaded` only tells the gate the load settled.
-const { loaded, markCoverSettled } = useCoverImageLoad();
+const { loaded, markCoverSettled, onCoverError, retryAttempt, resetRetry } = useCoverImageLoad();
 const cardEl = ref<HTMLElement | null>(null);
 const { shouldLoad } = useVisibleLoadGate({
   target: cardEl,
@@ -38,6 +38,10 @@ const { shouldLoad } = useVisibleLoadGate({
   immediate: () => props.priority,
   axis: "x",
   rootMargin: "0px 400px",
+});
+// A cover that failed is retried (see useCoverImageLoad); sliding away cancels that and re-arms it.
+watch(shouldLoad, (now) => {
+  if (!now) resetRetry();
 });
 </script>
 
@@ -72,7 +76,7 @@ const { shouldLoad } = useVisibleLoadGate({
           v-if="node.cover_images?.[0]"
           :src="
             shouldLoad
-              ? getThumbnailUrl(node.cover_images[0], props.thumbnailSize, node.cover_versions?.[0])
+              ? getThumbnailUrl(node.cover_images[0], props.thumbnailSize, node.cover_versions?.[0], retryAttempt)
               : undefined
           "
           :loading="props.priority ? 'eager' : 'lazy'"
@@ -80,7 +84,7 @@ const { shouldLoad } = useVisibleLoadGate({
           decoding="async"
           alt=""
           @load="markCoverSettled"
-          @error="markCoverSettled"
+          @error="onCoverError"
         />
         <div v-else class="placeholder flex-center">
           <span class="fa-placeholder-svg" v-html="ALBUM_PLACEHOLDER_SVG" />
