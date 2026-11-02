@@ -806,6 +806,7 @@ useInfiniteLoadSentinel({
                   v-else
                   :src="item.path"
                   :name="item.name"
+                  :fetch-priority="virtualRow.index === 0 ? 'high' : 'auto'"
                   :can-find-related="Boolean(item.asset_id)"
                   @dimensions="handlePhotoDimensions"
                   @click="handleOpenMedia(item)"
@@ -837,7 +838,7 @@ useInfiniteLoadSentinel({
           <GallerySectionHeader v-if="media.length" title="Media" :count="media.length" :badge-icon="Images" />
 
           <div
-            v-for="row in mediaRows"
+            v-for="(row, rowIndex) in mediaRows"
             :key="row.id"
             class="virtual-row"
             :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }"
@@ -854,6 +855,7 @@ useInfiniteLoadSentinel({
                 v-else
                 :src="item.path"
                 :name="item.name"
+                :fetch-priority="rowIndex === 0 ? 'high' : 'auto'"
                 :can-find-related="Boolean(item.asset_id)"
                 @dimensions="handlePhotoDimensions"
                 @click="handleOpenMedia(item)"

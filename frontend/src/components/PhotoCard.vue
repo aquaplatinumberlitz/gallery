@@ -165,7 +165,7 @@ onBeforeUnmount(() => {
       <img
         v-if="thumbnailSrc && !hasError"
         :src="thumbnailSrc"
-        loading="lazy"
+        :loading="props.fetchPriority === 'high' ? 'eager' : 'lazy'"
         decoding="async"
         :fetchpriority="props.fetchPriority"
         @load="onImageLoad"

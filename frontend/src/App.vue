@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, defineAsyncComponent, provide, watch } from "vue";
+import { computed, ref, shallowRef, defineAsyncComponent, onMounted, provide, watch } from "vue";
 import { useEventListener, useStorage } from "@vueuse/core";
 import { useGalleryStore } from "./stores/gallery";
+import { useLightboxStore } from "./stores/lightbox";
+import { useRelatedAssetsStore } from "./stores/relatedAssets";
+import { whenBrowserIdleAfterLoad } from "./utils/idleAfterLoad";
 import GalleryToaster from "./components/GalleryToaster.vue";
 import IntroScreen from "./components/IntroScreen.vue";
 import { useScrollVisibility } from "./composables/useScrollVisibility";
@@ -31,6 +34,33 @@ const showDevtools = (import.meta.env.DEV || import.meta.env.VITE_DEVTOOLS === "
 const VueQueryDevtools = showDevtools
   ? defineAsyncComponent(() => import("@tanstack/vue-query-devtools").then((m) => m.VueQueryDevtools))
   : null;
+
+// Lightbox and Related Assets are not needed for the first paint. Mounting them eagerly made their
+// chunks (~60 KB gzip incl. CSS) compete with the gallery route and the first API calls on slow
+// networks. They mount as soon as one is opened, and otherwise once the page has loaded and the
+// browser is idle, so later opens stay as fast as before.
+const lightboxStore = useLightboxStore();
+const relatedAssetsStore = useRelatedAssetsStore();
+const mountLightbox = ref(lightboxStore.isOpen);
+const mountRelatedAssets = ref(relatedAssetsStore.isOpen);
+watch(
+  () => lightboxStore.isOpen,
+  (isOpen) => {
+    if (isOpen) mountLightbox.value = true;
+  },
+);
+watch(
+  () => relatedAssetsStore.isOpen,
+  (isOpen) => {
+    if (isOpen) mountRelatedAssets.value = true;
+  },
+);
+onMounted(() => {
+  whenBrowserIdleAfterLoad(() => {
+    mountLightbox.value = true;
+    mountRelatedAssets.value = true;
+  });
+});
 
 const { isMobile, isTablet } = useDevice();
 const router = useRouter();
@@ -286,8 +316,8 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
         @open-settings="isSettingsOpen = true"
       />
 
-      <Lightbox />
-      <RelatedAssetsPanel />
+      <Lightbox v-if="mountLightbox" />
+      <RelatedAssetsPanel v-if="mountRelatedAssets" />
       <AdvancedSearchDrawer
         v-if="isAdvancedSearchOpen"
         :is-open="isAdvancedSearchOpen"

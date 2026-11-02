@@ -1266,6 +1266,44 @@ Mobile sheet contract:
 | Tablet `768-1199px`     | `TabletLayout.vue`  | Drawer/sidebar shell           | TanStack Virtual row grid |
 | Desktop/Wide `>=1200px` | `DesktopLayout.vue` | Persistent/collapsible sidebar | TanStack Virtual row grid |
 
+## Initial Load Path
+
+The cold-load critical path (measured on the Lighthouse slow-4G mobile profile) is
+kept short by these rules; keep them when moving components between chunks:
+
+- `vite.config.ts` `earlyChunkPreload()` injects an inline `<head>` script into the
+  built `index.html` that adds `modulepreload` (JS) and `preload as=style` (CSS)
+  links for the static chunk graph of `GalleryRoute.vue` (only on `/`) and of the
+  layout for the current viewport. `router.isReady()` waits for the route chunk
+  before `main.ts` mounts the app, so without this the route graph only started
+  downloading after the entry had executed. The layout widths in the plugin mirror
+  `BREAKPOINTS` in `useDevice.ts`.
+- `main.ts` prefetches the library list (`queryKeys.libraries()` +
+  `fetchLibraries`, deduplicated by TanStack Query) and imports the viewport's
+  layout module before `router.isReady()` resolves. The reload black box
+  (`src/debug/reloadBlackBox.ts`) is a dynamic import, downloaded only when
+  `?debugReload` or `GALLERY_DEBUG_RELOAD` is set.
+- `App.vue` mounts `Lightbox` and `RelatedAssetsPanel` lazily: as soon as their
+  store opens, otherwise after `load` + a settle delay + an idle period
+  (`utils/idleAfterLoad.ts`). `MobileLayout.vue` loads `GallerySidebarContent`
+  the same way (its sheet content only renders when opened). Their chunks no
+  longer compete with the first thumbnails. `Lightbox.vue` watches its open state
+  with `immediate: true` because it can mount already open.
+- `manualChunks` puts `lucide-vue-next` icons into one `icons` chunk and Vue
+  into a `vue` chunk (both preloaded by `index.html`) instead of ~20 sub-1 KB
+  icon chunks per route.
+- Above-the-fold album covers (`priority` prop on `AlbumCard*.vue`, set for the
+  first covers by `AlbumCarouselDesktop.vue` / `AlbumScrollerNative.vue`) and the
+  first photo row (`fetchPriority="high"` on `PhotoCard.vue` from
+  `GalleryGrid.vue`) load eagerly at high fetch priority; everything else stays
+  `loading="lazy"`.
+- Cinzel, Inter and JetBrains Mono are self-hosted from
+  `frontend/src/assets/fonts/` (`fonts.css`, SIL OFL 1.1 license files beside
+  them). The files and `@font-face` rules are the ones Google Fonts served, so
+  rendering is unchanged, but there is no third-party render-blocking stylesheet.
+- nginx must serve the build with HTTP/2, gzip and immutable `/assets/` caching
+  (see `docs/CONFIGURATION.md`, "Server runtime topology").
+
 ## Fragile Contracts
 
 - Keep `useDevice.ts`, `_breakpoints.scss`, and `useColumnResize.ts` synchronized when changing breakpoints.

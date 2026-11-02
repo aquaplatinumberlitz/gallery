@@ -4,16 +4,45 @@ import "./styles/_shadcn-token-bridge.css";
 import "./styles/tailwind.css";
 import "./styles/main.scss";
 
-// Reload BlackBox monitor — installs BEFORE Vue init to patch WebSocket
-// and capture lifecycle events. Enable via ?debugReload=1.
-import { installReloadBlackBoxIfEnabled } from "./debug/reloadBlackBox";
-installReloadBlackBoxIfEnabled();
-
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
-import { installVueQuery } from "./query";
+import { installVueQuery, queryClient } from "./query";
+import { queryKeys } from "./query/keys";
+import { fetchLibraries } from "./services/api";
 import { router } from "./router";
+import { BREAKPOINTS } from "./composables/useDevice";
+
+// Reload BlackBox monitor — installs BEFORE Vue init to patch WebSocket
+// and capture lifecycle events. Enable via ?debugReload=1 or the persisted
+// GALLERY_DEBUG_RELOAD flag. The module is only downloaded when one of them is set.
+function reloadBlackBoxRequested(): boolean {
+  if (new URLSearchParams(window.location.search).has("debugReload")) return true;
+  try {
+    return localStorage.getItem("GALLERY_DEBUG_RELOAD") !== null;
+  } catch {
+    return false;
+  }
+}
+
+const reloadBlackBoxReady: Promise<void> = reloadBlackBoxRequested()
+  ? import("./debug/reloadBlackBox").then(({ installReloadBlackBoxIfEnabled }) => installReloadBlackBoxIfEnabled())
+  : Promise.resolve();
+
+// Start the first network work while the router still resolves the lazy route chunk.
+// The library list is needed by every screen; the layout chunk for this viewport is
+// the next thing App renders. Both previously waited until the route chunk tree had
+// loaded and the app had mounted. Same query key/fn and module specifiers as their
+// consumers, so TanStack Query and the module cache dedupe them.
+void queryClient.prefetchQuery({ queryKey: queryKeys.libraries(), queryFn: fetchLibraries });
+const viewportWidth = window.innerWidth;
+void (
+  viewportWidth < BREAKPOINTS.mobile
+    ? import("./layouts/MobileLayout.vue")
+    : viewportWidth < BREAKPOINTS.desktop
+      ? import("./layouts/TabletLayout.vue")
+      : import("./layouts/DesktopLayout.vue")
+).catch(() => undefined);
 
 const app = createApp(App);
 
@@ -56,6 +85,6 @@ installVueQuery(app);
 
 // Resolve the browser's initial URL before App setup reads route metadata.
 // Otherwise a hard reload on a lazy route can briefly render the gallery intro.
-router.isReady().then(() => {
+Promise.all([router.isReady(), reloadBlackBoxReady]).then(() => {
   app.mount("#app");
 });

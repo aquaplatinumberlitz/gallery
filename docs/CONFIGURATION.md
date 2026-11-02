@@ -3,7 +3,7 @@
 Status: Maintained
 
 Last verified against `backend/config.py`, `frontend/vite.config.ts`, frontend
-environment reads, and the server nginx site config: 2026-10-28.
+environment reads, and the server nginx site config: 2026-11-02.
 
 Boolean flags parsed by `_env_flag()` treat `0`, `false`, `no`, and `off`
 case-insensitively as false; any other provided value is true. Flags documented as
@@ -11,18 +11,33 @@ case-insensitively as false; any other provided value is true. Flags documented 
 
 ## Server runtime topology
 
-The VPS forwards ports `4701-4800`. Gallery reserves fixed port `4701` for the
-FastAPI backend and fixed port `4702` for the Vite frontend. The public nginx
-entrypoint on `150.230.56.153` proxies both services in the current VPS
-development topology.
+The VPS forwards ports `4701-4800` to the internet. Gallery reserves fixed port
+`4701` for the FastAPI backend and fixed port `4702` for the Vite development
+server. Both must bind `127.0.0.1`: the public nginx entrypoint on
+`150.230.56.153` (HTTPS, Basic Auth, proxy secret) is the only way in. A backend
+bound to `0.0.0.0` without `PRODUCTION=1` and `GALLERY_TRUSTED_PROXY_SECRET`
+answers every API request from the internet without authentication, and the
+Vite dev server forwards `/api` to the backend the same way.
+
+Production topology (`frontend/gallery-nginx-prod.conf`), used for real users:
 
 | Public path | nginx behavior | Service | Standard purpose |
 | ----------- | -------------- | ------- | ---------------- |
 | `/api` | Proxy to `http://127.0.0.1:4701` | Backend | FastAPI/uvicorn API server for `backend.main:app`. |
-| `/` | Proxy to `http://127.0.0.1:4702` | Frontend | Vite development server. |
+| `/assets/` | Static files from `frontend/dist/assets/`, `Cache-Control: public, max-age=31536000, immutable` | Built SPA | Content-hashed JS, CSS and font files. |
+| `/` | Static `frontend/dist/`, SPA fallback to `index.html`, `Cache-Control: no-cache` | Built SPA | Revalidated entry document, so a new build is picked up on the next visit. |
 
-The production nginx template serves `frontend/dist/` directly and keeps only
-the `/api` proxy to `127.0.0.1:4701`.
+The production template also enables HTTP/2 (`listen 443 ssl http2`) and gzip
+for `text/css`, `text/javascript`, `application/javascript`,
+`application/json` and `image/svg+xml` (the default `nginx.conf` compresses
+only `text/html`). `text/event-stream` is not compressed, so `/api/events`
+keeps streaming.
+
+The development template (`frontend/gallery-nginx-dev.conf`) proxies `/` to
+the Vite dev server on `127.0.0.1:4702` instead. Use it only while editing the
+frontend on the VPS: the dev server serves hundreds of unbundled, uncompressed
+modules (a cold mobile load measured about 40 s on a throttled 4G profile,
+against about 3 s for the production template).
 
 Both nginx templates require HTTP Basic Auth for the whole site and include the
 root-owned `/etc/nginx/snippets/gallery-proxy-secret.conf` inside `/api`. That
@@ -30,18 +45,25 @@ snippet must set `X-Gallery-Proxy-Secret` to the same value as
 `GALLERY_TRUSTED_PROXY_SECRET`; keep it and the `.htpasswd` file outside the
 repository. Requests are limited to 1 MiB bodies.
 
-Standard backend command from the repo root:
-
-```bash
-cd /home/ubuntu/gallery-repo
-PORT=4701 FRONTEND_PORT=4702 backend/.venv_linux/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 4701
-```
-
-Development frontend command from `frontend/`:
+Deploy (build the SPA, then start the backend on loopback):
 
 ```bash
 cd /home/ubuntu/gallery-repo/frontend
-VITE_PORT=4702 corepack pnpm exec vite --host 0.0.0.0 --port 4702
+corepack pnpm install --frozen-lockfile
+corepack pnpm run build
+cd /home/ubuntu/gallery-repo
+PORT=4701 backend/.venv_linux/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 4701
+```
+
+After changing the template, copy `frontend/gallery-nginx-prod.conf` over the
+gallery site in `/etc/nginx/sites-available/` and run
+`sudo nginx -t && sudo systemctl reload nginx`.
+
+Development frontend command from `frontend/` (dev template only):
+
+```bash
+cd /home/ubuntu/gallery-repo/frontend
+VITE_PORT=4702 corepack pnpm exec vite --host 127.0.0.1 --port 4702
 ```
 
 Do not set `VITE_API_URL` for the public VPS nginx path unless deliberately
