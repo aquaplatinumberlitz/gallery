@@ -594,6 +594,26 @@ describe("GalleryGrid", () => {
       expect(new Set(counts.filter((count) => count > 0 && count < settled)).size).toBeGreaterThan(0);
     });
 
+    it("takes bigger steps when a step finishes quickly, so a fast CPU needs fewer of them", async () => {
+      const distinctRowCounts = async (msPerClockRead: number) => {
+        let clock = 0;
+        const now = vi.spyOn(performance, "now").mockImplementation(() => (clock += msPerClockRead));
+        mockMedia = ref(images(400));
+        const wrapper = await mountSubject({ props: { isMobile: true } });
+        await nextTick();
+        const counts = await rowCountsUntilSettled(wrapper);
+        now.mockRestore();
+        wrapper.unmount();
+        return new Set(counts.filter((count) => count > 0)).size;
+      };
+
+      const slowSteps = await distinctRowCounts(100);
+      const fastSteps = await distinctRowCounts(0.01);
+
+      expect(slowSteps).toBeGreaterThan(2);
+      expect(fastSteps).toBeLessThan(slowSteps);
+    });
+
     it("ends the staging as soon as the user scrolls, so every row in range is mounted", async () => {
       mockMedia = ref(images(400));
 

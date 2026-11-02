@@ -570,6 +570,10 @@ const { rowSize: mobileRowSize, observeRow: observeMobileRow } = useUniformRowSi
 // (the thumbnail gate does not load them) simply arrive a few milliseconds later. A scroll ends the staging.
 const STAGE_FIRST_ROWS = 1;
 const STAGE_CARDS_PER_STEP = 4;
+// A step that finished within this many ms (a fast CPU) doubles the next step, up to the cap, so desktops do not
+// pay the per-step overhead of a phone-sized plan.
+const STAGE_FAST_STEP_MS = 20;
+const STAGE_MAX_CARDS_PER_STEP = 48;
 const STAGE_MAX_WAIT_TICKS = 25;
 // Budget 0 mounts the grid container without rows, so the first task holds the page chrome only.
 const rowBudget = ref(0);
@@ -579,7 +583,9 @@ const endRowStaging = () => {
   stageTimer = null;
   rowBudget.value = Infinity;
 };
+let stepCards = STAGE_CARDS_PER_STEP;
 const stageNextRows = (scrollTopAtStart: number, waited = 0) => {
+  const scheduledAt = performance.now();
   stageTimer = setTimeout(() => {
     stageTimer = null;
     const rendered = browseVirtualGrid.virtualItems.value.length;
@@ -599,10 +605,13 @@ const stageNextRows = (scrollTopAtStart: number, waited = 0) => {
       endRowStaging();
       return;
     }
+    if (rowBudget.value > 0 && performance.now() - scheduledAt < STAGE_FAST_STEP_MS) {
+      stepCards = Math.min(stepCards * 2, STAGE_MAX_CARDS_PER_STEP);
+    }
     rowBudget.value =
       rowBudget.value === 0
         ? STAGE_FIRST_ROWS
-        : rowBudget.value + Math.max(1, Math.ceil(STAGE_CARDS_PER_STEP / columnCount.value));
+        : rowBudget.value + Math.max(1, Math.ceil(stepCards / columnCount.value));
     stageNextRows(scrollTopAtStart);
   }, 0);
 };
@@ -612,6 +621,7 @@ watch(
     if (stageTimer) clearTimeout(stageTimer);
     stageTimer = null;
     rowBudget.value = 0;
+    stepCards = STAGE_CARDS_PER_STEP;
     if (hasRows) stageNextRows(scrollParentRef.value?.scrollTop ?? 0);
   },
   { immediate: true },
