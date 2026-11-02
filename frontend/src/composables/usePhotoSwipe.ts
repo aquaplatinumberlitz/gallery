@@ -7,6 +7,7 @@ import { queryKeys } from "../query/keys";
 import { useLightboxStore } from "../stores/lightbox";
 import { registerLightboxDOMReport } from "../debug/lightboxDomReport";
 import { isLightboxNavDebugEnabled, logLightboxNavDebug, summarizeLightboxItems } from "../debug/lightboxNavDebug";
+import { deferNeighbourPreviewsUntilCurrentSettles } from "../utils/lightboxPreviewOrder";
 import {
   buildPhotoSwipeItem,
   hasValidDimensions,
@@ -354,6 +355,8 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       bgClickAction: "close",
     });
     pswp.value = instance;
+    // Neighbour previews wait for the current slide's preview (loaded or failed) before they start.
+    deferNeighbourPreviewsUntilCurrentSettles(instance);
     lastReportedPhotoSwipeIndex = instance.currIndex;
     if (isLightboxNavDebugEnabled()) {
       logLightboxNavDebug("pswp-instance-created", {
