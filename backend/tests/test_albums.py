@@ -117,10 +117,10 @@ class TestBuildAlbumMetadata:
 
         original_stat = Path.stat
 
-        def fake_stat(self):
+        def fake_stat(self, *args, **kwargs):
             if str(self) == dir_path_str:
                 raise OSError("stat error")
-            return original_stat(self)
+            return original_stat(self, *args, **kwargs)
 
         monkeypatch.setattr(Path, "stat", fake_stat)
         result = build_album_metadata(tmp_path)
