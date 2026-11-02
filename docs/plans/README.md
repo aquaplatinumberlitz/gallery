@@ -2,13 +2,13 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-11-01
+Last reviewed: 2026-11-02
 
 Active plans:
 
 | Plan | Status | Created |
 |------|--------|---------|
-| _None_ | | |
+| [Image Pipeline](IMAGE_PIPELINE_PLAN.md) | Active | 2026-11-02 |
 
 Completed plans:
 
