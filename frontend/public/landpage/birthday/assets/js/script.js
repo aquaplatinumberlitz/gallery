@@ -64,16 +64,14 @@ $(document).ready(function() {
     
     function birth14dora(){
         $("#birth14dora").animateRotate(7, 400, 'easeInOutQuad')
-                         .animateRotate(0, 400, 'easeInOutQuad');
-        setTimeout(birth14dora, 800);
+                         .animateRotate(0, 400, 'easeInOutQuad', birth14dora);
     }
 
     function birth14baloon(){
         var time = 1500;
         var easingName = 'easeInOutQuad';
         $("#birth14baloon").animate({marginTop:"-10px"}, time, easingName)
-                          .animate({marginTop:"0"}, time, easingName);
-        setTimeout(birth14baloon, time*2);
+                          .animate({marginTop:"0"}, time, easingName, birth14baloon);
     }
 
     // Start birthday animations after page load

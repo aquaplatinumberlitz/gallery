@@ -3,8 +3,6 @@
 /////////////////////
 
 $(document).ready(function() {
-    setTimeout(animation, 300);
-    
     // Initialize Nivo Slider
     $(window).on('load', function() {
         $('#slider').nivoSlider({
@@ -16,73 +14,6 @@ $(document).ready(function() {
             pauseOnHover: true
         });
     });
-});
-
-function animation(){
-balloon();
-adballoon();
-dora();
-cloud1();
-cloud2();
-cloud3();
-cloud4();
-cloud5();
-}
-
-function balloon(){
-    $("#top_anniv_balloon").animate({top:"-=10px"}, 2000, 'swing').animate({top:"+=10px"}, 2000, 'swing');
-    setTimeout(balloon, 2000);
-}
-
-function adballoon(){
-    $("#top_anniv_adballoon1").animate({rotate:"3deg"}, 3000, 'swing').animate({rotate:"0deg"}, 3000, 'swing');
-    $("#top_anniv_adballoon2").animate({rotate:"3deg"}, 3000, 'swing').animate({rotate:"0deg"}, 3000, 'swing');
-    setTimeout(adballoon, 6000);
-}
-
-function dora(){
-    $("#top_anniv_dora").animate({rotate:"10deg"}, 500, 'swing').animate({rotate:"0deg"}, 500, 'swing');
-    $("#top_anniv_minidora").animate({rotate:"10deg"}, 500, 'swing').animate({rotate:"0deg"}, 500, 'swing');
-    setTimeout(dora, 1000);
-}
-
-var cloudWidth = Math.floor($(window).width() + 600);
-
-function cloud1(){
-    $("#cloud1").animate({left: cloudWidth}, 65000, 'linear').animate({left: "-300px"}, 0);
-    setTimeout(cloud1, 1000);
-}
-
-function cloud2(){
-    $("#cloud2").animate({left: cloudWidth}, 62000, 'linear').animate({left: "-150px"}, 0);
-    setTimeout(cloud2, 1000);
-}
-
-function cloud3(){
-    $("#cloud3").animate({left: cloudWidth}, 34000, 'linear').animate({left: "-100px"}, 0);
-    setTimeout(cloud3, 1000);
-}
-
-function cloud4(){
-    $("#cloud4").animate({left: cloudWidth}, 40000, 'linear').animate({left: "-150px"}, 0);
-    setTimeout(cloud4, 1000);
-}
-
-function cloud5(){
-    $("#cloud5").animate({left: cloudWidth}, 58000, 'linear').animate({left: "-200px"}, 0);
-    setTimeout(cloud5, 1000);
-}
-
-$(function() {
-	$('#top_anniv_doraLink')
-	.hover(
-		function(){
-			$('#top_anniv_hukidashi').show();
-		},
-		function () {
-			$('#top_anniv_hukidashi').hide();
-		}
-	);
 });
 
 
@@ -207,14 +138,16 @@ function animateExistingSantaSori() {
 
 // Smooth minidora animation using jQuery (copied from normal folder)
 function santa_minidora_smooth(){
-    $("#santa_minidora").animate({top:"-=15px"}, 1000, 'easeInOutSine').animate({top:"+=15px"}, 1000, 'easeInOutSine');
-    setTimeout(santa_minidora_smooth, 1000);
+    $("#santa_minidora").animate({top:"-=15px"}, 1000, 'easeInOutSine').animate({top:"+=15px"}, 1000, 'easeInOutSine', santa_minidora_smooth);
 }
 
 // Enhanced Christmas Snowfall Effect with optimized performance
 function initSnowfall() {
 	var flakes = [];
 	var flakeCount = 100; // Increased to match optimized performance
+	// Window size is cached (refreshed on resize) instead of being read per flake per tick
+	var winW = $(window).width();
+	var winH = $(window).height();
 	var isTabActive = true;
 	
 	// Performance optimization - pause when tab is not active
@@ -227,9 +160,7 @@ function initSnowfall() {
 	}
 	
 	function createFlake(id) {
-		var elWidth = $(window).width();
-		var elHeight = $(window).height();
-		var x = random(0, elWidth);
+		var x = random(0, winW);
 		var y = random(-100, -10);
 		var size = random(11, 18); // Match optimized size range
 		var speed = random(8, 30) / 10; // Match optimized speed range (0.8-3.0)
@@ -277,7 +208,7 @@ function initSnowfall() {
 			update: function() {
 				this.y += this.speed;
 				
-				if (this.y > $(window).height() + 20) {
+				if (this.y > winH + 20) {
 					this.reset();
 				}
 				
@@ -286,7 +217,7 @@ function initSnowfall() {
 				this.x += Math.cos(this.step);
 				this.rotation += this.rotationSpeed;
 				
-				if (this.x > $(window).width() - 22 || this.x < 22) {
+				if (this.x > winW - 22 || this.x < 22) {
 					this.reset();
 				}
 				
@@ -301,7 +232,7 @@ function initSnowfall() {
 			},
 			reset: function() {
 				this.y = 0;
-				this.x = random(0, $(window).width());
+				this.x = random(0, winW);
 				this.stepSize = random(1, 10) / 100;
 				this.size = random(11, 18);
 				this.speed = random(8, 30) / 10;
@@ -332,10 +263,12 @@ function initSnowfall() {
 	
 	// Handle window resize
 	$(window).resize(function() {
+		winW = $(window).width();
+		winH = $(window).height();
 		// Reset snowflakes positions on resize
 		for (var i = 0; i < flakes.length; i++) {
-			if (flakes[i].x > $(window).width()) {
-				flakes[i].x = random(0, $(window).width());
+			if (flakes[i].x > winW) {
+				flakes[i].x = random(0, winW);
 			}
 		}
 	});

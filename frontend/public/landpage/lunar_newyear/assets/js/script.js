@@ -67,7 +67,8 @@ var animationInterval;
 var mochi_id = "newyear_mochidora";
 var mochi_width = 176;
 var mochi_height = 236;
-var mochi_src = "./assets/img/newyear_mochidora.png";
+var mochi_src = "./assets/img/newyear_mochidora.webp"; // 10x10 grid (WebP max width is 16383px)
+var mochi_cols = 10;
 var mochi_frame = 0;
 var mochi_max_frame = 100;
 var mochi_onceFlg = false;
@@ -76,7 +77,7 @@ var nobi_id = "newyear_nobitako";
 var nobi_width = 460;
 var nobi_height = 180;
 var nobi_bgposition = 0;
-var nobi_src = "./assets/img/newyear_nobitako.png";
+var nobi_src = "./assets/img/newyear_nobitako.webp";
 var nobi_frame = 0;
 var nobi_max_frame = 24;
 var nobi_onceFlg = false;
@@ -121,7 +122,7 @@ function animation(){
 
 	function intervalEvent(){
 		$("#"+mochi_id).css({
-			"background-position":-mochi_width * mochi_frame +"px 0"
+			"background-position":-mochi_width * (mochi_frame % mochi_cols) +"px " + -mochi_height * Math.floor(mochi_frame / mochi_cols) +"px"
 		});
 		mochi_frame++;
 		if(mochi_frame>=mochi_max_frame){
@@ -141,24 +142,15 @@ function animation(){
 }
 
 function newyear_takojai(){
-	$("#newyear_takojai").animate({top:"+=12px",left:"-=7px"},1500,'easeInOutQuad').animate({top:"-=12px",left:"+=7px"}, 1500,'easeInOutQuad');
-	setTimeout(function() {
-		newyear_takojai();
-	}, 3000);
+	$("#newyear_takojai").animate({top:"+=12px",left:"-=7px"},1500,'easeInOutQuad').animate({top:"-=12px",left:"+=7px"}, 1500,'easeInOutQuad', newyear_takojai);
 }
 
 function newyear_takosune(){
-	$("#newyear_takosune").animate({top:"+=5px",left:"+=10px"},1500,'easeInOutQuad').animate({top:"-=5px",left:"-=10px"}, 1500,'easeInOutQuad');
-	setTimeout(function() {
-		newyear_takosune();
-	}, 3000);
+	$("#newyear_takosune").animate({top:"+=5px",left:"+=10px"},1500,'easeInOutQuad').animate({top:"-=5px",left:"-=10px"}, 1500,'easeInOutQuad', newyear_takosune);
 }
 
 function newyear_nobitako(){
 	$('#newyear_nobitako').delay(2000).animate({left:"-100%"},10000,'linear',function(){ nobi_bgposition = 460; })
-	.delay(2000).animate({left:"150%"},10000,'linear',function(){ nobi_bgposition = 0; });
-	setTimeout(function() {
-		newyear_nobitako();
-	}, 24000);
+	.delay(2000).animate({left:"150%"},10000,'linear',function(){ nobi_bgposition = 0; newyear_nobitako(); });
 }
 
