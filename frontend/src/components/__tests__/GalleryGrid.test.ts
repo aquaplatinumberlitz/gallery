@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from "pinia";
 import { mount } from "@vue/test-utils";
 import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 import { fuzzySearchFileNodes } from "@/utils/fuzzySearch";
 import { GalleryAPIError } from "@/services/api";
 
@@ -371,5 +371,74 @@ describe("GalleryGrid", () => {
 
     expect(mockUseUnifiedSearchQuery).toHaveBeenCalled();
     expect(mockUseUnifiedSearchQuery.mock.calls[0][0].value?.text).toBe("m");
+  });
+
+  describe("mobile virtual grid", () => {
+    const manyImages = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        name: `img-${i}.png`,
+        path: `/photos/img-${i}.png`,
+        type: "image",
+        mtime: count - i,
+      }));
+    // jsdom has no layout: give every element a viewport-sized box so the virtualizer renders rows.
+    beforeEach(() => {
+      vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(800);
+      vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(390);
+    });
+    const priorityProbe = {
+      PhotoCard: {
+        props: ["src", "fetchPriority"],
+        template: "<div class='photo-card' :data-src='src' :data-priority='fetchPriority' />",
+      },
+    };
+
+    it("renders only the rows near the viewport instead of every card", async () => {
+      mockMedia = ref(manyImages(400));
+
+      const wrapper = await mountSubject({ props: { isMobile: true }, stubs: priorityProbe });
+      await nextTick();
+
+      const rows = wrapper.findAll(".tanstack-virtual-row");
+      const cards = wrapper.findAll(".photo-card");
+      // 400 images in 4 columns are 100 rows; the previous native-flow grid rendered all 400 cards.
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.length).toBeLessThan(100);
+      expect(cards.length).toBe(rows.length * 4);
+      expect(wrapper.find(".mobile-scroller .tanstack-virtual-spacer").exists()).toBe(true);
+    });
+
+    it("keeps the album strip, media header and load-more sentinel around the virtual rows", async () => {
+      mockFolders = ref([{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }]);
+      mockMedia = ref(manyImages(40));
+
+      const wrapper = await mountSubject({
+        props: { isMobile: true },
+        stubs: { AlbumScroller: { template: "<div class='album-strip-stub' />" } },
+      });
+
+      const scroller = wrapper.get(".mobile-scroller");
+      const children = Array.from(scroller.element.children).map((el) => el.className);
+      expect(children).toEqual([
+        "mobile-grid-leading",
+        "tanstack-virtual-spacer",
+        expect.stringContaining("scroller-footer"),
+      ]);
+      expect(scroller.find(".mobile-grid-leading .album-strip-stub").exists()).toBe(true);
+      expect(scroller.find(".scroller-footer .load-more-sentinel").exists()).toBe(true);
+    });
+
+    it("loads only first-row thumbnails at high priority", async () => {
+      mockMedia = ref(manyImages(40));
+
+      const wrapper = await mountSubject({ props: { isMobile: true }, stubs: priorityProbe });
+      await nextTick();
+
+      const rows = wrapper.findAll(".tanstack-virtual-row");
+      expect(rows[0].findAll("[data-priority='high']")).toHaveLength(4);
+      for (const row of rows.slice(1)) {
+        expect(row.findAll("[data-priority='high']")).toHaveLength(0);
+      }
+    });
   });
 });
