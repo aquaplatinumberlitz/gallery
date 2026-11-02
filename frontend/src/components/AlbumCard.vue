@@ -56,7 +56,11 @@ const { shouldLoad } = useVisibleLoadGate({
       <div class="album-layer album-layer-back">
         <img
           v-if="node.cover_images?.[1]"
-          :src="shouldLoad ? getThumbnailUrl(node.cover_images[1], props.thumbnailSize) : undefined"
+          :src="
+            shouldLoad
+              ? getThumbnailUrl(node.cover_images[1], props.thumbnailSize, node.cover_versions?.[1])
+              : undefined
+          "
           loading="lazy"
           decoding="async"
           alt=""
@@ -66,7 +70,11 @@ const { shouldLoad } = useVisibleLoadGate({
       <div class="album-layer album-layer-front">
         <img
           v-if="node.cover_images?.[0]"
-          :src="shouldLoad ? getThumbnailUrl(node.cover_images[0], props.thumbnailSize) : undefined"
+          :src="
+            shouldLoad
+              ? getThumbnailUrl(node.cover_images[0], props.thumbnailSize, node.cover_versions?.[0])
+              : undefined
+          "
           :loading="props.priority ? 'eager' : 'lazy'"
           :fetchpriority="props.priority ? 'high' : 'auto'"
           decoding="async"

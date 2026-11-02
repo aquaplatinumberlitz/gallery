@@ -409,6 +409,17 @@ describe("usePhotoSwipe", () => {
       });
     });
 
+    it("probes preview dimensions with the item's content version", async () => {
+      const { getPreviewUrl } = await import("@/services/api");
+      const item: FileNode = { ...makeItem("/img1.png", "img1.png"), content_version: "7-8" };
+      const { result, isOpenRef } = setup([item], 0, false);
+
+      isOpenRef.value = true;
+      await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
+
+      await vi.waitFor(() => expect(getPreviewUrl).toHaveBeenCalledWith("/img1.png", 1440, "7-8"));
+    });
+
     it("keeps fallback geometry when asynchronous dimension resolution fails", async () => {
       (fetchMetadata as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("fetch failed"));
 

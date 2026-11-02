@@ -503,15 +503,36 @@ export const fetchLibraryInspectorMetadata = async (path: string): Promise<Libra
 
 export const getImageUrl = (path: string) => `${API_BASE}/api/image?path=${encodeURIComponent(path)}`;
 
-export const getThumbnailUrl = (path: string, maxLongEdge: number = 512) => {
+/** Backend `content_version` / `cover_versions[i]`. Empty or missing means "unversioned". */
+export type ContentVersion = string | null | undefined;
+
+/**
+ * Appends the optional content version as `v`. With a matching `v` the backend answers
+ * `Cache-Control: public, max-age=31536000, immutable`; without one the URL behaves as before.
+ */
+const withVersion = (params: URLSearchParams, version: ContentVersion) => {
+  if (version) params.set("v", version);
+  return params;
+};
+
+export const getThumbnailUrl = (path: string, maxLongEdge: number = 512, version?: ContentVersion) => {
   const params = new URLSearchParams({ path });
   params.set("max_long_edge", String(maxLongEdge));
+  withVersion(params, version);
   return `${API_BASE}/api/thumbnail?${params.toString()}`;
 };
 
-export const getPreviewUrl = (path: string, maxLongEdge: number = 1440) => {
+/** Thumbnail derivatives offered to the browser through `srcset` (the largest is the `src` fallback). */
+export const GRID_THUMBNAIL_EDGES = [256, 512] as const;
+
+/** `srcset` value for a grid thumbnail: the 256 and 512 px derivatives with their width descriptors. */
+export const getThumbnailSrcset = (path: string, version?: ContentVersion): string =>
+  GRID_THUMBNAIL_EDGES.map((edge) => `${getThumbnailUrl(path, edge, version)} ${edge}w`).join(", ");
+
+export const getPreviewUrl = (path: string, maxLongEdge: number = 1440, version?: ContentVersion) => {
   const params = new URLSearchParams({ path });
   params.set("max_long_edge", String(maxLongEdge));
+  withVersion(params, version);
   return `${API_BASE}/api/preview?${params.toString()}`;
 };
 

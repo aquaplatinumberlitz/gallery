@@ -1411,6 +1411,30 @@ downloads what the user rests on:
   (`seenThumbnailUrls` in `PhotoCard.vue`, so a virtual row scrolled back into
   range does not wait again). The shimmer/skeleton is unchanged: it shows until
   `load`.
+- **Versioned URLs.** Browse, search and related items carry `content_version` and folders carry
+  `cover_versions` (see "Versioned URLs (B3)"). `getThumbnailUrl(path, edge, version)` and
+  `getPreviewUrl(path, edge, version)` in `services/api.ts` append `&v=<version>` after `max_long_edge`
+  when a non-empty version is given, so the backend answers `immutable` and a revisit costs no request.
+  Every call site passes the version it has: `PhotoCard` (`version` prop from `GalleryGrid`,
+  `SearchResultsPanel`, `RelatedAssetsPanel`), the album cards (`cover_versions[i]` of the cover they
+  show; the search and gallery mappers copy `content_version` / `cover_versions` into `FileNode`), and
+  the lightbox (`buildPhotoSwipeItem` for `src`, `previewSrc` and the `msrc` placeholder, and the
+  preview dimension probe in `usePhotoSwipe.ts`, all from `FileNode.content_version`). An item without a
+  version (inspector rows, prompt-usage samples, older responses, an empty `cover_versions` entry) keeps
+  today's unversioned URL.
+- **`srcset` / `sizes` (`PhotoCard`).** The thumbnail offers
+  `srcset="<256 url> 256w, <512 url> 512w"`; `src` stays the 512 px URL (browsers that ignore `srcset`
+  and the unmeasured case behave as before). `sizes` is the card's rendered width, measured in
+  `onMounted` and kept current by one shared `ResizeObserver` (`useRenderedWidth`), multiplied by the
+  image's long/short edge ratio (`utils/thumbnailSizes.ts`; `imageWidth` / `imageHeight` props, a wide
+  default when unknown). The ratio matters because the card shows the image with `object-fit: cover`:
+  the 256 px derivative of a 3:2 photo is only 171 px high, so it must not be picked for a 230 px card.
+  The result: desktop DPR 1 square-ish cards pick 256, mobile DPR 2+ and 3:2 photos in wide cards keep
+  512, and the picture is never upscaled. `srcset` follows `src` through the F1 gate (set only when the
+  gate allows loading, cleared on cancel and unmount), only applies to the default 512 `thumbnailSize`,
+  and is left out while the card has no measured width (jsdom, `display: none`). The `dimensions`
+  event may therefore report the 256 px natural size; `lightboxStore.rememberDimensions` ignores
+  `source: "thumbnail"` dimensions, so nothing depends on it.
 - `GalleryGrid.vue` virtualizes all three layouts with the same
   `useVirtualGridRows` (`mediaRows`, `overscan: 5`). Mobile differs only in
   geometry: its rows are `top`-positioned (a fractional `translateY` would

@@ -7,10 +7,12 @@ const seenThumbnailUrls = new Set<string>();
 
 <script setup lang="ts">
 import { ref, watch, computed, onBeforeUnmount } from "vue";
-import { getThumbnailUrl, getImageUrl } from "../services/api";
+import { getThumbnailUrl, getThumbnailSrcset, getImageUrl } from "../services/api";
 import { Image } from "lucide-vue-next";
 import AssetActionMenu from "@/components/AssetActionMenu.vue";
 import { useVisibleLoadGate } from "../composables/useVisibleLoadGate";
+import { useRenderedWidth } from "../composables/useRenderedWidth";
+import { coverAspectRatio, thumbnailSizes } from "../utils/thumbnailSizes";
 
 // ── Global image load cache ──
 // Persists across virtualized mount/unmount cycles so shimmer doesn't re-appear
@@ -20,6 +22,11 @@ const props = withDefaults(
   defineProps<{
     src?: string;
     name?: string;
+    /** Backend `content_version`; appended as `v` so the thumbnail URLs are immutable-cacheable. */
+    version?: string | null;
+    /** Asset dimensions (when known) so `sizes` accounts for the `object-fit: cover` crop. */
+    imageWidth?: number | null;
+    imageHeight?: number | null;
     thumbnailSize?: number;
     fetchPriority?: "auto" | "high" | "low";
     loadDelayMs?: number;
@@ -28,6 +35,9 @@ const props = withDefaults(
   {
     src: undefined,
     name: undefined,
+    version: undefined,
+    imageWidth: undefined,
+    imageHeight: undefined,
     thumbnailSize: 512,
     fetchPriority: "auto",
     loadDelayMs: 0,
@@ -56,6 +66,21 @@ const { shouldLoad, reset: resetLoadGate } = useVisibleLoadGate({
   settled: () => isLoaded.value || hasError.value,
   immediate: () => props.fetchPriority === "high" || seenThumbnailUrls.has(thumbnailSrc.value),
 });
+
+// `srcset` offers the 256 and 512 px derivatives (the `src` fallback is the largest). `sizes` is the card's
+// measured rendered width, so the browser picks 256 only where it has enough pixels for the covered box.
+// Without a measured width (not laid out yet) only `src` is used, exactly as before srcset existed.
+const cardWidth = useRenderedWidth(cardShell);
+const thumbnailSrcset = computed(() =>
+  props.src && props.thumbnailSize === 512 && cardWidth.value > 0
+    ? getThumbnailSrcset(props.src, props.version)
+    : undefined,
+);
+const thumbnailSizesAttr = computed(() =>
+  thumbnailSrcset.value
+    ? thumbnailSizes(cardWidth.value, coverAspectRatio(props.imageWidth, props.imageHeight))
+    : undefined,
+);
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 let thumbnailTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -82,7 +107,7 @@ const queueThumbnailLoad = () => {
   if (!props.src) return;
 
   const load = () => {
-    thumbnailSrc.value = props.src ? getThumbnailUrl(props.src, props.thumbnailSize) : "";
+    thumbnailSrc.value = props.src ? getThumbnailUrl(props.src, props.thumbnailSize, props.version) : "";
   };
 
   if (props.loadDelayMs > 0) {
@@ -141,7 +166,7 @@ const onImageError = (event: Event) => {
 };
 
 watch(
-  () => [props.src, props.thumbnailSize, props.loadDelayMs] as const,
+  () => [props.src, props.thumbnailSize, props.loadDelayMs, props.version] as const,
   ([newSrc]) => {
     hasError.value = false;
     shouldPlay.value = false;
@@ -198,6 +223,8 @@ onBeforeUnmount(() => {
       <img
         v-if="thumbnailSrc && !hasError"
         ref="thumbnailEl"
+        :srcset="shouldLoad ? thumbnailSrcset : undefined"
+        :sizes="thumbnailSizesAttr"
         :src="shouldLoad ? thumbnailSrc : undefined"
         :loading="props.fetchPriority === 'high' ? 'eager' : 'lazy'"
         decoding="async"

@@ -373,6 +373,100 @@ describe("GalleryGrid", () => {
     expect(mockUseUnifiedSearchQuery.mock.calls[0][0].value?.text).toBe("m");
   });
 
+  describe("content versions", () => {
+    const versioned = [
+      {
+        name: "a.png",
+        path: "/photos/a.png",
+        type: "image",
+        mtime: 2,
+        content_version: "11-12",
+        width: 640,
+        height: 480,
+      },
+      { name: "b.png", path: "/photos/b.png", type: "image", mtime: 1 },
+    ];
+    // jsdom has no layout: give every element a viewport-sized box so the virtualizer renders rows.
+    beforeEach(() => {
+      vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(800);
+      vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(1000);
+    });
+    const versionProbe = {
+      PhotoCard: {
+        props: ["src", "version", "imageWidth", "imageHeight"],
+        template:
+          "<div class='photo-card' :data-src='src' :data-version='version' :data-w='imageWidth' :data-h='imageHeight' />",
+      },
+    };
+
+    it.each([
+      ["desktop", false],
+      ["mobile", true],
+    ])("passes each item's content_version and dimensions to its %s PhotoCard", async (_name, isMobile) => {
+      mockMedia = ref(versioned);
+
+      const wrapper = await mountSubject({ props: { isMobile }, stubs: versionProbe });
+      await nextTick();
+
+      const cards = wrapper.findAll(".photo-card");
+      expect(cards.map((c) => [c.attributes("data-src"), c.attributes("data-version")])).toEqual([
+        ["/photos/a.png", "11-12"],
+        ["/photos/b.png", undefined],
+      ]);
+      expect(cards[0]!.attributes("data-w")).toBe("640");
+      expect(cards[0]!.attributes("data-h")).toBe("480");
+    });
+  });
+
+  it("keeps the content_version of search results in the lightbox items", async () => {
+    const searchResult = {
+      asset_id: 5,
+      library_id: 1,
+      name: "hit.png",
+      path: "/photos/hit.png",
+      type: "image",
+      mtime: 1,
+      content_version: "31-32",
+      cover_versions: [],
+    };
+    mockUseUnifiedSearchQuery.mockImplementationOnce(() => ({
+      isLoading: { value: false },
+      isFetching: { value: false },
+      isFetchingNextPage: { value: false },
+      isError: { value: false },
+      isRefetchError: { value: false },
+      isFetchNextPageError: { value: false },
+      error: mockError,
+      isPending: { value: false },
+      isSuccess: mockIsSuccess,
+      hasNextPage: { value: false },
+      fetchNextPage: vi.fn(),
+      debouncedQuery: { value: "hit" },
+      albums: { value: [] },
+      photos: { value: [searchResult] },
+      videos: { value: [] },
+      prompt: { value: [] },
+      media: { value: [searchResult] },
+    }));
+    const wrapper = await mountSubject({
+      store: { searchQuery: "hit", submittedSearchQuery: "hit" },
+      stubs: {
+        SearchResultsPanel: {
+          props: ["media"],
+          emits: ["openMedia"],
+          template: "<button class='open-hit' @click=\"$emit('openMedia', media[0])\" />",
+        },
+      },
+    });
+
+    await wrapper.get(".open-hit").trigger("click");
+
+    const lightbox = (await import("@/stores/lightbox")).useLightboxStore();
+    expect(lightbox.galleryItems.map((node) => [node.path, node.content_version])).toEqual([
+      ["/photos/hit.png", "31-32"],
+    ]);
+  });
+
   describe("mobile virtual grid", () => {
     const manyImages = (count: number) =>
       Array.from({ length: count }, (_, i) => ({

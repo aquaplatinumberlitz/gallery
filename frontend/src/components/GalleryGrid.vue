@@ -264,8 +264,10 @@ const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   type: normalizeAssetType(result.type),
   has_children: false,
   cover_images: result.cover_images || [],
+  cover_versions: result.cover_versions || [],
   image_count: result.image_count || 0,
   mtime: result.mtime,
+  content_version: result.content_version,
   width: result.width ?? undefined,
   height: result.height ?? undefined,
   duration_ms: result.duration_ms,
@@ -848,6 +850,9 @@ useInfiniteLoadSentinel({
                   v-else
                   :src="item.path"
                   :name="item.name"
+                  :version="item.content_version"
+                  :image-width="item.width"
+                  :image-height="item.height"
                   :fetch-priority="virtualRow.index === 0 ? 'high' : 'auto'"
                   :can-find-related="Boolean(item.asset_id)"
                   @dimensions="handlePhotoDimensions"
@@ -901,6 +906,9 @@ useInfiniteLoadSentinel({
                   v-else
                   :src="item.path"
                   :name="item.name"
+                  :version="item.content_version"
+                  :image-width="item.width"
+                  :image-height="item.height"
                   :fetch-priority="virtualRow.index === 0 ? 'high' : 'auto'"
                   :can-find-related="Boolean(item.asset_id)"
                   @dimensions="handlePhotoDimensions"

@@ -199,6 +199,7 @@ const resultNodes = computed<FileNode[]>(() =>
     type: "image",
     has_children: false,
     mtime: item.mtime,
+    content_version: item.content_version,
     width: item.width,
     height: item.height,
     // Spread to plain object — response.value?.scope is a reactive TanStack Query
@@ -374,7 +375,14 @@ watch(
             <div v-if="results.length" class="related-grid" data-testid="related-results">
               <article v-for="item in results" :key="item.asset_id" class="related-card">
                 <div class="related-card-media">
-                  <PhotoCard :src="item.path" :name="item.name" @click="openResult(item)" />
+                  <PhotoCard
+                    :src="item.path"
+                    :name="item.name"
+                    :version="item.content_version"
+                    :image-width="item.width"
+                    :image-height="item.height"
+                    @click="openResult(item)"
+                  />
 
                   <!-- Tier badge: bottom-left, semantic dot -->
                   <span class="tier-label" :data-tier="tierColorTier(item)">

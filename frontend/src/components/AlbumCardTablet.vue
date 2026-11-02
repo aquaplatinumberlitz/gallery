@@ -50,7 +50,7 @@ const { shouldLoad } = useVisibleLoadGate({
       </div>
       <img
         v-if="node.cover_images?.[0]"
-        :src="shouldLoad ? getThumbnailUrl(node.cover_images[0]) : undefined"
+        :src="shouldLoad ? getThumbnailUrl(node.cover_images[0], undefined, node.cover_versions?.[0]) : undefined"
         :loading="priority ? 'eager' : 'lazy'"
         :fetchpriority="priority ? 'high' : 'auto'"
         alt=""
