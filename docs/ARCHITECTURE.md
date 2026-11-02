@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-10-28
+Last reviewed: 2026-11-02
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -1262,7 +1262,7 @@ Mobile sheet contract:
 
 | Device                  | Layout              | Sidebar                        | Grid                      |
 | ----------------------- | ------------------- | ------------------------------ | ------------------------- |
-| Mobile `<768px`         | `MobileLayout.vue`  | Overlay/mobile shell           | Native scroll             |
+| Mobile `<768px`         | `MobileLayout.vue`  | Overlay/mobile shell           | TanStack Virtual row grid |
 | Tablet `768-1199px`     | `TabletLayout.vue`  | Drawer/sidebar shell           | TanStack Virtual row grid |
 | Desktop/Wide `>=1200px` | `DesktopLayout.vue` | Persistent/collapsible sidebar | TanStack Virtual row grid |
 
@@ -1295,14 +1295,54 @@ kept short by these rules; keep them when moving components between chunks:
 - Above-the-fold album covers (`priority` prop on `AlbumCard*.vue`, set for the
   first covers by `AlbumCarouselDesktop.vue` / `AlbumScrollerNative.vue`) and the
   first photo row (`fetchPriority="high"` on `PhotoCard.vue` from
-  `GalleryGrid.vue`) load eagerly at high fetch priority; everything else stays
-  `loading="lazy"`.
+  `GalleryGrid.vue`) load eagerly at high fetch priority and skip the visibility
+  gate below; everything else stays `loading="lazy"` and is gated.
 - Cinzel, Inter and JetBrains Mono are self-hosted from
   `frontend/src/assets/fonts/` (`fonts.css`, SIL OFL 1.1 license files beside
   them). The files and `@font-face` rules are the ones Google Fonts served, so
   rendering is unchanged, but there is no third-party render-blocking stylesheet.
 - nginx must serve the build with HTTP/2, gzip and immutable `/assets/` caching
   (see `docs/CONFIGURATION.md`, "Server runtime topology").
+
+## Grid Image Loading
+
+Grid thumbnails and album covers are loaded on demand so a fast scroll only
+downloads what the user rests on:
+
+- `composables/useVisibleLoadGate.ts` observes each `PhotoCard` / `AlbumCard*`
+  with an `IntersectionObserver` whose root is the nearest scroll container
+  (`findScrollRoot`; a `rootMargin` only grows the root, so the viewport would
+  never see cards just outside the scroller). `shouldLoad` turns true after the
+  card has stayed in range for 120 ms (`VISIBLE_LOAD_DWELL_MS`); photo cards use a
+  200 px vertical margin, album covers a 400 px horizontal one.
+- The card binds `src` to `shouldLoad ? url : undefined`. When the card leaves
+  before the image settled, `shouldLoad` goes back to false and the cleared `src`
+  makes the browser cancel the request; unmounting an unfinished `PhotoCard`
+  (virtual rows) removes `src` explicitly because a detached `<img>` keeps
+  downloading. Loaded images are never cancelled, and an `error` event from a
+  cleared `src` is ignored (`PhotoCard.onImageError`, `useCoverImageLoad`).
+- Skipped by the gate: first-row cards (`fetchPriority="high"`), `priority` album
+  covers, and thumbnails that already loaded once this session
+  (`seenThumbnailUrls` in `PhotoCard.vue`, so a virtual row scrolled back into
+  range does not wait again). The shimmer/skeleton is unchanged: it shows until
+  `load`.
+- `GalleryGrid.vue` virtualizes all three layouts with the same
+  `useVirtualGridRows` (`mediaRows`, `overscan: 5`). Mobile differs only in
+  geometry: its rows are `top`-positioned (a fractional `translateY` would
+  anti-alias the 1 px card border) and have no vertical gap, and the row height
+  and the list offset below the album strip are measured from the DOM
+  (`useUniformRowSize`, `useVirtualScrollMargin` in `useVirtualGridMetrics.ts`)
+  instead of derived from `rowHeight`, because the rows are fractionally tall
+  (e.g. 184.5 px) and `measureElement` rounds. The album strip and section header
+  sit in `.mobile-grid-leading`, the load-more sentinel in `.scroller-footer`,
+  both inside the same `.scroller` container that is provided to
+  `galleryScrollContainerRefKey` (header/bottom-bar visibility).
+- The lightbox starts the current slide's preview first:
+  `utils/lightboxPreviewOrder.ts` (installed by `usePhotoSwipe.ts`) cancels
+  PhotoSwipe's `contentLoadImage` for every non-current slide until the current
+  slide's image has loaded or failed, then re-issues them. Navigating to a held
+  slide loads it immediately; neighbours that finished loading make navigation
+  instant. `preload: [1, 1]` is unchanged.
 
 ## Fragile Contracts
 

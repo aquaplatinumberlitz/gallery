@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-10-27
+Last reviewed: 2026-11-02
 
 ## Breakpoints
 
@@ -59,7 +59,9 @@ Mobile:
 - Use the same overlay sidebar sheet as tablet (320px max width, closed on first visit) with backdrop close.
 - Keep folder-tree expansion and folder navigation inside the open sidebar; only
   explicit close controls, the backdrop, or Escape dismiss the sidebar.
-- Mobile uses native scroll instead of virtual scrolling.
+- Mobile uses the same TanStack Virtual row grid as desktop/tablet on the native `.scroller` container
+  (album strip and section header above the rows, load-more sentinel below). Its rows keep the 5px column
+  gap, no vertical gap and 2px side padding, positioned with `top` so card borders stay pixel-snapped.
 - Keep fixed header and bottom bar safe-area-aware.
 - Show the current browse context in the top bar instead of filling the header with
   secondary shortcuts. Library selection and management remain available in the sidebar.
@@ -92,7 +94,24 @@ GRID_COLUMN_MAP = {
 - The same slider level intentionally produces different column counts per device.
 - Do not hardcode column counts in components.
 
+### Thumbnail loading
+
+- Thumbnails and album covers are requested only after the card rested in range for 120ms and are cancelled
+  (by clearing `src`) when it leaves before the image loaded; see `useVisibleLoadGate.ts` and
+  "Grid Image Loading" in `ARCHITECTURE.md`. First-row cards (`fetchPriority="high"`) and `priority` album
+  covers load immediately.
+- The loading look is unchanged by the gate: the card shimmer / cover skeleton stays until `load`; a
+  cancelled request must neither hide the skeleton nor show "Preview unavailable".
+- Keep the observation margin small (200px vertical for photos, 400px horizontal for album covers) so
+  prefetch does not bring back the download-everything-you-scroll-past behaviour.
+
 ## Lightbox UX
+
+Image loading (all layouts):
+
+- Request the current slide's preview first. Neighbour previews (`preload: [1, 1]`) start only after it
+  loaded or failed (`utils/lightboxPreviewOrder.ts`); arrow and swipe navigation stays instant once the
+  neighbours are loaded.
 
 Desktop/wide:
 
