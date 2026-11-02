@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 import time
 from contextlib import suppress
 from pathlib import Path
@@ -10,13 +11,15 @@ from typing import Any
 
 from ..metadata_store import _connect_read
 from ..metadata_store.db_writer import LANE_NORMAL, post_write
-from ._common import _ensure_database
+from ._common import _ensure_database, logger
 
 
 class LookupMixin:
     """Status, ready-file, outcome, and asset lookups for ``DerivativeScheduler``."""
 
     _ACCESS_TOUCH_INTERVAL_SECONDS = 60.0
+    # Touches closer together than this are written by one writer op (see ``_touch_derivative``).
+    _TOUCH_COALESCE_SECONDS = 5.0
     # Longest ``release_serving`` waits for a queued ``last_accessed_at`` touch of its file to be applied.
     _TOUCH_FLUSH_TIMEOUT_SECONDS = 2.0
 
@@ -92,24 +95,92 @@ class LookupMixin:
     def _touch_derivative(self, derivative_id: int, accessed_at: float, cache_path: str) -> None:
         """Record a warm access without making the request wait for the database writer.
 
-        Reads stay on plain connections; the ``last_accessed_at`` update is a best-effort, fire-and-forget
-        normal-lane writer op (an HTTP request must never wait for a batch). It only orders the LRU
-        eviction, so it may be dropped under maintenance or backpressure. The queued Future is remembered
-        so ``release_serving`` can flush it once the response is done. With no active writer (scripts,
-        plain unit tests) the update is applied inline.
+        Reads stay on plain connections. The ``last_accessed_at`` update is best-effort and fire-and-forget (an
+        HTTP request must never wait for a batch), and it only orders the LRU eviction, so it may be dropped
+        under maintenance or backpressure. Touches are coalesced: they accumulate in memory (latest time per
+        derivative) and are written as one normal-lane writer op per ``_TOUCH_COALESCE_SECONDS`` instead of one
+        op per request. The first touch after a quiet period is written at once, later ones wait for the window to
+        close and are written by the next touch, the supervisor tick, an eviction pass or shutdown
+        (``flush_touches``). The queued Future of the op carrying a file's touch is remembered so
+        ``release_serving`` can flush it once the response is done. With no active writer (scripts, plain unit
+        tests) the update is applied inline.
         """
+        with self._touch_lock:
+            self._touch_pending[derivative_id] = accessed_at
+            due = time.monotonic() - self._touch_last_flush >= self._TOUCH_COALESCE_SECONDS
+        if due:
+            self.flush_touches(cache_path=cache_path)
+
+    def flush_touches(self, *, cache_path: str | None = None, wait: bool = False) -> int:
+        """Write every pending ``last_accessed_at`` touch as one writer op; return how many were taken.
+
+        ``cache_path`` registers the op's Future so ``release_serving`` of that file can wait for it. ``wait``
+        blocks until the op committed (shutdown). A touch whose op was dropped (maintenance holds the gate, the
+        lane is full, the writer is stopping) is put back, unless a newer touch replaced it, for the next flush.
+        """
+        with self._touch_lock:
+            batch = self._touch_pending
+            self._touch_pending = {}
+            self._touch_last_flush = time.monotonic()
+        if not batch:
+            return 0
+        applied = threading.Event()
 
         def touch(conn: sqlite3.Connection) -> None:
-            conn.execute("UPDATE asset_derivatives SET last_accessed_at = ? WHERE id = ?", (accessed_at, derivative_id))
+            self._apply_touches(conn, batch)
+            applied.set()
 
-        future = post_write(touch, lane=LANE_NORMAL)
-        if future is not None and not future.done():
+        try:
+            future = post_write(touch, lane=LANE_NORMAL)
+        except Exception:  # noqa: BLE001 - a lost touch only affects LRU order
+            logger.debug("Coalesced derivative touch could not be written", exc_info=True)
+            future = None
+        if future is None:
+            if not applied.is_set():
+                self._restore_touches(batch)
+            return len(batch)
+        if cache_path is not None and not future.done():
             self._pending_touches[cache_path] = future
             future.add_done_callback(
                 lambda done: self._pending_touches.pop(cache_path, None)
                 if self._pending_touches.get(cache_path) is done
                 else None
             )
+        if wait:
+            with suppress(Exception):
+                future.result(timeout=self._TOUCH_FLUSH_TIMEOUT_SECONDS)
+        return len(batch)
+
+    @staticmethod
+    def _apply_touches(conn: sqlite3.Connection, touches: dict[int, float]) -> None:
+        conn.executemany(
+            "UPDATE asset_derivatives SET last_accessed_at = ? WHERE id = ?",
+            [(accessed_at, derivative_id) for derivative_id, accessed_at in touches.items()],
+        )
+
+    def _restore_touches(self, batch: dict[int, float]) -> None:
+        with self._touch_lock:
+            for derivative_id, accessed_at in batch.items():
+                self._touch_pending.setdefault(derivative_id, accessed_at)
+
+    def _drain_touches(self) -> dict[int, float]:
+        """Take the pending touches so a writer op that is about to read ``last_accessed_at`` can apply them first."""
+        with self._touch_lock:
+            batch = self._touch_pending
+            self._touch_pending = {}
+        return batch
+
+    def try_acquire_serving(self, cache_path: str) -> bool:
+        """Protect ``cache_path`` for a response about to stream it; False if the file is gone.
+
+        The existence check and the protection happen under the file lock, like ``acquire_ready_derivative``,
+        so eviction and supersession cannot unlink the file between the two.
+        """
+        with self._file_lock:
+            if not Path(cache_path).is_file():
+                return False
+            self._served_paths.add(cache_path)
+            return True
 
     def acquire_ready_derivative(
         self,

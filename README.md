@@ -206,8 +206,8 @@ gallery-repo/
 | `GET`                  | `/api/browse?library_id=...&path=...`           | Read-only catalog listing for a library root or folder with cursor pagination                   |
 | `GET`                  | `/api/folders?path=...`                         | Return direct child folders for sidebar expansion                                               |
 | `GET`                  | `/api/image?path=...`                           | Serve an original image                                                                         |
-| `GET`                  | `/api/thumbnail?path=...`                       | Serve a cached WebP thumbnail (max 512px)                                                       |
-| `GET`                  | `/api/preview?path=...`                         | Serve a cached WebP preview (max 1440px)                                                        |
+| `GET`                  | `/api/thumbnail?path=...`                       | Serve a cached WebP thumbnail (max 512px; 128/256/512; optional `v=<content_version>` for immutable caching) |
+| `GET`                  | `/api/preview?path=...`                         | Serve a cached WebP preview (max 1440px; optional `v=<content_version>`)                         |
 | `GET`                  | `/api/video?path=...`                           | Stream an original video with HTTP Range support                                                |
 | `GET`                  | `/api/video/poster?path=...`                    | Serve a cached WebP video poster                                                                |
 | `GET`                  | `/api/metadata?path=...`                        | Parse AI generation metadata                                                                    |

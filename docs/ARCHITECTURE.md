@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-10-28
+Last reviewed: 2026-11-02
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -363,18 +363,73 @@ runs the same code in a direct transaction.
 | `retire_superseded_derivatives` (500 rows per op)                         | `normal`   | unlink after the op resolved; serving protection unchanged |
 | `_reserve_capacity` / quota enforcement                                   | caller's lane | two ops (select + evict, finalize) with the unlink between them |
 | `_recover_running_jobs`, `_reconcile_queued_jobs` (supervisor, startup)   | `normal`   | candidates and file stats are read outside the op; the fenced updates are one op |
-| `thumbnails._render_derivative_impl` -> `upsert_image_dimensions`         | `priority` | awaited |
-| `last_accessed_at` touch on a warm ready-file lookup                      | `normal`, fire-and-forget | see below |
+| `thumbnails._record_image_dimensions` -> `upsert_image_dimensions`        | `priority` | awaited; skipped when `image_dimensions_unchanged` finds the catalog already holds the values (one read, no op) |
+| sibling claim in `_claim_siblings` (one op per batch)                     | `priority` | each sibling gets its own `claim_token` and lease, see "Sibling batching" |
+| coalesced `last_accessed_at` touches (`flush_touches`)                    | `normal`, fire-and-forget | one op per window, see below |
 
 **HTTP request path.** Thumbnail, preview and image requests keep their reads on plain
 connections and never wait for a batch to commit: the only write of a warm hit, the
 `last_accessed_at` touch (at most once per 60 s per file), is queued with
 `db_writer.post_write` (normal lane, no `.result()`, errors logged, dropped while
 maintenance holds the gate or the lane is full, applied inline on the no-active-writer path). It
-only orders LRU eviction. The queued Future is remembered per cache path and
+only orders LRU eviction. Touches are coalesced: they collect in memory (newest time per
+derivative) and are written as one `executemany` op per 5 s window
+(`LookupMixin._TOUCH_COALESCE_SECONDS`). The first touch after a quiet period is written at
+once; later ones are flushed by the next touch after the window, the supervisor tick,
+`flush_touches()`, an eviction pass (applied inside the `select_and_evict` op, so a file that was
+just served is never picked as least recently used) and `DerivativeScheduler.stop()` (which runs
+before the writer stops). A touch whose op was dropped goes back to the pending set. The queued
+Future of the op that carried a file's touch is remembered per cache path and
 `release_serving` (a background task after the response completed) waits up to 2 s for
 it, so the touch is durable before the serving lease is released. A cold request's
 interactive `schedule_derivative` is the one awaited priority op.
+
+### Image pipeline: generation, versioned URLs, serving fast path
+
+`docs/plans/IMAGE_PIPELINE_PLAN.md` (Track B) added four backend behaviours.
+
+**Sibling batching (B1).** `_run_job` first calls `_claim_siblings`: one priority-lane writer op
+that claims the other still-`queued` jobs of the same asset and the same source identity
+(`source_mtime_ns`/`source_size`, up to 8), each with its own `claim_token`, attempt count and
+lease. `_run_batch` then decodes the source once (`thumbnails.render_derivatives`) and renders the
+variants as a cascade: the requested variant first (a waiting HTTP request is not held back), the
+rest largest to smallest, each resized from the smallest image already produced that is large
+enough (preview -> `thumb_512` -> `thumb_256` -> `thumb_128`) and otherwise from the decoded
+source. Every variant is then handled exactly like a single job: its source identity is
+revalidated, its completion is the same `_complete_claim` writer op fenced by its own claim token
+(a claim recovery took away changes 0 rows), and a failure goes through `_handle_failure` for that
+claim only. One `_LeaseHeartbeatGroup` renews every still-open claim. No new queue exists; a job
+with no queued sibling takes the previous single-variant path unchanged. All WebP derivatives use
+libwebp `method=4` (about 2x faster than `method=6` for about 7 % more bytes). The bytes behind an
+existing derivative URL are interchangeable (same dimensions and quality setting), so
+`DERIVATIVE_CACHE_VERSION` stays `v3`: bumping it would only change ETags and file names without
+regenerating anything. A render also skips the source-dimension upsert when the catalog already
+holds the values (`image_dimensions_unchanged`).
+
+**`thumb_256` (B2).** `DERIVATIVE_VARIANTS["thumbnail"]` is `thumb_128`, `thumb_512`, `thumb_256`
+(the first entry remains the scheduling default); `/api/thumbnail` accepts `max_long_edge` 128, 256
+and 512. Reconcile, warm-up, integrity and status treat it like any other configured variant.
+
+**Versioned URLs (B3).** Browse (`FileNode`), search (`SearchMediaResult`, also the related
+results) expose `content_version` (`"<mtime_ns>-<size>"` of the asset, `null` for folders or
+unknown identities) and folders (`FileNode`, `SearchAlbumResult`, the browse virtual root) expose
+`cover_versions`, aligned index-for-index with `cover_images` (`""` for a cover without a recorded
+identity). `/api/thumbnail` and `/api/preview` accept an optional `v`. When `v` equals the source's
+`"<st_mtime_ns>-<st_size>"` on disk at request time the response (200 and 304) carries
+`Cache-Control: public, max-age=31536000, immutable`; with the same ETag, an absent, malformed or
+stale `v` keeps `public, max-age=0, must-revalidate`.
+
+**Serving fast path (B4).** `backend/derivative_fastpath.py` holds a bounded in-process LRU
+(`GALLERY_DERIVATIVE_FASTPATH_ENTRIES`, default 4096) from (metadata database, requested path or
+asset id, kind, variant) to (source path, source identity, asset id, derivative id, cache file,
+ETag). A hit skips the authorization read, `find_asset_id` and the ready-derivative read. It is
+validated on every hit by the `stat()` of the source (a different `st_mtime_ns`/`st_size` or a
+missing file drops the entry, so a superseded source can never be answered with its old derivative)
+and by `scheduler.try_acquire_serving`, which checks that the cache file still exists and takes the
+serving lease under the same lock eviction and supersession use. What a stat cannot see is a
+catalog-side deactivation (library removed, asset marked offline/deleted) that leaves the file in
+place: entries therefore expire after `GALLERY_DERIVATIVE_FASTPATH_TTL_SECONDS` (default 5), so such a
+change is honoured within that bound. Setting either variable to 0 disables the fast path.
 
 ### Catalog writes through the writer
 
@@ -602,7 +657,7 @@ Desired-state reconciliation has explicit trigger ownership:
 
 `GET /api/derivatives/status` reports current configured coverage for one
 library both as aggregate `by_kind` counters and ordered per-variant counters
-for `thumb_128`, `thumb_512`, and `preview_1440`. It also reports that
+for `thumb_128`, `thumb_512`, `thumb_256`, and `preview_1440`. It also reports that
 library's ready bytes as `library_used_bytes`, and global quota accounting as
 `quota_used_bytes`, `quota_bytes`, and `quota_utilization`.
 
@@ -694,8 +749,8 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/browse`                         | Return folders and paginated mixed-media rows from catalog rows for a library | `browse.py`         |
 | `GET /api/folders`                        | Return direct non-hidden child folders for sidebar expansion          | `folders.py`        |
 | `GET /api/image`                          | Serve an original image file                                          | `images.py`         |
-| `GET /api/thumbnail`                      | Serve a cached WebP thumbnail, default max long edge 512px            | `thumbnails.py`     |
-| `GET /api/preview`                        | Serve a cached WebP preview, default max long edge 1440px             | `thumbnails.py`     |
+| `GET /api/thumbnail`                      | Serve a cached WebP thumbnail, default max long edge 512px (128, 256 and 512 allowed); optional `v` = item `content_version` | `thumbnails.py`     |
+| `GET /api/preview`                        | Serve a cached WebP preview, default max long edge 1440px; optional `v` = item `content_version` | `thumbnails.py`     |
 | `GET /api/video`                          | Stream an original video with HTTP Range support                      | `video.py`          |
 | `GET /api/video/poster`                   | Serve a cached WebP poster generated with ffmpeg                      | `video.py`          |
 | `GET /api/metadata`                       | Extract and normalize AI generation metadata for one image            | `metadata_parse.py` |
@@ -752,7 +807,7 @@ Backend modules are mostly flat, with selected domain packages.
 - `ENABLE_METRICS` defaults to enabled outside production and exposes `/metrics` with route-level labels.
 - `ENABLE_PROFILER=0` by default. When enabled, selected endpoints are profiled with pyinstrument and HTML reports are written to `backend/profiles/`.
 - Original images are served only by `/api/image`; thumbnails and previews are generated derivatives.
-- Original media and generated derivatives use ETags with `Cache-Control: public, max-age=0, must-revalidate`, so source identity changes are visible on the next request instead of being hidden by immutable browser caching.
+- Original media and generated derivatives use ETags with `Cache-Control: public, max-age=0, must-revalidate`, so source identity changes are visible on the next request instead of being hidden by immutable browser caching. The one exception is a thumbnail or preview URL whose `v` equals the source's current `"<mtime_ns>-<size>"` (the `content_version` the listing returned): its identity is part of the URL, so it is served `public, max-age=31536000, immutable` and a changed source simply produces a new URL.
 - Video streaming supports one byte range, clamps a satisfiable end at EOF, returns `416` for malformed/empty/multi-ranges or invalid starts, and honors strong-ETag and HTTP-date `If-Range`; a mismatched validator receives the full `200` representation.
 - Derivative cache keys include kind, cache version, resolved path, mtime, size, long-edge target, format, and quality. WebP files persist under `backend/.cache/thumbnails/`.
 - Derivative claims use fenced tokens and 15-minute leases. Missing/inactive/current-source races terminate only their job; the supervisor replaces dead workers and recovers abandoned claims.

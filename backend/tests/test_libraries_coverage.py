@@ -615,6 +615,7 @@ def test_api_derivative_status_success(isolated_app: TestClient, isolated_galler
     assert [(item["kind"], item["variant"], item["max_long_edge"]) for item in data["variants"]] == [
         ("thumbnail", "thumb_128", 128),
         ("thumbnail", "thumb_512", 512),
+        ("thumbnail", "thumb_256", 256),
         ("preview", "preview_1440", 1440),
     ]
 

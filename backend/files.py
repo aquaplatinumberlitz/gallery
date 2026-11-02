@@ -132,6 +132,18 @@ def asset_type_for_path(path: Path) -> str | None:
     return None
 
 
+def content_version(mtime_ns: int | float | None, size: int | None) -> str | None:
+    """Return the public identity of a catalog asset's source file, ``"<mtime_ns>-<size>"``.
+
+    Browse, search and related responses expose it as ``content_version`` (and ``cover_versions`` for folder
+    covers); ``/api/thumbnail`` and ``/api/preview`` accept it back as ``v`` and answer with an immutable
+    ``Cache-Control`` only when it equals the file's identity on disk. None when either part is unknown.
+    """
+    if mtime_ns is None or size is None:
+        return None
+    return f"{int(mtime_ns)}-{int(size)}"
+
+
 def natural_sort_key(s: str) -> list:
     """Split string into text and numeric chunks for natural sorting.
 
