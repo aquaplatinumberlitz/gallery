@@ -480,10 +480,15 @@ test.describe("Layout transitions", () => {
     // Resize to mobile
     await page.setViewportSize({ width: 375, height: 812 });
 
+    // Wait for the layout swap itself: until then the first card is still the desktop one and the count
+    // reads 0 for a moment while the desktop layout unmounts and the mobile one mounts.
+    await expect(page.getByLabel("Open search")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("searchbox")).toBeHidden({ timeout: 5000 });
+
     // Photo cards should still be present
     const cards = page.getByTestId("photo-card");
     await expect(cards.first()).toBeVisible({ timeout: 5000 });
-    expect(await cards.count()).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => cards.count(), { timeout: 5000 }).toBeGreaterThanOrEqual(1);
   });
 
   test("resize from mobile to desktop preserves content", async ({ page }) => {
@@ -497,9 +502,14 @@ test.describe("Layout transitions", () => {
     // Resize to desktop
     await page.setViewportSize({ width: 1280, height: 820 });
 
+    // Wait for the layout swap itself: until then the first card is still the mobile one and the count
+    // reads 0 for a moment while the mobile layout unmounts and the desktop one mounts.
+    await expect(page.getByRole("searchbox")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByLabel("Open search")).toBeHidden({ timeout: 5000 });
+
     // Photo cards should still be present
     const cards = page.getByTestId("photo-card");
     await expect(cards.first()).toBeVisible({ timeout: 5000 });
-    expect(await cards.count()).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => cards.count(), { timeout: 5000 }).toBeGreaterThanOrEqual(1);
   });
 });
