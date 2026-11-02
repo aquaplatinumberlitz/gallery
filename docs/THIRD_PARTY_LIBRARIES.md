@@ -338,6 +338,10 @@ passes a measured `scrollMargin` (the album strip and section header above the
 rows) plus a measured row height, because its rows are fractionally tall and
 `measureElement` rounds to whole pixels (`useVirtualGridMetrics.ts`).
 
+`useVirtualGridRows` also accepts a `rowBudget` ref that is applied through the
+virtualizer's `rangeExtractor`; `GalleryGrid.vue` uses it to mount a freshly opened
+album's rows in steps (see `docs/ARCHITECTURE.md`, "Grid Image Loading").
+
 `LibraryInspector.vue` also uses `useVirtualizer` for the `/metadata` table body. The inspector requests cursor-paginated, server-filtered rows from `/api/library/inspector` and uses TanStack Table for row models, column visibility, and supported sort-header state. The DOM contains only the currently visible rows plus overscan and spacer rows instead of all loaded rows.
 
 ### TanStack Form

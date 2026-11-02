@@ -106,6 +106,41 @@ Known gaps against the standard:
 - Mobile INP sits under 200 ms but above RAIL's 100 ms response goal.
 - Scroll smoothness was confirmed by hand on the owner's phone (2026-11-02, fast scrolling in a large album, no visible jank). Frame times were not instrumented on the device.
 
+Album open, long task and click INP after Track M of `docs/plans/PERF_STRETCH_PLAN.md`
+(2026-11-02, `perf/st-album` @ `0b7425a` against `main` @ `5991830`; same session and machine, interleaved
+runs, HTTP/2 with immutable `/assets/`, photo-like fixture with 300 images, median with the min-max range in
+brackets; the machine was shared with other jobs, so single runs vary by tens of milliseconds):
+
+| Profile (runs) | Metric | `main` | `perf/st-album` |
+|----------------|--------|--------|-----------------|
+| Mobile, typical 4G (4) | Album open → visible thumbnails | 920 ms (899–947) | 764 ms (652–764) |
+| | Longest task after the album click (> 50 ms only) | 166 ms (127–170) | none in 3 of 4 runs, 59 ms worst |
+| | Same, `CLICK_FORCE=1` (no Playwright hit-target task) | 134 ms (94–179) | 56 ms (0–61) |
+| | Album click INP | 80 ms (72–112) | 88 ms (56–120) |
+| | Lightbox click INP | 104 ms (96–104) | 96 ms (80–120) |
+| Desktop (3) | Album open → visible thumbnails | 650 ms (628–670) | 653 ms (580–700) |
+| | Longest task after the album click | none in 2 of 3 runs | none |
+| | Album click INP / lightbox click INP | 88 / 72 ms | 80 / 80 ms |
+| Mobile, slow 4G (3) | Album open → visible thumbnails | 3052 ms (3047–3150) | 2964 ms (2928–2980) |
+| | Longest task after the album click | 142 ms (131–146) | 54 ms (0–67) |
+| | Album click INP / lightbox click INP | 56 / 104 ms | 72 / 96 ms |
+
+Across every typical-4G album open measured on the branch during the work (about 20 runs) the visible
+thumbnails finished within 0.65–0.88 s; `main` measured 0.87–1.33 s. Lightbox next/previous, fast-scroll settle
+and revisit did not change (next/previous 32–36 ms on typical 4G, scroll settle 700–810 ms on both sides).
+What the remaining time is made of:
+
+- Visible thumbnails: the browse request (RTT plus 88 KB) ends about 190 ms after the click and the thumbnails
+  (8 visible, about 350 KB) are bandwidth-bound after that. They now start when the browse response lands
+  instead of after the 150 ms render.
+- Long task: the 120–170 ms render task no longer exists; the grid mounts in steps of 47–59 ms (traced, below
+  50 ms untraced). What can still exceed 50 ms is the click task itself (pointer handlers, skeleton mount,
+  unmount of the home view, query start, style and layout): 50–81 ms measured, with the 10–15 ms Playwright
+  hit-target script included. That is the documented floor for ST-4 on this device profile.
+- Click INP: album click INP is the click task plus the next paint, 72–120 ms; lightbox click INP is dominated by
+  PhotoSwipe `init` (forced layout of the freshly inserted lightbox DOM, main structure, first slide) and the
+  Reka focus trap, 80–120 ms.
+
 When these numbers are re-measured, update this snapshot and keep the date and
 commit.
 

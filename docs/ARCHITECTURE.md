@@ -1321,6 +1321,10 @@ Mobile       -> MobilePhotoSwipe.vue + LightboxMobileSheet.vue
 
 - All PhotoSwipe wrappers share `usePhotoSwipe.ts` for lifecycle, item creation, index sync, and destroy guards.
 - Lightbox item URL construction lives in `frontend/src/utils/lightbox.ts`.
+- `usePhotoSwipe.ts` hands PhotoSwipe a lazily built data source (`utils/lightboxLazyList.ts`, a `Proxy` over an
+  array): `buildPhotoSwipeItem` runs the first time an index is read, so opening a lightbox over a 200-item
+  album builds the opening item and its neighbours instead of all 200 (about 15 ms of the click task at 4x CPU).
+  `Array.isArray`, `length`, indexing, `map` and mutation behave as on a plain array.
 - Desktop reserves `DESKTOP_METADATA_WIDTH` through PhotoSwipe padding so the image is not hidden under the metadata sidebar.
 - Tablet uses custom top/bottom controls and a bottom metadata panel.
 - Mobile uses `@douxcode/vue-spring-bottom-sheet` as a non-modal metadata sheet inside PhotoSwipe.
@@ -1447,6 +1451,27 @@ downloads what the user rests on:
   `shouldLoad` off), unmounting or changing the image cancels the pending retry and resets the budget, so
   a card that comes back starts again from the plain URL. `useCoverImageLoad` exposes the same behaviour as
   `onCoverError` / `retryAttempt` / `resetRetry` for `AlbumCard*`.
+- **Album-open thumbnail warm-up.** Album open is request-bound: the grid mounts about 150 ms (4x CPU)
+  after the browse response lands, and until then no `<img>` exists. `useInfiniteBrowseQuery` takes an
+  `onFirstPageFetched` hook that runs in the query function with each fresh first page, before Vue sees the
+  data. `GalleryGrid.vue` uses it while the skeleton is on screen: the skeleton cell gives the card width, the
+  row pitch and the grid top, `utils/thumbnailWarmup.ts` plans the thumbnails of the rows that start above the
+  viewport bottom (after a 64 px header allowance, and 170 px more when the folder has subfolders; at most 24;
+  videos and images whose 256/512 choice depends on the exact card width are skipped) and adds one
+  `<link rel="preload" as="image">` each, with the same `href`, `imagesrcset` and `imagesizes`
+  (`thumbnailSizes()`) as the `PhotoCard` `<img>`, `fetchpriority=high` for the first row. The browser picks the
+  candidate exactly as it does for the `<img>`, and the card later claims the in-flight or finished response, so
+  nothing is downloaded twice. The hook returns a promise that resolves in the next task, so the render that
+  mounts the grid is not queued behind the request setup. The links leave `<head>` after 15 s. Without a
+  skeleton (revisit, cache hit) nothing is warmed. Search results are not warmed.
+- **Staged row mount.** Mounting every row in range at once was the album-open long task (about 120-170 ms at
+  4x CPU). `useVirtualGridRows` takes a `rowBudget` ref (a `rangeExtractor` that keeps at most that many rows,
+  counted from the first row of the range). `GalleryGrid.vue` starts a newly populated grid at budget 0 (the
+  container and page chrome only), then 1 row, then `ceil(cards / columns)` rows per task (4 cards per step,
+  doubled each time a step finished within 20 ms, up to 48), until the budget no longer limits the range. The
+  steps are `setTimeout(0)` ticks, so the browser can paint and handle input between them. A scroll, or the
+  grid unmounting, ends the staging at once (budget `Infinity`). Settled DOM and pixels are identical; the
+  virtualizer's range (viewport plus `overscan: 5`) is unchanged.
 - `GalleryGrid.vue` virtualizes all three layouts with the same
   `useVirtualGridRows` (`mediaRows`, `overscan: 5`). Mobile differs only in
   geometry: its rows are `top`-positioned (a fractional `translateY` would
