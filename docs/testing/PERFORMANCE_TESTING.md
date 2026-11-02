@@ -13,6 +13,12 @@ describe what a user experiences and are separate from the CI budgets in
 `scripts/perf_budgets.toml` (next section), which guard individual endpoints and
 flows against regressions.
 
+The lab tools that measure against these standards (home load, album open,
+lightbox, long tasks, and the production-shaped static servers and fixture
+generator) are documented in
+[`scripts/perf/web_vitals/README.md`](../../scripts/perf/web_vitals/README.md).
+They are manual tools, not CI gates.
+
 ### 1. Primary standard: Google Core Web Vitals
 
 Core Web Vitals are the industry standard, used by Lighthouse, PageSpeed
