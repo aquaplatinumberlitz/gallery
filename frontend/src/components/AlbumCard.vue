@@ -14,10 +14,13 @@ const props = withDefaults(
     node: FileNode;
     compact?: boolean;
     thumbnailSize?: number;
+    /** Above-the-fold cover (likely LCP): the front cover loads eagerly at high fetch priority. */
+    priority?: boolean;
   }>(),
   {
     compact: false,
     thumbnailSize: 512,
+    priority: false,
   },
 );
 </script>
@@ -47,7 +50,8 @@ const props = withDefaults(
         <img
           v-if="node.cover_images?.[0]"
           :src="getThumbnailUrl(node.cover_images[0], props.thumbnailSize)"
-          loading="lazy"
+          :loading="props.priority ? 'eager' : 'lazy'"
+          :fetchpriority="props.priority ? 'high' : 'auto'"
           decoding="async"
           alt=""
         />

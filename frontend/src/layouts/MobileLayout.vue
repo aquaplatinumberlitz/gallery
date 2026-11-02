@@ -1,10 +1,23 @@
 <script setup lang="ts">
-import GallerySidebarContent from "../components/GallerySidebarContent.vue";
+import { defineAsyncComponent, onMounted } from "vue";
 import MobileHeader from "../components/MobileHeader.vue";
 import { RouterView } from "vue-router";
 import MobileFloatingBottomBar from "../components/MobileFloatingBottomBar.vue";
 import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar";
 import type { FolderTreeNode, SearchScope } from "@/types";
+import { whenBrowserIdleAfterLoad } from "@/utils/idleAfterLoad";
+
+// On phones the sidebar is an off-canvas sheet whose content only renders once it is opened,
+// so its components (folder tree, index status) are not needed for the first paint. Loading them
+// lazily keeps ~15 KB gzip off the critical path; they are warmed once the page is idle so the
+// first open is as fast as before.
+const loadSidebarContent = () => import("../components/GallerySidebarContent.vue");
+const GallerySidebarContent = defineAsyncComponent(loadSidebarContent);
+onMounted(() => {
+  whenBrowserIdleAfterLoad(() => {
+    void loadSidebarContent().catch(() => undefined);
+  });
+});
 
 defineProps<{
   theme: "light" | "dark";

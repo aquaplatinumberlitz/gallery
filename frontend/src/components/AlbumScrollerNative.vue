@@ -17,6 +17,9 @@ const emit = defineEmits<{
 }>();
 
 // ── Refs ──
+// Covers visible on first paint (mobile 2-column grid / tablet row) load eagerly; the rest stay lazy.
+const ABOVE_FOLD_ALBUMS = 4;
+
 const gridRef = ref<HTMLElement | null>(null);
 const showLeftArrow = ref(false);
 const showRightArrow = ref(false);
@@ -123,9 +126,10 @@ useEventListener(window, "resize", () => {
     <div ref="gridRef" class="album-grid" @scroll="onGridScroll">
       <component
         :is="isMobile ? AlbumCardMobile : AlbumCardTablet"
-        v-for="item in folders"
+        v-for="(item, index) in folders"
         :key="item.path"
         :node="item"
+        :priority="index < ABOVE_FOLD_ALBUMS"
         @click="emit('open-folder', item.path)"
       />
     </div>

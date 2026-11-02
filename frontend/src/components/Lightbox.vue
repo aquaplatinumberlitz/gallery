@@ -235,7 +235,8 @@ watch(
       exitFullscreen();
     }
   },
-  { flush: "post" },
+  // `immediate`: App mounts the lightbox lazily, possibly in the same tick it is opened.
+  { flush: "post", immediate: true },
 );
 
 function toggleSheet() {

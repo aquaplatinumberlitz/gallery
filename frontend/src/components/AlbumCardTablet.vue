@@ -12,6 +12,8 @@ const emit = defineEmits<{
 
 defineProps<{
   node: FileNode;
+  /** Above-the-fold cover (likely LCP): load eagerly at high fetch priority instead of lazily. */
+  priority?: boolean;
 }>();
 
 // Skeleton shimmer shown over the cover until the cover image finishes loading.
@@ -34,7 +36,8 @@ const { loaded, markCoverSettled } = useCoverImageLoad();
       <img
         v-if="node.cover_images?.[0]"
         :src="getThumbnailUrl(node.cover_images[0])"
-        loading="lazy"
+        :loading="priority ? 'eager' : 'lazy'"
+        :fetchpriority="priority ? 'high' : 'auto'"
         alt=""
         @load="markCoverSettled"
         @error="markCoverSettled"
