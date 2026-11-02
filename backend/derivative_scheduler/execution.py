@@ -7,7 +7,7 @@ import threading
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PIL import UnidentifiedImageError
 
@@ -27,23 +27,44 @@ if TYPE_CHECKING:
     from .core import DerivativeScheduler
 
 
+_SIBLING_PROBE_SQL = """
+    FROM derivative_jobs j
+    JOIN asset_derivatives d ON d.id = j.derivative_id
+    JOIN assets a ON a.id = d.asset_id
+    WHERE j.state = 'queued' AND d.asset_id = ? AND d.id != ?
+      AND d.source_mtime_ns = ? AND d.source_size = ? AND d.status = 'queued'
+      AND a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
+      AND a.mtime_ns = d.source_mtime_ns AND a.size = d.source_size
+      AND (j.priority <= 1 OR (SELECT priority FROM derivative_jobs WHERE id = ?) >= 2)
+"""
+
+
+def _sibling_params(job: sqlite3.Row) -> tuple[Any, ...]:
+    return (job["asset_id"], job["id"], job["source_mtime_ns"], job["source_size"], job["job_id"])
+
+
 class JobExecutionMixin:
     """Claim, lease, render, and failure handling for ``DerivativeScheduler``."""
 
     def run_once(self) -> bool:
         """Claim and execute one durable job for synchronous/test request fallback."""
-        job = self._claim_job(f"request-{threading.get_ident()}")
+        job = self._claim_job(f"request-{threading.get_ident()}", batch=True)
         if job is None:
             return False
         self._run_job(job)
         return True
 
-    def _claim_job(self, worker_id: str | None = None) -> sqlite3.Row | None:
-        """Claim the next runnable job in one priority-lane writer op."""
+    def _claim_job(self, worker_id: str | None = None, *, batch: bool = False) -> sqlite3.Row | None:
+        """Claim the next runnable job in one priority-lane writer op.
+
+        With ``batch`` the same op also claims the job's queued sibling variants (see ``_claim_siblings``), so
+        workers that wake together cannot each take one variant of the same asset and decode it separately. The
+        siblings are remembered for ``_run_job``; each is still its own claim with its own token and lease.
+        """
         _ensure_database()
         worker_id = worker_id or f"{self._instance_id}:{threading.current_thread().name}"
 
-        def claim(conn: sqlite3.Connection) -> sqlite3.Row | None:
+        def claim(conn: sqlite3.Connection) -> tuple[sqlite3.Row, list[sqlite3.Row]] | None:
             row = conn.execute(
                 """
                 SELECT j.id AS job_id, j.attempts AS job_attempts, d.*, a.path AS source_path
@@ -73,10 +94,10 @@ class JobExecutionMixin:
                 "UPDATE asset_derivatives SET status = 'running', attempts = ?, updated_at = julianday('now') WHERE id = ?",
                 (attempts, row["id"]),
             )
-            return conn.execute(
+            leader = conn.execute(
                 """
-                SELECT j.id AS job_id, j.attempts AS job_attempts, d.*, a.path AS source_path,
-                       j.claimed_by, j.claim_token, j.lease_expires_at
+                SELECT j.id AS job_id, j.attempts AS job_attempts, j.priority AS job_priority, d.*,
+                       a.path AS source_path, j.claimed_by, j.claim_token, j.lease_expires_at
                 FROM derivative_jobs j
                 JOIN asset_derivatives d ON d.id = j.derivative_id
                 JOIN assets a ON a.id = d.asset_id
@@ -84,10 +105,17 @@ class JobExecutionMixin:
                 """,
                 (row["job_id"], claim_token),
             ).fetchone()
+            siblings = self._claim_siblings_conn(conn, leader, worker_id) if batch else []
+            return leader, siblings
 
-        job = run_write(claim, lane=LANE_PRIORITY)
-        if job is None:
+        claimed = run_write(claim, lane=LANE_PRIORITY)
+        if claimed is None:
             self._reconcile_queued_jobs()
+            return None
+        job, siblings = claimed
+        if batch:
+            with self._prefetched_lock:
+                self._prefetched_siblings[int(job["job_id"])] = siblings
         return job
 
     def _renew_lease(self, job_id: int, claim_token: str) -> bool:
@@ -127,11 +155,14 @@ class JobExecutionMixin:
         return renewed
 
     def _run_job(self, job: sqlite3.Row) -> None:
-        try:
-            siblings = self._claim_siblings(job)
-        except Exception:  # noqa: BLE001 - batching is an optimization; the claimed job still runs alone
-            logger.warning("Could not claim sibling derivative jobs for job %s", job["job_id"], exc_info=True)
-            siblings = []
+        with self._prefetched_lock:
+            siblings = self._prefetched_siblings.pop(int(job["job_id"]), None)
+        if siblings is None:  # claimed without ``batch``: look for siblings now
+            try:
+                siblings = self._claim_siblings(job)
+            except Exception:  # noqa: BLE001 - batching is an optimization; the claimed job still runs alone
+                logger.warning("Could not claim sibling derivative jobs for job %s", job["job_id"], exc_info=True)
+                siblings = []
         if siblings:
             self._run_batch([job, *siblings])
             return
@@ -236,67 +267,56 @@ class JobExecutionMixin:
         can pick the next waiting request, which costs more visible latency than the decode they would share;
         they are claimed later, together, by a background job.
         """
-        probe_sql = """
-            FROM derivative_jobs j
-            JOIN asset_derivatives d ON d.id = j.derivative_id
-            JOIN assets a ON a.id = d.asset_id
-            WHERE j.state = 'queued' AND d.asset_id = ? AND d.id != ?
-              AND d.source_mtime_ns = ? AND d.source_size = ? AND d.status = 'queued'
-              AND a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
-              AND a.mtime_ns = d.source_mtime_ns AND a.size = d.source_size
-              AND (j.priority <= 1 OR (SELECT priority FROM derivative_jobs WHERE id = ?) >= 2)
-        """
-        params = (job["asset_id"], job["id"], job["source_mtime_ns"], job["source_size"], job["job_id"])
         with _connect_read() as conn:
-            if conn.execute(f"SELECT 1 {probe_sql} LIMIT 1", params).fetchone() is None:
+            if conn.execute(f"SELECT 1 {_SIBLING_PROBE_SQL} LIMIT 1", _sibling_params(job)).fetchone() is None:
                 return []
         worker_id = job["claimed_by"]
+        return run_write(lambda conn: self._claim_siblings_conn(conn, job, worker_id), lane=LANE_PRIORITY)
 
-        def claim(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-            rows = conn.execute(
-                f"""
-                SELECT j.id AS job_id, j.attempts AS job_attempts, d.id AS derivative_id
-                {probe_sql}
-                ORDER BY j.priority ASC, j.created_at ASC, j.id ASC LIMIT ?
+    def _claim_siblings_conn(self, conn: sqlite3.Connection, job: sqlite3.Row, worker_id: str) -> list[sqlite3.Row]:
+        """The sibling claim itself, inside the caller's writer op (``job`` must already be claimed)."""
+        rows = conn.execute(
+            f"""
+            SELECT j.id AS job_id, j.attempts AS job_attempts, d.id AS derivative_id
+            {_SIBLING_PROBE_SQL}
+            ORDER BY j.priority ASC, j.created_at ASC, j.id ASC LIMIT ?
+            """,
+            (*_sibling_params(job), self._MAX_BATCH_SIBLINGS),
+        ).fetchall()
+        claimed: list[sqlite3.Row] = []
+        for row in rows:
+            attempts = int(row["job_attempts"]) + 1
+            claim_token = uuid.uuid4().hex
+            taken = conn.execute(
+                """
+                UPDATE derivative_jobs SET state = 'running', attempts = ?, started_at = julianday('now'),
+                  completed_at = NULL, error = NULL, result_code = NULL, claimed_by = ?,
+                  claim_token = ?, lease_expires_at = julianday('now') + ?,
+                  updated_at = julianday('now') WHERE id = ? AND state = 'queued'
                 """,
-                (*params, self._MAX_BATCH_SIBLINGS),
-            ).fetchall()
-            claimed: list[sqlite3.Row] = []
-            for row in rows:
-                attempts = int(row["job_attempts"]) + 1
-                claim_token = uuid.uuid4().hex
-                taken = conn.execute(
-                    """
-                    UPDATE derivative_jobs SET state = 'running', attempts = ?, started_at = julianday('now'),
-                      completed_at = NULL, error = NULL, result_code = NULL, claimed_by = ?,
-                      claim_token = ?, lease_expires_at = julianday('now') + ?,
-                      updated_at = julianday('now') WHERE id = ? AND state = 'queued'
-                    """,
-                    (attempts, worker_id, claim_token, _lease_days(), row["job_id"]),
-                ).rowcount
-                if taken != 1:
-                    continue
+                (attempts, worker_id, claim_token, _lease_days(), row["job_id"]),
+            ).rowcount
+            if taken != 1:
+                continue
+            conn.execute(
+                "UPDATE asset_derivatives SET status = 'running', attempts = ?, updated_at = julianday('now') "
+                "WHERE id = ?",
+                (attempts, row["derivative_id"]),
+            )
+            claimed.append(
                 conn.execute(
-                    "UPDATE asset_derivatives SET status = 'running', attempts = ?, updated_at = julianday('now') "
-                    "WHERE id = ?",
-                    (attempts, row["derivative_id"]),
-                )
-                claimed.append(
-                    conn.execute(
-                        """
-                        SELECT j.id AS job_id, j.attempts AS job_attempts, d.*, a.path AS source_path,
-                               j.claimed_by, j.claim_token, j.lease_expires_at
-                        FROM derivative_jobs j
-                        JOIN asset_derivatives d ON d.id = j.derivative_id
-                        JOIN assets a ON a.id = d.asset_id
-                        WHERE j.id = ? AND j.claim_token = ?
-                        """,
-                        (row["job_id"], claim_token),
-                    ).fetchone()
-                )
-            return claimed
-
-        return run_write(claim, lane=LANE_PRIORITY)
+                    """
+                    SELECT j.id AS job_id, j.attempts AS job_attempts, d.*, a.path AS source_path,
+                           j.claimed_by, j.claim_token, j.lease_expires_at
+                    FROM derivative_jobs j
+                    JOIN asset_derivatives d ON d.id = j.derivative_id
+                    JOIN assets a ON a.id = d.asset_id
+                    WHERE j.id = ? AND j.claim_token = ?
+                    """,
+                    (row["job_id"], claim_token),
+                ).fetchone()
+            )
+        return claimed
 
     def _run_batch(self, claims: Sequence[sqlite3.Row]) -> None:
         """Render every claimed variant of one asset from a single decode of its source.
@@ -360,22 +380,39 @@ class JobExecutionMixin:
                 for index in sorted(open_claims):
                     fail(index, exc)
                 return
-            for index, outcome in render_derivatives(source, specs):
+
+            def handle(index: int, outcome: Any) -> None:
+                nonlocal succeeded
                 if isinstance(outcome, Exception):
                     fail(index, outcome)
-                    continue
+                    return
                 if not close(index):
-                    continue
+                    return
                 try:
                     self._validate_claimed_source(claims[index], source)
                     applied = self._complete_claim(claims[index], str(cache_paths[index]), outcome.byte_size)
                 except Exception as exc:  # noqa: BLE001
                     self._handle_failure(claims[index], exc)
-                    continue
+                    return
                 if applied:
                     succeeded = True
                 else:
                     logger.info("Ignored stale completion for derivative job %s", claims[index]["job_id"])
+
+            preemptible = self._job_priority(claims[0]) >= 2
+            rendered = render_derivatives(source, specs)
+            preempted = False
+            for index, outcome in rendered:
+                handle(index, outcome)
+                if preemptible and self._batch_should_yield(claims, open_claims, open_lock):
+                    preempted = True
+                    break
+            rendered.close()
+            if preempted:
+                with open_lock:
+                    leftover = sorted(open_claims)
+                    open_claims.clear()  # no longer ours: the heartbeat stops renewing them
+                self._release_claims([claims[index] for index in leftover])
             for index in sorted(open_claims):
                 fail(index, RuntimeError("derivative variant was not produced"))
         except Exception as exc:  # noqa: BLE001
@@ -389,6 +426,94 @@ class JobExecutionMixin:
                         self._generating_paths.discard(path)
             if succeeded:
                 self._after_derivatives_ready(int(claims[0]["asset_id"]))
+
+    @staticmethod
+    def _job_priority(job: sqlite3.Row) -> int:
+        """Return the priority a claimed job was queued with (background when the row does not say)."""
+        try:
+            return int(job["job_priority"])
+        except (IndexError, KeyError, TypeError):
+            return 3
+
+    def _batch_should_yield(self, claims: Sequence[sqlite3.Row], open_claims: set[int], lock: threading.Lock) -> bool:
+        """Whether a background batch should hand its worker back to interactive work.
+
+        One plain read, no write lock. True when a runnable priority 0-1 job is queued, or when a request
+        raised the priority of a variant this batch has claimed but not rendered yet (while other claims are
+        still open, so releasing them lets that variant be picked up first instead of last in the cascade).
+        """
+        with lock:
+            open_job_ids = [int(claims[index]["job_id"]) for index in sorted(open_claims)]
+        if not open_job_ids:
+            return False
+        try:
+            with _connect_read() as conn:
+                queued = conn.execute(
+                    """
+                    SELECT 1 FROM derivative_jobs j
+                    JOIN asset_derivatives d ON d.id = j.derivative_id
+                    JOIN assets a ON a.id = d.asset_id
+                    WHERE j.state = 'queued' AND j.priority <= 1
+                      AND a.type = 'image' AND a.deleted_at IS NULL AND a.offline = 0
+                      AND d.source_mtime_ns = a.mtime_ns AND d.source_size = a.size
+                    LIMIT 1
+                    """
+                ).fetchone()
+                if queued is not None:
+                    return True
+                if len(open_job_ids) < 2:
+                    return False
+                placeholders = ", ".join("?" for _ in open_job_ids)
+                bumped = conn.execute(
+                    f"SELECT 1 FROM derivative_jobs WHERE state = 'running' AND priority <= 1 "
+                    f"AND id IN ({placeholders}) LIMIT 1",
+                    open_job_ids,
+                ).fetchone()
+                return bumped is not None
+        except sqlite3.Error:
+            return False
+
+    def _release_claims(self, claims: Sequence[sqlite3.Row]) -> None:
+        """Give unrendered sibling claims back to ``queued`` without consuming an attempt.
+
+        One fenced writer op: a claim is only released while it is still ``running`` under the caller's claim
+        token, so a claim recovery already took away (or one that completed) changes nothing. The claim token and
+        lease are cleared, the attempt the claim counted is handed back, and the derivative row returns to
+        ``queued``; a later claim gets a fresh token, so the releasing worker can never complete it.
+        """
+        if not claims:
+            return
+
+        def release(conn: sqlite3.Connection) -> int:
+            released = 0
+            for claim in claims:
+                updated = conn.execute(
+                    """
+                    UPDATE derivative_jobs SET state = 'queued', attempts = MAX(attempts - 1, 0),
+                      started_at = NULL, claimed_by = NULL, claim_token = NULL, lease_expires_at = NULL,
+                      updated_at = julianday('now') WHERE id = ? AND state = 'running' AND claim_token = ?
+                    """,
+                    (claim["job_id"], claim["claim_token"]),
+                ).rowcount
+                if updated != 1:
+                    continue
+                conn.execute(
+                    "UPDATE asset_derivatives SET status = 'queued', attempts = MAX(attempts - 1, 0), "
+                    "updated_at = julianday('now') WHERE id = ? AND status = 'running'",
+                    (claim["id"],),
+                )
+                released += 1
+            return released
+
+        try:
+            released = run_write(release, lane=LANE_PRIORITY)
+        except (sqlite3.Error, DatabaseWriterUnavailable):
+            # The claims keep their leases; fenced recovery re-queues them if this worker cannot.
+            logger.warning("Could not release preempted derivative claims", exc_info=True)
+            return
+        if released:
+            logger.debug("Preempted a background derivative batch: released %s claim(s)", released)
+            self._wake_event.set()
 
     def _validate_claimed_source(self, job: sqlite3.Row, source: Path) -> None:
         """Revalidate applicability after claim and before cache/render work."""

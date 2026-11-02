@@ -441,7 +441,7 @@ def test_worker_loop_contains_job_exception_and_processes_next_job(monkeypatch: 
     jobs = iter(({"job_id": 1}, {"job_id": 2}, None))
     processed: list[int] = []
 
-    monkeypatch.setattr(scheduler, "_claim_job", lambda _worker_id=None: next(jobs))
+    monkeypatch.setattr(scheduler, "_claim_job", lambda _worker_id=None, **_kwargs: next(jobs))
 
     def run_job(job):
         processed.append(job["job_id"])
@@ -470,7 +470,7 @@ def test_worker_loop_does_not_lose_wake_signal_set_between_empty_check_and_wait(
     processed: list[int] = []
     call_count = [0]
 
-    def claim_job(_worker_id: str | None = None):
+    def claim_job(_worker_id: str | None = None, **_kwargs):
         call_count[0] += 1
         if call_count[0] == 1:
             # Simulate a producer enqueuing + signaling AFTER the empty-queue

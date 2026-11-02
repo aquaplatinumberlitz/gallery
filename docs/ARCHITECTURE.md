@@ -364,7 +364,8 @@ runs the same code in a direct transaction.
 | `_reserve_capacity` / quota enforcement                                   | caller's lane | two ops (select + evict, finalize) with the unlink between them |
 | `_recover_running_jobs`, `_reconcile_queued_jobs` (supervisor, startup)   | `normal`   | candidates and file stats are read outside the op; the fenced updates are one op |
 | `thumbnails._record_image_dimensions` -> `upsert_image_dimensions`        | `priority` | awaited; skipped when `image_dimensions_unchanged` finds the catalog already holds the values (one read, no op) |
-| sibling claim in `_claim_siblings` (one op per batch)                     | `priority` | each sibling gets its own `claim_token` and lease, see "Sibling batching" |
+| sibling claim (inside the worker's `_claim_job(batch=True)` op, or `_claim_siblings`) | `priority` | each sibling gets its own `claim_token` and lease, see "Sibling batching" |
+| `_release_claims` (a preempted background batch)                          | `priority` | fenced by claim token; clears token and lease, hands the attempt back, see "Preemption" |
 | coalesced `last_accessed_at` touches (`flush_touches`)                    | `normal`, fire-and-forget | one op per window, see below |
 
 **HTTP request path.** Thumbnail, preview and image requests keep their reads on plain
@@ -399,7 +400,32 @@ source. Every variant is then handled exactly like a single job: its source iden
 revalidated, its completion is the same `_complete_claim` writer op fenced by its own claim token
 (a claim recovery took away changes 0 rows), and a failure goes through `_handle_failure` for that
 claim only. One `_LeaseHeartbeatGroup` renews every still-open claim. No new queue exists; a job
-with no queued sibling takes the previous single-variant path unchanged. All WebP derivatives use
+with no queued sibling takes the previous single-variant path unchanged. Workers claim the leader
+and its siblings in one writer op (`_claim_job(worker_id, batch=True)`), so workers that wake
+together cannot each take one variant of the same asset and decode it separately; the siblings are
+handed to `_run_job` through `_prefetched_siblings`, and a job claimed without `batch` (tests,
+`_claim_job()` callers) finds its siblings in `_run_job` instead. An interactive leader (priority
+0-1) only takes interactive siblings.
+
+**Preemption and interactive headroom.** A background batch (leader priority 2-3) holds a worker
+for a whole cascade, seconds under load, so the claim order alone did not keep interactive work
+from waiting behind it. After every variant `_batch_should_yield` does one plain read (no write
+lock): is a runnable priority 0-1 job queued, or did a request raise the priority of a variant
+this batch has claimed but not rendered (with other claims still open)? If so the batch stops
+after the variant it was rendering, `_release_claims` returns the unrendered siblings to
+`queued` in one fenced writer op (`state='running'` and the batch's own claim token required;
+token, lease and `started_at` cleared; the attempt the claim counted is handed back on both the job
+and derivative row, status back to `queued`), and `_run_job` returns, so the worker's next claim is
+the interactive job. A released claim has no token any more, so the preempted worker cannot complete
+it, and its next owner gets a fresh token. A request for a variant that a running batch already
+claimed is covered by the same rule (the batch yields, the requested variant is then claimed at
+priority 0 on its own). Headroom is therefore a bound, not a reserved worker: every worker is back
+at the claim query after at most the variant it is encoding (a single non-batched background job is
+one variant long too), whatever `DERIVATIVE_WORKER_COUNT` is. A reserved worker that never takes
+background work was rejected because it cuts background throughput by 1/N (a third with the default
+three workers) for a case the bound already covers. Waiting HTTP requests poll the catalog with a
+growing interval (30 ms up to 0.4 s) rather than every 50 ms, because dozens of pollers starved the
+render workers of the GIL. All WebP derivatives use
 libwebp `method=4` (about 2x faster than `method=6` for about 7 % more bytes). The bytes behind an
 existing derivative URL are interchangeable (same dimensions and quality setting), so
 `DERIVATIVE_CACHE_VERSION` stays `v3`: bumping it would only change ETags and file names without

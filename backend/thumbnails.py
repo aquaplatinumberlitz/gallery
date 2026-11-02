@@ -587,6 +587,7 @@ async def _serve_derivative(
 
             def wait_for_derivative():
                 deadline = time.monotonic() + 10
+                poll_seconds = 0.03
                 current_derivative_id = derivative_id
                 rescheduled = False
                 while time.monotonic() < deadline:
@@ -621,7 +622,10 @@ async def _serve_derivative(
                                 current_derivative_id = new_id
                                 continue
                         return ("skipped", outcome)
-                    time.sleep(0.05)
+                    # Back off: dozens of requests waiting at once (a grid opening) would otherwise poll the
+                    # catalog 20x/s each and starve the render workers of the GIL.
+                    time.sleep(poll_seconds)
+                    poll_seconds = min(poll_seconds * 1.4, 0.4)
                 return None
 
             wait_result = await run_in_threadpool(wait_for_derivative)
