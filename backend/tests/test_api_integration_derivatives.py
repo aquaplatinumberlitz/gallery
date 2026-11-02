@@ -70,7 +70,7 @@ class TestThumbnail:
 
     def test_thumbnail_rejects_unsupported_max_long_edge(self, isolated_app: TestClient, temp_gallery: Path):
         path = temp_gallery / "album_a" / "001.png"
-        resp = isolated_app.get("/api/thumbnail", params={"path": str(path), "max_long_edge": 256})
+        resp = isolated_app.get("/api/thumbnail", params={"path": str(path), "max_long_edge": 384})
         assert resp.status_code == 422
 
     def test_thumbnail_allows_128_variant(self, isolated_app: TestClient, temp_gallery: Path):

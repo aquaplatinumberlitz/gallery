@@ -79,7 +79,7 @@
     }
   },
   "derivative_library_status": {
-    "actionable_missing_derivatives": 9,
+    "actionable_missing_derivatives": 17,
     "by_kind": {
       "preview": {
         "deferred_derivatives": 0,
@@ -93,10 +93,10 @@
       },
       "thumbnail": {
         "deferred_derivatives": 0,
-        "desired_derivatives": 16,
-        "expected_derivatives": 16,
+        "desired_derivatives": 24,
+        "expected_derivatives": 24,
         "failed_derivatives": 3,
-        "missing_derivatives": 16,
+        "missing_derivatives": 24,
         "queued_derivatives": 4,
         "ready_derivatives": 0,
         "running_derivatives": 3
@@ -104,9 +104,9 @@
     },
     "converged": false,
     "deferred_derivatives": 0,
-    "desired_derivatives": 24,
+    "desired_derivatives": 32,
     "evicted_derivatives": 0,
-    "expected_derivatives": 24,
+    "expected_derivatives": 32,
     "failed_jobs": 5,
     "library_id": 1,
     "library_used_bytes": 0,
@@ -146,6 +146,19 @@
         "ready_derivatives": 0,
         "running_derivatives": 2,
         "variant": "thumb_512"
+      },
+      {
+        "deferred_derivatives": 0,
+        "desired_derivatives": 8,
+        "expected_derivatives": 8,
+        "failed_derivatives": 0,
+        "kind": "thumbnail",
+        "max_long_edge": 256,
+        "missing_derivatives": 8,
+        "queued_derivatives": 0,
+        "ready_derivatives": 0,
+        "running_derivatives": 0,
+        "variant": "thumb_256"
       },
       {
         "deferred_derivatives": 0,

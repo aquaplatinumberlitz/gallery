@@ -42,6 +42,7 @@ DERIVATIVE_VARIANTS = {
     "thumbnail": [
         {"name": "thumb_128", "max_long_edge": 128, "quality": 78},
         {"name": "thumb_512", "max_long_edge": 512, "quality": 78},
+        {"name": "thumb_256", "max_long_edge": 256, "quality": 78},
     ],
     "preview": [{"name": "preview_1440", "max_long_edge": 1440, "quality": 86}],
 }

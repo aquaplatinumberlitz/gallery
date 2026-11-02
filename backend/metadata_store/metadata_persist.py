@@ -12,7 +12,7 @@ from typing import Any
 from ..files import is_image_path, is_index_excluded_path
 from ..generation_signatures import invalidate_generation_signature_conn, schedule_generation_signature_backfill
 from ..metadata_extract import ExtractedMetadata, metadata_sidecar_identity, parse_float, parse_int, safe_text
-from ._asset_store import _upsert_asset_conn
+from ._asset_store import _normalize_asset_mtime_ns, _upsert_asset_conn
 from ._db import _connect_read
 from ._resources import _replace_image_resources_conn
 from .db_writer import LANE_NORMAL, LANE_PRIORITY, run_write, writer_connection
@@ -432,6 +432,82 @@ def get_cached_dimensions_for_files(files: Iterable[tuple[str | Path, float, int
                     cached[row["path"]] = CachedDimensions(width=row["width"], height=row["height"])
 
     return cached
+
+
+def image_dimensions_unchanged(
+    path: str | Path,
+    width: int | None,
+    height: int | None,
+    *,
+    image_format: str = "",
+    mode: str = "",
+    has_alpha: int | bool | None = None,
+) -> bool:
+    """Return True when ``upsert_image_dimensions`` with these arguments would change no stored value.
+
+    A derivative render reads the source's dimensions every time. The upsert is a writer op even when the
+    catalog already holds exactly these values, so the render path asks this read-only question first. It is
+    deliberately strict: every column the upsert writes (``image_metadata`` name/mtime/size/width/height/
+    format/mode/has_alpha, the ``assets`` identity, dimensions and ``metadata_state``, and the ``file_index``
+    dimensions) must already match, otherwise the caller upserts as before. Only ``updated_at`` and
+    ``indexed_at`` timestamps are not refreshed by a skipped upsert.
+    """
+    if width is None or height is None:
+        return False
+    image_path = Path(path)
+    if not is_image_path(image_path):
+        return False
+    try:
+        stat = image_path.stat()
+        resolved_path = str(image_path.resolve())
+    except OSError:
+        return False
+    alpha_value = None if has_alpha is None else int(bool(has_alpha))
+    normalized_mtime_ns = _normalize_asset_mtime_ns(stat.st_mtime_ns)
+    _initialize_database()
+    with _connect_read() as conn:
+        stored = conn.execute(
+            """
+            SELECT 1 FROM image_metadata
+            WHERE path = ? AND name = ? AND mtime IS ? AND size IS ? AND width IS ? AND height IS ?
+              AND format IS ? AND mode IS ? AND has_alpha IS ?
+            """,
+            (
+                resolved_path,
+                image_path.name,
+                stat.st_mtime,
+                stat.st_size,
+                width,
+                height,
+                image_format,
+                mode,
+                alpha_value,
+            ),
+        ).fetchone()
+        if stored is None:
+            return False
+        stale_asset = conn.execute(
+            """
+            SELECT 1 FROM assets
+            WHERE path = ? AND (
+              mtime_ns IS NOT ? OR size IS NOT ? OR width IS NOT ? OR height IS NOT ?
+              OR metadata_state IS NOT 'done'
+            )
+            LIMIT 1
+            """,
+            (resolved_path, normalized_mtime_ns, stat.st_size, width, height),
+        ).fetchone()
+        if stale_asset is not None:
+            return False
+        stale_file_index = conn.execute(
+            """
+            SELECT 1 FROM file_index
+            WHERE path = ? AND mtime_ns = ? AND size = ? AND (width IS NOT ? OR height IS NOT ?)
+            LIMIT 1
+            """,
+            (resolved_path, stat.st_mtime_ns, stat.st_size, width, height),
+        ).fetchone()
+    return stale_file_index is None
 
 
 def upsert_image_dimensions(

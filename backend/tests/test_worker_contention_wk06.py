@@ -31,6 +31,7 @@ from typing import Any
 
 import pytest
 
+from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler
 from backend.derivative_scheduler.capacity import CapacityLedger
 from backend.derivative_scheduler.models import DerivativeReconcileSummary
@@ -44,9 +45,16 @@ from tests.test_worker_contention_wk03 import (
     _use_database,
     _variants,
 )
-from tests.worker_contention_support import VARIANTS, capture_sql
+from tests.worker_contention_support import capture_sql
 
 BYTES = 1_000
+# One seeded ``ready`` row per configured variant, so the per-variant arithmetic below follows the configuration
+# (thumb_256 made it four) instead of a hard-coded three.
+VARIANTS: tuple[tuple[str, str, int, int], ...] = tuple(
+    (kind, str(variant["name"]), int(variant["max_long_edge"]), int(variant["quality"]))
+    for kind, variants in DERIVATIVE_VARIANTS.items()
+    for variant in variants
+)
 GENEROUS_QUOTA = 1024 * 1024 * 1024
 TOUCH_NS = 7_000_000_000
 
@@ -295,9 +303,9 @@ def _quota_world(world: World) -> tuple[list[tuple[int, str, int, int]], list[tu
 
 def test_batch_quota_decisions_account_for_the_retired_bytes(world: World) -> None:
     candidates, old = _quota_world(world)
-    # Stale 3000 + current 3000 ready bytes. Retired first, the three new identities fit
-    # (3000 + 0..2 reservations + 1000 <= 7000); counted, only the first fits.
-    scheduler = DerivativeScheduler(worker_count=1, quota_bytes=7_000)
+    # Stale 4000 + current 4000 ready bytes. Retired first, the four new identities fit
+    # (4000 + 0..3 reservations + 1000 <= 9000); counted, only the first fits.
+    scheduler = DerivativeScheduler(worker_count=1, quota_bytes=9_000)
     summary = DerivativeReconcileSummary()
 
     pending = scheduler._coalesce_reconcile_candidates(
@@ -318,12 +326,12 @@ def test_retire_reports_released_bytes_to_a_loaded_ledger(world: World) -> None:
 
     with _connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
-        # Load the ledger while the stale rows still count: 6000 ready bytes leave no room under 4000.
-        assert ledger.available(conn, 1_000, 4_000) is False
+        # Load the ledger while the stale rows still count: 8000 ready bytes leave no room under 5000.
+        assert ledger.available(conn, 1_000, 5_000) is False
         retired = scheduler._retire_superseded_in_txn(conn, asset_ids, ledger=ledger)
         assert len(retired) == len(VARIANTS)
-        # Without ``ready_row_left`` the ledger would still believe 6000 bytes are in use.
-        assert ledger.available(conn, 1_000, 4_000) is True
+        # Without ``ready_row_left`` the ledger would still believe 8000 bytes are in use.
+        assert ledger.available(conn, 1_000, 5_000) is True
         conn.rollback()
 
 

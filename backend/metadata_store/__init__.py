@@ -254,6 +254,9 @@ from .metadata_persist import (
     get_lightbox_metadata as get_lightbox_metadata,
 )
 from .metadata_persist import (
+    image_dimensions_unchanged as image_dimensions_unchanged,
+)
+from .metadata_persist import (
     schedule_derived_search_backfills as schedule_derived_search_backfills,
 )
 from .metadata_persist import (
