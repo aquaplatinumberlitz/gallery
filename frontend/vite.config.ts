@@ -31,8 +31,15 @@ function earlyChunkPreload(): Plugin {
         const entry = chunks.find((chunk) => chunk.isEntry);
         const alreadyLoaded = new Set<string>(entry ? [entry.fileName, ...entry.imports] : []);
         const groups = EARLY_CHUNKS.flatMap(({ module, when }) => {
-          const root = chunks.find((chunk) => chunk.facadeModuleId?.endsWith(module));
-          if (!root) return [];
+          // A route chunk that other chunks import from (for example the search results panel importing the grid's
+          // components) is merged by Rollup and loses its facade, so fall back to "the chunk that contains the module".
+          const root =
+            chunks.find((chunk) => chunk.facadeModuleId?.endsWith(module)) ??
+            chunks.find((chunk) => Object.keys(chunk.modules).some((id) => id.endsWith(module)));
+          if (!root) {
+            console.warn(`[gallery-early-chunk-preload] no chunk contains ${module}; its graph is not preloaded`);
+            return [];
+          }
           const js = new Set<string>();
           const css = new Set<string>();
           const visit = (fileName: string) => {
