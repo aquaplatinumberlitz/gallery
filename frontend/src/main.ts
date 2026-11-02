@@ -13,6 +13,7 @@ import { fetchLibraries } from "./services/api";
 import { router } from "./router";
 import type { RegisteredLibrary } from "./types";
 import { startHomeBrowsePrefetch } from "./utils/homeBrowsePrefetch";
+import { settleWithin } from "./utils/settleWithin";
 import { BREAKPOINTS } from "./composables/useDevice";
 
 // Reload BlackBox monitor — installs BEFORE Vue init to patch WebSocket
@@ -92,6 +93,11 @@ installVueQuery(app);
 
 // Resolve the browser's initial URL before App setup reads route metadata.
 // Otherwise a hard reload on a lazy route can briefly render the gallery intro.
-Promise.all([router.isReady(), reloadBlackBoxReady]).then(() => {
+// The library list is awaited too (at most LIBRARIES_MOUNT_WAIT_MS): App hydrates the active library synchronously
+// in setup when the list is cached, so the first frame already has the final sidebar, breadcrumb and toolbar
+// instead of a pre-hydration state that shifts when the list arrives. On slow links the list is long done by
+// the time the route chunks are, so this costs nothing there.
+const LIBRARIES_MOUNT_WAIT_MS = 300;
+Promise.all([router.isReady(), reloadBlackBoxReady, settleWithin(librariesReady, LIBRARIES_MOUNT_WAIT_MS)]).then(() => {
   app.mount("#app");
 });

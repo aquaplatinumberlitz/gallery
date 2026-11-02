@@ -1095,7 +1095,8 @@ h1 {
 
 .brand-title {
   margin: 0;
-  font-family: "Cinzel", serif;
+  /* "Cinzel Fallback" (fonts.css) keeps the title wrapping the same before and after Cinzel loads. */
+  font-family: "Cinzel", "Cinzel Fallback", serif;
   font-size: clamp(28px, 5vw, 42px);
   font-weight: 600;
   letter-spacing: 0.08em;

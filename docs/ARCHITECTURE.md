@@ -1384,6 +1384,22 @@ kept short by these rules; keep them when moving components between chunks:
   browse requests, which made LCP worse (3.2 s against 2.75 s on slow 4G). Mount is bandwidth-bound: about 305 KB
   gzip (entry, Vue, icons, CSS and the gallery route graph, of which `motion-v` is 40 KB and reka-ui 26 KB) must
   arrive before the app mounts, 1.5 s at 1.6 Mbps.
+- **Layout stability (CLS).** Two things moved the desktop layout on cold loads (0.03–0.2 at 1440 px) and are
+  fixed; keep them when touching the header, sidebar or start-up:
+  - The brand title (`.brand-title`, Cinzel 600, 42 px) sits in a width-limited header box. Cinzel is ~23% wider
+    than a Times-style fallback, so when it swapped in (`font-display: swap`) the title wrapped to a second line
+    (+63 px) and pushed the toolbar, sidebar and content down. `fonts.css` declares `"Cinzel Fallback"`, a
+    `local()`-only face (Times New Roman / Liberation Serif / Tinos / Times, bold) with `size-adjust: 123%`, and
+    `.brand-title` uses `"Cinzel", "Cinzel Fallback", serif`, so the stand-in wraps like Cinzel. It downloads
+    nothing and the settled rendering is Cinzel as before. Re-measure `size-adjust` if the title text, weight or
+    letter-spacing change.
+  - `LibrarySidebarHeader`, the breadcrumb and the toolbar render differently before the active library is
+    hydrated (sidebar +81 px, breadcrumb and action buttons move). `App.vue` hydrates synchronously in setup when
+    the library list is already cached, so `main.ts` holds the first mount for the list prefetch for at most
+    `LIBRARIES_MOUNT_WAIT_MS` (300 ms, `utils/settleWithin.ts`). On slow links the list arrives long before the
+    route chunks, so the wait costs nothing there; if the list is slower than 300 ms the app mounts anyway and
+    shows the pre-hydration state as before.
+  Guard: `tests/e2e/perf/home-layout-shift.spec.ts` (production build only; CLS < 0.01 at 1440×900 and 390×844).
 - `App.vue` mounts `Lightbox` and `RelatedAssetsPanel` lazily: as soon as their
   store opens, otherwise after `load` + a settle delay + an idle period
   (`utils/idleAfterLoad.ts`). `MobileLayout.vue` loads `GallerySidebarContent`
