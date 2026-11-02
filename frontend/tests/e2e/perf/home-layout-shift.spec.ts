@@ -9,18 +9,25 @@ the Cinzel brand title wrapping to a second line when the web font swaps in (the
 wrap like Cinzel), and the sidebar/breadcrumb/toolbar painting in their pre-hydration state and moving when the
 library list arrives (main.ts holds the first mount for the list).
 
+Why it lives in perf/: the shifts only exist in the production build. The dev server loads the fonts and CSS
+differently (the same spec passes on the pre-fix code there), so this runs against `vite preview` via
+`playwright.perf.config.ts` (`./test.sh perf`), with the API mocked, and is skipped elsewhere.
+
 Run when:
 Changing fonts.css or the header brand title, the sidebar header, the breadcrumb/toolbar, the start-up sequence in
 main.ts, or the active-library hydration.
 */
 
 import type { Page } from "@playwright/test";
-import { expect, test } from "./helpers/monitorErrors";
-import { browseResponse } from "./helpers/catalogFixtures";
+import { expect, test } from "../helpers/monitorErrors";
+import { browseResponse } from "../helpers/catalogFixtures";
 
-const baseUrl = process.env.GALLERY_BASE_URL ?? "http://127.0.0.1:5173";
-// The measured value is ~0.0004 after the fix; 0.03-0.2 before it. 0.01 leaves room for jitter while failing on
-// any real shift (Google's "good" CLS limit is 0.1).
+test.skip(
+  process.env.GALLERY_PERF_E2E !== "1",
+  "Set GALLERY_PERF_E2E=1 and run with playwright.perf.config.ts (production build via vite preview) to run the CLS guard.",
+);
+// The measured value is ~0.0004 after the fix and 0.03-0.2 before it, so a 0.05 limit would not fail the
+// common 0.03 case. 0.01 leaves room for jitter while failing on any real shift (Google's "good" CLS limit is 0.1).
 const CLS_LIMIT = 0.01;
 const rootPath = "/registered/photos";
 const png = Buffer.from(
@@ -116,7 +123,7 @@ for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await mockGallery(page);
     await observeLayoutShifts(page);
-    await page.goto(baseUrl, { waitUntil: "load" });
+    await page.goto("/", { waitUntil: "load" });
     await expect(page.getByTestId("album-card").first()).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     // Late swaps (fonts, lazy chunks) land within a second or two of the first paint.

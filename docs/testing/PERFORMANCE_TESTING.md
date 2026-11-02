@@ -1,34 +1,3 @@
-Home page:
-
-| Profile | LCP | FCP | CLS | Verdict |
-|---------|-----|-----|-----|---------|
-| Desktop | ≈ 0.5 s | ≈ 0.5 s | ≈ 0 | good |
-| Mobile, typical 4G | 1.4 s | 1.1 s | ≈ 0 | good |
-| Mobile, slow 4G | 2.7–2.8 s | 2.4 s | ≈ 0 | needs improvement (stretch) |
-| Repeat visit, mobile | ≈ 1.3 s | — | — | — |
-
-Home page after Track L (`perf/st-home`, 2026-11-02, code commit `d8911d1`; median of 3 cold runs, same session
-as `main` @ `5991830`, HTTP/2 + gzip + immutable `/assets/`, scratch harness with CDP throttling; the lab machine
-was shared, so single runs vary by ±150 ms). "Flat first" is the harness default (the first album's cover is a
-1 KB flat image); "photo first" sorts the albums descending so the first cover is a 39 KB photo thumbnail, which
-is what a real library looks like:
-
-| Profile | Fixture | `main` LCP / FCP / bytes | Track L LCP / FCP / bytes |
-|---------|---------|--------------------------|---------------------------|
-| Mobile, slow 4G | flat first | 2.76 s / 2.44 s / 685 KB | 2.58 s / 2.58 s / 686 KB |
-| Mobile, slow 4G | photo first | 4.44 s / 2.44 s / 727 KB | 2.58 s / 2.58 s / 728 KB |
-| Mobile, typical 4G | flat first | 1.47 s / 1.10 s / 685 KB | 1.26 s / 1.22 s / 686 KB |
-| Mobile, typical 4G | photo first | 2.10 s / 1.54 s / 727 KB | 1.48 s / 1.16 s / 728 KB |
-| Desktop, 7 runs | flat first | 0.84 s / 0.52 s / 922 KB | 0.76 s / 0.53 s / 922 KB |
-| Desktop, 3 runs | photo first | 1.26 s / 0.59 s / 1007 KB | 0.87 s / 0.60 s / 1008 KB |
-
-On slow 4G the LCP target (≤ 2.5 s) is not met in the flat-first harness: 2.58 s. FCP rose 0.15 s there because
-the first frame now contains the data that previously arrived after the first (header-only) paint, so FCP and LCP
-coincide. The floor: about 305 KB gzip must arrive before the app mounts (1.5 s at 1.6 Mbps plus round trips, last
-route chunk at ≈ 2.05 s) and mounting costs ≈ 0.5 s of 4×-throttled CPU. Cutting it further means moving bytes
-out of the mount-critical graph (`motion-v` 40 KB, reka-ui 26 KB, the 30 KB CSS). Desktop CLS 0.2 on cold loads
-appears on `main` and on the branch alike in this harness.
-
 # Performance Testing
 
 Status: Maintained
@@ -108,16 +77,59 @@ Main-thread tasks over 50 ms are "long tasks" in Google's definition. Keep the
 mobile album-open long task below 200 ms as a working limit, and lower it when
 possible.
 
-### Status snapshot (2026-11-02, `main` @ `5991830`)
+### Status snapshot (2026-11-02, `main` @ `5991830`; home rows updated for Track L and the CLS fix)
 
 Home page:
 
 | Profile | LCP | FCP | CLS | Verdict |
 |---------|-----|-----|-----|---------|
-| Desktop | ≈ 0.5 s | ≈ 0.5 s | ≈ 0 | good |
-| Mobile, typical 4G | 1.4 s | 1.1 s | ≈ 0 | good |
-| Mobile, slow 4G | 2.7–2.8 s | 2.4 s | ≈ 0 | needs improvement (stretch) |
+| Desktop | ≈ 0.5 s | ≈ 0.5 s | 0.03–0.2 (1440 px; ≈ 0 at 1024 px) | CLS "good" in typical runs but 0.2 (needs improvement) in some; 0.0004 after the fix |
+| Mobile, typical 4G | 1.4 s | 1.1 s | ≈ 0 (0.0001) | good |
+| Mobile, slow 4G | 2.7–2.8 s | 2.4 s | ≈ 0 (0.0001) | needs improvement (stretch) |
 | Repeat visit, mobile | ≈ 1.3 s | — | — | — |
+
+Home page after Track L (`perf/st-home`, 2026-11-02, code commit `d8911d1`; median of 3 cold runs, same session
+as `main` @ `5991830`, HTTP/2 + gzip + immutable `/assets/`, scratch harness with CDP throttling; the lab machine
+was shared, so single runs vary by ±150 ms). "Flat first" is the harness default (the first album's cover is a
+1 KB flat image); "photo first" sorts the albums descending so the first cover is a 39 KB photo thumbnail, which
+is what a real library looks like:
+
+| Profile | Fixture | `main` LCP / FCP / bytes | Track L LCP / FCP / bytes |
+|---------|---------|--------------------------|---------------------------|
+| Mobile, slow 4G | flat first | 2.76 s / 2.44 s / 685 KB | 2.58 s / 2.58 s / 686 KB |
+| Mobile, slow 4G | photo first | 4.44 s / 2.44 s / 727 KB | 2.58 s / 2.58 s / 728 KB |
+| Mobile, typical 4G | flat first | 1.47 s / 1.10 s / 685 KB | 1.26 s / 1.22 s / 686 KB |
+| Mobile, typical 4G | photo first | 2.10 s / 1.54 s / 727 KB | 1.48 s / 1.16 s / 728 KB |
+| Desktop, 7 runs | flat first | 0.84 s / 0.52 s / 922 KB | 0.76 s / 0.53 s / 922 KB |
+| Desktop, 3 runs | photo first | 1.26 s / 0.59 s / 1007 KB | 0.87 s / 0.60 s / 1008 KB |
+
+On slow 4G the LCP target (≤ 2.5 s) is not met in the flat-first harness: 2.58 s. FCP rose 0.15 s there because
+the first frame now contains the data that previously arrived after the first (header-only) paint, so FCP and LCP
+coincide. The floor: about 305 KB gzip must arrive before the app mounts (1.5 s at 1.6 Mbps plus round trips, last
+route chunk at ≈ 2.05 s) and mounting costs ≈ 0.5 s of 4×-throttled CPU. Cutting it further means moving bytes
+out of the mount-critical graph (`motion-v` 40 KB, reka-ui 26 KB, the 30 KB CSS).
+
+Home layout shift (CLS), `perf/st-cls` against `fada31d`, 2026-11-02, median of 3 cold and 3 repeat loads per
+cell, production build over HTTP/2 + gzip, `layout-shift` PerformanceObserver. The first table in this block
+claimed CLS ≈ 0; that was wrong for 1440 px desktop loads, where PR 7 introduced a 0.03–0.04 shift and PR 9 let it
+reach 0.2:
+
+| Viewport | Network | `fada31d` CLS (cold / repeat) | Fixed CLS (cold / repeat) | LCP `fada31d` → fixed (cold) |
+|----------|---------|-------------------------------|---------------------------|------------------------------|
+| 1440×900 | none | 0.0308 / 0.0428 (one run 0.1977) | 0.0004 / 0.0004 | 1084 → 568 ms |
+| 1440×900 | typical 4G | 0.0305 / 0.0305 | 0.0000 / 0.0000 | 1148 → 996 ms |
+| 1440×900 | slow 4G | 0.0305 / 0.0305 | 0.0000 / 0.0000 | 2884 → 2556 ms |
+| 1024×768 | none | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 628 → 576 ms |
+| 1024×768 | typical 4G | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 820 → 796 ms |
+| 390×844 | none | 0.0000 / 0.0000 | 0.0000 / 0.0000 | 548 → 516 ms |
+| 390×844 | typical 4G | 0.0001 / 0.0001 | 0.0001 / 0.0001 | 1588 → 1636 ms |
+| 390×844 | slow 4G | 0.0001 / 0.0001 | 0.0001 / 0.0001 | 2548 → 2476 ms |
+
+Causes (details in `docs/ARCHITECTURE.md`, "Initial Load Path"): the Cinzel brand title wrapped to a second line
+(+63 px) when the web font swapped in, and the sidebar header, breadcrumb and toolbar moved (+81 px) when the
+library list arrived after the first mount. `frontend/tests/e2e/perf/home-layout-shift.spec.ts` guards it (CLS <
+0.01 at 1440×900 and 390×844, production build); it measured 0.0305 on `fada31d` and 0.0004 after the fix. The dev
+server does not show these shifts, so the guard only runs in the perf suite.
 
 In-app flows:
 
