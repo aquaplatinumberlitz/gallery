@@ -151,13 +151,13 @@ describe("useInfiniteBrowseQuery onFirstPageFetched", () => {
 
   it("calls the hook with the first page before the query data is published", async () => {
     let dataSeenByHook: unknown = "unset";
-    let hookResult!: ReturnType<typeof useInfiniteBrowseQuery>;
+    const holder: { result?: ReturnType<typeof useInfiniteBrowseQuery> } = {};
     const hook = vi.fn(() => {
-      dataSeenByHook = hookResult.data.value;
+      dataSeenByHook = holder.result?.data.value;
     });
-    hookResult = setupWithHook(hook);
+    holder.result = setupWithHook(hook);
 
-    await vi.waitFor(() => expect(hookResult.isSuccess.value).toBe(true));
+    await vi.waitFor(() => expect(holder.result?.isSuccess.value).toBe(true));
 
     expect(hook).toHaveBeenCalledTimes(1);
     expect((hook.mock.calls[0] as unknown[])[0]).toMatchObject({ library_id: 1, request_path: "/photos" });
