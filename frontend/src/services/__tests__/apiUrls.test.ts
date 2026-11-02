@@ -1,5 +1,5 @@
 /**
- * Purpose: Protect the versioned image URL builders (docs/plans/IMAGE_PIPELINE_PLAN.md, IP-2 / IP-5).
+ * Purpose: Protect the versioned image URL builders (docs/archived/IMAGE_PIPELINE_PLAN.md, IP-2 / IP-5).
  * Guarantees: `getThumbnailUrl` / `getPreviewUrl` append `v=<content_version>` only when a version is given
  * (so unversioned items keep today's URL), keep the existing `path` / `max_long_edge` parameters in front,
  * encode the version, and `getThumbnailSrcset` offers the 256 and 512 px derivatives with the same version.

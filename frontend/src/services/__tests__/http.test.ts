@@ -1,5 +1,5 @@
 /**
- * Purpose: Protect the fetch client that replaced axios (docs/plans/IMAGE_PIPELINE_PLAN.md, IP-11).
+ * Purpose: Protect the fetch client that replaced axios (docs/archived/IMAGE_PIPELINE_PLAN.md, IP-11).
  * Guarantees: Parity with the axios 1.18 behaviour `services/api.ts` relied on. The expected URLs, headers,
  * bodies, response data and error codes/messages below were captured from axios 1.18 (XHR adapter) in
  * Chromium before it was removed, and the query serialiser was fuzzed byte-for-byte against `axios.getUri`.

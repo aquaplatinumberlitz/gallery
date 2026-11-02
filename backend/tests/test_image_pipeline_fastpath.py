@@ -1,7 +1,7 @@
 """Image pipeline plan B4: warm thumbnail serving fast path and coalesced access touches.
 
 Purpose:
-Pin the serving fast path of `docs/plans/IMAGE_PIPELINE_PLAN.md` (B4). A warm `/api/thumbnail` request used to
+Pin the serving fast path of `docs/archived/IMAGE_PIPELINE_PLAN.md` (B4). A warm `/api/thumbnail` request used to
 spend most of its time on catalog reads (authorization, asset id, ready derivative; each a new SQLite connection)
 and queued one `last_accessed_at` writer op per file. A bounded in-process LRU now remembers the resolution, is
 validated by the source `stat()` on every hit, and the access touches are written as one coalesced writer op.

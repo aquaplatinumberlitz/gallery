@@ -1,5 +1,5 @@
 /**
- * Minimal `fetch` JSON client that replaces axios (docs/plans/IMAGE_PIPELINE_PLAN.md, IP-11).
+ * Minimal `fetch` JSON client that replaces axios (docs/archived/IMAGE_PIPELINE_PLAN.md, IP-11).
  *
  * It deliberately keeps axios' observable behaviour for the call shapes `services/api.ts` uses, so the
  * endpoint wrappers and `GalleryAPIError` mapping did not change:

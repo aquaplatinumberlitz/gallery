@@ -1,7 +1,7 @@
 """Image pipeline plan B1/B2: faster derivative generation and the thumb_256 variant.
 
 Purpose:
-Pin the generation-speed work of `docs/plans/IMAGE_PIPELINE_PLAN.md` (B1) and the new 256 px thumbnail
+Pin the generation-speed work of `docs/archived/IMAGE_PIPELINE_PLAN.md` (B1) and the new 256 px thumbnail
 (B2). A cold album used to render every variant with its own decode of the source, a method-6 WebP encode and
 a writer op for the (unchanged) source dimensions. Now one claimed job also claims the queued sibling variants
 of the same asset and renders them from a single decode as a cascade, while each variant keeps its own claim

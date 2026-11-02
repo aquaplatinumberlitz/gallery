@@ -387,7 +387,7 @@ interactive `schedule_derivative` is the one awaited priority op.
 
 ### Image pipeline: generation, versioned URLs, serving fast path
 
-`docs/plans/IMAGE_PIPELINE_PLAN.md` (Track B) added four backend behaviours.
+`docs/archived/IMAGE_PIPELINE_PLAN.md` (Track B) added four backend behaviours.
 
 **Sibling batching (B1).** `_run_job` first calls `_claim_siblings`: one priority-lane writer op
 that claims the other still-`queued` jobs of the same asset and the same source identity

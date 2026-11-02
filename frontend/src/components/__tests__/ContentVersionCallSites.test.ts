@@ -1,6 +1,6 @@
 /**
  * Purpose: Protect that every image call site hands the backend `content_version` / `cover_versions[i]`
- * to the URL builders (docs/plans/IMAGE_PIPELINE_PLAN.md, IP-2).
+ * to the URL builders (docs/archived/IMAGE_PIPELINE_PLAN.md, IP-2).
  * Guarantees: Album covers (desktop, tablet, mobile) use the version of their own cover index, the
  * lightbox item (`src`, `previewSrc`, `msrc`) carries the item's version, search results and related
  * results reach PhotoCard (and the lightbox items) with their version, and items without a version keep
