@@ -178,11 +178,13 @@ def test_response_shape_compatible(tmp_path: Path):
             "type",
             "has_children",
             "cover_images",
+            "cover_versions",
             "mtime",
             "image_count",
             "width",
             "height",
             "asset_id",
+            "content_version",
             "metadata_state",
             "derivative_ready",
         }

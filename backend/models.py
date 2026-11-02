@@ -21,11 +21,15 @@ class FileNode(BaseModel):
     type: Literal["folder", "image", "video"]
     has_children: bool
     cover_images: list[str] = Field(default_factory=list)
+    # "<mtime_ns>-<size>" of each cover, aligned with cover_images; pass it as `v` to /api/thumbnail.
+    cover_versions: list[str] = Field(default_factory=list)
     mtime: float = 0  # Modified time (Unix timestamp)
     image_count: int = 0  # Number of images in folder (applies to "folder" type only)
     width: int | None = None  # Image width in pixels (only for type="image")
     height: int | None = None  # Image height in pixels (only for type="image")
     asset_id: int | None = None
+    # "<mtime_ns>-<size>" of the media file; pass it as `v` to /api/thumbnail and /api/preview.
+    content_version: str | None = None
     metadata_state: str | None = None
     derivative_ready: dict[str, bool] | None = None
 
@@ -49,6 +53,7 @@ class SearchMediaResult(BaseModel):
     parent_path: str
     relative_path: str
     mtime: float
+    content_version: str | None = None  # "<mtime_ns>-<size>"; pass as `v` to /api/thumbnail and /api/preview
     width: int | None = None
     height: int | None = None
     duration_ms: int | None = None
@@ -76,6 +81,7 @@ class SearchAlbumResult(BaseModel):
     duration_ms: int | None = None
     mime_type: str | None = None
     cover_images: list[str] = Field(default_factory=list)
+    cover_versions: list[str] = Field(default_factory=list)  # aligned with cover_images
     image_count: int = 0
     has_children: bool = False
     match_type: str = "filename"
@@ -95,6 +101,7 @@ class LegacyMetadataSearchResult(BaseModel):
     path: str
     type: Literal["file"] = "file"
     mtime: float | None = None
+    content_version: str | None = None
     width: int | None = None
     height: int | None = None
     model: str = ""

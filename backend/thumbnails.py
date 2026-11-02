@@ -20,7 +20,7 @@ from starlette.background import BackgroundTask
 
 from .config import THUMBNAIL_CACHE_DIR
 from .errors import APIError, ErrorType
-from .files import check_image_limits, is_image
+from .files import check_image_limits, content_version, is_image
 from .metadata_store import image_dimensions_unchanged, upsert_image_dimensions
 from .scan import require_media_path_allowed
 
@@ -474,6 +474,30 @@ def _validate_public_size(kind: DerivativeKind, value: int) -> int:
     return value
 
 
+REVALIDATE_CACHE_CONTROL = "public, max-age=0, must-revalidate"
+IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
+
+
+def _derivative_etag(
+    kind: DerivativeKind, mtime_ns: int, size: int, max_long_edge: int, normalized_format: str, quality: int
+) -> str:
+    return f'"{kind}-{DERIVATIVE_CACHE_VERSION}-{mtime_ns}-{size}-{max_long_edge}-{normalized_format}-{quality}"'
+
+
+def _response_headers(etag: str, version: str | None, mtime_ns: int, size: int) -> dict[str, str]:
+    """Return the caching headers: immutable only when ``version`` names the file as it is on disk right now.
+
+    A URL carrying a matching ``v`` can never address different bytes later (a changed source has a new
+    identity, hence a new ``v``), so the browser may keep it for a year without revalidating. An absent or
+    stale ``v`` keeps the revalidating behaviour of an unversioned URL.
+    """
+    immutable = version is not None and version == content_version(mtime_ns, size)
+    return {
+        "Cache-Control": IMMUTABLE_CACHE_CONTROL if immutable else REVALIDATE_CACHE_CONTROL,
+        "ETag": etag,
+    }
+
+
 async def _serve_derivative(
     *,
     request: Request,
@@ -484,21 +508,17 @@ async def _serve_derivative(
     quality: int,
     format: str,
     failure_message: str,
+    version: str | None = None,
 ):
     from .derivative_scheduler import derivative_variant, scheduler
 
-    file_path, asset_id, stat = await run_in_threadpool(_resolve_derivative_source, path, asset_id)
     normalized_format = _normalize_derivative_format(format)
     variant = derivative_variant(kind, max_long_edge, quality, normalized_format)
 
-    etag = (
-        f'"{kind}-{DERIVATIVE_CACHE_VERSION}-{stat.st_mtime_ns}-'
-        f'{stat.st_size}-{max_long_edge}-{normalized_format}-{quality}"'
-    )
-    headers = {
-        "Cache-Control": "public, max-age=0, must-revalidate",
-        "ETag": etag,
-    }
+    file_path, asset_id, stat = await run_in_threadpool(_resolve_derivative_source, path, asset_id)
+
+    etag = _derivative_etag(kind, stat.st_mtime_ns, stat.st_size, max_long_edge, normalized_format, quality)
+    headers = _response_headers(etag, version, stat.st_mtime_ns, stat.st_size)
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
 
@@ -608,6 +628,11 @@ async def api_thumbnail(
     asset_id: int | None = Query(None, ge=1, description="Catalog asset ID"),
     max_long_edge: int = Query(512, ge=1, le=4096, description="Max long edge for grid thumbnail"),
     max_size: int | None = Query(None, ge=1, le=4096, description="Deprecated alias for max_long_edge"),
+    v: str | None = Query(
+        None,
+        max_length=128,
+        description="Source content_version; a match with the current source makes the response immutable",
+    ),
 ):
     """Serve optimized WebP thumbnail.
 
@@ -623,6 +648,7 @@ async def api_thumbnail(
         quality=78,
         format="webp",
         failure_message="Unable to process image",
+        version=v,
     )
 
 
@@ -633,6 +659,11 @@ async def api_preview(
     asset_id: int | None = Query(None, ge=1, description="Catalog asset ID"),
     max_long_edge: int = Query(1440, ge=1, le=4096, description="Max long edge for viewer preview"),
     max_size: int | None = Query(None, ge=1, le=4096, description="Deprecated alias for max_long_edge"),
+    v: str | None = Query(
+        None,
+        max_length=128,
+        description="Source content_version; a match with the current source makes the response immutable",
+    ),
 ):
     """Serve optimized WebP viewer preview.
 
@@ -647,4 +678,5 @@ async def api_preview(
         quality=86,
         format="webp",
         failure_message="Unable to generate preview",
+        version=v,
     )

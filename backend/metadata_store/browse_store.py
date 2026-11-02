@@ -6,6 +6,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from ..files import content_version
 from ..models import FileNode, VideoFileNode
 from ._db import _active_asset_where, _connect_read
 from .identity import catalog_direct_child_sql, catalog_import_path_owns_sql
@@ -121,14 +122,14 @@ def _browse_folder_counts_batch_conn(
     folder_paths: list[str],
     *,
     include_offline: bool,
-) -> dict[str, tuple[bool, int, list[str]]]:
+) -> dict[str, tuple[bool, int, list[str], list[str]]]:
     if not folder_paths:
         return {}
     visibility_sql = _browse_visibility_sql("a", include_offline=include_offline)
     direct_child_sql = catalog_direct_child_sql(parent_path_sql="a.parent_path", path_sql="a.path")
     import_ownership_sql = catalog_import_path_owns_sql(library_id_sql="a.library_id", path_sql="a.path")
     placeholders = ", ".join("?" for _ in folder_paths)
-    counts = {folder_path: (False, 0, []) for folder_path in folder_paths}
+    counts = dict.fromkeys(folder_paths, (False, 0))
     count_rows = conn.execute(
         f"""
         SELECT a.parent_path,
@@ -142,13 +143,13 @@ def _browse_folder_counts_batch_conn(
         (library_id, *folder_paths),
     ).fetchall()
     for row in count_rows:
-        counts[str(row["parent_path"])] = (bool(row["children"]), int(row["images"] or 0), [])
+        counts[str(row["parent_path"])] = (bool(row["children"]), int(row["images"] or 0))
 
     cover_rows = conn.execute(
         f"""
-        SELECT parent_path, path
+        SELECT parent_path, path, mtime_ns, size
         FROM (
-          SELECT a.parent_path, a.path,
+          SELECT a.parent_path, a.path, a.mtime_ns, a.size,
                  row_number() OVER (PARTITION BY a.parent_path ORDER BY a.mtime_ns DESC, a.path ASC) AS cover_rank
           FROM assets AS a
           WHERE a.library_id = ?
@@ -164,12 +165,16 @@ def _browse_folder_counts_batch_conn(
         (library_id, *folder_paths),
     ).fetchall()
     covers: dict[str, list[str]] = {folder_path: [] for folder_path in folder_paths}
+    cover_versions: dict[str, list[str]] = {folder_path: [] for folder_path in folder_paths}
     for row in cover_rows:
-        covers.setdefault(str(row["parent_path"]), []).append(str(row["path"]))
+        parent = str(row["parent_path"])
+        covers.setdefault(parent, []).append(str(row["path"]))
+        # Aligned with ``covers``: an asset without a recorded identity gets "" (no version to offer).
+        cover_versions.setdefault(parent, []).append(content_version(row["mtime_ns"], row["size"]) or "")
 
     return {
-        folder_path: (has_children, image_count, covers.get(folder_path, []))
-        for folder_path, (has_children, image_count, _) in counts.items()
+        folder_path: (has_children, image_count, covers.get(folder_path, []), cover_versions.get(folder_path, []))
+        for folder_path, (has_children, image_count) in counts.items()
     }
 
 
@@ -178,15 +183,15 @@ def catalog_folder_aggregates_conn(
     folders: list[tuple[int, str]],
     *,
     include_offline: bool = False,
-) -> dict[tuple[int, str], tuple[bool, int, list[str]]]:
-    """Return browse-equivalent direct folder counts and covers in bounded batches."""
+) -> dict[tuple[int, str], tuple[bool, int, list[str], list[str]]]:
+    """Return browse-equivalent direct folder counts, covers and cover versions in bounded batches."""
     grouped: dict[int, list[str]] = {}
     for library_id, folder_path in folders:
         paths = grouped.setdefault(library_id, [])
         if folder_path not in paths:
             paths.append(folder_path)
 
-    aggregates: dict[tuple[int, str], tuple[bool, int, list[str]]] = {}
+    aggregates: dict[tuple[int, str], tuple[bool, int, list[str], list[str]]] = {}
     for library_id, folder_paths in grouped.items():
         values = _browse_folder_counts_batch_conn(
             conn,
@@ -219,7 +224,7 @@ def _catalog_browse_virtual_root_conn(
     )
     folders: list[dict[str, Any]] = []
     for root_path in root_paths:
-        has_children, image_count, cover_images = folder_counts.get(root_path, (False, 0, []))
+        has_children, image_count, cover_images, cover_versions = folder_counts.get(root_path, (False, 0, [], []))
         display_label = _browse_import_root_name(root_path, duplicate_leaf_names)
         availability = _import_root_availability(root_path)
         folders.append(
@@ -232,6 +237,7 @@ def _catalog_browse_virtual_root_conn(
                 "availability": availability,
                 "has_children": has_children,
                 "cover_images": cover_images,
+                "cover_versions": cover_versions,
                 "mtime": 0,
                 "image_count": image_count,
             }
@@ -338,7 +344,9 @@ def _catalog_browse_path_conn(
         include_offline=include_offline,
     )
     for row in folder_rows:
-        has_children, image_count, cover_images = folder_counts.get(str(row["path"]), (False, 0, []))
+        has_children, image_count, cover_images, cover_versions = folder_counts.get(
+            str(row["path"]), (False, 0, [], [])
+        )
         folders.append(
             FileNode(
                 name=row["name"],
@@ -346,6 +354,7 @@ def _catalog_browse_path_conn(
                 type="folder",
                 has_children=has_children,
                 cover_images=cover_images,
+                cover_versions=cover_versions,
                 mtime=row["mtime_ns"] or 0,
                 image_count=image_count,
             )
@@ -361,6 +370,7 @@ def _catalog_browse_path_conn(
             width=row["width"],
             height=row["height"],
             asset_id=row["id"],
+            content_version=content_version(row["mtime_ns"], row["size"]),
             metadata_state=row["metadata_state"],
             derivative_ready=derivative_ready_by_asset[int(row["id"])],
         )
@@ -375,6 +385,7 @@ def _catalog_browse_path_conn(
             width=row["width"],
             height=row["height"],
             asset_id=row["id"],
+            content_version=content_version(row["mtime_ns"], row["size"]),
             metadata_state=row["metadata_state"],
             duration_ms=row["duration_ms"],
             mime_type=row["mime_type"],
@@ -528,17 +539,16 @@ def get_asset_folder_listing(
                 """,
                 (library["id"], row["path"]),
             ).fetchone()
-            covers = [
-                cover["path"]
-                for cover in conn.execute(
-                    f"""
-                    SELECT path FROM assets
-                    WHERE library_id = ? AND parent_path = ? AND type = 'image' AND {_active_asset_where()}
-                    ORDER BY mtime_ns DESC LIMIT 3
-                    """,
-                    (library["id"], row["path"]),
-                )
-            ]
+            cover_rows = conn.execute(
+                f"""
+                SELECT path, mtime_ns, size FROM assets
+                WHERE library_id = ? AND parent_path = ? AND type = 'image' AND {_active_asset_where()}
+                ORDER BY mtime_ns DESC LIMIT 3
+                """,
+                (library["id"], row["path"]),
+            ).fetchall()
+            covers = [cover["path"] for cover in cover_rows]
+            cover_versions = [content_version(cover["mtime_ns"], cover["size"]) or "" for cover in cover_rows]
             folders.append(
                 FileNode(
                     name=row["name"],
@@ -546,6 +556,7 @@ def get_asset_folder_listing(
                     type="folder",
                     has_children=bool(counts["children"]),
                     cover_images=covers,
+                    cover_versions=cover_versions,
                     mtime=row["mtime_ns"] or 0,
                     image_count=int(counts["images"] or 0),
                 )
@@ -561,6 +572,7 @@ def get_asset_folder_listing(
                 width=row["width"],
                 height=row["height"],
                 asset_id=row["id"],
+                content_version=content_version(row["mtime_ns"], row["size"]),
                 metadata_state=row["metadata_state"],
                 derivative_ready=derivative_ready_by_asset[int(row["id"])],
             )
@@ -575,6 +587,7 @@ def get_asset_folder_listing(
                 width=row["width"],
                 height=row["height"],
                 asset_id=row["id"],
+                content_version=content_version(row["mtime_ns"], row["size"]),
                 duration_ms=row["duration_ms"],
                 mime_type=row["mime_type"],
             )
