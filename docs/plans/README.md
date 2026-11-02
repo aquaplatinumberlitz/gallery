@@ -8,7 +8,7 @@ Active plans:
 
 | Plan | Status | Created |
 |------|--------|---------|
-| _None_ | | |
+| [Perf Stretch](PERF_STRETCH_PLAN.md) | Active | 2026-11-02 |
 
 Completed plans:
 
