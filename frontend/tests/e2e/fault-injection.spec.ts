@@ -65,7 +65,7 @@ const metadataResponse = (name: string) => ({
   name,
 });
 
-type ApiRequest = { pathname: string; path: string; q: string };
+type ApiRequest = { pathname: string; path: string; q: string; retry: string };
 
 function requestsFor(requests: ApiRequest[], pathname: string) {
   return requests.filter((r) => r.pathname === pathname);
@@ -93,6 +93,7 @@ async function installGalleryWithFaults(
       pathname: url.pathname,
       path: url.searchParams.get("path") ?? "",
       q: searchPayload?.text ?? "",
+      retry: url.searchParams.get("r") ?? "",
     };
     requests.push(req);
 
@@ -358,23 +359,57 @@ test("image 500 during zoom does not crash lightbox", async ({ page }) => {
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 5000 });
 });
 
-// ─── 2e: Thumbnail 500 — grid shows placeholder ───
-test("thumbnail 500 shows placeholder in grid; no page error", async ({ page }) => {
+// ─── 2e: Thumbnail 500 — grid retries, then shows the placeholder ───
+// A failing thumbnail is retried 3 times (1.5 s, 4 s, 10 s backoff, `r=1..3`) while the card keeps its loading
+// shimmer; only the last failure shows the placeholder. The page clock skips the backoff.
+test("thumbnail 500 is retried, then shows placeholder in grid; no page error", async ({ page }) => {
+  await page.clock.install();
   const requests = await installGalleryWithFaults(page, { failThumbnail: true });
   await openGallery(page);
 
-  // Thumbnail requests should have been made
-  await expect.poll(() => requestsFor(requests, "/api/thumbnail").length).toBeGreaterThanOrEqual(1);
-
-  // Photo cards should still be present (with placeholder state)
+  const retryDelays = [1500, 4000, 10000];
   const cards = page.getByTestId("photo-card");
-  const count = await cards.count();
-  expect(count).toBeGreaterThanOrEqual(1);
+  const placeholders = page.getByTestId("placeholder-text");
+  const shimmers = page.locator(".shimmer-placeholder");
+  const thumbnailRequests = (retry: string) =>
+    requestsFor(requests, "/api/thumbnail").filter((request) => request.retry === retry);
+  const requestedPaths = (retry: string) =>
+    [...new Set(thumbnailRequests(retry).map((request) => request.path))].sort();
 
-  // Placeholder text or broken state should appear for cards with failed images
-  const placeholder = page.getByTestId("placeholder-text");
-  const placeholderCount = await placeholder.count();
-  expect(placeholderCount).toBeGreaterThanOrEqual(1);
+  // 1 initial request per card (first row), no retry parameter, no placeholder yet.
+  await expect.poll(() => requestedPaths("")).toEqual([...imagePaths].sort());
+  expect(await cards.count()).toBe(imagePaths.length);
+
+  for (const [index, delay] of retryDelays.entries()) {
+    const retry = String(index + 1);
+    // The card is still loading (shimmer), not failed, while the backoff runs.
+    await expect(shimmers).toHaveCount(imagePaths.length);
+    await expect(placeholders).toHaveCount(0);
+    expect(thumbnailRequests(retry)).toHaveLength(0);
+
+    // Skip the backoff (repeatedly, in case the error event has not been handled yet).
+    await expect
+      .poll(async () => {
+        await page.clock.fastForward(delay);
+        return requestedPaths(retry);
+      })
+      .toEqual([...imagePaths].sort());
+  }
+
+  // The last retry failed too: now the placeholder replaces the shimmer.
+  await expect(placeholders).toHaveCount(imagePaths.length);
+  await expect(shimmers).toHaveCount(0);
+  expect(await cards.count()).toBe(imagePaths.length);
+
+  // Exactly 1 initial + 3 retries per thumbnail, and nothing more afterwards.
+  await page.clock.fastForward(60_000);
+  await page.waitForTimeout(200);
+  for (const path of imagePaths) {
+    const forPath = requestsFor(requests, "/api/thumbnail")
+      .filter((request) => request.path === path)
+      .map((request) => request.retry);
+    expect(forPath).toEqual(["", "1", "2", "3"]);
+  }
 });
 
 // ─── 2f: Browse 500 - error message shown ───
