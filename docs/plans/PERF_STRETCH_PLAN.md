@@ -181,3 +181,10 @@ median of 3 runs.
 
 | Track | Item | Status | Evidence |
 |-------|------|--------|----------|
+| L | L1 cover srcset/sizes | Skipped | Covers have no dimensions in the browse API, so the unknown-aspect rule (2×) keeps 512 for every card wider than 128 px at DPR 1. Rendered cover widths: 140 px at 390 (DPR 2), 198 px at 1024, 165 px at 1440; all resolve to 512. A 256 candidate would upscale tall images. Needs cover dimensions in the API first. |
+| L | L2 early root browse | Done (`d8911d1`) | `utils/homeBrowsePrefetch.ts` + `main.ts`; exact infinite-query key/function shared with `useInfiniteBrowseQuery`. Browse request starts at 1.45 s instead of 2.3 s on slow 4G. 25 Vitest tests. |
+| L | L3 early LCP image | Done (`d8911d1`) | The visibility-gate bypass for `priority` covers already existed in the cards; the new part is the pre-mount `Image()` request (high priority, card's URL) for the first cover. Photo-first slow-4G LCP 4.44 s to 2.58 s; flat-first 2.76 s to 2.58 s. |
+| L | L4 fonts | Skipped | Fonts (66 KB) are requested after the first render (2.55 s), after the LCP image has loaded. Preloading adds 66 KB to the pre-mount pipe (+0.33 s at 1.6 Mbps). |
+| L | L5 FCP / critical CSS | Skipped | The main CSS finishes at 0.85 s, FCP is 2.4-2.6 s; nothing paints before the app mounts, so splitting CSS cannot move FCP. FCP rose 0.15 s because the first frame now includes the data. |
+| L | Early preload script position | Rejected experiment | Moving the inline preload script before the stylesheet (it waits for the CSS) started 45 preloads at t = 0, delayed the entry from 1.0 s to 2.0 s and made LCP 3.2 s against 2.75 s. |
+| L | ST-1 / ST-2 | Not met | Slow 4G LCP 2.58 s (target 2.5), FCP 2.58 s (target 1.8). Floor: ≈ 305 KB gzip before mount plus ≈ 0.5 s CPU. See `docs/testing/PERFORMANCE_TESTING.md`. |

@@ -1,3 +1,34 @@
+Home page:
+
+| Profile | LCP | FCP | CLS | Verdict |
+|---------|-----|-----|-----|---------|
+| Desktop | ≈ 0.5 s | ≈ 0.5 s | ≈ 0 | good |
+| Mobile, typical 4G | 1.4 s | 1.1 s | ≈ 0 | good |
+| Mobile, slow 4G | 2.7–2.8 s | 2.4 s | ≈ 0 | needs improvement (stretch) |
+| Repeat visit, mobile | ≈ 1.3 s | — | — | — |
+
+Home page after Track L (`perf/st-home`, 2026-11-02, code commit `d8911d1`; median of 3 cold runs, same session
+as `main` @ `5991830`, HTTP/2 + gzip + immutable `/assets/`, scratch harness with CDP throttling; the lab machine
+was shared, so single runs vary by ±150 ms). "Flat first" is the harness default (the first album's cover is a
+1 KB flat image); "photo first" sorts the albums descending so the first cover is a 39 KB photo thumbnail, which
+is what a real library looks like:
+
+| Profile | Fixture | `main` LCP / FCP / bytes | Track L LCP / FCP / bytes |
+|---------|---------|--------------------------|---------------------------|
+| Mobile, slow 4G | flat first | 2.76 s / 2.44 s / 685 KB | 2.58 s / 2.58 s / 686 KB |
+| Mobile, slow 4G | photo first | 4.44 s / 2.44 s / 727 KB | 2.58 s / 2.58 s / 728 KB |
+| Mobile, typical 4G | flat first | 1.47 s / 1.10 s / 685 KB | 1.26 s / 1.22 s / 686 KB |
+| Mobile, typical 4G | photo first | 2.10 s / 1.54 s / 727 KB | 1.48 s / 1.16 s / 728 KB |
+| Desktop, 7 runs | flat first | 0.84 s / 0.52 s / 922 KB | 0.76 s / 0.53 s / 922 KB |
+| Desktop, 3 runs | photo first | 1.26 s / 0.59 s / 1007 KB | 0.87 s / 0.60 s / 1008 KB |
+
+On slow 4G the LCP target (≤ 2.5 s) is not met in the flat-first harness: 2.58 s. FCP rose 0.15 s there because
+the first frame now contains the data that previously arrived after the first (header-only) paint, so FCP and LCP
+coincide. The floor: about 305 KB gzip must arrive before the app mounts (1.5 s at 1.6 Mbps plus round trips, last
+route chunk at ≈ 2.05 s) and mounting costs ≈ 0.5 s of 4×-throttled CPU. Cutting it further means moving bytes
+out of the mount-critical graph (`motion-v` 40 KB, reka-ui 26 KB, the 30 KB CSS). Desktop CLS 0.2 on cold loads
+appears on `main` and on the branch alike in this harness.
+
 # Performance Testing
 
 Status: Maintained
@@ -96,7 +127,7 @@ In-app flows:
 | Mobile album-open long task | — | 123 ms | — |
 
 Known gaps against the standard:
-- Slow-4G LCP is 2.7–2.8 s, against the 2.5 s stretch target.
+- Slow-4G LCP is 2.58 s after Track L (2.76 s on `main`), against the 2.5 s stretch target; slow-4G FCP is 2.6 s against the 1.8 s diagnostic. Both are bound by the ≈ 305 KB that must arrive before mount.
 - Mobile INP sits under 200 ms but above RAIL's 100 ms response goal.
 - Scroll smoothness was confirmed by hand on the owner's phone (2026-11-02, fast scrolling in a large album, no visible jank). Frame times were not instrumented on the device.
 

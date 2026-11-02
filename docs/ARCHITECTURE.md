@@ -1365,6 +1365,25 @@ kept short by these rules; keep them when moving components between chunks:
   layout module before `router.isReady()` resolves. The reload black box
   (`src/debug/reloadBlackBox.ts`) is a dynamic import, downloaded only when
   `?debugReload` or `GALLERY_DEBUG_RELOAD` is set.
+- `main.ts` also calls `startHomeBrowsePrefetch` (`utils/homeBrowsePrefetch.ts`) as soon as the library
+  list settles. On `/` without a query string it resolves the library the gallery will open (the persisted
+  selection, else the only library with an import path; the same choice `hydrateActiveLibrary` makes, without its
+  side effects) and runs `queryClient.prefetchInfiniteQuery` for that library's root folder with the exact key and
+  function of `useInfiniteBrowseQuery` (`browseInfiniteQueryKey`, `fetchBrowsePage`, `getNextBrowsePageParam`,
+  `BROWSE_STALE_TIME_MS`, exported from that composable so the two cannot drift). The mounted query finds the page
+  cached, or joins the request still in flight, instead of starting it after the route chunks and mount. Once the
+  page is cached it requests the cover of the first folder in the user's sort order (`sortByPreference`, the
+  grid's own ordering) with `new Image()` at `fetchPriority = "high"` and the card's exact thumbnail URL, so the
+  likely LCP image is already loading when the card renders; skipped when the album strip is collapsed
+  (`gallery-albums-collapsed-v2`). Every step is best effort: no stored library, an unknown library, a failed
+  request, throwing storage or a non-home URL end silently and the mounted app loads as before. Do not add
+  covers beyond the first here: each extra one competes with the route chunks that gate mount.
+- The early chunk preload script in `index.html` sits after the render-blocking stylesheet, so the browser only
+  runs it once the main CSS has loaded. Do not move it earlier: on the HTTP/2 + gzip lab setup (fair-share
+  streams) 45 preloads started at t = 0 delayed the entry module from 1.0 s to 2.0 s, and with it the library and
+  browse requests, which made LCP worse (3.2 s against 2.75 s on slow 4G). Mount is bandwidth-bound: about 305 KB
+  gzip (entry, Vue, icons, CSS and the gallery route graph, of which `motion-v` is 40 KB and reka-ui 26 KB) must
+  arrive before the app mounts, 1.5 s at 1.6 Mbps.
 - `App.vue` mounts `Lightbox` and `RelatedAssetsPanel` lazily: as soon as their
   store opens, otherwise after `load` + a settle delay + an idle period
   (`utils/idleAfterLoad.ts`). `MobileLayout.vue` loads `GallerySidebarContent`
@@ -1436,6 +1455,13 @@ downloads what the user rests on:
   and is left out while the card has no measured width (jsdom, `display: none`). The `dimensions`
   event may therefore report the 256 px natural size; `lightboxStore.rememberDimensions` ignores
   `source: "thumbnail"` dimensions, so nothing depends on it.
+- **Album covers have no `srcset`.** The browse API gives a cover's path and version but not its dimensions,
+  so `thumbnailSizes` can only use the unknown-aspect ratio (2), under which a card wider than 128 px at DPR 1
+  keeps the 512 px derivative. The covers' rendered widths (390 px phone 140 px at DPR 2, 1024 px tablet 198 px,
+  1440 px desktop 165 px) therefore all resolve to 512, and a 256 px candidate would only change bytes by
+  upscaling tall images. A cover `srcset` needs cover dimensions in `cover_images` metadata first. Covers keep
+  one URL per cover (`getThumbnailUrl(path, 512, version)`), which the pre-mount cover request in "Initial
+  Load Path" relies on: `homeBrowsePrefetch.test.ts` asserts that all three album cards ask for the same URL.
 - **Retry of failed thumbnails and covers.** A cold album can answer `/api/thumbnail` with a 503 after
   its 10 s generation wait, and the derivative is ready a few seconds later. `<img>` does not expose the
   status, so every real `error` event (not the one a cleared `src` raises) is retryable:
