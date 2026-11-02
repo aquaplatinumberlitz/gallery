@@ -1,21 +1,21 @@
 /**
- * Reusable axios mock factory for frontend unit tests.
+ * Reusable HTTP client mock factory for frontend unit tests.
  *
  * Purpose:
  * Provide a consistent mockApi fixture so tests do not hand-roll
- * inconsistent axios mocks.
+ * inconsistent mocks of the `services/http` client behind `services/api.ts`.
  *
  * Guarantees:
- * * vi.hoisted is called before vi.mock("axios") in the test file
- * * mockApi exposes get/post/patch/delete + interceptors
+ * * vi.hoisted is called before vi.mock("../http") in the test file
+ * * mockApi exposes get/post/patch/delete
  * * All mocks clear automatically via beforeEach (setup.ts afterEach)
  *
  * Usage:
  * ```ts
  * const { mockApi } = useMockApi();
- * vi.mock("axios", async () => {
- *   const actual = await vi.importActual("axios");
- *   return { ...actual, default: { ...actual.default, create: vi.fn(() => mockApi) } };
+ * vi.mock("../http", async () => {
+ *   const actual = await vi.importActual("../http");
+ *   return { ...actual, createHttpClient: vi.fn(() => mockApi) };
  * });
  * ```
  *
@@ -30,7 +30,6 @@ export interface MockApi {
   post: ReturnType<typeof vi.fn>;
   patch: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
-  interceptors: { response: { use: ReturnType<typeof vi.fn> } };
 }
 
 export function useMockApi(): { mockApi: MockApi } {
@@ -40,7 +39,6 @@ export function useMockApi(): { mockApi: MockApi } {
       post: vi.fn(),
       patch: vi.fn(),
       delete: vi.fn(),
-      interceptors: { response: { use: vi.fn() } },
     },
   }));
 }

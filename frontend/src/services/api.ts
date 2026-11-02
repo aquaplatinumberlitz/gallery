@@ -1,4 +1,4 @@
-import axios, { AxiosError } from "axios";
+import { createHttpClient, HttpError, type HttpErrorLike } from "./http";
 import type {
   BrowseResponse,
   FacetsResponse,
@@ -147,7 +147,12 @@ export class GalleryAPIError extends Error {
     this.relatedStatus = relatedStatus;
   }
 
-  static fromAxiosError(error: AxiosError): GalleryAPIError {
+  /** @deprecated Kept for callers of the pre-fetch name; use {@link GalleryAPIError.fromHttpError}. */
+  static fromAxiosError(error: HttpErrorLike): GalleryAPIError {
+    return GalleryAPIError.fromHttpError(error);
+  }
+
+  static fromHttpError(error: HttpErrorLike): GalleryAPIError {
     // Network error - cannot connect to server
     if (!error.response) {
       if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
@@ -312,20 +317,13 @@ export class GalleryAPIError extends Error {
   }
 }
 
-const api = axios.create({
+// Every HttpError (non-2xx, timeout, cancel, network) is rejected as a GalleryAPIError, as the axios
+// response interceptor did; anything else (a programming error) passes through unchanged.
+const api = createHttpClient({
   baseURL: API_BASE,
   timeout: 30000, // 30 second timeout
+  mapError: GalleryAPIError.fromHttpError,
 });
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error instanceof AxiosError) {
-      return Promise.reject(GalleryAPIError.fromAxiosError(error));
-    }
-    return Promise.reject(error);
-  },
-);
 
 export const browseDirectory = async (
   libraryId: number,
@@ -346,8 +344,8 @@ export const browseDirectory = async (
       next_cursor: data.next_cursor ?? data.next_media_cursor ?? null,
     };
   } catch (error) {
-    if (error instanceof AxiosError) {
-      throw GalleryAPIError.fromAxiosError(error);
+    if (error instanceof HttpError) {
+      throw GalleryAPIError.fromHttpError(error);
     }
     throw error;
   }

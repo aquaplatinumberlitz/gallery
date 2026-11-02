@@ -25,7 +25,7 @@ This document records how major third-party libraries are used in the current co
 | Vue 3                                                           | Frontend framework                                                                | `frontend/src/main.ts`, `frontend/src/App.vue`, components/layouts                                    | Composition API and SFCs                                                                                |
 | Vue Router                                                      | Gallery, metadata inspector, and admin routing                                    | `frontend/src/router/index.ts`, `frontend/src/layouts/DesktopLayout.vue`, `frontend/src/App.vue`      | Production fallback is served by backend static route                                                   |
 | Pinia                                                           | UI/navigation state stores                                                        | `frontend/src/stores/`                                                                                | Server state belongs in TanStack Query, not Pinia                                                       |
-| Axios                                                           | API client and error mapping                                                      | `frontend/src/services/api.ts`                                                                        | Uses `VITE_API_URL` or same-origin proxy                                                                |
+| `fetch` (no library)                                            | API client and error mapping                                                      | `frontend/src/services/http.ts`, `frontend/src/services/api.ts`                                       | Axios removed (IP-11); uses `VITE_API_URL` or same-origin proxy                                         |
 | Vite                                                            | Frontend build/dev server                                                         | `frontend/vite.config.ts`                                                                             | Uses Vue plugin and Tailwind 4 Vite plugin                                                              |
 | Tailwind CSS 4                                                  | Utility layer and shadcn token bridge                                             | `frontend/src/styles/tailwind.css`, `frontend/src/styles/_shadcn-token-bridge.css`, component classes | Coexists with SCSS lightbox/layout styles                                                               |
 | SCSS / Sass                                                     | Global layout, lightbox, breakpoint styles                                        | `frontend/src/styles/*.scss`                                                                          | Keep breakpoints in sync with `useDevice.ts`                                                            |
@@ -264,11 +264,15 @@ Pinia should not duplicate new server/API response state that belongs in TanStac
 
 `motion-v` powers custom spring-physics UI motion that is not already owned by shadcn-vue/Reka primitives: gallery/header collapse and expand (`AppHeader.vue`, `AlbumScroller.vue`, `LibraryInspector.vue`), mobile/tablet search focus motion (`MobileHeader.vue`, `TabletHeader.vue`), and small height-aware progress reveals (`IndexStatusCard.vue`, `IndexStatusDetailsPopover.vue`). It animates `height: 'auto'` natively — no `interpolate-size` opt-in or `max-height` dead-zone hacks needed — and uses spring transitions (`stiffness`/`damping`) for organic motion, with `opacity`/`y` fading handled via tween transitions so fades stay in sync with the spring-driven height change. App-level `MotionConfig reduced-motion="user"` keeps these animations aligned with the user's reduced-motion preference.
 
-### Axios
+### HTTP client (`fetch`, Axios removed)
 
-`frontend/src/services/api.ts` owns the Axios instance, API wrapper functions, URL builders, and backend error mapping to `GalleryAPIError`.
+`frontend/src/services/http.ts` is a small `fetch` client (`get`/`post`/`patch`/`delete` resolving to `{ data, status }`) that replaced Axios (image pipeline plan IP-11, audit GR-04). `frontend/src/services/api.ts` owns the client instance (`createHttpClient`, 30 s timeout), the API wrapper functions, URL builders, and the backend error mapping to `GalleryAPIError` (`GalleryAPIError.fromHttpError`; `fromAxiosError` is a deprecated alias).
+
+The wrapper keeps Axios' observable behaviour, verified against Axios 1.18 in Chromium before removal: the same query serialisation (`undefined`/`null` skipped, arrays as `key[]=a&key[]=b`, nested keys as `a[b]`, `: $ ,` unescaped, space as `+`), baseURL joining, `Accept` and JSON `Content-Type` headers, JSON parsing of any 2xx/4xx/5xx body with the raw text kept when it is not JSON, and Axios' error codes and messages (`ERR_BAD_REQUEST`, `ERR_BAD_RESPONSE`, `ECONNABORTED` "timeout of Nms exceeded", `ERR_CANCELED`, `ERR_NETWORK`). `AbortSignal` is forwarded; a cancelled request still rejects as the `network` `GalleryAPIError`, as the Axios `CanceledError` did. Credentials use the `fetch` default (`same-origin`), identical to XHR without `withCredentials`. Not carried over because the app never used them: interceptors, XSRF cookie forwarding, upload/download progress, request/response transformers, `responseType`.
 
 `VITE_API_URL` sets the base URL. In Vite dev without `VITE_API_URL`, requests are same-origin and `/api` is proxied by `vite.config.ts`.
+
+Axios is no longer a dependency. It appeared in `pnpm-lock.yaml` only as an auto-resolved optional peer of `@vueuse/integrations` (which `@douxcode/vue-spring-bottom-sheet` uses for `useFocusTrap` only), not as a requirement of the sheet; the lockfile was re-resolved so Axios, `follow-redirects` and `form-data` are gone.
 
 ### TanStack Query
 
@@ -294,7 +298,7 @@ Integration files:
 
 Default client behavior: 1 minute stale time, 10 minute garbage collection, one retry, no refetch on window focus.
 
-Unified search forwards TanStack Query cancellation to Axios, merges canonical
+Unified search forwards TanStack Query cancellation to the HTTP client, merges canonical
 pages by `(library_id, asset_id)`, preserves case-sensitive fallback paths, and
 keeps earlier pages visible when a later page fails. Facet keys include the
 canonical scope, library ID, and normalized folder path.
@@ -304,7 +308,7 @@ is pending/building; rebuild and cancellation are mutations that invalidate the
 matching status key.
 
 Related Assets uses a complete schema/reference/profile/scope/limit query key,
-forwards cancellation to Axios, and retries only typed retryable API errors.
+forwards cancellation to the HTTP client, and retries only typed retryable API errors.
 Reference changes intentionally do not retain the prior reference response;
 background refetch failures retain the last successful Query-owned response.
 The modal always supplies the combined `related` profile, and no match-type UI
@@ -313,7 +317,7 @@ storage.
 
 The relation feature adds no image or ML dependency. Pillow, already used by
 the backend image pipeline, computes persisted fingerprints in bounded
-background work; Vue, Pinia, Axios, and TanStack Query provide the UI and
+background work; Vue, Pinia, the `fetch` HTTP client, and TanStack Query provide the UI and
 request lifecycle without a model runtime, vector extension, or sidecar.
 The deterministic 100,000-asset relation fixture stores synthetic catalog,
 signature, and fingerprint rows directly in the existing SQLite database and

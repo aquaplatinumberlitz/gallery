@@ -39,7 +39,7 @@ Designed for local/personal use. It is not intended as a hardened public deploym
 | Metadata Table            | @tanstack/vue-table                                                      |
 | UI Components             | Local shadcn-vue-style components, Reka UI, CVA, clsx, tailwind-merge    |
 | Styling                   | Tailwind CSS 4, SCSS, CSS custom properties                              |
-| HTTP Client               | Axios                                                                    |
+| HTTP Client               | `fetch` wrapper (`frontend/src/services/http.ts`)                        |
 | Icons                     | lucide-vue-next                                                          |
 
 ## Quick Start

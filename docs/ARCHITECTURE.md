@@ -1007,7 +1007,8 @@ Key paths:
 | `frontend/src/composables/`                               | Query wrappers including Related Assets, device detection, PhotoSwipe lifecycle, metadata/comparison helpers, theme, haptics  |
 | `frontend/src/query/`                                     | TanStack Query client, normalized query keys, browse prefetch helpers                                                          |
 | `frontend/src/stores/`                                    | Pinia stores for gallery UI/navigation, lightbox, Related Assets session UI, and toasts                                        |
-| `frontend/src/services/api.ts`                            | Axios client, endpoint wrappers, URL helpers, API error mapping                                                                |
+| `frontend/src/services/api.ts`                            | `fetch` client instance, endpoint wrappers, URL helpers, API error mapping                                                     |
+| `frontend/src/services/http.ts`                           | Small `fetch` JSON client that replaced Axios: Axios-compatible query encoding, errors, timeout, abort                         |
 | `frontend/src/styles/`                                    | Tailwind 4 entry, shadcn token bridge, SCSS tokens, breakpoints, lightbox styles                                               |
 
 ### State Ownership
@@ -1187,7 +1188,7 @@ Header search or AdvancedSearchDrawer
   `returned`, and `limit`. Legacy `albums`, `photos`, `videos`, and `prompt`
   fields remain for compatibility; the active gallery search UI renders
   `media`.
-- TanStack Query passes its `AbortSignal` through Axios. Canonical media pages
+- TanStack Query passes its `AbortSignal` through the HTTP client. Canonical media pages
   deduplicate by `(library_id, asset_id)` and use the exact case-preserved path
   only for compatibility rows that lack IDs; legacy arrays are consumed only
   when canonical `media` is absent.
@@ -1248,7 +1249,7 @@ Header search or AdvancedSearchDrawer
 - Image-card and lightbox overflow actions open the global Related Assets
   sheet with the current canonical scope. The sheet always sends the combined
   `related` profile and has no match-type tab, selector, or persisted selection.
-  TanStack Query owns each complete reference/scope response and forwards cancellation through Axios.
+  TanStack Query owns each complete reference/scope response and forwards cancellation through the HTTP client.
   Reference changes use a new key and do not show the prior reference's data;
   a failed background refresh retains the last successful response with a
   visible retry action. The ephemeral Pinia store owns only sheet state.
