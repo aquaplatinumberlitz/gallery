@@ -12,7 +12,9 @@
 //
 // Usage:
 //   BASE=http://127.0.0.1:8080 PROFILE=4g ALBUM=real node scripts/perf/web_vitals/album_open_profile.cjs
-// Env: BASE (default http://127.0.0.1:8080), PROFILE = 4g (default) | slow4g | desktop, ALBUM (default real).
+// Env: BASE (default http://127.0.0.1:8080), PROFILE = 4g (default) | slow4g | desktop, ALBUM (default real),
+// CLICK_FORCE=1 skips Playwright's actionability checks (scroll-into-view, hit-target test), which otherwise run
+// ~10-15 ms of page-side script (elementsFromPoint) as a task of their own right before the click.
 // Output: one JSON object: firstCard (ms from click to the first photo card), lt ([start, duration] of long tasks
 // relative to the click), api ([pathname, start, duration, transferSize] of non-thumbnail /api requests),
 // cards (photo cards rendered), dom (element count).
@@ -69,7 +71,7 @@ const mobile = PROFILE !== "desktop";
     window.__lt.length = 0;
     return performance.now();
   });
-  await card.click();
+  await card.click(process.env.CLICK_FORCE ? { force: true } : undefined);
   await p.getByTestId("photo-card").first().waitFor();
   const c1 = await p.evaluate(() => performance.now());
   await p.waitForTimeout(1500);
