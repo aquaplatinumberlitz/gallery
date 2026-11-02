@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
 import { mount } from "@vue/test-utils";
 import { createIsolatedQueryClient } from "@/test/queryClient";
@@ -6,6 +6,18 @@ import { VueQueryPlugin } from "@tanstack/vue-query";
 import { nextTick, ref } from "vue";
 import { fuzzySearchFileNodes } from "@/utils/fuzzySearch";
 import { GalleryAPIError } from "@/services/api";
+
+// The grid mounts its rows in steps (one task each, see GalleryGrid "STAGE_*"): wait until the row count stops
+// growing before asserting on the settled grid.
+async function settleRowStaging(wrapper: { findAll: (selector: string) => unknown[] }) {
+  let previous = -1;
+  for (let i = 0; i < 80; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const rows = wrapper.findAll(".tanstack-virtual-row").length;
+    if (rows > 0 && rows === previous) return;
+    previous = rows;
+  }
+}
 
 let mockIsLoading = ref(false);
 let mockIsFetching = ref(false);
@@ -22,23 +34,27 @@ const mockRefetch = vi.fn();
 const mockFetchNextPage = vi.fn();
 const mockUseUnifiedSearchQuery = vi.hoisted(() => vi.fn());
 const mockRouterPush = vi.hoisted(() => vi.fn());
+const mockBrowseOptions = vi.hoisted(() => ({ current: undefined as undefined | Record<string, any> }));
 
 vi.mock("@/composables/useInfiniteBrowseQuery", () => ({
-  useInfiniteBrowseQuery: () => ({
-    isLoading: mockIsLoading,
-    isFetching: mockIsFetching,
-    isSuccess: mockIsSuccess,
-    isPending: mockIsPending,
-    hasNextPage: mockHasNextPage,
-    isFetchingNextPage: mockIsFetchingNextPage,
-    error: mockError,
-    refetch: mockRefetch,
-    fetchNextPage: mockFetchNextPage,
-    folders: mockFolders,
-    media: mockMedia,
-    activeFolderPath: mockActiveFolderPath,
-    hasActivePage: mockHasActivePage,
-  }),
+  useInfiniteBrowseQuery: (_library: unknown, _path: unknown, _offline: unknown, options?: Record<string, any>) => {
+    mockBrowseOptions.current = options;
+    return {
+      isLoading: mockIsLoading,
+      isFetching: mockIsFetching,
+      isSuccess: mockIsSuccess,
+      isPending: mockIsPending,
+      hasNextPage: mockHasNextPage,
+      isFetchingNextPage: mockIsFetchingNextPage,
+      error: mockError,
+      refetch: mockRefetch,
+      fetchNextPage: mockFetchNextPage,
+      folders: mockFolders,
+      media: mockMedia,
+      activeFolderPath: mockActiveFolderPath,
+      hasActivePage: mockHasActivePage,
+    };
+  },
 }));
 
 vi.mock("@/composables/useUnifiedSearchQuery", () => ({
@@ -406,7 +422,7 @@ describe("GalleryGrid", () => {
       mockMedia = ref(versioned);
 
       const wrapper = await mountSubject({ props: { isMobile }, stubs: versionProbe });
-      await nextTick();
+      await settleRowStaging(wrapper);
 
       const cards = wrapper.findAll(".photo-card");
       expect(cards.map((c) => [c.attributes("data-src"), c.attributes("data-version")])).toEqual([
@@ -491,7 +507,7 @@ describe("GalleryGrid", () => {
       mockMedia = ref(manyImages(400));
 
       const wrapper = await mountSubject({ props: { isMobile: true }, stubs: priorityProbe });
-      await nextTick();
+      await settleRowStaging(wrapper);
 
       const rows = wrapper.findAll(".tanstack-virtual-row");
       const cards = wrapper.findAll(".photo-card");
@@ -526,13 +542,155 @@ describe("GalleryGrid", () => {
       mockMedia = ref(manyImages(40));
 
       const wrapper = await mountSubject({ props: { isMobile: true }, stubs: priorityProbe });
-      await nextTick();
+      await settleRowStaging(wrapper);
 
       const rows = wrapper.findAll(".tanstack-virtual-row");
       expect(rows[0].findAll("[data-priority='high']")).toHaveLength(4);
       for (const row of rows.slice(1)) {
         expect(row.findAll("[data-priority='high']")).toHaveLength(0);
       }
+    });
+  });
+
+  describe("album open: staged rows and thumbnail warm-up", () => {
+    const images = (count: number, prefix = "stage") =>
+      Array.from({ length: count }, (_, i) => ({
+        name: `${prefix}-${i}.png`,
+        path: `/photos/${prefix}-${i}.png`,
+        type: "image",
+        mtime: count - i,
+      }));
+    beforeEach(() => {
+      vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(800);
+      vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(390);
+      document.head.querySelectorAll("link[rel='preload']").forEach((link) => link.remove());
+    });
+
+    const rowCountsUntilSettled = async (wrapper: { findAll: (selector: string) => unknown[] }) => {
+      const counts: number[] = [];
+      for (let i = 0; i < 60; i += 1) {
+        counts.push(wrapper.findAll(".tanstack-virtual-row").length);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (counts.length > 8 && counts.slice(-6).every((count) => count === counts[counts.length - 1])) break;
+      }
+      return counts;
+    };
+
+    it("mounts the grid container first and then adds rows in steps until the range is complete", async () => {
+      mockMedia = ref(images(400));
+
+      const wrapper = await mountSubject({ props: { isMobile: true } });
+      await nextTick();
+      const counts = await rowCountsUntilSettled(wrapper);
+
+      const settled = counts[counts.length - 1];
+      expect(wrapper.find(".mobile-scroller").exists()).toBe(true);
+      // First task: the container without rows. Then growth in steps, never shrinking, to the full range.
+      expect(counts[0]).toBe(0);
+      expect(settled).toBeGreaterThan(2);
+      expect(counts.every((count, i) => i === 0 || count >= counts[i - 1])).toBe(true);
+      const firstRows = counts.find((count) => count > 0)!;
+      expect(firstRows).toBe(1);
+      expect(new Set(counts.filter((count) => count > 0 && count < settled)).size).toBeGreaterThan(0);
+    });
+
+    it("ends the staging as soon as the user scrolls, so every row in range is mounted", async () => {
+      mockMedia = ref(images(400));
+
+      const wrapper = await mountSubject({ props: { isMobile: true } });
+      await nextTick();
+      // Wait for the first rows, then scroll before the staging has finished.
+      for (let i = 0; i < 20 && wrapper.findAll(".tanstack-virtual-row").length === 0; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      const before = wrapper.findAll(".tanstack-virtual-row").length;
+      wrapper.get(".mobile-scroller").element.scrollTop = 40;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(before).toBeGreaterThan(0);
+      expect(wrapper.findAll(".tanstack-virtual-row").length).toBeGreaterThan(before);
+    });
+
+    describe("thumbnail warm-up on first page", () => {
+      const skeletonRect = (width: number, height: number, top = 100) =>
+        ({ width, height, top, left: 0, right: width, bottom: top + height, x: 0, y: top }) as DOMRect;
+
+      const mountSkeleton = async () => {
+        mockHasActivePage = ref(false);
+        mockIsLoading = ref(true);
+        mockIsPending = ref(true);
+        mockIsSuccess = ref(false);
+        const wrapper = await mountSubject({ props: { isMobile: true } });
+        await nextTick();
+        expect(wrapper.find(".skeleton-grid").exists()).toBe(true);
+        return wrapper;
+      };
+
+      const originalDpr = window.devicePixelRatio;
+      afterEach(() => {
+        Object.defineProperty(window, "devicePixelRatio", { value: originalDpr, configurable: true });
+      });
+      beforeEach(() => {
+        Object.defineProperty(window, "devicePixelRatio", { value: 2, configurable: true });
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+          return this.classList.contains("skeleton-grid") ? skeletonRect(390, 400) : skeletonRect(180, 180);
+        });
+      });
+
+      it("starts the first viewport's thumbnails from the query function, before the grid renders", async () => {
+        const wrapper = await mountSkeleton();
+        const page = { library_id: 1, request_path: "/photos", media: images(30, "warm"), folders: [] };
+
+        const handler = mockBrowseOptions.current?.onFirstPageFetched;
+        expect(handler).toBeTypeOf("function");
+        const result = handler!(page);
+
+        const links = [...document.head.querySelectorAll<HTMLLinkElement>("link[rel='preload'][as='image']")];
+        // 4 columns, rows that start above the 768px viewport: ceil((768 - (100 + 64)) / 180) = 4 rows.
+        expect(links).toHaveLength(16);
+        expect(links[0].href).toContain("/api/thumbnail");
+        expect(links[0].href).toContain("warm-0.png");
+        expect(links[0].getAttribute("imagesrcset")).toContain("256w");
+        expect(links[0].getAttribute("imagesizes")).toBe("360px");
+        expect(links.slice(0, 4).every((link) => link.getAttribute("fetchpriority") === "high")).toBe(true);
+        expect(links.slice(4).every((link) => link.getAttribute("fetchpriority") === "auto")).toBe(true);
+        // The query function awaits this, so the render that mounts the grid runs in the next task.
+        expect(result).toBeInstanceOf(Promise);
+        await result;
+        wrapper.unmount();
+      });
+
+      it("warms the same page only once", async () => {
+        const wrapper = await mountSkeleton();
+        const page = { library_id: 1, request_path: "/photos", media: images(8, "once"), folders: [] };
+        const handler = mockBrowseOptions.current!.onFirstPageFetched;
+
+        await handler(page);
+        const first = document.head.querySelectorAll("link[rel='preload']").length;
+        const second = handler(page);
+
+        expect(first).toBeGreaterThan(0);
+        expect(second).toBeUndefined();
+        expect(document.head.querySelectorAll("link[rel='preload']")).toHaveLength(first);
+        wrapper.unmount();
+      });
+
+      it("does nothing without a skeleton to measure", async () => {
+        mockMedia = ref(images(8, "noskel"));
+        const wrapper = await mountSubject({ props: { isMobile: true } });
+        await nextTick();
+
+        const result = mockBrowseOptions.current!.onFirstPageFetched({
+          library_id: 1,
+          request_path: "/photos",
+          media: images(8, "noskel"),
+          folders: [],
+        });
+
+        expect(result).toBeUndefined();
+        expect(document.head.querySelectorAll("link[rel='preload']")).toHaveLength(0);
+        wrapper.unmount();
+      });
     });
   });
 });

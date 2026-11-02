@@ -1,5 +1,5 @@
 import { computed, watch, type CSSProperties, type ComputedRef, type Ref, type WatchSource } from "vue";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { defaultRangeExtractor, useVirtualizer, type Range } from "@tanstack/vue-virtual";
 
 export interface VirtualGridRow {
   id: string;
@@ -21,7 +21,21 @@ interface UseVirtualGridRowsOptions<TRow extends VirtualGridRow> {
    * the spacer, so `getVirtualRowStyle` subtracts it again.
    */
   scrollMargin?: Ref<number>;
+  /**
+   * Caps how many rows are rendered, counted from the first row of the range (default: no cap). A grid that
+   * mounts many cards at once raises the cap in steps, one task each, so no single task renders them all.
+   * `Infinity` removes the cap.
+   */
+  rowBudget?: Ref<number>;
 }
+
+/** Range extractor that keeps at most `budget` rows, counted from the first row of the range. */
+export const budgetedRangeExtractor =
+  (budget: number) =>
+  (range: Range): number[] => {
+    const indexes = defaultRangeExtractor(range);
+    return Number.isFinite(budget) ? indexes.slice(0, Math.max(0, budget)) : indexes;
+  };
 
 export const chunkItems = <T>(items: readonly T[], chunkSize: number): T[][] => {
   const size = Math.max(1, chunkSize);
@@ -49,6 +63,7 @@ export function useVirtualGridRows<TRow extends VirtualGridRow>({
   overscan = 5,
   measureDeps = [],
   scrollMargin,
+  rowBudget,
 }: UseVirtualGridRowsOptions<TRow>) {
   const virtualizer = useVirtualizer<HTMLElement, HTMLElement>(
     computed(() => ({
@@ -56,6 +71,7 @@ export function useVirtualGridRows<TRow extends VirtualGridRow>({
       getScrollElement: () => scrollElement.value,
       estimateSize,
       overscan,
+      rangeExtractor: rowBudget ? budgetedRangeExtractor(rowBudget.value) : defaultRangeExtractor,
       scrollMargin: scrollMargin?.value ?? 0,
       getItemKey: (index: number) => rows.value[index]?.id ?? index,
     })),

@@ -30,10 +30,21 @@ const getCachedFirstPage = (
 const getCachedFirstPageUpdatedAt = (libraryId: number, requestPath: string | null, includeOffline: boolean) =>
   queryClient.getQueryState(queryKeys.browse(libraryId, requestPath, IMAGE_PAGE_SIZE, includeOffline))?.dataUpdatedAt;
 
+export interface InfiniteBrowseQueryOptions {
+  /**
+   * Called from the query function with each freshly fetched first page, before the data reaches Vue.
+   * Album open uses it to start the first viewport's thumbnails ahead of the render that mounts the grid.
+   * A returned promise is awaited, so the callback can end its task and let the render start in the next one.
+   * Errors thrown here never fail the query.
+   */
+  onFirstPageFetched?: (page: BrowseResponse) => void | Promise<void>;
+}
+
 export function useInfiniteBrowseQuery(
   libraryId: Ref<number | null | undefined>,
   path: Ref<string | null | undefined>,
   includeOffline?: Ref<boolean>,
+  options: InfiniteBrowseQueryOptions = {},
 ) {
   const normalizedPath = computed(() => normalizeBrowsePath(path.value));
   const activeLibraryId = computed(() => libraryId.value ?? null);
@@ -72,7 +83,15 @@ export function useInfiniteBrowseQuery(
         cursor: pageParam,
         includeOffline: requestIncludeOffline,
       });
-      return withBrowseRequestPath(result, requestPath);
+      const page = withBrowseRequestPath(result, requestPath);
+      if (pageParam === 0 && options.onFirstPageFetched) {
+        try {
+          await options.onFirstPageFetched(page);
+        } catch {
+          // A warm-up hint must never fail the browse request.
+        }
+      }
+      return page;
     },
     getNextPageParam: (lastPage) => lastPage.next_media_cursor ?? lastPage.next_cursor ?? undefined,
   });
