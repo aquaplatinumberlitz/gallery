@@ -168,16 +168,13 @@ function animation(){
 }
 
 function dm16_dora(){
-    $("#dm16_dora").animate({rotate:"7deg"}, 800, "swing").animate({rotate:"0deg"}, 800, "swing");
-    setTimeout(function() { dm16_dora(); }, 1600);
+    $("#dm16_dora").animate({rotate:"7deg"}, 800, "swing").animate({rotate:"0deg"}, 800, "swing", dm16_dora);
 }
 
 function dm16_gri(){
-    $("#dm16_gri").animate({top:"-=30px", left:"+=18px"}, 1600, "swing").animate({top:"+=30px", left:"-=18px"}, 1600, "swing");
-    setTimeout(function() { dm16_gri(); }, 3200);
+    $("#dm16_gri").animate({top:"-=30px", left:"+=18px"}, 1600, "swing").animate({top:"+=30px", left:"-=18px"}, 1600, "swing", dm16_gri);
 }
 
 function dm16_dorako(){
-    $("#dm16_dorako").animate({top:"+=20px"}, 2000, "swing").animate({top:"-=20px"}, 2000, "swing");
-    setTimeout(function() { dm16_dorako(); }, 4000);
+    $("#dm16_dorako").animate({top:"+=20px"}, 2000, "swing").animate({top:"-=20px"}, 2000, "swing", dm16_dorako);
 }

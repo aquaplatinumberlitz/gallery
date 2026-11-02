@@ -111,19 +111,16 @@ function animation(){
 }
 
 function balloon(){
-    $("#top_anniv_balloon").animate({top:"-=10px"}, 2000, 'easeInOutQuad').animate({top:"+=10px"}, 2000, 'easeInOutQuad');
-    setTimeout(balloon, 2000);
+    $("#top_anniv_balloon").animate({top:"-=10px"}, 2000, 'easeInOutQuad').animate({top:"+=10px"}, 2000, 'easeInOutQuad', balloon);
 }
 
 function adballoon(){
-    $("#top_anniv_adballoon1").animate({rotate:"3deg"}, 3000, 'easeInOutQuad').animate({rotate:"0deg"}, 3000, 'easeInOutQuad');
     $("#top_anniv_adballoon2").animate({rotate:"3deg"}, 3000, 'easeInOutQuad').animate({rotate:"0deg"}, 3000, 'easeInOutQuad');
-    setTimeout(adballoon, 6000);
+    $("#top_anniv_adballoon1").animate({rotate:"3deg"}, 3000, 'easeInOutQuad').animate({rotate:"0deg"}, 3000, 'easeInOutQuad', adballoon);
 }
 
 function dora(){
-    $("#top_anniv_dora").animate({rotate:"10deg"}, 500, 'easeInOutQuad').animate({rotate:"0deg"}, 500, 'easeInOutQuad');
-    setTimeout(dora, 1000);
+    $("#top_anniv_dora").animate({rotate:"10deg"}, 500, 'easeInOutQuad').animate({rotate:"0deg"}, 500, 'easeInOutQuad', dora);
 }
 
 // Cloud animation functions removed - this theme uses snowfall effect instead
@@ -132,6 +129,13 @@ function dora(){
 function initSnowfall() {
     var flakes = [];
     var flakeCount = 100;  // Increased to match legacy
+    // Window size is cached (refreshed on resize) instead of being read per flake per tick
+    var winW = $(window).width();
+    var winH = $(window).height();
+    $(window).resize(function() {
+        winW = $(window).width();
+        winH = $(window).height();
+    });
     var flakeImages = [
         'assets/img/ticker1.png',
         'assets/img/ticker2.png',
@@ -156,9 +160,7 @@ function initSnowfall() {
     }
     
     function createFlake(id) {
-        var elWidth = $(window).width();
-        var elHeight = $(window).height();
-        var x = random(0, elWidth);
+        var x = random(0, winW);
         var y = random(-100, -10);
         var size = random(11, 18);  // Match legacy size range
         var speed = random(8, 30) / 10;  // Match legacy speed range (0.8-3.0)
@@ -197,7 +199,7 @@ function initSnowfall() {
             update: function() {
                 this.y += this.speed;
                 
-                if (this.y > $(window).height() + 20) {
+                if (this.y > winH + 20) {
                     this.reset();
                 }
                 
@@ -209,13 +211,13 @@ function initSnowfall() {
                 this.step += this.stepSize;
                 this.x += Math.cos(this.step);
                 
-                if (this.x > $(window).width() - 22 || this.x < 22) {
+                if (this.x > winW - 22 || this.x < 22) {
                     this.reset();
                 }
             },
             reset: function() {
                 this.y = 0;
-                this.x = random(0, $(window).width());
+                this.x = random(0, winW);
                 this.stepSize = random(1, 10) / 100;
                 this.size = random(11, 18);
                 this.speed = random(8, 30) / 10;

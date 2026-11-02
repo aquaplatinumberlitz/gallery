@@ -170,7 +170,7 @@ a img {
 
 /* ===== NIGHT THEME ===== */
 #headerBG.night-theme {
-	background: url(../img/top_headbg_night.gif) repeat-x center top;
+	background: url(../img/top_headbg_night.webp) repeat-x center top;
 }
 
 /* Hide day elements in night theme */

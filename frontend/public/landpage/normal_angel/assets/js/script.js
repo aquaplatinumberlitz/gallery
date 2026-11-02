@@ -163,9 +163,22 @@ jQuery.extend( jQuery.easing, {
 })(jQuery);
 
 /* ===== THEME MANAGEMENT ===== */
+// localStorage can throw when storage is blocked (sandboxed iframe, privacy mode)
+function storageGet(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+}
+
+function storageSet(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) {}
+}
+
+function storageRemove(key) {
+    try { localStorage.removeItem(key); } catch (e) {}
+}
+
 function getThemeToUse() {
-    var manualTheme = localStorage.getItem('themePreference');
-    var isAutoMode = localStorage.getItem('themeAutoMode') !== 'false';
+    var manualTheme = storageGet('themePreference');
+    var isAutoMode = storageGet('themeAutoMode') !== 'false';
     var hours = new Date().getHours();
     
     if (manualTheme && !isAutoMode) {
@@ -176,7 +189,7 @@ function getThemeToUse() {
 }
 
 function isAutoMode() {
-    return localStorage.getItem('themeAutoMode') !== 'false';
+    return storageGet('themeAutoMode') !== 'false';
 }
 
 /* ===== MAIN FUNCTIONALITY ===== */
@@ -205,18 +218,23 @@ $(document).ready(function() {
     
     // Theme toggle click handler
     if (themeToggle) {
+        var toggleClickTimer = null;
         $(themeToggle).on('click', function() {
-            var theme = getThemeToUse();
-            var newTheme = theme === 'day' ? 'night' : 'day';
-            localStorage.setItem('themePreference', newTheme);
-            localStorage.setItem('themeAutoMode', 'false');
-            location.reload();
+            clearTimeout(toggleClickTimer);
+            toggleClickTimer = setTimeout(function() {
+                var theme = getThemeToUse();
+                var newTheme = theme === 'day' ? 'night' : 'day';
+                storageSet('themePreference', newTheme);
+                storageSet('themeAutoMode', 'false');
+                location.reload();
+            }, 250);
         });
         
         // Double click to return to auto mode
         $(themeToggle).on('dblclick', function() {
-            localStorage.setItem('themeAutoMode', 'true');
-            localStorage.removeItem('themePreference');
+            clearTimeout(toggleClickTimer);
+            storageSet('themeAutoMode', 'true');
+            storageRemove('themePreference');
             location.reload();
         });
     }
@@ -287,44 +305,42 @@ function startNightAnimations() {
 
 function animateMinidora() {
     $("#minidora_day").animate({top:"-=15px"}, 1000, 'easeInOutSine')
-                      .animate({top:"+=15px"}, 1000, 'easeInOutSine');
-    setTimeout(animateMinidora, 2000);
+                      .animate({top:"+=15px"}, 1000, 'easeInOutSine', animateMinidora);
 }
 
 function animateDora() {
     $("#dora_day").animate({rotate:"10deg"}, 800, 'easeInOutQuad')
-                  .animate({rotate:"0deg"}, 800, 'easeInOutQuad');
-    setTimeout(animateDora, 1600);
+                  .animate({rotate:"0deg"}, 800, 'easeInOutQuad', animateDora);
 }
 
 function animateDorami() {
     $("#dorami_day").animate({rotate:"4deg"}, 120, 'easeInOutQuad')
-                    .animate({rotate:"0deg"}, 120, 'easeInOutQuad');
-    setTimeout(animateDorami, 240);
+                    .animate({rotate:"0deg"}, 120, 'easeInOutQuad', animateDorami);
 }
 
 function animateClouds() {
+    animateCloud("#cloud1", 65000, "-300px");
+    animateCloud("#cloud2", 62000, "-150px");
+    animateCloud("#cloud3", 34000, "-100px");
+    animateCloud("#cloud4", 40000, "-150px");
+    animateCloud("#cloud5", 58000, "-200px");
+}
+
+function animateCloud(selector, duration, resetLeft) {
     var cloudWidth = Math.floor($(window).width() + 600);
-    
-    $("#cloud1").animate({left: cloudWidth}, 65000, 'linear').animate({left: "-300px"}, 0);
-    $("#cloud2").animate({left: cloudWidth}, 62000, 'linear').animate({left: "-150px"}, 0);
-    $("#cloud3").animate({left: cloudWidth}, 34000, 'linear').animate({left: "-100px"}, 0);
-    $("#cloud4").animate({left: cloudWidth}, 40000, 'linear').animate({left: "-150px"}, 0);
-    $("#cloud5").animate({left: cloudWidth}, 58000, 'linear').animate({left: "-200px"}, 0);
-    
-    setTimeout(animateClouds, 1000);
+    $(selector).animate({left: cloudWidth}, duration, 'linear').animate({left: resetLeft}, 0, function() {
+        animateCloud(selector, duration, resetLeft);
+    });
 }
 
 function animateDoraAtNight() {
     $("#dora_night").animate({rotate:"15deg"}, 2000, 'easeInOutQuad')
-                    .animate({rotate:"0deg"}, 2000, 'easeInOutQuad');
-    setTimeout(animateDoraAtNight, 4000);
+                    .animate({rotate:"0deg"}, 2000, 'easeInOutQuad', animateDoraAtNight);
 }
 
 function animateDoramiAtNight() {
     $("#dorami_night").animate({rotate:"10deg"}, 2000, 'easeInOutQuad')
-                      .animate({rotate:"0deg"}, 2000, 'easeInOutQuad');
-    setTimeout(animateDoramiAtNight, 4000);
+                      .animate({rotate:"0deg"}, 2000, 'easeInOutQuad', animateDoramiAtNight);
 }
 
 /* ===== BACK TO TOP FUNCTIONALITY ===== */
