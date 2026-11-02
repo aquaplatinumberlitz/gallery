@@ -8,7 +8,7 @@ import { useGalleryStore } from "../stores/gallery";
 import { useFieldedSearch } from "@/composables/useFieldedSearch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRouteChrome } from "@/composables/useRouteChrome";
-import { AnimatePresence, motion } from "motion-v";
+import { AnimatePresence, m } from "motion-v";
 import SearchFilterChips from "./SearchFilterChips.vue";
 import type { SearchScope } from "@/types";
 
@@ -142,7 +142,7 @@ function openAdvancedSearch() {
 
     <Tooltip v-if="isSearchActive">
       <TooltipTrigger as-child>
-        <motion.button
+        <m.button
           class="th-btn th-back-btn"
           :initial="{ opacity: 0, x: -6 }"
           :animate="{ opacity: 1, x: 0 }"
@@ -151,7 +151,7 @@ function openAdvancedSearch() {
           aria-label="Close search"
         >
           <ArrowLeft class="th-header-icon" />
-        </motion.button>
+        </m.button>
       </TooltipTrigger>
       <TooltipContent>Close search</TooltipContent>
     </Tooltip>
@@ -172,7 +172,7 @@ function openAdvancedSearch() {
     </div>
 
     <!-- Center: expandable search input (search mode) -->
-    <motion.div
+    <m.div
       v-if="isSearchActive"
       class="th-search-expanded"
       :initial="{ opacity: 0, scaleX: 0.72 }"
@@ -209,7 +209,7 @@ function openAdvancedSearch() {
       <button class="th-btn th-advanced-search" @click="openAdvancedSearch" aria-label="Advanced Search">
         <SlidersHorizontal class="th-header-icon" />
       </button>
-    </motion.div>
+    </m.div>
 
     <!-- Right: actions (hidden in search mode) -->
     <div v-show="!isSearchActive" class="th-actions">
@@ -268,7 +268,7 @@ function openAdvancedSearch() {
 
   <!-- Focus overlay -->
   <AnimatePresence :initial="false">
-    <motion.div
+    <m.div
       v-if="isSearchActive"
       class="th-search-overlay"
       :class="{ 'th-search-has-query': hasQuery }"

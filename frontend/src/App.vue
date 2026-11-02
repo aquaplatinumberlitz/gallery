@@ -16,7 +16,7 @@ import { useRouter } from "vue-router";
 import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
 import { useRouteChrome } from "@/composables/useRouteChrome";
 import { useSidebarTreeQuery } from "./composables/useSidebarTreeQuery";
-import { MotionConfig } from "motion-v";
+import MotionProvider from "@/components/MotionProvider.vue";
 import { useFieldedSearch } from "./composables/useFieldedSearch";
 import { useSearchUrlSync } from "./composables/useSearchUrlSync";
 import type { FieldFilter, PersistableSearchRequestV1 } from "./types";
@@ -237,7 +237,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
 </script>
 
 <template>
-  <MotionConfig reduced-motion="user">
+  <MotionProvider>
     <TooltipProvider :delay-duration="300" :skip-delay-duration="100">
       <a v-if="!showIntro" href="#main-content" class="skip-link">Skip to main content</a>
 
@@ -340,7 +340,7 @@ const canForward = computed(() => galleryStore.historyIndex < galleryStore.histo
         position="bottom"
       />
     </TooltipProvider>
-  </MotionConfig>
+  </MotionProvider>
 </template>
 
 <style scoped>
