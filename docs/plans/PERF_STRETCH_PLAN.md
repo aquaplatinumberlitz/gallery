@@ -181,3 +181,4 @@ median of 3 runs.
 
 | Track | Item | Status | Evidence |
 |-------|------|--------|----------|
+| H | H1-H3: harness in `scripts/perf/web_vitals/` (six scripts, `lib.cjs`, `make_photo_fixture.py`, README); linked from `PERFORMANCE_TESTING.md`; `TEST_CATALOG.md` rows | Done | `perf/st-harness` @ `125789c`. Smoke run: 20-image fixture, backend on 127.0.0.1 with `PRODUCTION=1`, `serve_dist.cjs --mode tuned` and `serve_dist_h2.cjs`, all six scripts ran, backend and servers stopped by PID. `./test.sh lint` and `./test.sh docs` exit 0. |
