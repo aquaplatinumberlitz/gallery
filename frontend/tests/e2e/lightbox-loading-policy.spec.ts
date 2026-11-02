@@ -60,6 +60,8 @@ async function installStubbedGallery(
   page: Page,
   options: {
     failPreviewFor?: string;
+    /** Holds the response of one slide's preview until `release` resolves (models a slow link). */
+    holdPreviewFor?: { path: string; release: Promise<void> };
     includeScanDimensions?: boolean;
     metadataDimensions?: { width: number; height: number } | null;
     previewNaturalSize?: { width: number; height: number };
@@ -144,6 +146,10 @@ async function installStubbedGallery(
         body: JSON.stringify([]),
       });
       return;
+    }
+
+    if (url.pathname === "/api/preview" && request.path === options.holdPreviewFor?.path) {
+      await options.holdPreviewFor.release;
     }
 
     if (url.pathname === "/api/preview" && request.path === options.failPreviewFor) {
@@ -348,6 +354,25 @@ test("next and previous preload neighboring previews without originals", async (
   await expect.poll(() => requestedPath(requests, "/api/preview", imagePaths[2])).toBe(true);
   await page.waitForTimeout(500); // negative assertion window: verify no original image requests during preload
 
+  expect(requestsFor(requests, "/api/image")).toHaveLength(0);
+});
+
+test("neighbour previews wait for the current preview, then preload", async ({ page }) => {
+  let releaseCurrent!: () => void;
+  const release = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const requests = await installStubbedGallery(page, { holdPreviewFor: { path: imagePaths[1], release } });
+  await openStubbedGallery(page, requests);
+  await openLightbox(page, requests, 1);
+
+  // Neighbours are queued by PhotoSwipe once the opening animation ends; give them time to (wrongly) start.
+  await page.waitForTimeout(800); // negative assertion window: neighbours must stay unrequested
+  const previewPaths = () => requestsFor(requests, "/api/preview").map((request) => request.path);
+  expect(previewPaths()).toEqual([imagePaths[1]]);
+
+  releaseCurrent();
+  await expect.poll(() => previewPaths()).toEqual(expect.arrayContaining([imagePaths[0], imagePaths[2]]));
   expect(requestsFor(requests, "/api/image")).toHaveLength(0);
 });
 

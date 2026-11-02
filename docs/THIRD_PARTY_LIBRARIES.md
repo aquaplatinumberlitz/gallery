@@ -36,7 +36,7 @@ This document records how major third-party libraries are used in the current co
 | @vueuse/core                                                    | Browser/reactivity mechanics (clipboard, debounce, breakpoints, observers, localStorage) | `frontend/src/composables/useGalleryTheme.ts`, `frontend/src/components/ui/`, `frontend/src/composables/useClipboard.ts`, `frontend/src/composables/useScrollVisibility.ts` | VueUse owns mechanics; Gallery owns policy/UX guards. Used for clipboard, debounce, breakpoints/window size, event listeners, resize/mutation/intersection observers, localStorage, theme helpers. |
 | @tanstack/vue-query                                             | Server-state caching                                                              | `frontend/src/query/`, Query composables                                                              | Owns API data, stale time, retries, GC                                                                  |
 | @tanstack/vue-query-devtools                                    | Development Query inspection                                                      | `frontend/src/App.vue`, `frontend/src/utils/queryDevtoolsGate.ts`, `frontend/package.json`            | Opt-in: `VITE_DEVTOOLS=true` or `?devtools=1` (dev builds)                                              |
-| @tanstack/vue-virtual                                           | Row-based large gallery grid and Library Inspector table body                     | `frontend/src/components/GalleryGrid.vue`, `frontend/src/components/LibraryInspector.vue`             | Desktop/tablet grid virtualization; inspector renders the visible table-row window plus overscan        |
+| @tanstack/vue-virtual                                           | Row-based large gallery grid and Library Inspector table body                     | `frontend/src/components/GalleryGrid.vue`, `frontend/src/components/LibraryInspector.vue`             | Desktop/tablet/mobile grid virtualization; inspector renders the visible table-row window plus overscan |
 | @tanstack/vue-form                                              | Advanced fielded search form                                                      | `frontend/src/components/search/AdvancedSearchDrawer.vue`                                             | Active runtime usage                                                                                    |
 | @tanstack/vue-table                                             | Library Inspector data table                                                      | `frontend/src/components/LibraryInspector.vue`                                                        | Active runtime usage                                                                                    |
 | PhotoSwipe 5                                                    | Lightbox image viewer                                                             | `frontend/src/components/Lightbox.vue`, PhotoSwipe wrappers, `usePhotoSwipe.ts`                       | Gallery owns custom metadata UI and controls                                                            |
@@ -328,8 +328,11 @@ session, while versioned saved/recent searches remain bounded in browser
 
 `@tanstack/vue-virtual` provides row-based virtualization in `GalleryGrid.vue`
 for browse grids and `SearchResultsPanel.vue` for the shared search stream.
-Search uses the same virtual row semantics across desktop, tablet, and mobile;
-mobile browse continues to use native scrolling.
+Search and browse both use the same virtual row semantics across desktop,
+tablet, and mobile. Mobile browse keeps its native `.scroller` container and
+passes a measured `scrollMargin` (the album strip and section header above the
+rows) plus a measured row height, because its rows are fractionally tall and
+`measureElement` rounds to whole pixels (`useVirtualGridMetrics.ts`).
 
 `LibraryInspector.vue` also uses `useVirtualizer` for the `/metadata` table body. The inspector requests cursor-paginated, server-filtered rows from `/api/library/inspector` and uses TanStack Table for row models, column visibility, and supported sort-header state. The DOM contains only the currently visible rows plus overscan and spacer rows instead of all loaded rows.
 
@@ -360,6 +363,8 @@ Integration files:
 - `frontend/src/styles/_lightbox-*.scss`
 
 Normal PhotoSwipe image URLs use `/api/preview`. Original `/api/image` is reserved for explicit original-load behavior such as zoom/fullscreen/download settings or animated images.
+
+`usePhotoSwipe.ts` keeps `preload: [1, 1]` but installs `utils/lightboxPreviewOrder.ts`, which uses PhotoSwipe's default-preventable `contentLoadImage` event to hold non-current slides' image loads until the current slide's image loaded or failed, then re-issues them with `Content.loadImage`. It relies on `Content.index`, `Content.state`, `isImageContent()` and `loadImage()`; `utils/__tests__/lightboxPreviewOrder.test.ts` runs against the real PhotoSwipe core so a version bump that changes the preload order fails there.
 
 ### @douxcode/vue-spring-bottom-sheet
 

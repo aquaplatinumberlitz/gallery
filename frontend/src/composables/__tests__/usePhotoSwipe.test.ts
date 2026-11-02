@@ -296,6 +296,18 @@ describe("usePhotoSwipe", () => {
     expect(registeredEvents).toContain("loadError");
   });
 
+  it("holds neighbour preview loads until the current slide settles", async () => {
+    const { isOpenRef } = setup([makeItem("/img1.png", "img1.png"), makeItem("/img2.png", "img2.png")], 0, false);
+
+    isOpenRef.value = true;
+    await vi.waitFor(() => expect(pswpInstances.length).toBeGreaterThan(0));
+
+    const registeredEvents = pswpInstances[0].on.mock.calls.map((c: any) => c[0]);
+    expect(registeredEvents).toContain("contentLoadImage");
+    expect(registeredEvents).toContain("loadComplete");
+    expect(registeredEvents).toContain("contentDestroy");
+  });
+
   it("exposes test hooks on window in test mode", async () => {
     const { isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
 

@@ -16,6 +16,21 @@ describe("useCoverImageLoad", () => {
     expect(loaded.value).toBe(true);
   });
 
+  it("ignores the error event of an image whose src was cleared to cancel its request", () => {
+    const { loaded, markCoverSettled } = useCoverImageLoad();
+    const cancelled = document.createElement("img");
+    const failed = document.createElement("img");
+    failed.setAttribute("src", "/broken.png");
+
+    cancelled.addEventListener("error", markCoverSettled);
+    cancelled.dispatchEvent(new Event("error"));
+    expect(loaded.value).toBe(false);
+
+    failed.addEventListener("error", markCoverSettled);
+    failed.dispatchEvent(new Event("error"));
+    expect(loaded.value).toBe(true);
+  });
+
   it("keeps independent state per card", () => {
     const first = useCoverImageLoad();
     const second = useCoverImageLoad();
