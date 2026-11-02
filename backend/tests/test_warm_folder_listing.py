@@ -58,14 +58,14 @@ def test_warm_path_does_not_call_scandir(tmp_path: Path, monkeypatch: pytest.Mon
         scandir_calls.append(1)
         raise AssertionError("warm path must not call os.scandir")
 
-    monkeypatch.setattr(os, "scandir", fail_scandir)
-
     album = tmp_path / "album"
     album.mkdir()
     (album / "test.jpg").write_text("fake")
 
     index_directory_tree(album, include_metadata=False)
     update_folder_index_state(album, complete=True, child_count=1, folder_count=0, image_count=1)
+    # Patch only after cold setup: on Python 3.13 pathlib's iterdir reaches os.scandir during indexing.
+    monkeypatch.setattr(os, "scandir", fail_scandir)
 
     result = get_warm_folder_listing(album, limit=10, media_cursor=0)
     assert result is not None

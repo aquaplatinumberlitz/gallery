@@ -170,14 +170,22 @@ def bench_metadata_candidates(
     }
 
 
-def _lexical_samples(base_url: str, iterations: int) -> dict[str, float]:
+LEXICAL_MIN_SAMPLES = 40
+
+
+def _lexical_sample_count(iterations: int) -> int:
+    """Every lexical window takes at least LEXICAL_MIN_SAMPLES samples."""
+    return max(LEXICAL_MIN_SAMPLES, int(iterations))
+
+
+def _lexical_samples(base_url: str, iterations: int) -> list[float]:
+    """Return raw lexical search durations in milliseconds for one window."""
     for _ in range(3):
         _get_json(base_url, "/api/search", {"q": "search_asset_000", "scope": "all", "limit": "50"})
-    durations = [
+    return [
         _get_json(base_url, "/api/search", {"q": "search_asset_000", "scope": "all", "limit": "50"})[0]
-        for _ in range(max(1, iterations))
+        for _ in range(_lexical_sample_count(iterations))
     ]
-    return summarize_samples(durations)
 
 
 def _backfill_writer(db_path: Path, stop: threading.Event, stats: dict[str, int]) -> None:
@@ -231,22 +239,31 @@ def _backfill_writer(db_path: Path, stop: threading.Event, stats: dict[str, int]
 
 
 def bench_lexical_backfill(base_url: str, db_path: Path, *, iterations: int) -> dict:
-    """Compare lexical p95 before/during/after bounded relation writes."""
-    before = _lexical_samples(base_url, iterations)
+    """Compare lexical p95 before/during/after bounded relation writes.
+
+    The baseline is the p95 of the pooled before+after samples, and the
+    regression is (during p95 - baseline p95) / baseline p95.
+    """
+    before_samples = _lexical_samples(base_url, iterations)
     stop = threading.Event()
     writer_stats: dict[str, int] = {}
     writer = threading.Thread(target=_backfill_writer, args=(db_path, stop, writer_stats), daemon=True)
     writer.start()
-    during = _lexical_samples(base_url, iterations)
+    during_samples = _lexical_samples(base_url, iterations)
     stop.set()
     writer.join(timeout=30)
-    after = _lexical_samples(base_url, iterations)
-    baseline_p95 = max(float(before["p95_ms"]), float(after["p95_ms"]))
+    after_samples = _lexical_samples(base_url, iterations)
+    baseline_samples = before_samples + after_samples
+    before = summarize_samples(before_samples)
+    during = summarize_samples(during_samples)
+    after = summarize_samples(after_samples)
+    baseline_p95 = float(summarize_samples(baseline_samples)["p95_ms"])
     regression_pct = max(0.0, (float(during["p95_ms"]) - baseline_p95) / max(baseline_p95, 0.01) * 100)
     return {
         "before": before,
         "during": during,
         "after": after,
+        "baseline_samples": [round(value, 2) for value in baseline_samples],
         "baseline_p95_ms": round(baseline_p95, 2),
         "during_p95_ms": during["p95_ms"],
         "regression_pct": round(regression_pct, 2),
@@ -404,7 +421,8 @@ def main() -> int:
     metadata = bench_metadata_candidates(reference_asset_id, library_id, iterations=iterations)
     visual = bench_visual_candidates(reference_asset_id, library_id, iterations=iterations)
     combined = bench_related_profile(base_url, reference_asset_id, library_id, "related", iterations=iterations)
-    lexical = bench_lexical_backfill(base_url, db_path, iterations=iterations)
+    lexical_iterations = int(os.getenv("GALLERY_PERF_LEXICAL_ITERATIONS", str(LEXICAL_MIN_SAMPLES)))
+    lexical = bench_lexical_backfill(base_url, db_path, iterations=lexical_iterations)
     storage_mib = relation_storage_mib(db_path)
     album_path = Path(os.environ["GALLERY_PERF_ALBUM_PATH"])
     image_path = next(iter(sorted(album_path.glob("*.png"))))
