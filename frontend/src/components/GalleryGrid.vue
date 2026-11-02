@@ -26,7 +26,7 @@ import EmptyState from "./EmptyState.vue";
 import ResponsiveLibrarySelector from "./ResponsiveLibrarySelector.vue";
 import TabletGalleryToolbar from "./TabletGalleryToolbar.vue";
 import SortSelect from "./SortSelect.vue";
-import { compareNatural } from "../composables/useNaturalSort";
+import { sortByPreference } from "../utils/sortNodes";
 import { useColumnResize, PHOTO_GRID_LEVELS, GRID_COLUMN_MAP } from "../composables/useColumnResize";
 import { useDevice } from "../composables/useDevice";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
@@ -214,23 +214,8 @@ const toggleDensityMenu = () => {
   showDensityMenu.value = !showDensityMenu.value;
 };
 
-const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] => {
-  const sorted = [...items];
-  const field = sortField.value;
-  const order = sortOrder.value;
-
-  sorted.sort((a, b) => {
-    let cmp = 0;
-    if (field === "name") {
-      cmp = compareNatural(a.name, b.name);
-    } else if (field === "date") {
-      cmp = (a.mtime || 0) - (b.mtime || 0);
-    }
-    return order === "asc" ? cmp : -cmp;
-  });
-
-  return sorted;
-};
+const sortItems = <T extends { name: string; mtime?: number }>(items: T[]): T[] =>
+  sortByPreference(items, sortField.value, sortOrder.value);
 
 const hasBrowseScope = computed(() =>
   Boolean(activeLibraryId.value && (activeBrowsePath.value || galleryStore.activeImportPathId)),
