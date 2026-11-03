@@ -2,14 +2,19 @@ import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchMetadata } from "@/services/api";
+import { GalleryAPIError, fetchMetadata } from "@/services/api";
 import { queryKeys } from "@/query/keys";
 import { usePhotoMetadataQuery } from "../usePhotoMetadataQuery";
 import type { MetadataResponse } from "@/types";
+import type { HttpErrorLike } from "@/services/http";
 
-vi.mock("@/services/api", () => ({
+vi.mock("@/services/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/api")>()),
   fetchMetadata: vi.fn(),
 }));
+
+// Mirrors the app-wide default in src/query/index.ts (retry: 1), with no retry delay so tests stay fast.
+const retryingClient = () => new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0, gcTime: 0 } } });
 
 const makeMockMetadata = (overrides?: Partial<MetadataResponse>): MetadataResponse => ({
   tool: "sd-webui",
@@ -75,7 +80,7 @@ describe("usePhotoMetadataQuery", () => {
 
   it("sets isError on fetch failure", async () => {
     vi.mocked(fetchMetadata).mockRejectedValue(new Error("network error"));
-    const { result } = setup(true, "/photos/test.png");
+    const { result } = setup(true, "/photos/test.png", null, retryingClient());
     await vi.waitFor(() => expect(result.isError.value).toBe(true));
     expect(result.error.value).toBeTruthy();
   });
@@ -138,5 +143,24 @@ describe("usePhotoMetadataQuery", () => {
     const { result } = setup(true, "/photos/test.png", "9-9", queryClient);
     await vi.waitFor(() => expect(fetchMetadata).toHaveBeenCalledTimes(2));
     await vi.waitFor(() => expect(result.data.value).toEqual(makeMockMetadata()));
+  });
+
+  it("does not retry an image_unreadable error", async () => {
+    const unreadable = GalleryAPIError.fromHttpError({
+      response: { data: { detail: { error: "image_unreadable", message: "msg" } } },
+    } as unknown as HttpErrorLike);
+    vi.mocked(fetchMetadata).mockRejectedValue(unreadable);
+
+    const { result } = setup(true, "/photos/broken.png", null, retryingClient());
+    await vi.waitFor(() => expect(result.isError.value).toBe(true));
+    expect(fetchMetadata).toHaveBeenCalledTimes(1);
+  });
+
+  it("still retries a generic error once", async () => {
+    vi.mocked(fetchMetadata).mockRejectedValue(new Error("network error"));
+
+    const { result } = setup(true, "/photos/test.png", null, retryingClient());
+    await vi.waitFor(() => expect(result.isError.value).toBe(true));
+    expect(fetchMetadata).toHaveBeenCalledTimes(2);
   });
 });
