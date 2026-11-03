@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import mimetypes
 import sqlite3
 import time
 from pathlib import Path
@@ -12,6 +11,13 @@ from ..config import GALLERY_CATALOG_WRITE_BATCH_SIZE
 from ..files import asset_type_for_path, is_asset_path, is_index_excluded_path
 from ._db import _active_asset_where
 from .db_writer import LANE_NORMAL, run_write
+from .file_index import (
+    CatalogRecord,
+    _normalize_file_type,
+    build_asset_record,
+    build_folder_record,
+    upsert_catalog_records_conn,
+)
 from .library_store import get_library
 from .path_utils import canonicalize_catalog_path, catalog_path_contains, path_scope_sql
 
@@ -64,13 +70,14 @@ def enumerate_to_rebuild_staging(
                 """
             INSERT INTO catalog_rebuild_entries (
               job_id, library_id, path, parent_path, name, type,
-              mtime_ns, size, width, height, mime_type, duration_ms,
+              mtime, mtime_ns, size, width, height, mime_type, duration_ms,
               codec, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id, path) DO UPDATE SET
               parent_path=excluded.parent_path,
               name=excluded.name,
               type=excluded.type,
+              mtime=excluded.mtime,
               mtime_ns=excluded.mtime_ns,
               size=excluded.size,
               width=excluded.width,
@@ -91,45 +98,33 @@ def enumerate_to_rebuild_staging(
 
         run_write(write, lane=LANE_NORMAL)
 
-    def stage_entry(
-        *,
-        path: Path,
-        entry_type: str,
-        mtime_ns: int | None,
-        size: int | None,
-        width: int | None = None,
-        height: int | None = None,
-        mime_type: str | None = None,
-        duration_ms: int | None = None,
-        codec: str | None = None,
-    ) -> None:
+    def stage_entry(record: CatalogRecord) -> None:
         nonlocal discovered, folders, assets
-        resolved = path.resolve()
-        resolved_text = str(resolved)
         batch.append(
             (
                 job_id,
                 library_id,
-                resolved_text,
-                str(resolved.parent),
-                resolved.name or resolved_text,
-                entry_type,
-                mtime_ns,
-                size,
-                width,
-                height,
-                mime_type,
-                duration_ms,
-                codec,
+                record.path,
+                record.parent_path,
+                record.name,
+                record.type,
+                record.mtime,
+                record.mtime_ns,
+                record.size,
+                record.width,
+                record.height,
+                record.mime_type,
+                record.duration_ms,
+                record.codec,
                 time.time(),
             )
         )
         discovered += 1
-        if entry_type == "folder":
+        if record.type == "folder":
             folders += 1
         else:
             assets += 1
-            asset_paths.append(resolved_text)
+            asset_paths.append(record.path)
         if len(batch) >= GALLERY_CATALOG_WRITE_BATCH_SIZE:
             flush()
 
@@ -145,7 +140,7 @@ def enumerate_to_rebuild_staging(
             if inode in visited_inodes:
                 return
             visited_inodes.add(inode)
-            stage_entry(path=folder, entry_type="folder", mtime_ns=stat.st_mtime_ns, size=None)
+            stage_entry(build_folder_record(folder.resolve(), stat))
             try:
                 entries = list(folder.iterdir())
             except (OSError, PermissionError):
@@ -159,16 +154,7 @@ def enumerate_to_rebuild_staging(
                     if entry.is_dir():
                         visit(entry, import_root, visited_inodes)
                     elif entry.is_file() and is_asset_path(entry):
-                        file_stat = entry.stat()
-                        asset_type = asset_type_for_path(entry) or "image"
-                        mime_type = mimetypes.guess_type(entry.name)[0]
-                        stage_entry(
-                            path=entry,
-                            entry_type=asset_type,
-                            mtime_ns=file_stat.st_mtime_ns,
-                            size=file_stat.st_size,
-                            mime_type=mime_type,
-                        )
+                        stage_entry(build_asset_record(entry, entry.stat(), asset_type_for_path(entry)))
                 except (OSError, PermissionError):
                     continue
 
@@ -210,8 +196,8 @@ def activate_rebuild_staging(
         assert_catalog_job_claim_conn(conn, job_id, claim_token, library_id=library_id)
         staged = conn.execute(
             """
-            SELECT path, parent_path, name, type, mtime_ns, size, mime_type,
-                   duration_ms, codec
+            SELECT path, parent_path, name, type, mtime, mtime_ns, size, width, height,
+                   mime_type, duration_ms, codec
             FROM catalog_rebuild_entries
             WHERE job_id = ? AND library_id = ?
             """,
@@ -221,98 +207,44 @@ def activate_rebuild_staging(
         created = 0
         updated = 0
         metadata_reset = 0
+        records: list[CatalogRecord] = []
         for row in staged:
             existing = conn.execute(
-                "SELECT mtime_ns, size, metadata_state FROM assets WHERE library_id = ? AND path = ?",
+                "SELECT mtime_ns, size FROM assets WHERE library_id = ? AND path = ?",
                 (library_id, row["path"]),
             ).fetchone()
-            normalized_type = (
-                "image"
-                if row["type"] in {"image", "photo", "file"}
-                else "video"
-                if row["type"] == "video"
-                else "folder"
-            )
-            metadata_state = None
+            normalized_type = _normalize_file_type(row["type"])
             if existing is None:
                 created += 1
-                metadata_state = "pending"
             else:
                 updated += 1
-                if existing["mtime_ns"] != row["mtime_ns"] or existing["size"] != row["size"]:
-                    metadata_state = "pending"
+                # The shared writer resets metadata_state for a changed image only; count what it will reset.
+                if normalized_type == "image" and (
+                    existing["mtime_ns"] != row["mtime_ns"] or existing["size"] != row["size"]
+                ):
                     metadata_reset += 1
-            conn.execute(
-                """
-                INSERT INTO file_index (
-                  path, name, parent_path, type, mtime, mtime_ns, size,
-                  indexed_at, library_id, last_seen_scan_job_id
-                ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
-                ON CONFLICT(path) DO UPDATE SET
-                  name=excluded.name,
-                  parent_path=excluded.parent_path,
-                  type=excluded.type,
-                  mtime_ns=excluded.mtime_ns,
-                  size=excluded.size,
-                  indexed_at=excluded.indexed_at,
-                  library_id=excluded.library_id,
-                  last_seen_scan_job_id=excluded.last_seen_scan_job_id
-                """,
-                (
+            mtime = row["mtime"]
+            if mtime is None and row["mtime_ns"] is not None:  # staged by a build that predates the column
+                mtime = row["mtime_ns"] / 1e9
+            records.append(
+                CatalogRecord(
                     row["path"],
                     row["name"],
                     row["parent_path"],
                     normalized_type,
+                    mtime,
                     row["mtime_ns"],
                     row["size"],
+                    row["width"],
+                    row["height"],
                     now,
-                    library_id,
-                    job_id,
-                ),
-            )
-            conn.execute(
-                """
-                INSERT INTO assets (
-                  library_id, path, parent_path, name, type, mtime_ns, size,
-                  width, height, indexed_at, metadata_state, offline, deleted_at,
-                  mime_type, duration_ms, codec, last_seen_scan_job_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, 0, NULL, ?, ?, ?, ?)
-                ON CONFLICT(library_id, path) DO UPDATE SET
-                  parent_path=excluded.parent_path,
-                  name=excluded.name,
-                  type=excluded.type,
-                  mtime_ns=excluded.mtime_ns,
-                  size=excluded.size,
-                  indexed_at=excluded.indexed_at,
-                  metadata_state=COALESCE(excluded.metadata_state, assets.metadata_state),
-                  mime_type=COALESCE(excluded.mime_type, assets.mime_type),
-                  duration_ms=COALESCE(excluded.duration_ms, assets.duration_ms),
-                  codec=COALESCE(excluded.codec, assets.codec),
-                  offline=0,
-                  deleted_at=NULL,
-                  last_seen_scan_job_id=excluded.last_seen_scan_job_id
-                """,
-                (
-                    library_id,
-                    row["path"],
-                    row["parent_path"],
-                    row["name"],
-                    normalized_type,
-                    row["mtime_ns"],
-                    row["size"],
-                    now,
-                    metadata_state,
                     row["mime_type"],
                     row["duration_ms"],
                     row["codec"],
-                    job_id,
-                ),
+                )
             )
-            conn.execute("DELETE FROM file_index_fts WHERE path = ?", (row["path"],))
-            conn.execute(
-                "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
-                (row["name"], row["path"], normalized_type, row["parent_path"]),
-            )
+        # Same upsert as a scan: one record shape, one SQL path (file_index, file_index_fts, assets).
+        upsert_catalog_records_conn(conn, records, library_id, last_seen_scan_job_id=job_id)
 
         scope_sql = ""
         params: list[Any] = [library_id]

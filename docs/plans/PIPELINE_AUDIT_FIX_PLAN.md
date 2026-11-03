@@ -85,7 +85,7 @@ Add the note: "Steps 2 and 3 start once files are cataloged and run side by side
 
 | Track | Status | Evidence |
 |-------|--------|----------|
-| S1 | Pending | |
+| S1 | Done | `fix/pa-rebuild`: `backend/tests/test_rebuild_scan_parity.py` (CP-01, CP-02, IM-1) |
 | S2 | Pending | |
 | H1 | Pending | |
 | H2 | Pending | |

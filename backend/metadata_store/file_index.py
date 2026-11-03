@@ -10,7 +10,7 @@ import subprocess
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from ..files import asset_type_for_path, is_asset_path, is_index_excluded_path
 from ..metadata_extract import parse_int
@@ -23,6 +23,192 @@ from .path_utils import path_scope_sql
 
 logger = logging.getLogger(__name__)
 _INDEX_WRITE_BATCH_SIZE = 500
+
+
+class CatalogRecord(NamedTuple):
+    """One statted catalog entry. Scan and rebuild both build these and persist them with one writer."""
+
+    path: str
+    name: str
+    parent_path: str
+    type: str
+    mtime: float | None
+    mtime_ns: int | None
+    size: int | None
+    width: int | None
+    height: int | None
+    indexed_at: float | None
+    mime_type: str | None
+    duration_ms: int | None
+    codec: str | None
+
+
+def probe_video_metadata(path: Path) -> tuple[int | None, int | None, int | None, str | None]:
+    """Return ``(width, height, duration_ms, codec)`` from ffprobe; all ``None`` when it cannot be probed."""
+    width = height = duration_ms = codec = None
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode == 0:
+            probe = json.loads(result.stdout)
+            duration = probe.get("format", {}).get("duration")
+            if duration is not None:
+                duration_ms = int(float(duration) * 1000)
+            video_stream = next(
+                (stream for stream in probe.get("streams", []) if stream.get("codec_type") == "video"),
+                None,
+            )
+            if video_stream is not None:
+                codec = video_stream.get("codec_name")
+                width = parse_int(video_stream.get("width"))
+                height = parse_int(video_stream.get("height"))
+    except (OSError, subprocess.SubprocessError, TypeError, ValueError, json.JSONDecodeError):
+        logger.debug("Could not probe video metadata for %s", path, exc_info=True)
+    return width, height, duration_ms, codec
+
+
+def build_folder_record(folder: Path, stat: Any, *, indexed_at: float | None = None) -> CatalogRecord:
+    """Build the catalog record of a folder from its ``stat`` result."""
+    return CatalogRecord(
+        str(folder),
+        folder.name or str(folder),
+        str(folder.parent),
+        "folder",
+        stat.st_mtime,
+        stat.st_mtime_ns,
+        None,
+        None,
+        None,
+        time.time() if indexed_at is None else indexed_at,
+        None,
+        None,
+        None,
+    )
+
+
+def build_asset_record(
+    entry: Path, stat: Any, asset_type: str | None, *, indexed_at: float | None = None
+) -> CatalogRecord:
+    """Build the catalog record of an image or video file, including the video ffprobe fields."""
+    asset_type = asset_type or "image"
+    width = height = duration_ms = codec = None
+    if asset_type == "video":
+        width, height, duration_ms, codec = probe_video_metadata(entry)
+    resolved = entry.resolve()
+    return CatalogRecord(
+        str(resolved),
+        entry.name,
+        str(resolved.parent),
+        asset_type,
+        stat.st_mtime,
+        stat.st_mtime_ns,
+        stat.st_size,
+        width,
+        height,
+        time.time() if indexed_at is None else indexed_at,
+        mimetypes.guess_type(entry.name)[0],
+        duration_ms,
+        codec,
+    )
+
+
+def upsert_catalog_records_conn(
+    conn: sqlite3.Connection,
+    batch: list[tuple[Any, ...]] | list[CatalogRecord],
+    library_id: int | None,
+    *,
+    last_seen_scan_job_id: int | None = None,
+) -> None:
+    """Upsert records into ``file_index``, ``file_index_fts`` and (with a library) ``assets``.
+
+    The one persistence path for scan and rebuild activation. ``last_seen_scan_job_id`` stamps both tables
+    when given and otherwise leaves an existing value alone.
+    """
+    conn.executemany(
+        """INSERT INTO file_index (
+             path, name, parent_path, type, mtime, mtime_ns, size, width,
+             height, indexed_at, library_id, last_seen_scan_job_id
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(path) DO UPDATE SET name=excluded.name,
+             parent_path=excluded.parent_path, type=excluded.type, mtime=excluded.mtime,
+             mtime_ns=excluded.mtime_ns, size=excluded.size, width=excluded.width,
+             height=excluded.height, indexed_at=excluded.indexed_at,
+             library_id=excluded.library_id,
+             last_seen_scan_job_id=COALESCE(excluded.last_seen_scan_job_id, file_index.last_seen_scan_job_id)""",
+        (record[:10] + (library_id, last_seen_scan_job_id) for record in batch),
+    )
+    conn.executemany(
+        "DELETE FROM file_index_fts WHERE path = ?",
+        ((record[0],) for record in batch),
+    )
+    conn.executemany(
+        "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
+        ((record[1], record[0], record[3], record[2]) for record in batch),
+    )
+    if library_id is not None:
+        conn.executemany(
+            """INSERT INTO assets (
+                 library_id, path, parent_path, name, type, mtime_ns, size,
+                 width, height, indexed_at, metadata_state, offline, deleted_at,
+                 mime_type, duration_ms, codec, last_seen_scan_job_id
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?, ?, ?)
+               ON CONFLICT(library_id, path) DO UPDATE SET
+                 parent_path=excluded.parent_path, name=excluded.name, type=excluded.type,
+                 mtime_ns=COALESCE(excluded.mtime_ns, assets.mtime_ns),
+                 size=COALESCE(excluded.size, assets.size),
+                 width=CASE WHEN excluded.type IN ('image', 'video')
+                   AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                   AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                   THEN excluded.width ELSE COALESCE(excluded.width, assets.width) END,
+                 height=CASE WHEN excluded.type IN ('image', 'video')
+                   AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                   AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                   THEN excluded.height ELSE COALESCE(excluded.height, assets.height) END,
+                 orientation=CASE WHEN excluded.type IN ('image', 'video')
+                   AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                   AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                   THEN NULL ELSE assets.orientation END,
+                 metadata_state=CASE WHEN excluded.type = 'image'
+                   AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                   AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                   THEN 'pending' ELSE assets.metadata_state END,
+                 indexed_at=excluded.indexed_at,
+                 mime_type=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                   AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                   THEN excluded.mime_type ELSE COALESCE(excluded.mime_type, assets.mime_type) END,
+                 duration_ms=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                   AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                   THEN excluded.duration_ms ELSE COALESCE(excluded.duration_ms, assets.duration_ms) END,
+                 codec=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                   AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                   THEN excluded.codec ELSE COALESCE(excluded.codec, assets.codec) END,
+                 last_seen_scan_job_id=COALESCE(excluded.last_seen_scan_job_id, assets.last_seen_scan_job_id),
+                 offline=0, deleted_at=NULL""",
+            (
+                (
+                    library_id,
+                    record[0],
+                    record[2],
+                    record[1],
+                    record[3],
+                    record[5],
+                    record[6],
+                    record[7],
+                    record[8],
+                    record[9],
+                    record[10],
+                    record[11],
+                    record[12],
+                    last_seen_scan_job_id,
+                )
+                for record in batch
+            ),
+        )
 
 
 def _bulk_index_records(
@@ -55,83 +241,7 @@ def _bulk_index_records(
                     claim_token,
                     library_id=library_id,
                 )
-            conn.executemany(
-                """INSERT INTO file_index (
-                     path, name, parent_path, type, mtime, mtime_ns, size, width,
-                     height, indexed_at, library_id
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(path) DO UPDATE SET name=excluded.name,
-                     parent_path=excluded.parent_path, type=excluded.type, mtime=excluded.mtime,
-                     mtime_ns=excluded.mtime_ns, size=excluded.size, width=excluded.width,
-                     height=excluded.height, indexed_at=excluded.indexed_at,
-                     library_id=excluded.library_id""",
-                (record[:10] + (library_id,) for record in batch),
-            )
-            conn.executemany(
-                "DELETE FROM file_index_fts WHERE path = ?",
-                ((record[0],) for record in batch),
-            )
-            conn.executemany(
-                "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
-                ((record[1], record[0], record[3], record[2]) for record in batch),
-            )
-            if library_id is not None:
-                conn.executemany(
-                    """INSERT INTO assets (
-                         library_id, path, parent_path, name, type, mtime_ns, size,
-                         width, height, indexed_at, metadata_state, offline, deleted_at,
-                         mime_type, duration_ms, codec
-                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?, ?)
-                       ON CONFLICT(library_id, path) DO UPDATE SET
-                         parent_path=excluded.parent_path, name=excluded.name, type=excluded.type,
-                         mtime_ns=COALESCE(excluded.mtime_ns, assets.mtime_ns),
-                         size=COALESCE(excluded.size, assets.size),
-                         width=CASE WHEN excluded.type IN ('image', 'video')
-                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                           THEN excluded.width ELSE COALESCE(excluded.width, assets.width) END,
-                         height=CASE WHEN excluded.type IN ('image', 'video')
-                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                           THEN excluded.height ELSE COALESCE(excluded.height, assets.height) END,
-                         orientation=CASE WHEN excluded.type IN ('image', 'video')
-                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                           THEN NULL ELSE assets.orientation END,
-                         metadata_state=CASE WHEN excluded.type = 'image'
-                           AND excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                           THEN 'pending' ELSE assets.metadata_state END,
-                         indexed_at=excluded.indexed_at,
-                         mime_type=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                           THEN excluded.mime_type ELSE COALESCE(excluded.mime_type, assets.mime_type) END,
-                         duration_ms=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                           THEN excluded.duration_ms ELSE COALESCE(excluded.duration_ms, assets.duration_ms) END,
-                         codec=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
-                           AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
-                           THEN excluded.codec ELSE COALESCE(excluded.codec, assets.codec) END,
-                         offline=0, deleted_at=NULL""",
-                    (
-                        (
-                            library_id,
-                            record[0],
-                            record[2],
-                            record[1],
-                            record[3],
-                            record[5],
-                            record[6],
-                            record[7],
-                            record[8],
-                            record[9],
-                            record[10],
-                            record[11],
-                            record[12],
-                        )
-                        for record in batch
-                    ),
-                )
+            upsert_catalog_records_conn(conn, batch, library_id)
             if claim_job_id is not None and claim_token is not None:
                 from .job_store import refresh_catalog_job_claim_before_commit_conn
 
@@ -442,23 +552,7 @@ def index_directory_tree(
             return
 
         try:
-            records.append(
-                (
-                    str(folder),
-                    folder.name or str(folder),
-                    str(folder.parent),
-                    "folder",
-                    stat.st_mtime,
-                    stat.st_mtime_ns,
-                    None,
-                    None,
-                    None,
-                    time.time(),
-                    None,
-                    None,
-                    None,
-                )
-            )
+            records.append(build_folder_record(folder, stat))
             indexed += 1
             if collected_asset_paths is not None:
                 collected_asset_paths.add(str(folder.resolve()))
@@ -483,65 +577,7 @@ def index_directory_tree(
                 elif entry.is_file() and is_asset_path(entry):
                     stat = entry.stat()
                     asset_type = asset_type_for_path(entry)
-                    width = None
-                    height = None
-                    duration_ms = None
-                    codec = None
-                    mime_type = mimetypes.guess_type(entry.name)[0]
-                    if asset_type == "video":
-                        try:
-                            result = subprocess.run(
-                                [
-                                    "ffprobe",
-                                    "-v",
-                                    "quiet",
-                                    "-print_format",
-                                    "json",
-                                    "-show_format",
-                                    "-show_streams",
-                                    str(entry),
-                                ],
-                                capture_output=True,
-                                text=True,
-                                timeout=5,
-                                check=False,
-                            )
-                            if result.returncode == 0:
-                                probe = json.loads(result.stdout)
-                                duration = probe.get("format", {}).get("duration")
-                                if duration is not None:
-                                    duration_ms = int(float(duration) * 1000)
-                                video_stream = next(
-                                    (
-                                        stream
-                                        for stream in probe.get("streams", [])
-                                        if stream.get("codec_type") == "video"
-                                    ),
-                                    None,
-                                )
-                                if video_stream is not None:
-                                    codec = video_stream.get("codec_name")
-                                    width = parse_int(video_stream.get("width"))
-                                    height = parse_int(video_stream.get("height"))
-                        except (OSError, subprocess.SubprocessError, TypeError, ValueError, json.JSONDecodeError):
-                            logger.debug("Could not probe video metadata for %s", entry, exc_info=True)
-                    records.append(
-                        (
-                            str(entry.resolve()),
-                            entry.name,
-                            str(entry.parent.resolve()),
-                            asset_type or "folder",
-                            stat.st_mtime,
-                            stat.st_mtime_ns,
-                            stat.st_size,
-                            width,
-                            height,
-                            time.time(),
-                            mime_type,
-                            duration_ms,
-                            codec,
-                        )
-                    )
+                    records.append(build_asset_record(entry, stat, asset_type))
                     indexed += 1
                     if collected_asset_paths is not None:
                         collected_asset_paths.add(str(entry.resolve()))
