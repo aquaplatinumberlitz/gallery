@@ -8,7 +8,7 @@ Active plans:
 
 | Plan | Status | Created |
 |------|--------|---------|
-| None | — | — |
+| [Pipeline Audit Fix](PIPELINE_AUDIT_FIX_PLAN.md) | Active | 2026-11-03 |
 
 Completed plans:
 

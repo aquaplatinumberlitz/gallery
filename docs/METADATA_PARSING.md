@@ -59,7 +59,10 @@ sidecar identity comes from that validated descriptor.
 - The route resolves the path, enforces `PATH_SAFETY_ROOT`, requires an active
   registered-library image asset, verifies the file and image extension, and
   runs parsing in a thread pool.
-- `parse_metadata()` keys its in-memory LRU by path, mtime, and size.
+- `parse_metadata()` keys its in-memory LRU by path, `st_mtime_ns`, size, and
+  the same-stem sidecar identity from `metadata_sidecar_identity()` (sidecar
+  path, `mtime_ns`, and size; all `None` when there is no sidecar), so adding,
+  editing, or removing a sidecar produces a new key.
 - A matching SQLite row is preferred before reopening the original image.
 - Concurrent cold requests for the same key share one in-flight parse.
 - A cold parse calls `extract_metadata()`, persists the normalized record, and marks a
@@ -67,6 +70,23 @@ sidecar identity comes from that validated descriptor.
 
 Background indexing uses the same `extract_metadata()` function, so the API and indexer
 share one parser implementation.
+
+### Unreadable images
+
+An image Pillow cannot decode (non-image bytes, truncated or corrupt data,
+decompression bomb) is not "an image without metadata". `extract_metadata()` raises
+`UnreadableImageError` before any precedence step runs, so a same-stem `.txt` sidecar
+does not rescue it: the file cannot be shown or derived either.
+
+- The metadata job fails immediately (`failed`, no retry, no `image_metadata` row, asset
+  not `done`) and counts in `metadata.failed_assets` of the status envelope.
+- Transient storage errors (`OSError` with `EAGAIN`/`EBUSY`/`EINTR`, locked/busy SQLite)
+  are never converted: they propagate unchanged and the job requeues with backoff.
+- `GET /api/metadata` answers `422` with error `image_unreadable` ("This file can't be
+  read"), persists nothing, and does not mark a job `done`. Size and pixel-limit
+  rejections stay `400 invalid_file`.
+- The lightbox metadata panel (desktop, tablet, mobile sheet) shows "This file can't be
+  read" for that error instead of the generic "No metadata available" state.
 
 Catalog status metadata coverage counts active image assets only. Videos never
 enter the metadata denominator, so a video-only library converges with zero

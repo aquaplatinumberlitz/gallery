@@ -100,7 +100,11 @@ metadata_worker supervisor (every GALLERY_METADATA_SUPERVISOR_INTERVAL_SECONDS)
    capped at 60 s) stored in `next_attempt_at`; claims ignore rows that are not
    yet due, and a rescan that coalesces into the queued retry does not reset it.
    After `MAX_METADATA_JOB_ATTEMPTS` the job fails. Parse and format errors
-   (unreadable image, oversized sidecar, vanished file) fail immediately. The
+   (unreadable image, oversized sidecar, vanished file) fail immediately. An unreadable
+   image is `UnreadableImageError` from `extract_metadata` (also when a same-stem sidecar
+   exists): the job ends `failed`, no `image_metadata` row is written, and the asset counts
+   in `metadata.failed_assets`. `GET /api/metadata` answers `422 image_unreadable` for it
+   and persists nothing; the lightbox panel shows "This file can't be read". The
    failure or requeue write is itself retried a bounded number of times (0.1, 0.5,
    1 s) so one locked write cannot orphan the job; if it still fails, the lease
    recovers the job.
@@ -470,14 +474,28 @@ it calls) writes only through writer ops. Each store function is split into a bo
 | `renew_catalog_job_lease` (`_CatalogLeaseHeartbeat`)                           | `priority` | WK-02 root cause: no longer queues behind unrelated readers or writers |
 | `fail_abandoned_catalog_job_claim`, `update_parent_aggregate_job`              | `priority` | |
 | `create_or_coalesce_catalog_job` (queue scan/rebuild)                          | `priority` | cancellation events are published after the op committed |
-| `_bulk_index_records` (scan upserts: `file_index`, FTS, `assets`)              | `normal`   | claim assertion + upserts + claim refresh per op, at most 50 rows (`db_writer.SCAN_OP_ROWS`) |
+| `_bulk_index_records` (scan upserts: `file_index`, FTS, `assets`)              | `normal`   | claim assertion + upserts + claim refresh per op, at most 50 rows (`db_writer.SCAN_OP_ROWS`); the upsert is `upsert_catalog_records_conn`, shared with rebuild activation |
 | `reconcile_library_assets`                                                    | `normal`   | |
 | `_persist_metadata_index_job_batch` (metadata jobs of a scan)                  | `normal`   | at most 50 paths per op |
 | `enumerate_to_rebuild_staging` flushes, `delete_rebuild_staging*`              | `normal`   | |
-| `activate_rebuild_staging`                                                    | `normal`   | one atomic op by contract (a failed activation leaves the canonical generation and staging untouched), so a very large library holds the write lock for the whole merge |
+| `activate_rebuild_staging`                                                    | `normal`   | one atomic op by contract (a failed activation leaves the canonical generation and staging untouched), so a very large library holds the write lock for the whole merge; upserts through the same `upsert_catalog_records_conn` as a scan |
 | `recover_stale_jobs` (supervisor, startup)                                     | `normal`   | candidates read on a plain connection; fenced failure writes are one op |
 
 `assert_catalog_job_claim` and reads such as `get_library` are plain WAL reads.
+
+Scan and rebuild build and persist catalog records through one shared path in
+`metadata_store/file_index.py`, so a rebuilt catalog serves the same contracts as a scanned one:
+
+- `build_folder_record` and `build_asset_record` turn a `stat` result into a `CatalogRecord`
+  (`file_index` and `assets` columns, including `mtime`, `mime_type` and, for videos, the ffprobe
+  `width`, `height`, `duration_ms` and `codec` from `probe_video_metadata`). The scan walker
+  (`index_directory_tree`) and the rebuild staging walker (`enumerate_to_rebuild_staging`) both call them;
+  the rebuild probes videos during enumeration, outside any write transaction.
+- `upsert_catalog_records_conn` is the only SQL that writes catalog rows (`file_index`,
+  `file_index_fts`, `assets`). The scan calls it per bounded batch; rebuild activation calls it once, inside
+  its single atomic transaction, with `last_seen_scan_job_id` set to the rebuild job.
+- `catalog_rebuild_entries` stages the full record (it carries `mtime` as well as `mtime_ns`).
+  `backend/tests/test_rebuild_scan_parity.py` asserts that scan and rebuild leave equal rows.
 
 ### Write ownership (Phase 3)
 
@@ -574,7 +592,14 @@ Derivative catalog rows use the full state machine `queued` → `running` →
 job completion. Inactive, missing, or superseded sources become `skipped` with
 a machine-readable result code. Invalid sources and exhausted or internal
 failures become `failed`; transient SQLite/I/O failures retry at most three
-attempts. Quota eviction changes a replaceable `ready` row to `evicted` and
+attempts. A permanent decode failure (`is_permanent_decode_error` in
+`backend/files.py`: Pillow's `UnidentifiedImageError`, a decompression bomb, an
+errno-less `OSError` such as "image file is truncated", or `SyntaxError`,
+`ValueError`, `EOFError` from a decoder) while rendering becomes `failed` with
+`invalid_source` on the first attempt, with no retry and no backoff; `/api/thumbnail`
+answers it as `400 invalid_file`. An `OSError` with an errno (EAGAIN, EBUSY,
+EINTR, EIO, ...), `sqlite3.OperationalError`, and `DatabaseWriterUnavailable`
+keep the transient retry. Quota eviction changes a replaceable `ready` row to `evicted` and
 unlinks its cache file. Automatic work that cannot reserve enough quota becomes
 `deferred_capacity` without a runnable job. Derivative job rows separately use
 `queued`, `running`, `done`, `skipped`, and `failed`.
@@ -642,9 +667,9 @@ asset whose `mtime_ns` and size match the derivative source identity. The
 integrity checker requeues missing cache files only for current sources;
 inactive, missing, and superseded sources are skipped instead.
 
-HTTP thumbnail/preview requests accept only `128`/`512` and `1440`
-respectively, always resolve an active catalog asset, and always pass through
-the durable scheduler. Capacity is reserved before runnable work exists;
+HTTP thumbnail requests accept only `128`, `256`, or `512`; preview requests
+accept only `1440`. Both always resolve an active catalog asset and always pass
+through the durable scheduler. Capacity is reserved before runnable work exists;
 interactive refusal returns `507`, while automatic work remains
 `deferred_capacity`. The WebP file cache is authoritative and quota-counted;
 the 64 MiB diskcache stores only key-to-path metadata. Integrity checks skip
@@ -755,7 +780,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_store/job_store.py`        | Catalog job queue management                              |
 | `metadata_store/rebuild_store.py`    | Staging area for rebuild operations                       |
 | `metadata_store/browse_store.py`     | Browse listing queries                                    |
-| `metadata_store/file_index.py`       | File index operations                                     |
+| `metadata_store/file_index.py`       | File index operations; `CatalogRecord`, the record builders (`build_folder_record`, `build_asset_record`, `probe_video_metadata`) and `upsert_catalog_records_conn`, shared by scan and rebuild |
 | `metadata_store/folder_index.py`     | Folder index operations                                   |
 | `metadata_store/metadata_queue.py`   | Durable metadata index job queue primitives, completion invariants, and stale guards |
 | `metadata_store/metadata_persist.py` | Metadata persistence helpers                              |
@@ -874,6 +899,10 @@ Backend modules are mostly flat, with selected domain packages.
   derived-search-index writer, the derivative scheduler, and the integrity
   checker run as background services. The catalog watcher and scheduled
   reconciliation are enabled by default for registered libraries.
+- During a catalog scan, each video is probed once with `ffprobe` (`-show_format
+  -show_streams`, 5 s timeout, in `backend/metadata_store/file_index.py`) to
+  record `width`, `height`, `duration_ms`, and `codec`. A missing binary, a
+  timeout, or unreadable output leaves those fields NULL and the scan continues.
 - The enabled `prompt_values` derived index reads only persisted
   `image_metadata`/checkpoint-resource rows. It NFKC-normalizes and casefolds
   prompt identities, keeps positive and negative values distinct, and updates
@@ -1052,17 +1081,22 @@ Core keys:
 ["browse-infinite", libraryId]
 ["browse-infinite", libraryId, normalizedPath, limit, includeOffline]
 ["folder-children", normalizedPath]
-["search", query, scope, normalizedPath, limit]
-["metadata", normalizedPath]
+["search-v2", persistableSearchRequest(request), request.limit]
+["search-count", persistableSearchRequest(request)]
+["metadata", normalizedPath, contentVersion ?? null]
 ["facets", canonicalScope, libraryId, normalizedPath]
-["related-assets", canonicalRequest]
+["related-assets", request]
+["search-capabilities"]
+["prompt-usage", request]
+["search-indexes"]
+["search-indexes", libraryId ?? null]
 ["status"]
 ["status", "libraries", "batch"]
 ["status", "library", libraryId]
 ["status", "path", libraryId]
 ["status", "path", libraryId, normalizedPath]
 ["library-inspector"]
-["library-inspector", query, scope, normalizedPath, limit, sort]
+["library-inspector", query.trim(), scope, normalizedPath, limit, sort, model.trim(), prompt]
 ["library-inspector-metadata", normalizedPath]
 ["maintenance"]
 ["maintenance", "file-health"]
@@ -1176,10 +1210,30 @@ Header search or AdvancedSearchDrawer
   active assets by `asset_id` keyset in batches of at most 200, extract outside
   write transactions, and atomically persist one asset's derived rows plus its
   fingerprint/status. Metadata changes atomically invalidate initialized
-  prompt/workflow/raw rows and coalesce a durable missing rebuild; indexes that
-  have never been initialized remain opt-in. Expired claims are recovered in
+  prompt/workflow/raw rows and coalesce a durable missing rebuild. Expired claims are recovered in
   the next claim transaction, while startup recovery remains the process-crash
   safety net. Optional index failure never disables lexical search.
+- `prompt_values` and `workflow_properties` build automatically (IM-4). After a
+  metadata commit, `_schedule_derived_search_backfills` calls
+  `schedule_auto_built_search_indexes(library_id)`, which coalesces one `missing`
+  job per index once the library has no `queued` or `running` metadata job
+  (`library_has_active_metadata_jobs`), so a new library gets both without
+  pressing Rebuild and a partly extracted library does not start early. At
+  startup, after the search-index worker starts, `schedule_startup_search_index_backfills`
+  does the same for libraries that predate auto-building (no state, stale
+  versions, `failed`, `degraded`, `pending`); a library whose index is already
+  `ready` at the current versions gets no new job, and one that still has metadata
+  work waits for the commit hook. A failure there is logged and never blocks
+  startup. `workflow_raw` stays opt-in (own storage budget): it is scheduled only
+  after it has been initialized, and the single derived-index writer and job
+  coalescing are unchanged. Measured on a 10,000-image library (A1111 and ComfyUI
+  metadata, this machine, isolated server): about 45 s and +16 MB of database per
+  index, +5 to 47 MB peak RSS, 15 to 19 % writer occupancy; with a back-to-back
+  `/api/browse` load running, each backfill takes 65 to 70 s and browse p95 rises from about
+  35 ms to about 130 ms for that minute, the same as the already automatic
+  `generation_signatures` backfill (75 s, p95 143 ms). The Maintenance pipeline shows the
+  state of both as an unnumbered note ("Search indexes: prompt groups ready,
+  workflow fields building 40 %") from `GET /api/search/indexes`.
 - Capabilities distinguish disabled features (`409 FEATURE_DISABLED`) from an
   enabled but unusable required index (`503 SEARCH_INDEX_NOT_READY` with
   `Retry-After`). Index status exposes `state` separately from `usable`; an old
@@ -1302,10 +1356,16 @@ The inspector is read-only. It is backed by indexed SQLite metadata and opens im
 PhotoCard or inspector row click
 -> lightboxStore.open({ path, name }, visibleImages)
 -> PhotoSwipe wrapper opens derivative-first item
--> usePhotoMetadataQuery(path)
+-> usePhotoMetadataQuery(path, content_version)
 -> GET /api/metadata
 -> active device panel/sheet renders metadata
 ```
+
+The metadata query key is `["metadata", path, content_version]`. A rescanned file
+has a new `content_version`, so its open lightbox refetches instead of showing
+metadata cached before the change; the same version keeps the 10 minute cache.
+PhotoSwipe's dimension reads use the same key for the same item, so they share
+one entry with the metadata panel. The request URL carries no version.
 
 PhotoSwipe normal `src` is `/api/preview`. The original `/api/image` is used for explicit original-load paths such as zoom/fullscreen/download settings or animated images.
 

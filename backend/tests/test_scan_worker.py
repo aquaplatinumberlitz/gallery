@@ -90,3 +90,51 @@ def test_rebuild_path_uses_dispatch_metadata_index_paths(
         f"Expected metadata_index_jobs rows in SQLite after rebuild, got total={status['total']}"
     )
     assert status["counts"].get("queued", 0) > 0, f"Expected queued metadata jobs, got counts={status['counts']}"
+
+
+def _scan_once(library_id: int, scope_path: Path | None) -> None:
+    from backend.metadata_store.job_store import claim_next_catalog_job
+    from backend.scan_worker import execute_scan_job, queue_scan
+
+    trigger = "manual" if scope_path is None else "watcher"
+    queue_scan(library_id, trigger=trigger, scope_path=scope_path)
+    claimed = claim_next_catalog_job(max_queue_wait_seconds=1)
+    assert claimed is not None
+    assert execute_scan_job(claimed)
+
+
+def test_scoped_scan_keeps_fully_scanned_library_ready(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    """CP-04: a successful watcher-scoped scan must not move a `ready` library to `indexing`."""
+    from backend.metadata_store.library_store import get_library
+
+    root = isolated_gallery_root / "lib"
+    (root / "sub").mkdir(parents=True)
+    create_test_png(root / "sub" / "a.png")
+    library_id = int(create_library([root], name="TestLib")["id"])
+
+    _scan_once(library_id, None)
+    assert get_library(library_id)["state"] == "ready"
+
+    _scan_once(library_id, root / "sub")
+    assert get_library(library_id)["state"] == "ready"
+
+
+def test_scoped_scan_of_never_scanned_library_does_not_report_ready(
+    isolated_metadata_db: Path,
+    isolated_gallery_root: Path,
+):
+    """A library that has never completed a full scan stays `indexing` after a scoped scan."""
+    from backend.metadata_store.library_store import get_library
+
+    root = isolated_gallery_root / "lib"
+    (root / "sub").mkdir(parents=True)
+    create_test_png(root / "sub" / "a.png")
+    library_id = int(create_library([root], name="TestLib")["id"])
+
+    _scan_once(library_id, root / "sub")
+    library = get_library(library_id)
+    assert library["state"] == "indexing"
+    assert library["last_scan_at"] is None

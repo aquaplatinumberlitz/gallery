@@ -49,7 +49,7 @@ describe("queryKeys", () => {
     ["folderChildren", ["/p"], ["folder-children", "/p"]],
     ["browseInfiniteAllRoot", [], ["browse-infinite"]],
     ["browseInfiniteRoot", [4], ["browse-infinite", 4]],
-    ["metadata", ["/a.png"], ["metadata", "/a.png"]],
+    ["metadata", ["/a.png"], ["metadata", "/a.png", null]],
     ["statusRoot", [], ["status"]],
     ["statusBatch", [], ["status", "libraries", "batch"]],
     ["statusLibrary", [4], ["status", "library", 4]],
@@ -61,6 +61,17 @@ describe("queryKeys", () => {
     ["maintenanceRuntime", [], ["maintenance", "runtime"]],
   ] as const)("queryKeys.%s(%j) => %j", (method, args, expected) => {
     expect((queryKeys as any)[method](...args)).toEqual(expected);
+  });
+
+  it("metadata key includes the content version so a rescanned file gets a new entry", () => {
+    expect(queryKeys.metadata("/a.png", "3-4")).toEqual(["metadata", "/a.png", "3-4"]);
+    expect(queryKeys.metadata("/a.png", "3-4")).not.toEqual(queryKeys.metadata("/a.png", "5-6"));
+  });
+
+  it("metadata key treats a missing or empty content version as null", () => {
+    expect(queryKeys.metadata("/a.png", undefined)).toEqual(["metadata", "/a.png", null]);
+    expect(queryKeys.metadata("/a.png", null)).toEqual(["metadata", "/a.png", null]);
+    expect(queryKeys.metadata("/a.png", "")).toEqual(["metadata", "/a.png", null]);
   });
 
   it("browse with includeOffline", () => {

@@ -15,14 +15,14 @@ from diskcache import Cache
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps
 from starlette.background import BackgroundTask
 
 from . import config as _config
 from .config import THUMBNAIL_CACHE_DIR
 from .derivative_fastpath import FastPathEntry, FastPathKey, derivative_fast_path, fast_path_key
 from .errors import APIError, ErrorType
-from .files import check_image_limits, content_version, is_image
+from .files import check_image_limits, content_version, is_image, is_permanent_decode_error
 from .metadata_store import image_dimensions_unchanged, upsert_image_dimensions
 from .scan import require_media_path_allowed
 
@@ -306,8 +306,8 @@ def _render_derivative_impl(
 
 
 def _map_render_error(exc: Exception) -> Exception:
-    """Map decode failures to the API error ``generate_derivative`` has always raised."""
-    if isinstance(exc, (Image.DecompressionBombError, UnidentifiedImageError)):
+    """Map permanent decode failures to the API error ``generate_derivative`` has always raised."""
+    if is_permanent_decode_error(exc):
         _inc(_derivative_errors_total)
         api_exc = APIError(400, ErrorType.INVALID_FILE, f"Unable to process image: {exc}")
         api_exc.__cause__ = exc
@@ -431,7 +431,9 @@ def generate_derivative(
             request_timing["render_encode_persist_ms"] = (time.perf_counter() - render_started) * 1000
         _inc(_derivative_ready_total, kind)
         return derivative_bytes
-    except (Image.DecompressionBombError, UnidentifiedImageError) as exc:
+    except Exception as exc:  # noqa: BLE001 - only permanent decode failures become 400; the rest propagate
+        if not is_permanent_decode_error(exc):
+            raise
         _inc(_derivative_errors_total)
         api_exc = APIError(400, ErrorType.INVALID_FILE, f"Unable to process image: {exc}")
         raise api_exc from exc

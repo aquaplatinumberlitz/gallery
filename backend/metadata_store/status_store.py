@@ -148,7 +148,6 @@ class GlobalRuntime(TypedDict):
     metadata_worker_count: int
     metadata_active_jobs: int
     metadata_queue_depth: int
-    metadata_staged_queue_depth: int
     watcher_enabled: bool
     watcher_healthy: bool
     watcher_issue: str | None
@@ -906,7 +905,6 @@ def build_global_runtime(conn: Any | None = None) -> GlobalRuntime:
         "metadata_worker_count": int(metadata_runtime["worker_count"]),
         "metadata_active_jobs": int(metadata_runtime["active_jobs"]),
         "metadata_queue_depth": int(metadata_runtime["runtime_queue_depth"]),
-        "metadata_staged_queue_depth": int(metadata_runtime["staged_path_queue_depth"]),
         "watcher_enabled": watcher_enabled,
         "watcher_healthy": watcher_healthy,
         "watcher_issue": watcher_issue,

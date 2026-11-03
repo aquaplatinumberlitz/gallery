@@ -5,10 +5,13 @@ import { mount } from "@vue/test-utils";
 import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { FocusScope } from "reka-ui";
+import { usePhotoMetadataQuery } from "@/composables/usePhotoMetadataQuery";
 
 const clipboardMocks = vi.hoisted(() => ({
   copyText: vi.fn(),
 }));
+
+const metadataQueryState = vi.hoisted(() => ({ error: null as unknown }));
 
 /* ============================================================
    FocusScope tests (kept from original)
@@ -146,10 +149,13 @@ vi.mock("@/composables/useClipboard", () => ({
 }));
 
 vi.mock("@/composables/usePhotoMetadataQuery", () => ({
-  usePhotoMetadataQuery: () => ({
+  usePhotoMetadataQuery: vi.fn(() => ({
     isLoading: { value: false },
     data: { value: null },
-  }),
+    get error() {
+      return { value: metadataQueryState.error };
+    },
+  })),
 }));
 
 vi.mock("@/debug/lightboxNavDebug", () => ({
@@ -168,8 +174,9 @@ const STUBS = {
   FocusScope: { template: "<div><slot /></div>" },
   PhotoSwipeViewer: { template: "<div data-testid='pswp-viewer' class='pswp pswp--open' />" },
   LightboxDesktopPanel: {
-    props: ["copyText"],
-    template: "<button data-testid='desktop-panel' @click=\"copyText('prompt text', 'prompt')\">Copy</button>",
+    props: ["copyText", "unreadable"],
+    template:
+      "<button data-testid='desktop-panel' :data-unreadable='String(Boolean(unreadable))' @click=\"copyText('prompt text', 'prompt')\">Copy</button>",
   },
   LightboxTabletPanel: { template: "<div data-testid='tablet-panel' />" },
   LightboxMobileSheet: { template: "<div data-testid='mobile-sheet' />" },
@@ -195,6 +202,7 @@ describe("Lightbox component", () => {
     vi.clearAllMocks();
     mockLightboxStore.isOpen = true;
     mockLightboxStore.currentIndex = 0;
+    metadataQueryState.error = null;
   });
 
   it("renders when lightbox is open", async () => {
@@ -207,6 +215,20 @@ describe("Lightbox component", () => {
     expect(wrapper.find('[data-testid="pswp-viewer"]').exists()).toBe(true);
   });
 
+  it("tells the metadata panel when the backend reports an unreadable image", async () => {
+    const { GalleryAPIError } = await import("@/services/api");
+    metadataQueryState.error = new GalleryAPIError("image_unreadable", "This file can't be read", "corrupt", false);
+    const wrapper = await mountSubject();
+    expect(wrapper.find('[data-testid="desktop-panel"]').attributes("data-unreadable")).toBe("true");
+  });
+
+  it("does not mark other metadata failures as unreadable", async () => {
+    const { GalleryAPIError } = await import("@/services/api");
+    metadataQueryState.error = new GalleryAPIError("server_error", "Something went wrong", "retry", true);
+    const wrapper = await mountSubject();
+    expect(wrapper.find('[data-testid="desktop-panel"]').attributes("data-unreadable")).toBe("false");
+  });
+
   it("renders desktop panel on desktop", async () => {
     const wrapper = await mountSubject();
     expect(wrapper.find('[data-testid="desktop-panel"]').exists()).toBe(true);
@@ -217,6 +239,23 @@ describe("Lightbox component", () => {
     await wrapper.find('[data-testid="desktop-panel"]').trigger("click");
     const fallbackRoot = wrapper.find(".pswp.pswp--open").element;
     expect(clipboardMocks.copyText).toHaveBeenCalledWith("prompt text", "prompt", { fallbackRoot });
+  });
+
+  it("passes the open item's content_version to the metadata query", async () => {
+    mockLightboxStore.galleryItems = [
+      {
+        path: "/photos/test.png",
+        name: "test.png",
+        content_version: "5-6",
+      } as (typeof mockLightboxStore.galleryItems)[number],
+    ];
+    try {
+      await mountSubject();
+      const version = vi.mocked(usePhotoMetadataQuery).mock.calls.at(-1)?.[2];
+      expect(version?.value).toBe("5-6");
+    } finally {
+      mockLightboxStore.galleryItems = [{ path: "/photos/test.png", name: "test.png" }];
+    }
   });
 
   it("renders image counter with correct format on desktop", async () => {

@@ -28,6 +28,7 @@ from .metadata_store.search_index_store import (
     SearchIndexClaimLost,
     claim_next_search_index_job,
     finish_search_index_job,
+    library_has_active_metadata_jobs,
     list_search_index_asset_batch,
     list_search_index_states,
     record_search_index_extraction,
@@ -163,6 +164,54 @@ def schedule_search_index_backfill(index_name: str, library_id: int, *, initiali
         )
     search_index_worker.wake()
     return True
+
+
+# Derived indexes built automatically once a library's metadata work is complete. They read only
+# persisted ``image_metadata`` rows (cheap, see ARCHITECTURE.md). ``workflow_raw`` is not listed: it
+# stays opt-in because it has its own storage budget.
+AUTO_BUILT_SEARCH_INDEXES = ("prompt_values", "workflow_properties")
+OPT_IN_SEARCH_INDEXES = ("workflow_raw",)
+
+
+def schedule_auto_built_search_indexes(library_id: int) -> list[str]:
+    """Coalesce a missing-rows backfill of each auto-built index once the library's metadata has drained.
+
+    A library with queued or running metadata jobs is skipped: the commit that completes its last job
+    schedules the backfill. Returns the index names a job was requested for.
+    """
+    if library_has_active_metadata_jobs(library_id):
+        return []
+    return [name for name in AUTO_BUILT_SEARCH_INDEXES if schedule_search_index_backfill(name, library_id)]
+
+
+def schedule_startup_search_index_backfills() -> list[tuple[int, str]]:
+    """Start auto-built indexes for libraries that never built them (new installs and upgrades).
+
+    Runs once at startup after recovery. A library whose index is already ``ready`` at the current
+    versions, or that has an active job, is left alone, so a restart adds no job history for it.
+    Returns the ``(library_id, index_name)`` pairs scheduled.
+    """
+    scheduled: list[tuple[int, str]] = []
+    for library in list_libraries():
+        library_id = int(library["id"])
+        if library_has_active_metadata_jobs(library_id):
+            continue  # the completion of its metadata work schedules the backfill
+        states = {item["index_name"]: item for item in list_search_index_states(library_id=library_id)}
+        for name in AUTO_BUILT_SEARCH_INDEXES:
+            definition = get_search_index_definition(name)
+            if definition is None or not definition.enabled:
+                continue
+            state = states.get(name)
+            if (
+                state is not None
+                and state["state"] == "ready"
+                and int(state["schema_version"]) == definition.schema_version
+                and int(state["extractor_version"]) == definition.extractor_version
+            ):
+                continue
+            if schedule_search_index_backfill(name, library_id):
+                scheduled.append((library_id, name))
+    return scheduled
 
 
 def require_search_index_mode(required_mode: str, *, library_id: int | None) -> None:

@@ -65,6 +65,21 @@ describe("LightboxTabletPanel", () => {
     expect(wrapper.find('[data-testid="meta-error"]').text()).toContain("No metadata available");
   });
 
+  it('shows a clear "can\'t be read" state for an unreadable file, not a spinner or blank panel', () => {
+    const { wrapper } = mountPanel({ meta: null, isLoading: false, unreadable: true });
+    expect(wrapper.find(".meta-loading").exists()).toBe(false);
+    const state = wrapper.find('[data-testid="meta-error"]');
+    expect(state.exists()).toBe(true);
+    expect(wrapper.find('[data-testid="meta-unreadable"]').text()).toBe("This file can't be read");
+    expect(state.text()).not.toContain("No metadata available");
+  });
+
+  it("keeps the generic empty state when the failure is not an unreadable file", () => {
+    const { wrapper } = mountPanel({ meta: null, unreadable: false });
+    expect(wrapper.find('[data-testid="meta-unreadable"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="meta-error"]').text()).toContain("No metadata available");
+  });
+
   it("focuses the sheet handle on mount and toggles expansion from it", async () => {
     const { wrapper } = mountPanel();
     await wrapper.vm.$nextTick();

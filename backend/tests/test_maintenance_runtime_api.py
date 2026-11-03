@@ -57,7 +57,6 @@ class TestGetMaintenanceRuntime:
         assert "scheduled_reconciliation_enabled" in gr
         assert "metadata_worker_count" in gr
         assert "metadata_queue_depth" in gr
-        assert "metadata_staged_queue_depth" in gr
         assert "derivative_configured_worker_count" in gr
         assert "derivative_worker_count" in gr
         assert "derivative_active_jobs" in gr

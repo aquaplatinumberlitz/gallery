@@ -11,9 +11,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps
 
 from .config import METADATA_SIDECAR_MAX_BYTES
+from .files import is_permanent_decode_error
 
 LORA_PATTERN = re.compile(r"<lora:([^:>]+)(?::([^>]+))?>", re.IGNORECASE)
 CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
@@ -63,6 +64,14 @@ class ExtractedMetadata:
     source_path: str | None = None
     source_mtime_ns: int | None = None
     source_size: int | None = None
+
+
+class UnreadableImageError(Exception):
+    """Raised when an image cannot be decoded (not an image, truncated or corrupt, decompression bomb).
+
+    A permanent failure: the metadata job fails immediately instead of retrying, and ``GET /api/metadata``
+    answers ``image_unreadable``. Transient storage errors are never wrapped in this type.
+    """
 
 
 class MetadataSidecarTooLargeError(ValueError):
@@ -927,7 +936,12 @@ def extracted_metadata_to_api(metadata: ExtractedMetadata) -> dict[str, Any]:
 
 
 def extract_metadata(path: Path) -> ExtractedMetadata:
-    """Read image metadata from disk and return a normalized persistence record."""
+    """Read image metadata from disk and return a normalized persistence record.
+
+    Raises ``UnreadableImageError`` for a permanent decode or format failure (not an image, truncated or
+    corrupt data, decompression bomb), even when a same-stem sidecar exists. Transient ``OSError``
+    (``EAGAIN``/``EBUSY``/``EINTR``) propagates unchanged so the job requeues.
+    """
     stat = path.stat()
     width: int | None = None
     height: int | None = None
@@ -937,8 +951,12 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
     info: dict[str, str] = {}
     try:
         width, height, image_format, mode, has_alpha, info = _read_image_info(path)
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
-        info = {}
+    except Exception as exc:  # noqa: BLE001 - only permanent decode failures are wrapped; the rest propagate
+        # Transient storage errors and real I/O errors (EAGAIN, EBUSY, EIO, missing file) keep their own
+        # type so the caller can requeue or fail them as before.
+        if not is_permanent_decode_error(exc):
+            raise
+        raise UnreadableImageError(f"Cannot read image: {exc}") from exc
 
     embedded_result, embedded_raw_source_text = _embedded_metadata_from_sources(info)
     if embedded_result:

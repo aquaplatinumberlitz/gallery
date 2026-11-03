@@ -30,6 +30,7 @@ class ErrorType:
     NOT_DIRECTORY = "not_directory"  # Path is not a folder
     PERMISSION_DENIED = "permission"  # No access permission
     INVALID_FILE = "invalid_file"  # Not an image or can't process
+    IMAGE_UNREADABLE = "image_unreadable"  # Image exists but cannot be decoded (corrupt, truncated, not an image)
     VIDEO_TOOL_UNAVAILABLE = "video_tool_unavailable"
     VIDEO_POSTER_FAILED = "video_poster_failed"
     SERVER_ERROR = "server_error"  # Internal server error

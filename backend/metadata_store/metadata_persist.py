@@ -40,13 +40,19 @@ def _sanitize_metadata_for_json(metadata: dict[str, Any]) -> Any:
 
 
 def _schedule_derived_search_backfills(library_id: int) -> None:
-    """Coalesce initialized discovery and relation refreshes after metadata commits."""
-    from ..search_indexer import schedule_search_index_backfill
+    """Coalesce derived-index refreshes after metadata commits (see ``AUTO_BUILT_SEARCH_INDEXES``)."""
+    from ..search_indexer import (
+        OPT_IN_SEARCH_INDEXES,
+        schedule_auto_built_search_indexes,
+        schedule_search_index_backfill,
+    )
     from ..visual_fingerprints import schedule_visual_fingerprint_backfill
 
     schedule_generation_signature_backfill(library_id)
     schedule_visual_fingerprint_backfill(library_id)
-    for index_name in ("prompt_values", "workflow_properties", "workflow_raw"):
+    # prompt_values and workflow_properties build on their own once the library's metadata has drained.
+    schedule_auto_built_search_indexes(library_id)
+    for index_name in OPT_IN_SEARCH_INDEXES:
         schedule_search_index_backfill(index_name, library_id, initialized_only=True)
 
 

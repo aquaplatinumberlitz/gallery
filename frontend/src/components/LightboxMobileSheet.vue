@@ -16,6 +16,8 @@ const { light: hapticLight } = useHaptic();
 const props = defineProps<{
   meta: MetadataResponse | null;
   isLoading: boolean;
+  /** The backend answered `image_unreadable`: the file exists but cannot be decoded. */
+  unreadable?: boolean;
   copyStatus: Record<string, boolean>;
   copyText: (text: string | undefined, id: string) => Promise<boolean>;
 }>();
@@ -330,7 +332,11 @@ const {
       <!-- Error state -->
       <div v-else-if="!props.meta" class="meta-error" data-testid="meta-error">
         <TriangleAlert :size="24" :stroke-width="1.5" />
-        <span>No metadata available</span>
+        <template v-if="props.unreadable">
+          <span data-testid="meta-unreadable">This file can't be read</span>
+          <span class="meta-error-hint">It may be corrupt or not a valid image.</span>
+        </template>
+        <span v-else>No metadata available</span>
       </div>
 
       <template v-else>

@@ -120,34 +120,6 @@ METADATA_RETRY_BASE_SECONDS = max(0.0, float(os.getenv("GALLERY_METADATA_RETRY_B
 METADATA_INDEXER_WORKER_SLEEP_SECONDS = max(
     0.0, float(os.getenv("GALLERY_METADATA_INDEXER_WORKER_SLEEP_SECONDS", "0.01"))
 )
-METADATA_INDEXER_STAGE_BATCH_SIZE = max(
-    1,
-    min(
-        int(
-            os.getenv(
-                "GALLERY_METADATA_INDEXER_STAGE_BATCH_SIZE", os.getenv("METADATA_INDEXER_STAGE_BATCH_SIZE", "100")
-            )
-        ),
-        1000,
-    ),
-)
-METADATA_INDEXER_STAGE_SLEEP_SECONDS = max(
-    0.0,
-    float(
-        os.getenv(
-            "GALLERY_METADATA_INDEXER_STAGE_SLEEP_SECONDS", os.getenv("METADATA_INDEXER_STAGE_SLEEP_SECONDS", "0.2")
-        )
-    ),
-)
-METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS = max(
-    0.0,
-    float(
-        os.getenv(
-            "GALLERY_METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS",
-            os.getenv("METADATA_INDEXER_STAGE_MAX_WAIT_SECONDS", "5.0"),
-        )
-    ),
-)
 METADATA_INDEXER_SCAN_YIELD_SECONDS = max(
     0.0,
     float(
@@ -165,24 +137,6 @@ METADATA_INDEXER_SCAN_YIELD_MAX_SECONDS = max(
         )
     ),
 )
-METADATA_INDEXER_SQLITE_BUSY_RETRIES = max(
-    0,
-    int(
-        os.getenv(
-            "GALLERY_METADATA_INDEXER_SQLITE_BUSY_RETRIES", os.getenv("METADATA_INDEXER_SQLITE_BUSY_RETRIES", "3")
-        )
-    ),
-)
-METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS = max(
-    0.0,
-    float(
-        os.getenv(
-            "GALLERY_METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS",
-            os.getenv("METADATA_INDEXER_SQLITE_BUSY_BACKOFF_SECONDS", "0.1"),
-        )
-    ),
-)
-
 MAX_IMAGE_FILE_BYTES = 75 * 1024 * 1024  # 75 MB
 MAX_IMAGE_PIXELS = 100 * 1024 * 1024  # 100 megapixels
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS

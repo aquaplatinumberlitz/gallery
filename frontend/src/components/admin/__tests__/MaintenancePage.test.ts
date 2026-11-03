@@ -11,6 +11,7 @@ let mockRuntimeData: Record<string, unknown> | null = null;
 let mockRuntimeIsPending = false;
 let mockJobsData: unknown[] = [];
 let mockGlobalSummaryData: unknown[] | null = null;
+let mockSearchIndexRows: unknown[] | null = null;
 
 vi.mock("@/composables/admin/useFileHealthQuery", () => ({
   useFileHealthQuery: () => ({
@@ -39,6 +40,14 @@ vi.mock("@tanstack/vue-query", async () => {
       if (queryKey[0] === "jobs") {
         return {
           data: { value: mockJobsData },
+          isPending: { value: false },
+          isFetching: { value: false },
+          refetch: vi.fn(),
+        };
+      }
+      if (queryKey[0] === "search-indexes") {
+        return {
+          data: { value: mockSearchIndexRows },
           isPending: { value: false },
           isFetching: { value: false },
           refetch: vi.fn(),
@@ -112,6 +121,7 @@ describe("MaintenancePage", () => {
     mockRuntimeIsPending = false;
     mockJobsData = [];
     mockGlobalSummaryData = null;
+    mockSearchIndexRows = null;
   });
 
   it("renders File catalog diagnostics", () => {
@@ -123,7 +133,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 2,
         metadata_active_jobs: 1,
         metadata_queue_depth: 3,
-        metadata_staged_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -145,7 +154,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 1,
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -213,17 +221,55 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).not.toContain("Active jobs");
   });
 
-  it("explains the imported data flow", () => {
+  it("explains the imported data flow as 1 then 2 and 3 side by side", () => {
     const wrapper = mountSubject();
 
     expect(wrapper.text()).toContain("Imported data flow");
     expect(wrapper.text()).toContain("Processing pipeline");
-    expect(wrapper.text()).toContain("File catalog");
-    expect(wrapper.text()).toContain("Discovers source files");
-    expect(wrapper.text()).toContain("Metadata extraction");
-    expect(wrapper.text()).toContain("Reads file details");
-    expect(wrapper.text()).toContain("Image cache");
-    expect(wrapper.text()).toContain("Builds thumbnails and previews");
+    expect(wrapper.text()).toContain("1. File catalog");
+    expect(wrapper.text()).toContain("Finds images and videos in your libraries");
+    expect(wrapper.text()).toContain("2. Metadata extraction");
+    expect(wrapper.text()).toContain("Reads prompts and settings from images");
+    expect(wrapper.text()).toContain("3. Image cache");
+    expect(wrapper.text()).toContain("Builds thumbnails and previews, ahead of time or on first view");
+    expect(wrapper.text()).toContain("Steps 2 and 3 start once files are cataloged and run side by side.");
+
+    // Steps 2 and 3 sit together in one group after step 1, not in a strict 1 -> 2 -> 3 chain.
+    const group = wrapper.get('[data-testid="pipeline-parallel-group"]');
+    expect(group.text()).toContain("2. Metadata extraction");
+    expect(group.text()).toContain("3. Image cache");
+    expect(group.text()).not.toContain("1. File catalog");
+    expect(wrapper.get('[data-testid="pipeline-stages"]').findAll(":scope > li")).toHaveLength(2);
+  });
+
+  it("shows no search index note until index state is known", () => {
+    const wrapper = mountSubject();
+    expect(wrapper.find('[data-testid="pipeline-search-index-note"]').exists()).toBe(false);
+  });
+
+  it("shows the prompt-group and workflow-field index state as an unnumbered note under the pipeline", () => {
+    const row = (index_name: string, extra: Record<string, unknown>) => ({
+      index_name,
+      library_id: 1,
+      library_name: "Main",
+      state: "ready",
+      usable: true,
+      enabled: true,
+      indexed_count: 100,
+      target_count: 100,
+      failed_count: 0,
+      skipped_count: 0,
+      ...extra,
+    });
+    mockSearchIndexRows = [
+      row("prompt_values", {}),
+      row("workflow_properties", { state: "building", indexed_count: 40, target_count: 100 }),
+      row("generation_signatures", { state: "failed" }),
+    ];
+    const wrapper = mountSubject();
+    const note = wrapper.get('[data-testid="pipeline-search-index-note"]');
+    expect(note.text()).toBe("Search indexes: prompt groups ready, workflow fields building 40 %");
+    expect(note.text()).not.toMatch(/^\d+\./);
   });
 
   it("presents file checks, issues, and repair results as one workflow", () => {
@@ -269,7 +315,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 1,
         metadata_active_jobs: 1,
         metadata_queue_depth: 1,
-        metadata_staged_queue_depth: 1,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -300,7 +345,6 @@ describe("MaintenancePage", () => {
     ]);
     expect(metadataSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
       "About Metadata queue depth",
-      "About Metadata staged queue depth",
       "About Failed jobs",
       "About Old or missing metadata",
       "About Jobs without catalog item",
@@ -318,7 +362,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 2,
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -340,7 +383,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 2,
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: false,
         watcher_issue: "Something broke",
@@ -362,7 +404,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 2,
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -384,7 +425,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 4,
         metadata_active_jobs: 2,
         metadata_queue_depth: 10,
-        metadata_staged_queue_depth: 7,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -404,8 +444,7 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("2");
     expect(wrapper.text()).toContain("Queue depth");
     expect(wrapper.text()).toContain("10");
-    expect(wrapper.text()).toContain("Staged queue depth");
-    expect(wrapper.text()).toContain("7");
+    expect(wrapper.text()).not.toContain("Staged queue depth");
   });
 
   it("renders Metadata extraction", () => {
@@ -417,7 +456,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 2,
         metadata_active_jobs: 2,
         metadata_queue_depth: 3,
-        metadata_staged_queue_depth: 1,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -447,7 +485,7 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("Workers");
     expect(wrapper.text()).toContain("Active jobs");
     expect(wrapper.text()).toContain("Queue depth");
-    expect(wrapper.text()).toContain("Staged queue depth");
+    expect(wrapper.text()).not.toContain("Staged queue depth");
     expect(wrapper.text()).toContain("Running");
     expect(wrapper.text()).toContain("1");
     expect(wrapper.text()).toContain("Failed jobs");
