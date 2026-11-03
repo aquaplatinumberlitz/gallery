@@ -592,7 +592,14 @@ Derivative catalog rows use the full state machine `queued` → `running` →
 job completion. Inactive, missing, or superseded sources become `skipped` with
 a machine-readable result code. Invalid sources and exhausted or internal
 failures become `failed`; transient SQLite/I/O failures retry at most three
-attempts. Quota eviction changes a replaceable `ready` row to `evicted` and
+attempts. A permanent decode failure (`is_permanent_decode_error` in
+`backend/files.py`: Pillow's `UnidentifiedImageError`, a decompression bomb, an
+errno-less `OSError` such as "image file is truncated", or `SyntaxError`,
+`ValueError`, `EOFError` from a decoder) while rendering becomes `failed` with
+`invalid_source` on the first attempt, with no retry and no backoff; `/api/thumbnail`
+answers it as `400 invalid_file`. An `OSError` with an errno (EAGAIN, EBUSY,
+EINTR, EIO, ...), `sqlite3.OperationalError`, and `DatabaseWriterUnavailable`
+keep the transient retry. Quota eviction changes a replaceable `ready` row to `evicted` and
 unlinks its cache file. Automatic work that cannot reserve enough quota becomes
 `deferred_capacity` without a runnable job. Derivative job rows separately use
 `queued`, `running`, `done`, `skipped`, and `failed`.
