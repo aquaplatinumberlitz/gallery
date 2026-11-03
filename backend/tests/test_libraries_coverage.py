@@ -142,9 +142,22 @@ def test_validate_settings_file_not_directory(isolated_metadata_db: Path, isolat
     assert result["import_paths"][0]["message"] == "Import path is not a directory"
 
 
-def test_validate_settings_unreadable_path(isolated_metadata_db: Path, isolated_gallery_root: Path):
+def test_validate_settings_unreadable_path(
+    isolated_metadata_db: Path, isolated_gallery_root: Path, monkeypatch: pytest.MonkeyPatch
+):
     unreadable = isolated_gallery_root / "noread"
     unreadable.mkdir()
+    # chmod 000 does not block root, so also patch the access check that
+    # _validate_import_paths uses, for this path only.
+    real_access = os.access
+    target = unreadable.resolve()
+
+    def access_for_unreadable(path, mode, *args, **kwargs):
+        if Path(os.fspath(path)).resolve() == target:
+            return False
+        return real_access(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(os, "access", access_for_unreadable)
     os.chmod(unreadable, 0o000)
     try:
         result = _validate_settings([str(unreadable)], [])
