@@ -43,7 +43,7 @@ from .related_assets import router as related_assets_router
 from .scan import router as scan_router
 from .scan_worker import queue_startup_scans, start, stop
 from .search import router as search_router
-from .search_indexer import search_index_worker
+from .search_indexer import schedule_startup_search_index_backfills, search_index_worker
 from .search_indexes import router as search_indexes_router
 from .security import require_trusted_proxy, validate_trusted_proxy_configuration
 from .static_files import router as static_files_router
@@ -113,6 +113,14 @@ def _get_cors_origins() -> list[str]:
     return validated
 
 
+def _schedule_startup_search_index_backfills() -> None:
+    """Start prompt/workflow indexes for libraries that predate auto-building; never blocks startup."""
+    try:
+        schedule_startup_search_index_backfills()
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Could not schedule startup search-index backfills")
+
+
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
     lifecycle = _LifecycleRegistry()
@@ -131,6 +139,7 @@ async def _lifespan(_app: FastAPI):
             lifecycle.start("metadata", metadata_worker.start, metadata_worker.stop)
         if GALLERY_SEARCH_INDEXER_ENABLED:
             lifecycle.start("search-index", search_index_worker.start, search_index_worker.stop)
+            _schedule_startup_search_index_backfills()
         if INTEGRITY_CHECK_ENABLED:
             lifecycle.start("integrity", integrity_checker.start, integrity_checker.stop)
         lifecycle.start("derivative", scheduler.start, scheduler.stop)

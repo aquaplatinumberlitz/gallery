@@ -1180,10 +1180,30 @@ Header search or AdvancedSearchDrawer
   active assets by `asset_id` keyset in batches of at most 200, extract outside
   write transactions, and atomically persist one asset's derived rows plus its
   fingerprint/status. Metadata changes atomically invalidate initialized
-  prompt/workflow/raw rows and coalesce a durable missing rebuild; indexes that
-  have never been initialized remain opt-in. Expired claims are recovered in
+  prompt/workflow/raw rows and coalesce a durable missing rebuild. Expired claims are recovered in
   the next claim transaction, while startup recovery remains the process-crash
   safety net. Optional index failure never disables lexical search.
+- `prompt_values` and `workflow_properties` build automatically (IM-4). After a
+  metadata commit, `_schedule_derived_search_backfills` calls
+  `schedule_auto_built_search_indexes(library_id)`, which coalesces one `missing`
+  job per index once the library has no `queued` or `running` metadata job
+  (`library_has_active_metadata_jobs`), so a new library gets both without
+  pressing Rebuild and a partly extracted library does not start early. At
+  startup, after the search-index worker starts, `schedule_startup_search_index_backfills`
+  does the same for libraries that predate auto-building (no state, stale
+  versions, `failed`, `degraded`, `pending`); a library whose index is already
+  `ready` at the current versions gets no new job, and one that still has metadata
+  work waits for the commit hook. A failure there is logged and never blocks
+  startup. `workflow_raw` stays opt-in (own storage budget): it is scheduled only
+  after it has been initialized, and the single derived-index writer and job
+  coalescing are unchanged. Measured on a 10,000-image library (A1111 and ComfyUI
+  metadata, this machine, isolated server): about 45 s and +16 MB of database per
+  index, +5 to 47 MB peak RSS, 15 to 19 % writer occupancy; with a back-to-back
+  `/api/browse` load running, each backfill takes 65 to 70 s and browse p95 rises from about
+  35 ms to about 130 ms for that minute, the same as the already automatic
+  `generation_signatures` backfill (75 s, p95 143 ms). The Maintenance pipeline shows the
+  state of both as an unnumbered note ("Search indexes: prompt groups ready,
+  workflow fields building 40 %") from `GET /api/search/indexes`.
 - Capabilities distinguish disabled features (`409 FEATURE_DISABLED`) from an
   enabled but unusable required index (`503 SEARCH_INDEX_NOT_READY` with
   `Retry-After`). Index status exposes `state` separately from `usable`; an old
