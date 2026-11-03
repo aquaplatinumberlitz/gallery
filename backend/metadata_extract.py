@@ -65,6 +65,14 @@ class ExtractedMetadata:
     source_size: int | None = None
 
 
+class UnreadableImageError(Exception):
+    """Raised when an image cannot be decoded (not an image, truncated or corrupt, decompression bomb).
+
+    A permanent failure: the metadata job fails immediately instead of retrying, and ``GET /api/metadata``
+    answers ``image_unreadable``. Transient storage errors are never wrapped in this type.
+    """
+
+
 class MetadataSidecarTooLargeError(ValueError):
     """Raised when a text sidecar exceeds the configured read limit."""
 
@@ -927,7 +935,12 @@ def extracted_metadata_to_api(metadata: ExtractedMetadata) -> dict[str, Any]:
 
 
 def extract_metadata(path: Path) -> ExtractedMetadata:
-    """Read image metadata from disk and return a normalized persistence record."""
+    """Read image metadata from disk and return a normalized persistence record.
+
+    Raises ``UnreadableImageError`` for a permanent decode or format failure (not an image, truncated or
+    corrupt data, decompression bomb), even when a same-stem sidecar exists. Transient ``OSError``
+    (``EAGAIN``/``EBUSY``/``EINTR``) propagates unchanged so the job requeues.
+    """
     stat = path.stat()
     width: int | None = None
     height: int | None = None
@@ -937,8 +950,18 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
     info: dict[str, str] = {}
     try:
         width, height, image_format, mode, has_alpha, info = _read_image_info(path)
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
-        info = {}
+    except (UnidentifiedImageError, Image.DecompressionBombError) as exc:
+        raise UnreadableImageError(f"Cannot read image: {exc}") from exc
+    except OSError as exc:
+        # Pillow reports a truncated or corrupt stream as an ``OSError`` without an errno. Transient
+        # storage errors and real I/O errors (missing file, permission, EIO) keep their own type so the
+        # caller can requeue or fail them as before.
+        if exc.errno is None:
+            raise UnreadableImageError(f"Cannot read image: {exc}") from exc
+        raise
+    except (SyntaxError, ValueError, EOFError) as exc:
+        # Pillow decoders raise these for broken chunks or headers.
+        raise UnreadableImageError(f"Cannot read image: {exc}") from exc
 
     embedded_result, embedded_raw_source_text = _embedded_metadata_from_sources(info)
     if embedded_result:

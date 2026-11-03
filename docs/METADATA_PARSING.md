@@ -71,6 +71,23 @@ sidecar identity comes from that validated descriptor.
 Background indexing uses the same `extract_metadata()` function, so the API and indexer
 share one parser implementation.
 
+### Unreadable images
+
+An image Pillow cannot decode (non-image bytes, truncated or corrupt data,
+decompression bomb) is not "an image without metadata". `extract_metadata()` raises
+`UnreadableImageError` before any precedence step runs, so a same-stem `.txt` sidecar
+does not rescue it: the file cannot be shown or derived either.
+
+- The metadata job fails immediately (`failed`, no retry, no `image_metadata` row, asset
+  not `done`) and counts in `metadata.failed_assets` of the status envelope.
+- Transient storage errors (`OSError` with `EAGAIN`/`EBUSY`/`EINTR`, locked/busy SQLite)
+  are never converted: they propagate unchanged and the job requeues with backoff.
+- `GET /api/metadata` answers `422` with error `image_unreadable` ("This file can't be
+  read"), persists nothing, and does not mark a job `done`. Size and pixel-limit
+  rejections stay `400 invalid_file`.
+- The lightbox metadata panel (desktop, tablet, mobile sheet) shows "This file can't be
+  read" for that error instead of the generic "No metadata available" state.
+
 Catalog status metadata coverage counts active image assets only. Videos never
 enter the metadata denominator, so a video-only library converges with zero
 metadata assets.

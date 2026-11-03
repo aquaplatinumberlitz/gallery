@@ -82,7 +82,9 @@ def _seed_raw_assets(root: Path, documents: list[dict]) -> tuple[dict, list[int]
 
 def _run_raw_index(library_id: int) -> dict:
     job = create_search_index_job("workflow_raw", library_id, mode="full", schema_version=1, extractor_version=1)
-    for _ in range(20):
+    # The worker claims the oldest queued job first, and the metadata commits that seeded this library (and
+    # leftovers of earlier tests in the same database) queue the auto-built indexes ahead of this one.
+    for _ in range(200):
         if get_search_index_job(int(job["id"]))["state"] in {"succeeded", "failed", "cancelled"}:
             break
         assert run_search_index_once(worker_id="raw-workflow-test") is True

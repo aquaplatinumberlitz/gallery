@@ -56,6 +56,12 @@
   font-size: 14px;
 }
 
+.meta-error .meta-error-hint {
+  font-size: 12px;
+  text-align: center;
+  padding-inline: 16px;
+}
+
 /* LoRA highlighter — shared across panels */
 .lora-pill {
   color: var(--gallery-lightbox-lora);

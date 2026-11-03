@@ -43,11 +43,17 @@ Main flow:
 Register library
 -> update/rebuild queues catalog jobs
 -> catalog writes assets/folders
--> metadata jobs extract prompts/models/resources
--> derivatives warm thumbnail/preview cache
+   |-> (2) metadata jobs extract prompts/models/resources
+   |        -> prompt and workflow search indexes build once metadata is complete
+   '-> (3) derivatives build thumbnails/previews, ahead of time (warm policy) or on first view
 -> browse/search/inspector/status APIs serve the frontend
 -> integrity checker records file-health issues and repairs
 ```
+
+Steps 2 and 3 both start once files are cataloged and run side by side; neither
+waits for the other. Step 3 is eager only when the library's warm policy is on;
+otherwise a thumbnail or preview is built on first view. The Maintenance page
+shows the same 1 -> (2 and 3) shape.
 
 ## Where To Go Next
 

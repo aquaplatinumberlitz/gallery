@@ -31,6 +31,7 @@ from backend.metadata_extract import parse_comfy
 from backend.metadata_store import index_directory_tree, register_library
 from backend.metadata_store._db import _connect
 from backend.metadata_store.search_index_store import (
+    SearchIndexJobConflict,
     create_search_index_job,
     get_search_index_job,
     list_search_index_states,
@@ -88,15 +89,25 @@ def _seed_workflow_assets(root: Path) -> tuple[dict, list[int]]:
     return library, asset_ids
 
 
+def _full_index_job(index_name: str, library_id: int) -> dict:
+    """Return the job that builds ``index_name``: the one the metadata commit already queued, else a new one.
+
+    Since IM-4 ``prompt_values`` and ``workflow_properties`` are scheduled automatically when a library's
+    metadata work completes, so a seed through ``index_directory_tree(include_metadata=True)`` already
+    leaves an active ``missing`` job; a library without any index state is built either way.
+    """
+    try:
+        return create_search_index_job(index_name, library_id, mode="full", schema_version=1, extractor_version=1)
+    except SearchIndexJobConflict as exc:
+        job = get_search_index_job(int(exc.args[0]))
+        assert job is not None
+        return job
+
+
 def _run_workflow_index(library_id: int) -> dict:
-    job = create_search_index_job(
-        "workflow_properties",
-        library_id,
-        mode="full",
-        schema_version=1,
-        extractor_version=1,
-    )
-    for _ in range(20):
+    job = _full_index_job("workflow_properties", library_id)
+    # Other queued jobs (the other auto-built indexes, leftovers of earlier tests) are claimed first.
+    for _ in range(200):
         if get_search_index_job(int(job["id"]))["state"] in {"succeeded", "failed", "cancelled"}:
             break
         assert run_search_index_once(worker_id="workflow-discovery-test") is True

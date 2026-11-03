@@ -69,6 +69,13 @@ describe("LightboxMobileSheet", () => {
     expect(wrapper.text()).toContain("No metadata available");
   });
 
+  it("shows a clear unreadable-file state instead of a spinner or blank sheet", () => {
+    const wrapper = createWrapper({ meta: null, isLoading: false, unreadable: true });
+    expect(wrapper.find(".meta-loading").exists()).toBe(false);
+    expect(wrapper.find('[data-testid="meta-unreadable"]').text()).toBe("This file can't be read");
+    expect(wrapper.text()).not.toContain("No metadata available");
+  });
+
   it("renders tabs when meta is provided", () => {
     const wrapper = createWrapper({ meta: makeMeta() });
     expect(wrapper.text()).toContain("Prompt");

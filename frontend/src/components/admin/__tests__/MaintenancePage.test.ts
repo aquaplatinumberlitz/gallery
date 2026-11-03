@@ -11,6 +11,7 @@ let mockRuntimeData: Record<string, unknown> | null = null;
 let mockRuntimeIsPending = false;
 let mockJobsData: unknown[] = [];
 let mockGlobalSummaryData: unknown[] | null = null;
+let mockSearchIndexRows: unknown[] | null = null;
 
 vi.mock("@/composables/admin/useFileHealthQuery", () => ({
   useFileHealthQuery: () => ({
@@ -39,6 +40,14 @@ vi.mock("@tanstack/vue-query", async () => {
       if (queryKey[0] === "jobs") {
         return {
           data: { value: mockJobsData },
+          isPending: { value: false },
+          isFetching: { value: false },
+          refetch: vi.fn(),
+        };
+      }
+      if (queryKey[0] === "search-indexes") {
+        return {
+          data: { value: mockSearchIndexRows },
           isPending: { value: false },
           isFetching: { value: false },
           refetch: vi.fn(),
@@ -112,6 +121,7 @@ describe("MaintenancePage", () => {
     mockRuntimeIsPending = false;
     mockJobsData = [];
     mockGlobalSummaryData = null;
+    mockSearchIndexRows = null;
   });
 
   it("renders File catalog diagnostics", () => {
@@ -211,17 +221,55 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).not.toContain("Active jobs");
   });
 
-  it("explains the imported data flow", () => {
+  it("explains the imported data flow as 1 then 2 and 3 side by side", () => {
     const wrapper = mountSubject();
 
     expect(wrapper.text()).toContain("Imported data flow");
     expect(wrapper.text()).toContain("Processing pipeline");
-    expect(wrapper.text()).toContain("File catalog");
-    expect(wrapper.text()).toContain("Discovers source files");
-    expect(wrapper.text()).toContain("Metadata extraction");
-    expect(wrapper.text()).toContain("Reads file details");
-    expect(wrapper.text()).toContain("Image cache");
-    expect(wrapper.text()).toContain("Builds thumbnails and previews");
+    expect(wrapper.text()).toContain("1. File catalog");
+    expect(wrapper.text()).toContain("Finds images and videos in your libraries");
+    expect(wrapper.text()).toContain("2. Metadata extraction");
+    expect(wrapper.text()).toContain("Reads prompts and settings from images");
+    expect(wrapper.text()).toContain("3. Image cache");
+    expect(wrapper.text()).toContain("Builds thumbnails and previews, ahead of time or on first view");
+    expect(wrapper.text()).toContain("Steps 2 and 3 start once files are cataloged and run side by side.");
+
+    // Steps 2 and 3 sit together in one group after step 1, not in a strict 1 -> 2 -> 3 chain.
+    const group = wrapper.get('[data-testid="pipeline-parallel-group"]');
+    expect(group.text()).toContain("2. Metadata extraction");
+    expect(group.text()).toContain("3. Image cache");
+    expect(group.text()).not.toContain("1. File catalog");
+    expect(wrapper.get('[data-testid="pipeline-stages"]').findAll(":scope > li")).toHaveLength(2);
+  });
+
+  it("shows no search index note until index state is known", () => {
+    const wrapper = mountSubject();
+    expect(wrapper.find('[data-testid="pipeline-search-index-note"]').exists()).toBe(false);
+  });
+
+  it("shows the prompt-group and workflow-field index state as an unnumbered note under the pipeline", () => {
+    const row = (index_name: string, extra: Record<string, unknown>) => ({
+      index_name,
+      library_id: 1,
+      library_name: "Main",
+      state: "ready",
+      usable: true,
+      enabled: true,
+      indexed_count: 100,
+      target_count: 100,
+      failed_count: 0,
+      skipped_count: 0,
+      ...extra,
+    });
+    mockSearchIndexRows = [
+      row("prompt_values", {}),
+      row("workflow_properties", { state: "building", indexed_count: 40, target_count: 100 }),
+      row("generation_signatures", { state: "failed" }),
+    ];
+    const wrapper = mountSubject();
+    const note = wrapper.get('[data-testid="pipeline-search-index-note"]');
+    expect(note.text()).toBe("Search indexes: prompt groups ready, workflow fields building 40 %");
+    expect(note.text()).not.toMatch(/^\d+\./);
   });
 
   it("presents file checks, issues, and repair results as one workflow", () => {

@@ -152,6 +152,10 @@ def natural_sort_key(s: str) -> list:
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r"(\d+)", s)]
 
 
+# Marks the limit errors that mean "Pillow cannot decode this file", so a caller can answer them as unreadable.
+_UNDECODABLE = {"reason": "undecodable"}
+
+
 def check_image_limits(path: Path) -> None:
     """Guardrails against oversized files or decompression bombs.
 
@@ -173,9 +177,9 @@ def check_image_limits(path: Path) -> None:
         with Image.open(path) as img:
             width, height = img.size
     except Image.DecompressionBombError as exc:
-        raise APIError(400, ErrorType.INVALID_FILE, f"Image too large: {exc}") from exc
+        raise APIError(400, ErrorType.INVALID_FILE, f"Image too large: {exc}", extra=_UNDECODABLE) from exc
     except UnidentifiedImageError as exc:
-        raise APIError(400, ErrorType.INVALID_FILE, "Not a valid image file") from exc
+        raise APIError(400, ErrorType.INVALID_FILE, "Not a valid image file", extra=_UNDECODABLE) from exc
 
     if width * height > MAX_IMAGE_PIXELS:
         raise APIError(

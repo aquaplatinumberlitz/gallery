@@ -115,6 +115,21 @@ def ensure_search_index_state(
     return run_write(op, lane=LANE_NORMAL)
 
 
+def library_has_active_metadata_jobs(library_id: int) -> bool:
+    """Return whether the library still has queued or running metadata extraction jobs.
+
+    Used to start metadata-derived indexes only once a library's metadata work has drained. Failed jobs
+    are terminal and do not count.
+    """
+    initialize_database()
+    with _connect_read() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM metadata_index_jobs WHERE library_id = ? AND state IN ('queued', 'running') LIMIT 1",
+            (library_id,),
+        ).fetchone()
+    return row is not None
+
+
 def list_search_index_states(*, library_id: int | None = None) -> list[dict[str, Any]]:
     """List persisted per-library search-index state with a separate usable flag."""
     initialize_database()
