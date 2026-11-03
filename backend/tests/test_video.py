@@ -35,7 +35,7 @@ from backend.metadata_store._schema import CATALOG_SCHEMA_VERSION
 _FFMPEG = shutil.which("ffmpeg")
 
 
-def _create_test_video(path: Path) -> None:
+def _create_test_video(path: Path, duration: str = "2") -> None:
     """Create a short valid MP4 without relying on checked-in binary fixtures."""
     subprocess.run(
         [
@@ -44,7 +44,7 @@ def _create_test_video(path: Path) -> None:
             "-f",
             "lavfi",
             "-i",
-            "color=c=blue:s=32x24:d=2",
+            f"color=c=blue:s=32x24:d={duration}",
             "-c:v",
             "mpeg4",
             "-pix_fmt",
@@ -384,6 +384,30 @@ def test_video_if_range_invalid_date_falls_back(isolated_app, simple_video_file:
 # ---------------------------------------------------------------------------
 # ffmpeg poster generation failure (line 280)
 # ---------------------------------------------------------------------------
+
+
+def test_video_poster_for_clip_shorter_than_seek_point(
+    isolated_app,
+    isolated_thumbnail_cache: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_gallery_root: Path,
+):
+    """A 0.5 s clip has no frame at the 1 s seek point; the poster falls back to the first frame."""
+    if not _FFMPEG:
+        pytest.skip("ffmpeg not found")
+    import backend.video as video_module
+
+    poster_dir = isolated_thumbnail_cache / "video_posters"
+    monkeypatch.setattr(video_module, "POSTER_CACHE_DIR", poster_dir)
+    short_video = isolated_gallery_root / "short.mp4"
+    _create_test_video(short_video, duration="0.5")
+    _catalog_video(short_video)
+
+    response = isolated_app.get("/api/video/poster", params={"path": str(short_video)})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/webp"
+    assert response.content.startswith(b"RIFF")
 
 
 def test_video_poster_ffmpeg_failure(

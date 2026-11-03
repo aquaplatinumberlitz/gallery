@@ -257,26 +257,31 @@ def _get_or_generate_poster(
                     with _POSTER_STATE_LOCK:
                         _POSTER_GENERATING_PATHS.add(str(cached_path))
                     try:
-                        result = subprocess.run(
-                            [
-                                ffmpeg_path,
-                                "-y",
-                                "-ss",
-                                "1",
-                                "-i",
-                                str(file_path),
-                                "-vframes",
-                                "1",
-                                "-q:v",
-                                "3",
-                                str(temp_path),
-                            ],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                            timeout=30,
-                            check=False,
-                        )
-                        if result.returncode != 0 or not temp_path.exists():
+                        # Seek 1 s in for a representative frame. A clip of 1 s or less has no
+                        # frame there, so retry once from the first frame.
+                        for seek_args in (["-ss", "1"], []):
+                            result = subprocess.run(
+                                [
+                                    ffmpeg_path,
+                                    "-y",
+                                    *seek_args,
+                                    "-i",
+                                    str(file_path),
+                                    "-vframes",
+                                    "1",
+                                    "-q:v",
+                                    "3",
+                                    str(temp_path),
+                                ],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                timeout=30,
+                                check=False,
+                            )
+                            if result.returncode == 0 and temp_path.exists():
+                                break
+                            temp_path.unlink(missing_ok=True)
+                        else:
                             raise APIError(422, ErrorType.VIDEO_POSTER_FAILED, "ffmpeg could not produce a poster")
                         temp_path.replace(cached_path)
                     except APIError:
