@@ -40,7 +40,6 @@ def test_runtime_status_reports_durable_queue(
     assert status["active_jobs"] == 0
     assert status["runtime_queue_depth"] == 1
     assert status["queued_jobs"][0]["path"] == str(image.resolve())
-    assert status["staged_path_queue_depth"] == 0
     assert status["deprecated"] is False
 
     claimed = claim_next_metadata_job()

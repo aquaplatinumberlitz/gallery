@@ -279,7 +279,6 @@ const needsRefreshCount = computed(() => {
                   v-if="
                     runtimeQuery.data.value.global_runtime.metadata_active_jobs === 0 &&
                     runtimeQuery.data.value.global_runtime.metadata_queue_depth === 0 &&
-                    runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth === 0 &&
                     (!runtimeQuery.data.value.metadata_lifecycle ||
                       (runtimeQuery.data.value.metadata_lifecycle.running_metadata_jobs === 0 &&
                         (runtimeQuery.data.value.metadata_lifecycle.failed_metadata_jobs ?? 0) === 0 &&
@@ -389,33 +388,6 @@ const needsRefreshCount = computed(() => {
                       </dt>
                       <dd class="font-semibold tabular-nums text-foreground">
                         {{ runtimeQuery.data.value.global_runtime.metadata_queue_depth }}
-                      </dd>
-                    </div>
-                    <!-- Staged queue depth (show when > 0) -->
-                    <div
-                      v-if="runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth > 0"
-                      class="flex items-center justify-between gap-3 py-2"
-                    >
-                      <dt class="flex items-center gap-1 text-muted-foreground">
-                        Staged queue depth
-                        <Tooltip>
-                          <TooltipTrigger as-child>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              class="-my-1 size-5 text-muted-foreground/60 hover:text-muted-foreground"
-                              aria-label="About Metadata staged queue depth"
-                            >
-                              <Info class="size-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" align="start" class="max-w-[220px]">
-                            Metadata paths staged before they become durable extraction jobs.
-                          </TooltipContent>
-                        </Tooltip>
-                      </dt>
-                      <dd class="font-semibold tabular-nums text-foreground">
-                        {{ runtimeQuery.data.value.global_runtime.metadata_staged_queue_depth }}
                       </dd>
                     </div>
                     <template v-if="runtimeQuery.data.value.metadata_lifecycle">

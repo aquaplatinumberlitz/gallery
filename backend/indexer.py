@@ -206,14 +206,8 @@ def get_indexer_runtime_status(scope_path: str | Path | None = None, *, conn: An
             }
             for row in queued_rows
         ],
-        "staged_path_queue_depth": 0,
-        "staged_path_coalesced": 0,
-        "staged_path_failed": 0,
-        "staged_path_flushes_forced": 0,
-        "staged_path_worker_count": 0,
         "active_scan_requests": 0,
         "active_scan_roots": {},
-        "staged_paths": [],
         "active_rebuild_roots": {},
         "deprecated": False,
     }

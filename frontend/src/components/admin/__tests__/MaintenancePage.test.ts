@@ -123,7 +123,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 2,
         metadata_active_jobs: 1,
         metadata_queue_depth: 3,
-        metadata_staged_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -145,7 +144,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 1,
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -269,7 +267,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 1,
         metadata_active_jobs: 1,
         metadata_queue_depth: 1,
-        metadata_staged_queue_depth: 1,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -300,7 +297,6 @@ describe("MaintenancePage", () => {
     ]);
     expect(metadataSection?.findAll("button").map((button) => button.attributes("aria-label"))).toEqual([
       "About Metadata queue depth",
-      "About Metadata staged queue depth",
       "About Failed jobs",
       "About Old or missing metadata",
       "About Jobs without catalog item",
@@ -318,7 +314,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 2,
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -340,7 +335,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 2,
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: false,
         watcher_issue: "Something broke",
@@ -362,7 +356,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 2,
         metadata_active_jobs: 0,
         metadata_queue_depth: 0,
-        metadata_staged_queue_depth: 0,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -384,7 +377,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 4,
         metadata_active_jobs: 2,
         metadata_queue_depth: 10,
-        metadata_staged_queue_depth: 7,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -404,8 +396,7 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("2");
     expect(wrapper.text()).toContain("Queue depth");
     expect(wrapper.text()).toContain("10");
-    expect(wrapper.text()).toContain("Staged queue depth");
-    expect(wrapper.text()).toContain("7");
+    expect(wrapper.text()).not.toContain("Staged queue depth");
   });
 
   it("renders Metadata extraction", () => {
@@ -417,7 +408,6 @@ describe("MaintenancePage", () => {
         metadata_worker_count: 2,
         metadata_active_jobs: 2,
         metadata_queue_depth: 3,
-        metadata_staged_queue_depth: 1,
         watcher_enabled: true,
         watcher_healthy: true,
         watcher_issue: null,
@@ -447,7 +437,7 @@ describe("MaintenancePage", () => {
     expect(wrapper.text()).toContain("Workers");
     expect(wrapper.text()).toContain("Active jobs");
     expect(wrapper.text()).toContain("Queue depth");
-    expect(wrapper.text()).toContain("Staged queue depth");
+    expect(wrapper.text()).not.toContain("Staged queue depth");
     expect(wrapper.text()).toContain("Running");
     expect(wrapper.text()).toContain("1");
     expect(wrapper.text()).toContain("Failed jobs");
