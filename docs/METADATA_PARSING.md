@@ -59,7 +59,10 @@ sidecar identity comes from that validated descriptor.
 - The route resolves the path, enforces `PATH_SAFETY_ROOT`, requires an active
   registered-library image asset, verifies the file and image extension, and
   runs parsing in a thread pool.
-- `parse_metadata()` keys its in-memory LRU by path, mtime, and size.
+- `parse_metadata()` keys its in-memory LRU by path, `st_mtime_ns`, size, and
+  the same-stem sidecar identity from `metadata_sidecar_identity()` (sidecar
+  path, `mtime_ns`, and size; all `None` when there is no sidecar), so adding,
+  editing, or removing a sidecar produces a new key.
 - A matching SQLite row is preferred before reopening the original image.
 - Concurrent cold requests for the same key share one in-flight parse.
 - A cold parse calls `extract_metadata()`, persists the normalized record, and marks a
