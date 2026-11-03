@@ -65,17 +65,20 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     return dimensions?.source === "thumbnail" ? null : (dimensions ?? null);
   };
 
-  const cachedMetadataDimensions = (path: string): LightboxDimensions | null => {
-    const metadata = queryClient.getQueryData<MetadataResponse>(queryKeys.metadata(path));
+  const cachedMetadataDimensions = (item: FileNode): LightboxDimensions | null => {
+    const metadata = queryClient.getQueryData<MetadataResponse>(queryKeys.metadata(item.path, item.content_version));
     return hasValidDimensions(metadata) ? { width: metadata.width, height: metadata.height, source: "metadata" } : null;
   };
 
   const bestKnownDimensions = (item: FileNode): LightboxDimensions | null =>
-    scanDimensions(item) ?? rememberedDimensions(item) ?? cachedMetadataDimensions(item.path);
+    scanDimensions(item) ?? rememberedDimensions(item) ?? cachedMetadataDimensions(item);
 
-  const fetchMetadataDimensions = async (path: string): Promise<LightboxDimensions | null> => {
+  const fetchMetadataDimensions = async (
+    path: string,
+    contentVersion: string | null | undefined,
+  ): Promise<LightboxDimensions | null> => {
     const metadata = await queryClient.fetchQuery({
-      queryKey: queryKeys.metadata(path),
+      queryKey: queryKeys.metadata(path, contentVersion),
       queryFn: () => fetchMetadata(path),
       staleTime: 10 * 60_000,
       gcTime: 30 * 60_000,
@@ -114,13 +117,13 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
     const known = scanDimensions(item) ?? rememberedDimensions(item);
     if (known) return Promise.resolve(known);
 
-    const cachedMetadata = cachedMetadataDimensions(item.path);
+    const cachedMetadata = cachedMetadataDimensions(item);
     if (cachedMetadata) return Promise.resolve(cachedMetadata);
 
     const pending = pendingDimensions.get(item.path);
     if (pending) return pending;
 
-    const promise = fetchMetadataDimensions(item.path)
+    const promise = fetchMetadataDimensions(item.path, item.content_version)
       .catch(() => null)
       .then((metadataDimensions) => metadataDimensions ?? loadPreviewDimensions(item.path, item.content_version))
       .finally(() => {

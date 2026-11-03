@@ -79,7 +79,9 @@ export const queryKeys = {
 
   searchIndexes: (libraryId?: number | null) => ["search-indexes", libraryId ?? null] as const,
 
-  metadata: (path: string) => ["metadata", normalizeQueryPath(path)] as const,
+  // contentVersion is the catalog `content_version` ("<mtime_ns>-<size>"); a rescanned file gets a new entry.
+  metadata: (path: string, contentVersion?: string | null) =>
+    ["metadata", normalizeQueryPath(path), contentVersion || null] as const,
 
   statusRoot: () => ["status"] as const,
 

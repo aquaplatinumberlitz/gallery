@@ -642,9 +642,9 @@ asset whose `mtime_ns` and size match the derivative source identity. The
 integrity checker requeues missing cache files only for current sources;
 inactive, missing, and superseded sources are skipped instead.
 
-HTTP thumbnail/preview requests accept only `128`/`512` and `1440`
-respectively, always resolve an active catalog asset, and always pass through
-the durable scheduler. Capacity is reserved before runnable work exists;
+HTTP thumbnail requests accept only `128`, `256`, or `512`; preview requests
+accept only `1440`. Both always resolve an active catalog asset and always pass
+through the durable scheduler. Capacity is reserved before runnable work exists;
 interactive refusal returns `507`, while automatic work remains
 `deferred_capacity`. The WebP file cache is authoritative and quota-counted;
 the 64 MiB diskcache stores only key-to-path metadata. Integrity checks skip
@@ -874,6 +874,10 @@ Backend modules are mostly flat, with selected domain packages.
   derived-search-index writer, the derivative scheduler, and the integrity
   checker run as background services. The catalog watcher and scheduled
   reconciliation are enabled by default for registered libraries.
+- During a catalog scan, each video is probed once with `ffprobe` (`-show_format
+  -show_streams`, 5 s timeout, in `backend/metadata_store/file_index.py`) to
+  record `width`, `height`, `duration_ms`, and `codec`. A missing binary, a
+  timeout, or unreadable output leaves those fields NULL and the scan continues.
 - The enabled `prompt_values` derived index reads only persisted
   `image_metadata`/checkpoint-resource rows. It NFKC-normalizes and casefolds
   prompt identities, keeps positive and negative values distinct, and updates
@@ -1052,17 +1056,22 @@ Core keys:
 ["browse-infinite", libraryId]
 ["browse-infinite", libraryId, normalizedPath, limit, includeOffline]
 ["folder-children", normalizedPath]
-["search", query, scope, normalizedPath, limit]
-["metadata", normalizedPath]
+["search-v2", persistableSearchRequest(request), request.limit]
+["search-count", persistableSearchRequest(request)]
+["metadata", normalizedPath, contentVersion ?? null]
 ["facets", canonicalScope, libraryId, normalizedPath]
-["related-assets", canonicalRequest]
+["related-assets", request]
+["search-capabilities"]
+["prompt-usage", request]
+["search-indexes"]
+["search-indexes", libraryId ?? null]
 ["status"]
 ["status", "libraries", "batch"]
 ["status", "library", libraryId]
 ["status", "path", libraryId]
 ["status", "path", libraryId, normalizedPath]
 ["library-inspector"]
-["library-inspector", query, scope, normalizedPath, limit, sort]
+["library-inspector", query.trim(), scope, normalizedPath, limit, sort, model.trim(), prompt]
 ["library-inspector-metadata", normalizedPath]
 ["maintenance"]
 ["maintenance", "file-health"]
@@ -1302,10 +1311,16 @@ The inspector is read-only. It is backed by indexed SQLite metadata and opens im
 PhotoCard or inspector row click
 -> lightboxStore.open({ path, name }, visibleImages)
 -> PhotoSwipe wrapper opens derivative-first item
--> usePhotoMetadataQuery(path)
+-> usePhotoMetadataQuery(path, content_version)
 -> GET /api/metadata
 -> active device panel/sheet renders metadata
 ```
+
+The metadata query key is `["metadata", path, content_version]`. A rescanned file
+has a new `content_version`, so its open lightbox refetches instead of showing
+metadata cached before the change; the same version keeps the 10 minute cache.
+PhotoSwipe's dimension reads use the same key for the same item, so they share
+one entry with the metadata panel. The request URL carries no version.
 
 PhotoSwipe normal `src` is `/api/preview`. The original `/api/image` is used for explicit original-load paths such as zoom/fullscreen/download settings or animated images.
 
