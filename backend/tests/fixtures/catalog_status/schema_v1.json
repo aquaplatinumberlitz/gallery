@@ -292,7 +292,6 @@
         "metadata_worker_count",
         "metadata_active_jobs",
         "metadata_queue_depth",
-        "metadata_staged_queue_depth",
         "watcher_enabled",
         "watcher_healthy",
         "watcher_issue",
@@ -352,10 +351,6 @@
           "minimum": 0
         },
         "metadata_queue_depth": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "metadata_staged_queue_depth": {
           "type": "integer",
           "minimum": 0
         },

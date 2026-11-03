@@ -10,8 +10,7 @@
       "derivative_skipped_jobs": 4,
       "derivative_stale_running_jobs": 5,
       "metadata_active_jobs": 1,
-      "metadata_queue_depth": 2,
-      "metadata_staged_queue_depth": 0
+      "metadata_queue_depth": 2
     },
     "metadata_lifecycle": {
       "assets_done_but_metadata_missing_or_stale": 0,
@@ -185,8 +184,7 @@
     "derivative_skipped_jobs": 4,
     "derivative_stale_running_jobs": 5,
     "metadata_active_jobs": 1,
-    "metadata_queue_depth": 2,
-    "metadata_staged_queue_depth": 0
+    "metadata_queue_depth": 2
   },
   "indexer_runtime": {
     "active_job_paths": {
@@ -218,13 +216,7 @@
         "queued_at": 1700000004.0
       }
     ],
-    "runtime_queue_depth": 2,
-    "staged_path_coalesced": 0,
-    "staged_path_failed": 0,
-    "staged_path_flushes_forced": 0,
-    "staged_path_queue_depth": 0,
-    "staged_path_worker_count": 0,
-    "staged_paths": []
+    "runtime_queue_depth": 2
   },
   "library_status_batch": {
     "contract_version": 1,
@@ -237,8 +229,7 @@
       "derivative_skipped_jobs": 4,
       "derivative_stale_running_jobs": 5,
       "metadata_active_jobs": 1,
-      "metadata_queue_depth": 2,
-      "metadata_staged_queue_depth": 0
+      "metadata_queue_depth": 2
     },
     "items": [
       {
