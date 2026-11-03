@@ -387,6 +387,7 @@ FRESH_DATABASE_DDL = """
               parent_path TEXT NOT NULL,
               name TEXT NOT NULL,
               type TEXT NOT NULL,
+              mtime REAL,
               mtime_ns INTEGER,
               size INTEGER,
               width INTEGER,

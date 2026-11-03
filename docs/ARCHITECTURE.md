@@ -470,14 +470,28 @@ it calls) writes only through writer ops. Each store function is split into a bo
 | `renew_catalog_job_lease` (`_CatalogLeaseHeartbeat`)                           | `priority` | WK-02 root cause: no longer queues behind unrelated readers or writers |
 | `fail_abandoned_catalog_job_claim`, `update_parent_aggregate_job`              | `priority` | |
 | `create_or_coalesce_catalog_job` (queue scan/rebuild)                          | `priority` | cancellation events are published after the op committed |
-| `_bulk_index_records` (scan upserts: `file_index`, FTS, `assets`)              | `normal`   | claim assertion + upserts + claim refresh per op, at most 50 rows (`db_writer.SCAN_OP_ROWS`) |
+| `_bulk_index_records` (scan upserts: `file_index`, FTS, `assets`)              | `normal`   | claim assertion + upserts + claim refresh per op, at most 50 rows (`db_writer.SCAN_OP_ROWS`); the upsert is `upsert_catalog_records_conn`, shared with rebuild activation |
 | `reconcile_library_assets`                                                    | `normal`   | |
 | `_persist_metadata_index_job_batch` (metadata jobs of a scan)                  | `normal`   | at most 50 paths per op |
 | `enumerate_to_rebuild_staging` flushes, `delete_rebuild_staging*`              | `normal`   | |
-| `activate_rebuild_staging`                                                    | `normal`   | one atomic op by contract (a failed activation leaves the canonical generation and staging untouched), so a very large library holds the write lock for the whole merge |
+| `activate_rebuild_staging`                                                    | `normal`   | one atomic op by contract (a failed activation leaves the canonical generation and staging untouched), so a very large library holds the write lock for the whole merge; upserts through the same `upsert_catalog_records_conn` as a scan |
 | `recover_stale_jobs` (supervisor, startup)                                     | `normal`   | candidates read on a plain connection; fenced failure writes are one op |
 
 `assert_catalog_job_claim` and reads such as `get_library` are plain WAL reads.
+
+Scan and rebuild build and persist catalog records through one shared path in
+`metadata_store/file_index.py`, so a rebuilt catalog serves the same contracts as a scanned one:
+
+- `build_folder_record` and `build_asset_record` turn a `stat` result into a `CatalogRecord`
+  (`file_index` and `assets` columns, including `mtime`, `mime_type` and, for videos, the ffprobe
+  `width`, `height`, `duration_ms` and `codec` from `probe_video_metadata`). The scan walker
+  (`index_directory_tree`) and the rebuild staging walker (`enumerate_to_rebuild_staging`) both call them;
+  the rebuild probes videos during enumeration, outside any write transaction.
+- `upsert_catalog_records_conn` is the only SQL that writes catalog rows (`file_index`,
+  `file_index_fts`, `assets`). The scan calls it per bounded batch; rebuild activation calls it once, inside
+  its single atomic transaction, with `last_seen_scan_job_id` set to the rebuild job.
+- `catalog_rebuild_entries` stages the full record (it carries `mtime` as well as `mtime_ns`).
+  `backend/tests/test_rebuild_scan_parity.py` asserts that scan and rebuild leave equal rows.
 
 ### Write ownership (Phase 3)
 
@@ -755,7 +769,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_store/job_store.py`        | Catalog job queue management                              |
 | `metadata_store/rebuild_store.py`    | Staging area for rebuild operations                       |
 | `metadata_store/browse_store.py`     | Browse listing queries                                    |
-| `metadata_store/file_index.py`       | File index operations                                     |
+| `metadata_store/file_index.py`       | File index operations; `CatalogRecord`, the record builders (`build_folder_record`, `build_asset_record`, `probe_video_metadata`) and `upsert_catalog_records_conn`, shared by scan and rebuild |
 | `metadata_store/folder_index.py`     | Folder index operations                                   |
 | `metadata_store/metadata_queue.py`   | Durable metadata index job queue primitives, completion invariants, and stale guards |
 | `metadata_store/metadata_persist.py` | Metadata persistence helpers                              |

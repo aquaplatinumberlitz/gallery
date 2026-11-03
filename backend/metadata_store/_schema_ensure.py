@@ -530,6 +530,7 @@ def _ensure_catalog_schema(conn: sqlite3.Connection) -> None:
           parent_path TEXT NOT NULL,
           name TEXT NOT NULL,
           type TEXT NOT NULL,
+          mtime REAL,
           mtime_ns INTEGER,
           size INTEGER,
           width INTEGER,
@@ -568,6 +569,7 @@ def _ensure_catalog_schema(conn: sqlite3.Connection) -> None:
     ]
     for statement in statements:
         conn.execute(statement)
+    _ensure_column(conn, "catalog_rebuild_entries", "mtime", "REAL")
 
 
 def _ensure_post_v1_additive_columns(conn: sqlite3.Connection) -> None:
