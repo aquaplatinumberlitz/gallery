@@ -33,6 +33,38 @@ for `text/css`, `text/javascript`, `application/javascript`,
 only `text/html`). `text/event-stream` is not compressed, so `/api/events`
 keeps streaming.
 
+**Pre-compressed assets (Brotli).** `pnpm run build` writes `<file>.br` (Brotli
+quality 11) and `<file>.gz` (gzip level 9) next to every text file under
+`dist/assets/` (`js`, `css`, `svg`, `json`, `html`, `txt`, `xml`; woff2 fonts and
+images are skipped, and a sibling is only written when it is smaller). The
+`/assets/` location of the template serves them with `gzip_static on;` (stock
+nginx) and `brotli_static on;` (needs the Brotli module). On the mount-critical
+chunks Brotli is about 12% smaller than gzip. Dynamic `gzip on` stays the fallback
+for any file without a pre-compressed copy and for clients that do not send `br`.
+
+To enable Brotli on the Ubuntu VPS (a separate, manual step; the repository never
+changes the VPS):
+
+1. Install the modules. The packages add `load_module` snippets under
+   `/etc/nginx/modules-enabled/`, which the stock `nginx.conf` includes:
+   `sudo apt install libnginx-mod-http-brotli-static libnginx-mod-http-brotli-filter`.
+   If your `nginx.conf` does not include that directory, add these two lines at the
+   top, outside `http {}`: `load_module modules/ngx_http_brotli_filter_module.so;`
+   and `load_module modules/ngx_http_brotli_static_module.so;`.
+2. Back up `/etc/nginx/sites-enabled/gallery`, then edit it in place (never copy the
+   template over it) and add `brotli_static on;` and `gzip_static on;` to its
+   `location /assets/` block. Install the modules first: nginx refuses to start on a
+   `brotli_static` directive it does not know.
+3. `sudo nginx -t && sudo systemctl reload nginx`.
+4. Rebuild the frontend on the VPS (the deploy steps in `AGENTS.md`), so the `.br` and
+   `.gz` files exist, and check the result:
+   `curl -sI -H 'Accept-Encoding: br' -u USER https://150.230.56.153/assets/<file>.js`
+   must show `Content-Encoding: br` and `Vary: Accept-Encoding`.
+
+The web-vitals lab servers (`scripts/perf/web_vitals/serve_dist.cjs --mode tuned` and
+`serve_dist_h2.cjs`) serve the same files the same way: `.br` when the client accepts
+`br`, else `.gz`, else dynamic gzip; `--no-brotli` mimics a server without the module.
+
 The development template (`frontend/gallery-nginx-dev.conf`) proxies `/` to
 the Vite dev server on `127.0.0.1:4702` instead. Use it only while editing the
 frontend on the VPS: the dev server serves hundreds of unbundled, uncompressed

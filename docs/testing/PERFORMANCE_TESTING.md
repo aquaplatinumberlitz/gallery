@@ -85,7 +85,7 @@ Home page:
 |---------|-----|-----|-----|---------|
 | Desktop | ≈ 0.5 s | ≈ 0.5 s | 0.03–0.2 (1440 px; ≈ 0 at 1024 px) | CLS "good" in typical runs but 0.2 (needs improvement) in some; 0.0004 after the fix |
 | Mobile, typical 4G | 1.4 s | 1.1 s | ≈ 0 (0.0001) | good |
-| Mobile, slow 4G | 2.7–2.8 s | 2.4 s | ≈ 0 (0.0001) | needs improvement (stretch) |
+| Mobile, slow 4G | 2.7–2.8 s (2.4 s with Brotli after Track P) | 2.4 s | ≈ 0 (0.0001) | needs improvement (stretch); meets 2.5 s with Brotli |
 | Repeat visit, mobile | ≈ 1.3 s | — | — | — |
 
 Home page after Track L (`perf/st-home`, 2026-11-02, code commit `d8911d1`; median of 3 cold runs, same session
@@ -108,6 +108,51 @@ the first frame now contains the data that previously arrived after the first (h
 coincide. The floor: about 305 KB gzip must arrive before the app mounts (1.5 s at 1.6 Mbps plus round trips, last
 route chunk at ≈ 2.05 s) and mounting costs ≈ 0.5 s of 4×-throttled CPU. Cutting it further means moving bytes
 out of the mount-critical graph (`motion-v` 40 KB, reka-ui 26 KB, the 30 KB CSS).
+
+Home page after Track P (`perf/st-payload`, 2026-11-03, code commit `f3d59ee`; same session and machine as
+`321251f` (Track L + CLS fix), HTTP/2 + immutable `/assets/`, scratch harness with CDP throttling, 4-core machine
+shared with another agent so single runs vary by ±150 ms). Median of 5 cold runs on slow 4G (9 for the headline
+row), 3 elsewhere. "Brotli" serves the build's `.br` files like nginx `brotli_static`; "gzip" is the same build
+served from `.gz` only (a server without the Brotli module). `321251f` is served with dynamic gzip level 6, as before:
+
+| Profile | Fixture | `321251f` LCP / FCP / bytes | Track P gzip LCP / FCP | Track P Brotli LCP / FCP / bytes | CLS |
+|---------|---------|-----------------------------|------------------------|----------------------------------|-----|
+| Mobile, slow 4G | flat first (9 runs) | 2.56 s / 2.56 s / 686 KB | 2.53 s / 2.53 s (5 runs) | 2.41 s / 2.41 s / 630 KB | 0 |
+| Mobile, slow 4G | photo first | 2.65 s / 2.65 s / 728 KB | 2.56 s / 2.56 s | 2.36 s / 2.36 s / 672 KB | 0 |
+| Mobile, typical 4G | flat first | 1.26 s / 1.01 s / 686 KB | 1.11 s / 1.11 s | 1.12 s / 1.10 s / 630 KB | 0 |
+| Mobile, typical 4G | photo first | 1.54 s / 1.04 s / 728 KB | 1.19 s / 1.19 s | 1.16 s / 1.12 s / 672 KB | 0 |
+| Desktop | flat first | 0.49 s / 0.49 s / 922 KB | 0.43 s / 0.43 s | 0.41 s / 0.41 s / 863 KB | 0 |
+| Desktop | photo first | 0.44 s / 0.44 s / 1008 KB | 0.41 s / 0.41 s | 0.44 s / 0.44 s / 949 KB | 0 |
+
+ST-1 (slow-4G LCP ≤ 2.5 s) is met with Brotli (2.36-2.45 s across runs; an earlier 5-run set on the same build
+gave 2.28 s) and not met on gzip alone (2.53-2.56 s), so it depends on the nginx Brotli module being installed
+(`docs/CONFIGURATION.md`). The 4G and desktop rows are within noise of `321251f`, with the typical-4G photo-first
+row 0.4 s faster on this run.
+
+Mount-critical bytes (entry, preloaded chunks, route and layout graph for `/`, CSS; compressed offline with
+gzip -9 and Brotli q11 from the build output, so they are comparable with each other but not with the "bytes"
+column above, which is all transferred bytes):
+
+| Viewport | `321251f` gzip / Brotli | Track P gzip / Brotli | Change |
+|----------|-------------------------|-----------------------|--------|
+| 390 (mobile) | 308.0 / 271.2 KB | 283.9 / 251.3 KB | -24.1 KB gzip; Brotli is -56.7 KB against the old gzip |
+| 1024 (tablet) | 331.0 / 291.6 KB | 306.9 / 271.8 KB | -24.1 KB gzip |
+| 1440 (desktop) | 334.3 / 294.5 KB | 310.2 / 274.7 KB | -24.1 KB gzip |
+
+Per item (mobile, mount-critical gzip -9; each ~20 KB moves slow-4G LCP about 0.1 s):
+
+| Item | Result | Mount-critical gzip | Decision |
+|------|--------|---------------------|----------|
+| P1 Brotli (`.br` + `.gz`, `brotli_static`) | Brotli is 12% smaller than gzip on the critical set (308.0 -> 271.2 KB for the same files) | -36.8 KB on the wire when the module is installed; nothing without it | Kept; needs the VPS module |
+| P2 lazy tooltip / popover content | `PopperContent` + floating-ui are also imported by the dropdown menus and selects on the home route (a select must render its items to show its value), so only the tooltip-specific code moved | -0.9 KB (mobile), -2.3 KB (desktop) | Dropped (patch kept out of the repo) |
+| P3 fuse.js + results panel off the home graph | fuse.js 26.8 KB raw, `SearchResultsPanel`, `SearchFeedback`, `SearchResultMetadata` now load on search intent / idle | -12.5 KB | Kept |
+| P4 motion-v `LazyMotion` + `domAnimation` + `m` | motion-v 2.3.0 supports it. The app only animates `initial` / `animate` / `exit`; layout projection, drag and pan were bundled for nothing | -12.6 KB | Kept |
+| P4b `MotionProvider` as its own chunk | Importing `domAnimation` from `App.vue` grew the entry chunk by ~20 KB gzip, which delayed the first API calls (libraries request at 1.87 s instead of 1.14 s) and made LCP 2.5-2.8 s; its own chunk (early preload, awaited by `main.ts`) fixed it | +1.0 KB | Kept |
+
+Pixel diff `321251f` against Track P at 390 / 1024 / 1440 (home, album of flat images, album of photos, lightbox;
+fonts loaded, animations off, mouse parked): 12 screenshots, 0 pixels over 48 in every run. One of two runs had
+640 pixels over 16 (max 40) in thin 1 px lines on the flat-image album at 1440; a second run of the same Track P
+build had 0, so it is run-to-run noise of that page; every other shot has 0 pixels over 16 (mean ≤ 0.0001).
 
 Home layout shift (CLS), `perf/st-cls` against `fada31d`, 2026-11-02, median of 3 cold and 3 repeat loads per
 cell, production build over HTTP/2 + gzip, `layout-shift` PerformanceObserver. The first table in this block

@@ -114,7 +114,7 @@ backend, and add the secret.
 
 | Script | Transport | Use it for |
 |--------|-----------|------------|
-| `serve_dist.cjs --mode tuned` | HTTP/1.1, gzip for text assets, `immutable` under `/assets/` | Repeat-visit and cache numbers |
+| `serve_dist.cjs --mode tuned` | HTTP/1.1, pre-compressed `.br`/`.gz` (else dynamic gzip) for text assets, `immutable` under `/assets/` | Repeat-visit and cache numbers |
 | `serve_dist_h2.cjs` | TLS + HTTP/2 (HTTP/1.1 also allowed), same caching | The production-shaped first-load profile |
 
 ```bash
@@ -131,6 +131,12 @@ node scripts/perf/web_vitals/serve_dist_h2.cjs --secret-file "$ROOT/proxy-secret
 only, ETag, no `Cache-Control`), `tuned` (gzip for every text asset, immutable `/assets/`,
 `no-cache` elsewhere), and `dev` (proxies non-API paths to a Vite server on `--vite-port`,
 default 4833). Use `tuned` to match the production intent.
+
+`tuned` and `serve_dist_h2.cjs` answer like nginx with `brotli_static on; gzip_static on;` on `/assets/`: the
+`<file>.br` that `pnpm run build` writes when the client sends `Accept-Encoding: br`, else `<file>.gz`, else
+dynamic gzip (level 6) for text files. A `dist` built before the pre-compression step has no `.br`/`.gz`
+files and is served with dynamic gzip, which is how to measure an older build. `--no-brotli` skips the `.br` files
+(a server without the Brotli module) so the same build can be measured with gzip only.
 
 `serve_dist_h2.cjs` with no `--cert`/`--key` writes a two-day self-signed `localhost`
 certificate into `os.tmpdir()` (set `TMPDIR` to choose the directory) and removes it on exit.
@@ -168,7 +174,7 @@ Every script prints to stdout. Errors go to stderr with an `ERR` prefix and exit
 
 ```text
 node scripts/perf/web_vitals/serve_dist.cjs --secret-file PATH
-     [--dist DIR] [--port 8080] [--backend-port 4701] [--mode asis|tuned|dev] [--vite-port 4833]
+     [--dist DIR] [--port 8080] [--backend-port 4701] [--mode asis|tuned|dev] [--vite-port 4833] [--no-brotli]
 ```
 
 The secret comes from `--secret-file` or the `GALLERY_PROXY_SECRET` environment variable; one of
@@ -179,7 +185,7 @@ Output: `tuned on 8080 (dist …, backend 127.0.0.1:4701)`.
 
 ```text
 node scripts/perf/web_vitals/serve_dist_h2.cjs --secret-file PATH
-     [--dist DIR] [--port 8443] [--backend-port 4701] [--cert CERT --key KEY]
+     [--dist DIR] [--port 8443] [--backend-port 4701] [--cert CERT --key KEY] [--no-brotli]
 ```
 
 Output: `h2 on 8443 (dist …, backend 127.0.0.1:4701, https)`.

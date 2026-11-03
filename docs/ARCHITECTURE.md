@@ -1381,9 +1381,29 @@ kept short by these rules; keep them when moving components between chunks:
 - The early chunk preload script in `index.html` sits after the render-blocking stylesheet, so the browser only
   runs it once the main CSS has loaded. Do not move it earlier: on the HTTP/2 + gzip lab setup (fair-share
   streams) 45 preloads started at t = 0 delayed the entry module from 1.0 s to 2.0 s, and with it the library and
-  browse requests, which made LCP worse (3.2 s against 2.75 s on slow 4G). Mount is bandwidth-bound: about 305 KB
-  gzip (entry, Vue, icons, CSS and the gallery route graph, of which `motion-v` is 40 KB and reka-ui 26 KB) must
-  arrive before the app mounts, 1.5 s at 1.6 Mbps.
+  browse requests, which made LCP worse (3.2 s against 2.75 s on slow 4G). Mount is bandwidth-bound: the entry, Vue,
+  icons, CSS and the gallery route graph must arrive before the app mounts (about 308 KB gzip before the payload
+  work below, about 284 KB gzip / 251 KB Brotli after it, at 1.6 Mbps each ~20 KB is ~0.1 s).
+- **Mount-critical payload (Track P).** Keep these when adding code to the home graph:
+  - `vite.config.ts` `precompressAssets()` (`src/build/precompressAssets.ts`) writes `.br` (q11) and `.gz` (9)
+    siblings of every text asset; nginx serves them with `brotli_static` / `gzip_static` (see
+    `docs/CONFIGURATION.md`). Without the Brotli module the `.gz` files and dynamic gzip still work.
+  - `motion-v` runs through `LazyMotion` with the synchronous `domAnimation` bundle (`MotionProvider.vue`), and every
+    animated element is an `m.*` component. The full `motion.*` component bundles layout projection, drag and pan
+    code (about 36 KB raw) that the app never uses; `src/components/__tests__/MotionProvider.test.ts` fails if a
+    file imports `motion` again. `MotionProvider` is its own chunk (`loadMotionProvider.ts`, in the early preload
+    list, awaited by `main.ts` before the first mount) because everything in the entry chunk delays the first API
+    requests, which start when the entry executes. The feature bundle is passed as an object, not a loader, so the
+    first render and every animation are the same as with `motion.*`; do not make it asynchronous.
+  - fuse.js and the search results panel are not in the home graph. `utils/fuzzySearch.ts` is a synchronous facade
+    over `utils/fuzzySearchEngine.ts` (the only importer of fuse.js; until the engine has loaded it returns the list
+    unfiltered and re-evaluates dependent computeds when it arrives), and `components/search/SearchResultsPanel.vue`
+    is a lazy wrapper over `SearchResultsPanelImpl.vue`. `utils/searchChunks.ts` (started by `GalleryRoute.vue`)
+    loads both when the URL carries a search, on the first text-field focus, and after `load` + idle.
+  - Tooltip and popover content cannot leave the home graph by themselves: reka-ui's `PopperContent` and
+    floating-ui are also imported by the dropdown menus and the selects on the home route (the select must render
+    its items to show its value), so making only `TooltipContent` / `PopoverContent` lazy removed 0.9 KB gzip and was
+    dropped.
 - **Layout stability (CLS).** Two things moved the desktop layout on cold loads (0.03–0.2 at 1440 px) and are
   fixed; keep them when touching the header, sidebar or start-up:
   - The brand title (`.brand-title`, Cinzel 600, 42 px) sits in a width-limited header box. Cinzel is ~23% wider
