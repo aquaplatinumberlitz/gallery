@@ -189,12 +189,19 @@ In-app flows:
 | Album opened right after import (worst case) | 4.8 s | 1.1 s | — |
 | Mobile album-open long task | — | 123 ms | — |
 
-Known gaps against the standard:
-- Slow-4G LCP is 2.58 s after Track L (2.76 s on `main`), against the 2.5 s stretch target; slow-4G FCP is 2.6 s against the 1.8 s diagnostic. Both are bound by the ≈ 305 KB that must arrive before mount.
-- Mobile INP sits under 200 ms but above RAIL's 100 ms response goal.
+Known gaps against the standard (updated 2026-11-03 after the stretch work merged; see
+`docs/archived/PERF_STRETCH_PLAN.md`):
+- Slow-4G LCP met the 2.5 s stretch target: 2.32 s with Brotli, 2.44 s gzip only (3.27 s on `main` @ `5991830`
+  in the same session). Production needs the nginx Brotli module for the margin.
+- Slow-4G FCP is 2.32 s against the 1.8 s diagnostic. Closed by owner decision: FCP is not a Core Web Vital, the
+  gate profiles pass (0.42 s desktop, 1.12 s typical 4G), and the only lever, a static app shell, would not move
+  LCP and risks CLS.
+- Album-open long task (ST-4) and click INP ≤ 100 ms (ST-5) are met in the median with a documented floor
+  (click task 50–81 ms at 4x CPU; lightbox INP 96–104 ms median). Closed by owner decision; INP stays well
+  under the 200 ms Core Web Vitals limit.
 - Scroll smoothness was confirmed by hand on the owner's phone (2026-11-02, fast scrolling in a large album, no visible jank). Frame times were not instrumented on the device.
 
-Album open, long task and click INP after Track M of `docs/plans/PERF_STRETCH_PLAN.md`
+Album open, long task and click INP after Track M of `docs/archived/PERF_STRETCH_PLAN.md`
 (2026-11-02, `perf/st-album` @ `0b7425a` against `main` @ `5991830`; same session and machine, interleaved
 runs, HTTP/2 with immutable `/assets/`, photo-like fixture with 300 images, median with the min-max range in
 brackets; the machine was shared with other jobs, so single runs vary by tens of milliseconds):
