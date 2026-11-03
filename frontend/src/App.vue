@@ -16,12 +16,13 @@ import { useRouter } from "vue-router";
 import { useLibrariesQuery } from "./composables/admin/useLibrariesQuery";
 import { useRouteChrome } from "@/composables/useRouteChrome";
 import { useSidebarTreeQuery } from "./composables/useSidebarTreeQuery";
-import MotionProvider from "@/components/MotionProvider.vue";
+import { loadMotionProvider } from "./components/loadMotionProvider";
 import { useFieldedSearch } from "./composables/useFieldedSearch";
 import { useSearchUrlSync } from "./composables/useSearchUrlSync";
 import type { FieldFilter, PersistableSearchRequestV1 } from "./types";
 import { shouldShowQueryDevtools } from "./utils/queryDevtoolsGate";
 
+const MotionProvider = defineAsyncComponent(loadMotionProvider);
 const Lightbox = defineAsyncComponent(() => import("./components/Lightbox.vue"));
 const RelatedAssetsPanel = defineAsyncComponent(() => import("./components/RelatedAssetsPanel.vue"));
 const DesktopLayout = defineAsyncComponent(() => import("./layouts/DesktopLayout.vue"));

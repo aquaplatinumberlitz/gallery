@@ -96,7 +96,14 @@ export function precompressAssets(): Plugin {
     },
     async closeBundle() {
       // `closeBundle` also fires when the build failed before writing anything.
-      if (!assetsDir || !(await stat(assetsDir).then((s) => s.isDirectory(), () => false))) return;
+      if (
+        !assetsDir ||
+        !(await stat(assetsDir).then(
+          (s) => s.isDirectory(),
+          () => false,
+        ))
+      )
+        return;
       const results = await precompressDirectory(assetsDir);
       const sum = (pick: (r: PrecompressResult) => number) => results.reduce((total, r) => total + pick(r), 0);
       const kb = (bytes: number) => (bytes / 1024).toFixed(0);

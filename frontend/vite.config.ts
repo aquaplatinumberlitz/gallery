@@ -12,6 +12,7 @@ const API_TARGET = process.env.VITE_API_URL || "http://localhost:4701";
 // after it has executed: the gallery route (router.isReady() waits for it before mounting) and
 // the layout for the current viewport. Widths mirror BREAKPOINTS in src/composables/useDevice.ts.
 const EARLY_CHUNKS: Array<{ module: string; when: string }> = [
+  { module: "src/components/MotionProvider.vue", when: "true" },
   { module: "src/components/GalleryRoute.vue", when: 'location.pathname === "/"' },
   { module: "src/layouts/MobileLayout.vue", when: "innerWidth < 768" },
   { module: "src/layouts/TabletLayout.vue", when: "innerWidth >= 768 && innerWidth < 1200" },

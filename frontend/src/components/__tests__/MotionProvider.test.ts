@@ -70,4 +70,22 @@ describe("motion-v imports", () => {
 
     expect(offenders.map((file) => file.slice(srcRoot.length))).toEqual([]);
   });
+
+  it("keeps the animation features (LazyMotion, domAnimation) in MotionProvider.vue, loaded through loadMotionProvider", () => {
+    const files = sourceFiles(srcRoot);
+    const featureImporters = files.filter((file) =>
+      /import\s*\{[^}]*\b(LazyMotion|domAnimation|domMax)\b[^}]*\}\s*from\s*"motion-v"/.test(
+        readFileSync(file, "utf8"),
+      ),
+    );
+    expect(featureImporters.map((file) => file.slice(srcRoot.length))).toEqual(["components/MotionProvider.vue"]);
+
+    const staticProviderImports = files.filter((file) =>
+      /^\s*import\s+\w+\s+from\s+["'][^"']*MotionProvider\.vue["']/m.test(readFileSync(file, "utf8")),
+    );
+    expect(staticProviderImports).toEqual([]);
+
+    const main = readFileSync(join(srcRoot, "main.ts"), "utf8");
+    expect(main).toMatch(/loadMotionProvider\(\)/);
+  });
 });
