@@ -79,6 +79,8 @@ async function installGalleryWithFaults(
     failPreview?: boolean;
     failImage?: boolean;
     failMetadata?: boolean;
+    /** Answer `image_unreadable` (422) for the image whose path ends with this suffix. */
+    unreadableMetadataFor?: string;
     failSearch?: boolean;
   } = {},
 ) {
@@ -183,6 +185,14 @@ async function installGalleryWithFaults(
           status: 500,
           contentType: "application/json",
           body: JSON.stringify({ detail: { error: "server_error", message: "Metadata failed" } }),
+        });
+        return;
+      }
+      if (faults.unreadableMetadataFor && req.path.endsWith(faults.unreadableMetadataFor)) {
+        await route.fulfill({
+          status: 422,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: { error: "image_unreadable", message: "This file can't be read" } }),
         });
         return;
       }
@@ -317,6 +327,24 @@ test("metadata 500 shows placeholder in sidebar; lightbox still shows image", as
   if (hasMetaError) {
     await expect(metaError.first()).toBeVisible();
   }
+});
+
+// ─── 2b-2: Unreadable image in the lightbox sidebar ───
+test("unreadable image shows a clear sidebar state and next image still loads its metadata", async ({ page }) => {
+  const requests = await installGalleryWithFaults(page, { unreadableMetadataFor: "/a.png" });
+  await openGallery(page, requests);
+
+  await page.getByTestId("photo-card").first().click();
+  await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+
+  // No blank panel and no endless spinner: the typed error becomes a readable state.
+  await expect(page.getByTestId("meta-unreadable")).toHaveText("This file can't be read", { timeout: 10_000 });
+  await expect(page.locator(".meta-loading")).toHaveCount(0);
+
+  // Navigating on works and the next image shows its own metadata.
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("meta-unreadable")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByTestId("lightbox")).toContainText("stub prompt test", { timeout: 10_000 });
 });
 
 // ─── 2c: Preview 500 — fallback to original ───

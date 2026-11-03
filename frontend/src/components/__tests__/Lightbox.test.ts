@@ -10,6 +10,8 @@ const clipboardMocks = vi.hoisted(() => ({
   copyText: vi.fn(),
 }));
 
+const metadataQueryState = vi.hoisted(() => ({ error: null as unknown }));
+
 /* ============================================================
    FocusScope tests (kept from original)
    ============================================================ */
@@ -149,6 +151,9 @@ vi.mock("@/composables/usePhotoMetadataQuery", () => ({
   usePhotoMetadataQuery: () => ({
     isLoading: { value: false },
     data: { value: null },
+    get error() {
+      return { value: metadataQueryState.error };
+    },
   }),
 }));
 
@@ -168,8 +173,9 @@ const STUBS = {
   FocusScope: { template: "<div><slot /></div>" },
   PhotoSwipeViewer: { template: "<div data-testid='pswp-viewer' class='pswp pswp--open' />" },
   LightboxDesktopPanel: {
-    props: ["copyText"],
-    template: "<button data-testid='desktop-panel' @click=\"copyText('prompt text', 'prompt')\">Copy</button>",
+    props: ["copyText", "unreadable"],
+    template:
+      "<button data-testid='desktop-panel' :data-unreadable='String(Boolean(unreadable))' @click=\"copyText('prompt text', 'prompt')\">Copy</button>",
   },
   LightboxTabletPanel: { template: "<div data-testid='tablet-panel' />" },
   LightboxMobileSheet: { template: "<div data-testid='mobile-sheet' />" },
@@ -195,6 +201,7 @@ describe("Lightbox component", () => {
     vi.clearAllMocks();
     mockLightboxStore.isOpen = true;
     mockLightboxStore.currentIndex = 0;
+    metadataQueryState.error = null;
   });
 
   it("renders when lightbox is open", async () => {
@@ -205,6 +212,20 @@ describe("Lightbox component", () => {
   it("renders desktop PhotoSwipe viewer on desktop", async () => {
     const wrapper = await mountSubject();
     expect(wrapper.find('[data-testid="pswp-viewer"]').exists()).toBe(true);
+  });
+
+  it("tells the metadata panel when the backend reports an unreadable image", async () => {
+    const { GalleryAPIError } = await import("@/services/api");
+    metadataQueryState.error = new GalleryAPIError("image_unreadable", "This file can't be read", "corrupt", false);
+    const wrapper = await mountSubject();
+    expect(wrapper.find('[data-testid="desktop-panel"]').attributes("data-unreadable")).toBe("true");
+  });
+
+  it("does not mark other metadata failures as unreadable", async () => {
+    const { GalleryAPIError } = await import("@/services/api");
+    metadataQueryState.error = new GalleryAPIError("server_error", "Something went wrong", "retry", true);
+    const wrapper = await mountSubject();
+    expect(wrapper.find('[data-testid="desktop-panel"]').attributes("data-unreadable")).toBe("false");
   });
 
   it("renders desktop panel on desktop", async () => {

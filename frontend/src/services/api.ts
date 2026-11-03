@@ -102,6 +102,7 @@ export type ErrorType =
   | "not_directory"
   | "permission"
   | "invalid_file"
+  | "image_unreadable"
   | "timeout"
   | "server_error"
   | "confirmation_required"
@@ -249,6 +250,14 @@ export class GalleryAPIError extends Error {
       case "invalid_file":
         return new GalleryAPIError("invalid_file", "Invalid file", "This file type is not supported.", false);
 
+      case "image_unreadable":
+        return new GalleryAPIError(
+          "image_unreadable",
+          "This file can't be read",
+          "The file may be corrupt or not a valid image.",
+          false,
+        );
+
       case "timeout":
       case "search_timeout":
         return new GalleryAPIError(
@@ -316,6 +325,10 @@ export class GalleryAPIError extends Error {
     }
   }
 }
+
+/** True when `error` is the backend's typed "image exists but cannot be decoded" answer. */
+export const isUnreadableImageError = (error: unknown): boolean =>
+  error instanceof GalleryAPIError && error.type === "image_unreadable";
 
 // Every HttpError (non-2xx, timeout, cancel, network) is rejected as a GalleryAPIError, as the axios
 // response interceptor did; anything else (a programming error) passes through unchanged.

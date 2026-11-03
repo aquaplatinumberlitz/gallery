@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { FocusScope } from "reka-ui";
 import { useLightboxStore } from "../stores/lightbox";
+import { isUnreadableImageError } from "../services/api";
 import { useClipboard } from "../composables/useClipboard";
 import { useDevice } from "../composables/useDevice";
 import { DESKTOP_METADATA_WIDTH } from "../constants";
@@ -38,6 +39,7 @@ const metadataQuery = usePhotoMetadataQuery(show, metadataPath);
 const currentItem = computed(() => lightbox.galleryItems[lightbox.currentIndex] ?? null);
 const isLoading = computed(() => metadataQuery.isLoading.value);
 const meta = computed(() => metadataQuery.data.value ?? null);
+const isUnreadable = computed(() => isUnreadableImageError(metadataQuery.error.value));
 const isFullscreen = ref(false);
 let pendingArrowKeydown: { key: string; indexBefore: number; timeStamp: number } | null = null;
 
@@ -365,6 +367,7 @@ function handleToggleFullscreen() {
               v-if="!isFullscreen"
               :meta="meta"
               :is-loading="isLoading"
+              :unreadable="isUnreadable"
               :image-name="imageName"
               :size-text="sizeText"
               :date-text="dateText"
@@ -391,6 +394,7 @@ function handleToggleFullscreen() {
               v-if="showSheet && !isFullscreen"
               :meta="meta"
               :is-loading="isLoading"
+              :unreadable="isUnreadable"
               :image-name="imageName"
               :size-text="sizeText"
               :date-text="dateText"
@@ -421,6 +425,7 @@ function handleToggleFullscreen() {
               v-if="showSheet && !isFullscreen"
               :meta="meta"
               :is-loading="isLoading"
+              :unreadable="isUnreadable"
               :copy-status="copyStatus"
               :copy-text="copyLightboxText"
               @close="handleSheetClosed"

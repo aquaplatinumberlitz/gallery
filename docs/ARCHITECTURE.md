@@ -100,7 +100,11 @@ metadata_worker supervisor (every GALLERY_METADATA_SUPERVISOR_INTERVAL_SECONDS)
    capped at 60 s) stored in `next_attempt_at`; claims ignore rows that are not
    yet due, and a rescan that coalesces into the queued retry does not reset it.
    After `MAX_METADATA_JOB_ATTEMPTS` the job fails. Parse and format errors
-   (unreadable image, oversized sidecar, vanished file) fail immediately. The
+   (unreadable image, oversized sidecar, vanished file) fail immediately. An unreadable
+   image is `UnreadableImageError` from `extract_metadata` (also when a same-stem sidecar
+   exists): the job ends `failed`, no `image_metadata` row is written, and the asset counts
+   in `metadata.failed_assets`. `GET /api/metadata` answers `422 image_unreadable` for it
+   and persists nothing; the lightbox panel shows "This file can't be read". The
    failure or requeue write is itself retried a bounded number of times (0.1, 0.5,
    1 s) so one locked write cannot orphan the job; if it still fails, the lease
    recovers the job.

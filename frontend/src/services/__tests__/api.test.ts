@@ -84,6 +84,7 @@ describe("GalleryAPIError", () => {
     ["library_busy", "library_busy"],
     ["permission", "permission"],
     ["invalid_file", "invalid_file"],
+    ["image_unreadable", "image_unreadable"],
     ["confirmation_required", "confirmation_required"],
     ["relation_index_not_ready", "relation_index_not_ready"],
     ["reference_not_indexed", "reference_not_indexed"],

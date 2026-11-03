@@ -17,6 +17,7 @@ from .errors import APIError, ErrorType
 from .files import check_image_limits, is_image
 from .metadata_extract import (
     MetadataSidecarTooLargeError,
+    UnreadableImageError,
     extract_metadata,
     extracted_metadata_to_api,
     metadata_sidecar_identity,
@@ -51,15 +52,34 @@ def _validate_metadata_path(path: str) -> Path:
     return file_path
 
 
+def _unreadable_image_error(reason: object = None) -> APIError:
+    """Typed 422 for an image that exists but cannot be decoded; the lightbox shows a "can't be read" state."""
+    return APIError(
+        422,
+        ErrorType.IMAGE_UNREADABLE,
+        "This file can't be read",
+        extra={"reason": str(reason)} if reason else None,
+    )
+
+
 def _parse_metadata_uncached(path: Path) -> dict:
     if not path.exists() or not path.is_file():
         raise APIError(404, ErrorType.NOT_FOUND, "Image file not found")
     try:
-        check_image_limits(path)
+        try:
+            check_image_limits(path)
+        except APIError as exc:
+            if exc.detail.get("reason") == "undecodable":
+                # Not an image or a decompression bomb: the same typed "cannot be read" answer as a
+                # decode failure below. Nothing is persisted. Size/pixel limit errors stay 400.
+                raise _unreadable_image_error(exc.detail.get("message")) from exc
+            raise
         extracted = extract_metadata(path)
         upsert_extracted_metadata(extracted, mark_job_done=True)
         return extracted_metadata_to_api(extracted)
 
+    except UnreadableImageError as exc:
+        raise _unreadable_image_error(str(exc)) from exc
     except MetadataSidecarTooLargeError as exc:
         raise APIError(413, "metadata_sidecar_too_large", "Metadata sidecar is too large") from exc
     except APIError:

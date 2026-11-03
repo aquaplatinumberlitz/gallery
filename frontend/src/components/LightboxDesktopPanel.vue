@@ -27,6 +27,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 const props = defineProps<{
   meta: MetadataResponse | null;
   isLoading: boolean;
+  /** The backend answered `image_unreadable`: the file exists but cannot be decoded. */
+  unreadable?: boolean;
   imageName: string;
   sizeText: string;
   dateText: string;
@@ -66,7 +68,11 @@ const {
 
     <div v-else-if="!props.meta" class="meta-error" data-testid="meta-error">
       <TriangleAlert :stroke-width="1.5" class="icon-nav" />
-      <span>No metadata available</span>
+      <template v-if="props.unreadable">
+        <span data-testid="meta-unreadable">This file can't be read</span>
+        <span class="meta-error-hint">It may be corrupt or not a valid image.</span>
+      </template>
+      <span v-else>No metadata available</span>
     </div>
 
     <template v-else>
