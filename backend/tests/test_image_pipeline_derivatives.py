@@ -23,6 +23,9 @@ Changing derivative rendering or encoding, the sibling claim/batch path in `deri
 
 from __future__ import annotations
 
+import errno
+import os
+import random
 import sqlite3
 import threading
 import time
@@ -267,7 +270,7 @@ def test_one_sibling_failing_does_not_fail_or_block_the_others(catalog, monkeypa
 
     def fit_or_break(img, max_long_edge, *, no_upscale):  # noqa: ANN001
         if max_long_edge == 256:
-            raise ValueError("boom")
+            raise RuntimeError("boom")  # an internal fault, not a decode error (ValueError is a permanent decode error)
         return real_fit(img, max_long_edge, no_upscale=no_upscale)
 
     monkeypatch.setattr(thumbnails, "_fit_image", fit_or_break)
@@ -319,6 +322,73 @@ def test_an_invalid_source_fails_every_claimed_variant_permanently(catalog) -> N
     rows = _derivatives(db_path)
     assert {row["job_state"] for row in rows.values()} == {"failed"}
     assert {row["result_code"] for row in rows.values()} == {"invalid_source"}
+
+
+def _write_truncated_png(path: Path, size: tuple[int, int] = (800, 600)) -> None:
+    """A random-noise PNG cut in half: the header still opens, the pixel data does not decode."""
+    pixels = random.Random(20260211).randbytes(size[0] * size[1] * 3)
+    Image.frombytes("RGB", size, pixels).save(path, format="PNG")
+    data = path.read_bytes()
+    path.write_bytes(data[: len(data) // 2])
+
+
+def _job_rows(db_path: Path, asset_path: str | None = None) -> list[dict[str, Any]]:
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT j.id AS job_id, j.state, j.result_code, j.attempts
+            FROM derivative_jobs j
+            JOIN asset_derivatives d ON d.id = j.derivative_id
+            JOIN assets a ON a.id = d.asset_id
+            WHERE ? IS NULL OR a.path = ?
+            ORDER BY j.id
+            """,
+            (asset_path, asset_path),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def test_a_truncated_source_fails_every_claimed_variant_without_retry(catalog) -> None:
+    db_path, asset_id, image, scheduler = catalog
+    _queue_all_variants(scheduler, asset_id)
+    stat = image.stat()
+    _write_truncated_png(image)
+    truncated_size = image.stat().st_size
+    os.utime(image, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE assets SET size = ? WHERE id = ?", (truncated_size, asset_id))
+        conn.execute("UPDATE asset_derivatives SET source_size = ? WHERE asset_id = ?", (truncated_size, asset_id))
+
+    job = scheduler._claim_job("worker-1")
+    assert job is not None
+    started = time.monotonic()
+    scheduler._run_job(job)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 1.5, f"a permanent decode failure must not back off ({elapsed:.2f}s)"
+    rows = _derivatives(db_path)
+    assert {row["job_state"] for row in rows.values()} == {"failed"}
+    assert {row["result_code"] for row in rows.values()} == {"invalid_source"}
+    assert {row["attempts"] for row in _job_rows(db_path)} == {1}
+
+
+def test_a_transient_os_error_while_rendering_still_requeues_the_job(catalog, monkeypatch: pytest.MonkeyPatch) -> None:
+    db_path, asset_id, _image, scheduler = catalog
+    kind, edge, quality = VARIANTS["thumb_128"]
+    scheduler.schedule_derivative(asset_id, kind, "thumb_128", 0, max_long_edge=edge, quality=quality, format="webp")
+    job = scheduler._claim_job("worker-1")
+    assert job is not None
+    monkeypatch.setattr(scheduler, "_claim_siblings", lambda _job: [])
+
+    def busy_decode(_path):  # noqa: ANN001
+        raise OSError(errno.EBUSY, "device or resource busy")
+
+    monkeypatch.setattr(thumbnails, "_decode_source_rgb", busy_decode)
+    scheduler._run_job(job)
+
+    row = _job_rows(db_path)[0]
+    assert (row["state"], row["result_code"], row["attempts"]) == ("queued", None, 1)
 
 
 def test_the_group_heartbeat_renews_the_lease_of_every_open_claim(catalog, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -434,3 +504,25 @@ def test_thumbnail_endpoint_serves_the_256_variant(isolated_app: TestClient, tem
 
     rejected = isolated_app.get("/api/thumbnail", params={"path": str(path), "max_long_edge": 300})
     assert rejected.status_code == 422
+
+
+def test_a_truncated_image_is_a_fast_400_and_is_not_retried_over_http(
+    isolated_app: TestClient, temp_gallery: Path, isolated_metadata_db: Path
+) -> None:
+    path = temp_gallery / "album_a" / "truncated.png"
+    _write_truncated_png(path)
+    stat = path.stat()
+    assert index_file(path, path.name, path.parent, "image", stat.st_mtime, stat.st_size, 800, 600)
+
+    for request_number in (1, 2):
+        started = time.monotonic()
+        response = isolated_app.get("/api/thumbnail", params={"path": str(path)})
+        elapsed = time.monotonic() - started
+
+        assert response.status_code == 400, response.text
+        assert "invalid_file" in response.text
+        assert elapsed < 1.5, f"request {request_number} took {elapsed:.2f}s; a permanent failure must not back off"
+
+    jobs = _job_rows(isolated_metadata_db, str(path))
+    assert len(jobs) == 2, "each request creates one job; a retry loop would show more attempts per job"
+    assert {(job["state"], job["result_code"], job["attempts"]) for job in jobs} == {("failed", "invalid_source", 1)}

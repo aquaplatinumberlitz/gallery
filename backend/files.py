@@ -156,6 +156,19 @@ def natural_sort_key(s: str) -> list:
 _UNDECODABLE = {"reason": "undecodable"}
 
 
+def is_permanent_decode_error(exc: BaseException) -> bool:
+    """Return whether ``exc`` means Pillow cannot decode this file, so retrying the same bytes cannot help.
+
+    Permanent: ``UnidentifiedImageError``, decompression bombs, an ``OSError`` without an errno (Pillow's
+    "image file is truncated" and similar stream errors), and the ``SyntaxError``/``ValueError``/``EOFError``
+    Pillow decoders raise for broken chunks or headers. An ``OSError`` with an errno (EAGAIN, EBUSY, EINTR,
+    EIO, ENOENT, ...) is a storage condition, not a property of the file, so it is not permanent.
+    """
+    if isinstance(exc, OSError):
+        return exc.errno is None
+    return isinstance(exc, (Image.DecompressionBombError, SyntaxError, ValueError, EOFError))
+
+
 def check_image_limits(path: Path) -> None:
     """Guardrails against oversized files or decompression bombs.
 

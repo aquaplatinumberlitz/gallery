@@ -11,9 +11,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps
 
 from .config import METADATA_SIDECAR_MAX_BYTES
+from .files import is_permanent_decode_error
 
 LORA_PATTERN = re.compile(r"<lora:([^:>]+)(?::([^>]+))?>", re.IGNORECASE)
 CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
@@ -950,17 +951,11 @@ def extract_metadata(path: Path) -> ExtractedMetadata:
     info: dict[str, str] = {}
     try:
         width, height, image_format, mode, has_alpha, info = _read_image_info(path)
-    except (UnidentifiedImageError, Image.DecompressionBombError) as exc:
-        raise UnreadableImageError(f"Cannot read image: {exc}") from exc
-    except OSError as exc:
-        # Pillow reports a truncated or corrupt stream as an ``OSError`` without an errno. Transient
-        # storage errors and real I/O errors (missing file, permission, EIO) keep their own type so the
-        # caller can requeue or fail them as before.
-        if exc.errno is None:
-            raise UnreadableImageError(f"Cannot read image: {exc}") from exc
-        raise
-    except (SyntaxError, ValueError, EOFError) as exc:
-        # Pillow decoders raise these for broken chunks or headers.
+    except Exception as exc:  # noqa: BLE001 - only permanent decode failures are wrapped; the rest propagate
+        # Transient storage errors and real I/O errors (EAGAIN, EBUSY, EIO, missing file) keep their own
+        # type so the caller can requeue or fail them as before.
+        if not is_permanent_decode_error(exc):
+            raise
         raise UnreadableImageError(f"Cannot read image: {exc}") from exc
 
     embedded_result, embedded_raw_source_text = _embedded_metadata_from_sources(info)
