@@ -3,11 +3,15 @@ import { computed, type Ref } from "vue";
 import { queryKeys } from "../query/keys";
 import { fetchMetadata } from "../services/api";
 
-export function usePhotoMetadataQuery(isOpen: Ref<boolean>, path: Ref<string>) {
+export function usePhotoMetadataQuery(
+  isOpen: Ref<boolean>,
+  path: Ref<string>,
+  contentVersion: Ref<string | null | undefined>,
+) {
   const metadataPath = computed(() => path.value.trim());
 
   return useQuery({
-    queryKey: computed(() => (metadataPath.value ? queryKeys.metadata(metadataPath.value) : [])),
+    queryKey: computed(() => (metadataPath.value ? queryKeys.metadata(metadataPath.value, contentVersion.value) : [])),
     queryFn: ({ queryKey }) => {
       const [, requestPath] = queryKey as ReturnType<typeof queryKeys.metadata>;
       return fetchMetadata(requestPath);

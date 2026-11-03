@@ -1058,7 +1058,7 @@ Core keys:
 ["folder-children", normalizedPath]
 ["search-v2", persistableSearchRequest(request), request.limit]
 ["search-count", persistableSearchRequest(request)]
-["metadata", normalizedPath]
+["metadata", normalizedPath, contentVersion ?? null]
 ["facets", canonicalScope, libraryId, normalizedPath]
 ["related-assets", request]
 ["search-capabilities"]
@@ -1311,10 +1311,16 @@ The inspector is read-only. It is backed by indexed SQLite metadata and opens im
 PhotoCard or inspector row click
 -> lightboxStore.open({ path, name }, visibleImages)
 -> PhotoSwipe wrapper opens derivative-first item
--> usePhotoMetadataQuery(path)
+-> usePhotoMetadataQuery(path, content_version)
 -> GET /api/metadata
 -> active device panel/sheet renders metadata
 ```
+
+The metadata query key is `["metadata", path, content_version]`. A rescanned file
+has a new `content_version`, so its open lightbox refetches instead of showing
+metadata cached before the change; the same version keeps the 10 minute cache.
+PhotoSwipe's dimension reads use the same key for the same item, so they share
+one entry with the metadata panel. The request URL carries no version.
 
 PhotoSwipe normal `src` is `/api/preview`. The original `/api/image` is used for explicit original-load paths such as zoom/fullscreen/download settings or animated images.
 

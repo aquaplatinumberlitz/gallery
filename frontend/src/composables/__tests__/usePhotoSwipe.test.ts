@@ -402,6 +402,58 @@ describe("usePhotoSwipe", () => {
       expect(dataItem.height).toBe(1080);
     });
 
+    it("ignores cached metadata dimensions stored for a different content_version", async () => {
+      queryClient.setQueryData(queryKeys.metadata("/img1.png", "7-8"), {
+        width: 1920,
+        height: 1080,
+        name: "test",
+        tool: "test",
+        prompt: "",
+        negative_prompt: "",
+        params: {},
+      } as MetadataResponse);
+      (fetchMetadata as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        width: 640,
+        height: 480,
+        name: "test",
+        tool: "test",
+        prompt: "",
+        negative_prompt: "",
+        params: {},
+      } as MetadataResponse);
+      const item: FileNode = { ...makeItem("/img1.png", "img1.png"), content_version: "9-9" };
+      const { result, isOpenRef } = setup([item], 0, false);
+
+      isOpenRef.value = true;
+      await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
+      const store = useLightboxStore();
+      await vi.waitFor(() => {
+        expect(store.dimensionsByPath["/img1.png"]).toEqual({ width: 640, height: 480, source: "metadata" });
+      });
+      expect(fetchMetadata).toHaveBeenCalledWith("/img1.png");
+    });
+
+    it("reuses the metadata panel's cache entry for the same content_version", async () => {
+      queryClient.setQueryData(queryKeys.metadata("/img1.png", "7-8"), {
+        width: 1920,
+        height: 1080,
+        name: "test",
+        tool: "test",
+        prompt: "",
+        negative_prompt: "",
+        params: {},
+      } as MetadataResponse);
+      const item: FileNode = { ...makeItem("/img1.png", "img1.png"), content_version: "7-8" };
+      const { result, isOpenRef } = setup([item], 0, false);
+
+      isOpenRef.value = true;
+      await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
+      const dataItem = pswpInstances[0].options.dataSource[0] as PhotoSwipeImageItem;
+      expect(dataItem.width).toBe(1920);
+      expect(dataItem.height).toBe(1080);
+      expect(fetchMetadata).not.toHaveBeenCalled();
+    });
+
     it("loads preview dimensions via Image when no scan/remembered/cached dimensions exist", async () => {
       const item = makeItem("/img1.png", "img1.png");
       const { result, isOpenRef } = setup([item], 0, false);

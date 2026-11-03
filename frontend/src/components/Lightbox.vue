@@ -34,7 +34,11 @@ const desktopPhotoSwipeRef = ref<{ loadOriginalForCurrent: (reason?: "fullscreen
 
 const show = computed(() => lightbox.isOpen);
 const metadataPath = computed(() => lightbox.itemPath);
-const metadataQuery = usePhotoMetadataQuery(show, metadataPath);
+// Same item the metadata path points at, so PhotoSwipe dimension reads share this cache entry.
+const metadataVersion = computed(
+  () => lightbox.galleryItems.find((item) => item.path === lightbox.itemPath)?.content_version ?? null,
+);
+const metadataQuery = usePhotoMetadataQuery(show, metadataPath, metadataVersion);
 const currentItem = computed(() => lightbox.galleryItems[lightbox.currentIndex] ?? null);
 const isLoading = computed(() => metadataQuery.isLoading.value);
 const meta = computed(() => metadataQuery.data.value ?? null);

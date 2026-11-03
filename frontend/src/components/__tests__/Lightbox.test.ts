@@ -5,6 +5,7 @@ import { mount } from "@vue/test-utils";
 import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { FocusScope } from "reka-ui";
+import { usePhotoMetadataQuery } from "@/composables/usePhotoMetadataQuery";
 
 const clipboardMocks = vi.hoisted(() => ({
   copyText: vi.fn(),
@@ -146,10 +147,10 @@ vi.mock("@/composables/useClipboard", () => ({
 }));
 
 vi.mock("@/composables/usePhotoMetadataQuery", () => ({
-  usePhotoMetadataQuery: () => ({
+  usePhotoMetadataQuery: vi.fn(() => ({
     isLoading: { value: false },
     data: { value: null },
-  }),
+  })),
 }));
 
 vi.mock("@/debug/lightboxNavDebug", () => ({
@@ -217,6 +218,23 @@ describe("Lightbox component", () => {
     await wrapper.find('[data-testid="desktop-panel"]').trigger("click");
     const fallbackRoot = wrapper.find(".pswp.pswp--open").element;
     expect(clipboardMocks.copyText).toHaveBeenCalledWith("prompt text", "prompt", { fallbackRoot });
+  });
+
+  it("passes the open item's content_version to the metadata query", async () => {
+    mockLightboxStore.galleryItems = [
+      {
+        path: "/photos/test.png",
+        name: "test.png",
+        content_version: "5-6",
+      } as (typeof mockLightboxStore.galleryItems)[number],
+    ];
+    try {
+      await mountSubject();
+      const version = vi.mocked(usePhotoMetadataQuery).mock.calls.at(-1)?.[2];
+      expect(version?.value).toBe("5-6");
+    } finally {
+      mockLightboxStore.galleryItems = [{ path: "/photos/test.png", name: "test.png" }];
+    }
   });
 
   it("renders image counter with correct format on desktop", async () => {
