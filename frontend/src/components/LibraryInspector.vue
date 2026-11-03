@@ -41,7 +41,7 @@ import { queryClient } from "@/query";
 import { queryKeys } from "@/query/keys";
 import { clearScopeRebuildMarker, getScopeRebuildStartedAt } from "@/utils/indexMaintenance";
 import { fitMiddleTruncate, tableCellFont } from "@/utils/textTruncation";
-import { motion } from "motion-v";
+import { m } from "motion-v";
 import { logIndexRebuildDebug } from "@/debug/indexRebuildDebug";
 import { logLightboxNavDebug, summarizeLightboxItems } from "@/debug/lightboxNavDebug";
 import type {
@@ -696,7 +696,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
 
 <template>
   <section class="library-inspector" aria-labelledby="library-inspector-title">
-    <motion.div
+    <m.div
       class="inspector-header"
       :initial="false"
       :animate="{
@@ -722,7 +722,7 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
           </p>
         </div>
       </div>
-    </motion.div>
+    </m.div>
 
     <LibraryInspectorToolbar
       v-model:query="query"

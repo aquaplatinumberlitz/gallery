@@ -8,7 +8,7 @@ import SortDropdown from "./SortDropdown.vue";
 import SearchScopeSelect from "./SearchScopeSelect.vue";
 import SearchFilterChips from "./SearchFilterChips.vue";
 import type { SearchScope, SortValue } from "../types";
-import { AnimatePresence, motion } from "motion-v";
+import { AnimatePresence, m } from "motion-v";
 
 interface Props {
   isDark: boolean;
@@ -154,7 +154,7 @@ const gallerySortValue = computed<SortValue>({
     >
       <Menu />
     </button>
-    <motion.button
+    <m.button
       v-else
       class="mh-btn search-focus-back"
       :initial="{ opacity: 0, x: -6 }"
@@ -164,7 +164,7 @@ const gallerySortValue = computed<SortValue>({
       aria-label="Close search"
     >
       <ArrowLeft />
-    </motion.button>
+    </m.button>
 
     <!-- Center: current browse context / search area -->
     <div class="mh-search">
@@ -180,7 +180,7 @@ const gallerySortValue = computed<SortValue>({
       >
         <Search />
       </button>
-      <motion.div
+      <m.div
         v-if="isSearchActive"
         class="search-focus-bar"
         :initial="{ opacity: 0, scaleX: 0.72 }"
@@ -224,7 +224,7 @@ const gallerySortValue = computed<SortValue>({
             </button>
           </div>
         </div>
-      </motion.div>
+      </m.div>
       <SearchFilterChips
         v-if="isSearchActive"
         :filters="fieldedFilters"
@@ -268,7 +268,7 @@ const gallerySortValue = computed<SortValue>({
 
   <!-- Focus overlay — sibling element outside header -->
   <AnimatePresence :initial="false">
-    <motion.div
+    <m.div
       v-if="isSearchActive"
       ref="overlayRef"
       class="search-focus-overlay"

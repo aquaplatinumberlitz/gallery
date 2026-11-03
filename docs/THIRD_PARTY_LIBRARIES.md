@@ -262,7 +262,7 @@ Pinia should not duplicate new server/API response state that belongs in TanStac
 
 ### Motion for Vue (motion-v)
 
-`motion-v` powers custom spring-physics UI motion that is not already owned by shadcn-vue/Reka primitives: gallery/header collapse and expand (`AppHeader.vue`, `AlbumScroller.vue`, `LibraryInspector.vue`), mobile/tablet search focus motion (`MobileHeader.vue`, `TabletHeader.vue`), and small height-aware progress reveals (`IndexStatusCard.vue`, `IndexStatusDetailsPopover.vue`). It animates `height: 'auto'` natively — no `interpolate-size` opt-in or `max-height` dead-zone hacks needed — and uses spring transitions (`stiffness`/`damping`) for organic motion, with `opacity`/`y` fading handled via tween transitions so fades stay in sync with the spring-driven height change. App-level `MotionConfig reduced-motion="user"` keeps these animations aligned with the user's reduced-motion preference.
+`motion-v` powers custom spring-physics UI motion that is not already owned by shadcn-vue/Reka primitives: gallery/header collapse and expand (`AppHeader.vue`, `AlbumScroller.vue`, `LibraryInspector.vue`), mobile/tablet search focus motion (`MobileHeader.vue`, `TabletHeader.vue`), and small height-aware progress reveals (`IndexStatusCard.vue`, `IndexStatusDetailsPopover.vue`). It animates `height: 'auto'` natively — no `interpolate-size` opt-in or `max-height` dead-zone hacks needed — and uses spring transitions (`stiffness`/`damping`) for organic motion, with `opacity`/`y` fading handled via tween transitions so fades stay in sync with the spring-driven height change. App-level `MotionConfig reduced-motion="user"` keeps these animations aligned with the user's reduced-motion preference. Both that config and the feature bundle live in `MotionProvider.vue` (its own chunk, `loadMotionProvider.ts`): every animated element is an `m.*` component under `LazyMotion` with the synchronous `domAnimation` bundle (`initial` / `animate` / `exit`, hover/press/focus/in-view), never the full `motion.*` component, which would add layout-projection, drag and pan code. Using `layout`, `drag` or `pan` needs `domMax` there.
 
 ### HTTP client (`fetch`, Axios removed)
 
@@ -458,7 +458,7 @@ Integration files:
 
 ### Fuse.js
 
-Fuse.js remains a local fuzzy filtering helper for already loaded folder/media rows. Backend `/api/search` owns active recursive indexed search and metadata/prompt search.
+Fuse.js remains a local fuzzy filtering helper for already loaded folder/media rows. It is imported only by `utils/fuzzySearchEngine.ts`; `utils/fuzzySearch.ts` loads that module on demand (search intent or idle), so fuse.js is not in the home route's mount-critical chunks. Backend `/api/search` owns active recursive indexed search and metadata/prompt search.
 
 Do not use Fuse for the main unified search media stream or indexed metadata search.
 
