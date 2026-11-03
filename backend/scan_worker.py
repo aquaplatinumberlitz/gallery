@@ -317,6 +317,23 @@ def _scan_paths_for_job(job: dict[str, Any]) -> tuple[int, list[str]]:
     return library_id, [str(Path(scope_path).resolve())]
 
 
+def _library_is_ready(library_id: int) -> bool:
+    library = get_library(library_id)
+    return library is not None and library["state"] == "ready"
+
+
+def _library_state_after_success(*, offline: bool, scan_completed: bool, was_ready: bool) -> str:
+    """Library state left behind by a successful catalog scan or rebuild.
+
+    A scoped (watcher) scan does not move a library that was already `ready` back to `indexing`.
+    """
+    if offline:
+        return "degraded"
+    if scan_completed or was_ready:
+        return "ready"
+    return "indexing"
+
+
 def _reconcile_derivatives_after_catalog_commit(job: dict[str, Any], library_id: int) -> None:
     """Apply the scheduler policy only after successful catalog activation."""
     if not DERIVATIVE_RECONCILE_ENABLED:
@@ -373,6 +390,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
             "skipped": 0,
             "failed": 0,
         }
+        library_was_ready = _library_is_ready(library_id)
         _transition_job(
             job_id,
             "running",
@@ -419,7 +437,9 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
             progress_total=len(online_paths),
             message=success_message,
             counters=counters,
-            library_state="degraded" if offline_paths else "ready" if scan_completed else "indexing",
+            library_state=_library_state_after_success(
+                offline=bool(offline_paths), scan_completed=scan_completed, was_ready=library_was_ready
+            ),
             library_last_error=f"{len(offline_paths)} import path(s) offline" if offline_paths else None,
             library_scan_completed=scan_completed,
         )
@@ -487,6 +507,7 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
             "metadata_queued": 0,
             "failed": 0,
         }
+        library_was_ready = _library_is_ready(library_id)
         _transition_job(
             job_id,
             "running",
@@ -566,7 +587,9 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
             progress_total=len(online_paths),
             message=success_message,
             counters=counters,
-            library_state="degraded" if offline_paths else "ready" if scan_completed else "indexing",
+            library_state=_library_state_after_success(
+                offline=bool(offline_paths), scan_completed=scan_completed, was_ready=library_was_ready
+            ),
             library_last_error=f"{len(offline_paths)} import path(s) offline" if offline_paths else None,
             library_scan_completed=scan_completed,
         )
