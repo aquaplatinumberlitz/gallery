@@ -85,7 +85,9 @@ Add the note: "Steps 2 and 3 start once files are cataloged and run side by side
 
 | Track | Status | Evidence |
 |-------|--------|----------|
-| S1 | Done | `fix/pa-rebuild`: `backend/tests/test_rebuild_scan_parity.py` (CP-01, CP-02, IM-1) |
-| S2 | Pending | |
-| H1 | Pending | |
-| H2 | Pending | |
+| S1 | Done | `fix/pa-rebuild` @ `fc1ed75`: shared `CatalogRecord` builders and `upsert_catalog_records_conn` for scan and rebuild; `backend/tests/test_rebuild_scan_parity.py` (4 tests fail before, pass after) |
+| S2 | Done | `fix/pa-metadata` @ `8c5354f`: `UnreadableImageError` with typed 422 `image_unreadable` and a lightbox "can't be read" state (`test_metadata_unreadable_images.py`, 18 tests); IM-4 measured at 44-46 s and about 16 MB per index for 10k images, so both indexes auto-build (`test_search_index_auto_build.py`, 8 tests); pipeline copy and 1 -> (2 and 3) layout |
+| H1 | Done | `fix/pa-small` @ `cb2752b`: CP-04 (`test_scan_worker.py`), CP-05 first-frame fallback (`test_video.py`), IM-3 staged-queue removal |
+| H2 | Done | `fix/pa-docs-key` @ `b73955a`: CP-06 doc fixes; IM-2 `["metadata", path, contentVersion]` (keys, query, PhotoSwipe tests) |
+| Follow-up | Done | `fix/pa-unreadable-retry` @ `c2d46bf`: no retry of the permanent `image_unreadable` metadata error |
+| Integration | Done | `fix/pipeline-audit` @ `5e1e4c3`: backend 1717 passed, `backend-api` 106, e2e 203 passed / 6 skipped, Vitest 1632, lint and docs pass; the five audit repro tests pass (all five failed on `7b251d0`) |
