@@ -9,7 +9,12 @@ import { useLightboxStore } from "@/stores/lightbox";
 import { queryClient } from "@/query";
 import { queryKeys } from "@/query/keys";
 import { fetchMetadata } from "@/services/api";
-import { shouldAlwaysLoadOriginal, type LightboxDimensions, type PhotoSwipeImageItem } from "@/utils/lightbox";
+import {
+  buildPhotoSwipeItem,
+  shouldAlwaysLoadOriginal,
+  type LightboxDimensions,
+  type PhotoSwipeImageItem,
+} from "@/utils/lightbox";
 
 interface MockPswpInstance {
   currIndex: number;
@@ -1040,5 +1045,42 @@ describe("usePhotoSwipe", () => {
         expect(dataItem.isOriginalLoaded).toBe(true);
       });
     });
+  });
+});
+
+describe("usePhotoSwipe data source for long lists", () => {
+  const manyItems = (count: number) => Array.from({ length: count }, (_, i) => makeItem(`/img${i}.png`, `img${i}.png`));
+
+  it("builds only the items that are read, not the whole album", async () => {
+    const buildItem = buildPhotoSwipeItem as unknown as ReturnType<typeof vi.fn>;
+    buildItem.mockClear();
+    const { isOpenRef } = setup(manyItems(200), 10, false);
+
+    isOpenRef.value = true;
+    await vi.waitFor(() => expect(pswpInstances.length).toBe(1));
+
+    const dataSource = pswpInstances[0].options.dataSource as PhotoSwipeImageItem[];
+    expect(dataSource).toHaveLength(200);
+    expect(Array.isArray(dataSource)).toBe(true);
+    // Opening reads the opening item; PhotoSwipe reads its neighbours later, not the other 190.
+    expect(buildItem.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(buildItem.mock.calls.map((call) => (call[0] as FileNode).path)).toContain("/img10.png");
+    // A far item still reads like a built one when PhotoSwipe asks for it.
+    expect(dataSource[199].path).toBe("/img199.png");
+    expect(dataSource[199].src).toBe("/api/preview?path=%2Fimg199.png");
+    expect(dataSource[199].alt).toBe("img199.png");
+    expect(buildItem.mock.calls.length).toBeLessThanOrEqual(4);
+  });
+
+  it("lets a far item take resolved dimensions like an eagerly built one", async () => {
+    const { isOpenRef } = setup(manyItems(40), 0, false);
+
+    isOpenRef.value = true;
+    await vi.waitFor(() => expect(pswpInstances.length).toBe(1));
+
+    const far = pswpInstances[0].options.dataSource[30] as PhotoSwipeImageItem;
+    far.width = 1920;
+    far.height = 1080;
+    expect([far.width, far.height]).toEqual([1920, 1080]);
   });
 });

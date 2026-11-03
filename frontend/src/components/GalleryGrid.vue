@@ -12,7 +12,7 @@ import {
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import { useRelatedAssetsStore } from "../stores/relatedAssets";
-import type { FileNode, SortValue, UnifiedSearchResult } from "../types";
+import type { BrowseResponse, FileNode, SortValue, UnifiedSearchResult } from "../types";
 import { normalizeAssetType } from "../utils/assetType";
 import AlbumScroller from "./AlbumScroller.vue";
 import GallerySectionHeader from "./GallerySectionHeader.vue";
@@ -41,6 +41,7 @@ import { galleryScrollContainerRefKey } from "../injectionKeys";
 import { GalleryAPIError, type ErrorType } from "../services/api";
 import { fuzzySearchFileNodes } from "../utils/fuzzySearch";
 import { shouldLoadMoreImages } from "../utils/gallery";
+import { planThumbnailWarmup, warmThumbnails } from "../utils/thumbnailWarmup";
 import {
   ArrowLeft,
   ArrowRight,
@@ -74,7 +75,11 @@ const relatedAssetsStore = useRelatedAssetsStore();
 const librarySelectorOpen = ref(false);
 const activeLibraryId = computed(() => galleryStore.activeLibraryId);
 const activeBrowsePath = computed(() => galleryStore.currentBrowsePath || null);
-const infiniteBrowseQuery = useInfiniteBrowseQuery(activeLibraryId, activeBrowsePath);
+// Runs from the query function (see `onFirstPageFetched` below); bound late because it needs the grid state.
+let onFirstPageFetched: (page: BrowseResponse) => void | Promise<void> = () => {};
+const infiniteBrowseQuery = useInfiniteBrowseQuery(activeLibraryId, activeBrowsePath, undefined, {
+  onFirstPageFetched: (page) => onFirstPageFetched(page),
+});
 
 const {
   pullDistance,
@@ -544,11 +549,76 @@ const { rowSize: mobileRowSize, observeRow: observeMobileRow } = useUniformRowSi
     (window.innerWidth - MOBILE_GRID_SIDE_SPACE - MOBILE_GRID_COLUMN_GAP * (columnCount.value - 1)) / columnCount.value,
 );
 
+// Mounting the rows of a freshly opened album in one go is the album-open long task (~120 ms at 4x CPU). The
+// grid therefore renders its first row, then a few cards' worth of rows per task, until the virtualizer's range
+// (viewport plus overscan) is complete. Nothing changes once the last step ran, and rows that are off screen
+// (the thumbnail gate does not load them) simply arrive a few milliseconds later. A scroll ends the staging.
+const STAGE_FIRST_ROWS = 1;
+const STAGE_CARDS_PER_STEP = 4;
+// A step that finished within this many ms (a fast CPU) doubles the next step, up to the cap, so desktops do not
+// pay the per-step overhead of a phone-sized plan.
+const STAGE_FAST_STEP_MS = 20;
+const STAGE_MAX_CARDS_PER_STEP = 48;
+const STAGE_MAX_WAIT_TICKS = 25;
+// Budget 0 mounts the grid container without rows, so the first task holds the page chrome only.
+const rowBudget = ref(0);
+let stageTimer: ReturnType<typeof setTimeout> | null = null;
+const endRowStaging = () => {
+  if (stageTimer) clearTimeout(stageTimer);
+  stageTimer = null;
+  rowBudget.value = Infinity;
+};
+let stepCards = STAGE_CARDS_PER_STEP;
+const stageNextRows = (scrollTopAtStart: number, waited = 0) => {
+  const scheduledAt = performance.now();
+  stageTimer = setTimeout(() => {
+    stageTimer = null;
+    const rendered = browseVirtualGrid.virtualItems.value.length;
+    const scrolled = (scrollParentRef.value?.scrollTop ?? 0) !== scrollTopAtStart;
+    // Ready once the container is mounted and, after rows were allowed, the virtualizer produced some.
+    const containerMounted = Boolean(scrollParentRef.value) && (rowBudget.value === 0 || rendered > 0);
+    if (scrolled || (!containerMounted && waited >= STAGE_MAX_WAIT_TICKS)) {
+      endRowStaging();
+      return;
+    }
+    if (!containerMounted) {
+      stageNextRows(scrollTopAtStart, waited + 1);
+      return;
+    }
+    // Fewer rows than the budget: it no longer limits anything, so the range is complete.
+    if (rowBudget.value > 0 && rendered < rowBudget.value) {
+      endRowStaging();
+      return;
+    }
+    if (rowBudget.value > 0 && performance.now() - scheduledAt < STAGE_FAST_STEP_MS) {
+      stepCards = Math.min(stepCards * 2, STAGE_MAX_CARDS_PER_STEP);
+    }
+    rowBudget.value =
+      rowBudget.value === 0
+        ? STAGE_FIRST_ROWS
+        : rowBudget.value + Math.max(1, Math.ceil(stepCards / columnCount.value));
+    stageNextRows(scrollTopAtStart);
+  }, 0);
+};
+watch(
+  () => mediaRows.value.length > 0,
+  (hasRows) => {
+    if (stageTimer) clearTimeout(stageTimer);
+    stageTimer = null;
+    rowBudget.value = 0;
+    stepCards = STAGE_CARDS_PER_STEP;
+    if (hasRows) stageNextRows(scrollParentRef.value?.scrollTop ?? 0);
+  },
+  { immediate: true },
+);
+onBeforeUnmount(endRowStaging);
+
 const browseVirtualGrid = useVirtualGridRows({
   rows: mediaRows,
   scrollElement: scrollParentRef,
   estimateSize: () => (props.isMobile ? mobileRowSize.value : rowHeight.value || 1),
   overscan: 5,
+  rowBudget,
   measureDeps: [rowHeight, columnCount, mobileRowSize, () => props.isMobile],
   scrollMargin: gridScrollMargin,
 });
@@ -569,6 +639,42 @@ const getMobileVirtualRowStyle = (start: number): CSSProperties => ({
 });
 
 const skeletonItems = computed(() => Array.from({ length: 12 }, (_, i) => i));
+
+// Album open is request-bound, and the grid only mounts ~150 ms (4x CPU) after the browse response lands.
+// While the skeleton is still on screen its cells have the card geometry, so when the first page arrives
+// (in the query function, a task before Vue renders it) the thumbnails of the first viewport are started
+// right away (see utils/thumbnailWarmup.ts) instead of after the render. `PhotoCard` then claims the
+// in-flight responses; nothing is downloaded twice.
+const skeletonGridRef = ref<HTMLElement | null>(null);
+let lastWarmupKey = "";
+onFirstPageFetched = (page) => {
+  const grid = skeletonGridRef.value;
+  const firstItem = page.media[0];
+  if (!grid || !firstItem || hasSearchQuery.value) return;
+  const key = `${page.library_id}|${page.request_path ?? ""}|${firstItem.path}`;
+  if (key === lastWarmupKey) return;
+  lastWarmupKey = key;
+  const gridRect = grid.getBoundingClientRect();
+  const cell = grid.firstElementChild?.getBoundingClientRect();
+  if (!cell) return;
+  const rowGap = Number.parseFloat(getComputedStyle(grid).rowGap) || 0;
+  const warmed = warmThumbnails(
+    planThumbnailWarmup(
+      sortItems(page.media),
+      {
+        columns: columnCount.value,
+        cardWidth: cell.width,
+        rowPitch: cell.height + rowGap,
+        top: gridRect.top,
+        viewportHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio || 1,
+      },
+      { hasFolders: page.folders.length > 0 },
+    ),
+  );
+  // End this task: the render that mounts the grid then runs in the next one instead of behind the requests.
+  return warmed.length ? new Promise<void>((resolve) => setTimeout(resolve, 0)) : undefined;
+};
 
 const canLoadMoreImages = computed(() =>
   shouldLoadMoreImages({
@@ -768,7 +874,7 @@ useInfiniteLoadSentinel({
     </div>
 
     <div v-if="showGallerySkeleton" class="skeleton-container">
-      <div class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }">
+      <div ref="skeletonGridRef" class="skeleton-grid" :style="{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }">
         <SkeletonLoader v-for="i in skeletonItems" :key="i" type="photo" />
       </div>
     </div>

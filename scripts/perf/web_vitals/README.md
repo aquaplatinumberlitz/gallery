@@ -245,13 +245,36 @@ The revisit should show only `cache` responses (no thumbnail network requests).
 ### `album_open_profile.cjs`
 
 ```text
-BASE=http://127.0.0.1:8080 PROFILE=4g|slow4g|desktop ALBUM=real node scripts/perf/web_vitals/album_open_profile.cjs
+BASE=http://127.0.0.1:8080 PROFILE=4g|slow4g|desktop ALBUM=real [CLICK_FORCE=1] node scripts/perf/web_vitals/album_open_profile.cjs
 ```
+
+`CLICK_FORCE=1` skips Playwright's actionability checks (scroll into view and the hit-target test), whose
+`elementsFromPoint` script otherwise adds 10-15 ms to the click task at 4x CPU.
 
 Output: one JSON object: `firstCard` (ms from click to the first photo card), `lt`
 (`[start, duration]` of each long task after the click, relative to the click), `api`
 (`[path, start, duration, transferSize]` for each non-thumbnail `/api` request), `cards`, and
 `dom` (element count). Use it to attribute the album-open long task.
+
+### `album_cpu_profile.cjs`
+
+```text
+BASE=https://127.0.0.1:8443 PROFILE=4g|slow4g|desktop TARGET=album|lightbox ALBUM=real \
+  [MIN_TASK=45] [TOP=25] [OUT=trace.json] node scripts/perf/web_vitals/album_cpu_profile.cjs
+```
+
+Records one Chromium trace (timeline events plus the V8 sampling CPU profile) around a real click and
+attributes each main-thread task of at least `MIN_TASK` ms to functions and categories. `TARGET=album` clicks
+the album card on the home page; `TARGET=lightbox` opens the album first and clicks the second photo card
+after the lazy lightbox chunk has settled. Run it against an **unminified** build
+(`corepack pnpm exec vite build --minify false --outDir DIR`) so function names are readable. Tracing adds
+overhead: tasks come out about 1.4x longer than in `album_open_profile.cjs`, so use the shares, not the
+absolute milliseconds.
+
+Output: one JSON object with `eventTiming` (per event: start, duration, input delay, processing time,
+presentation delay), the page's `longtasks`, and for each task `durMs`, `jsMs`, `timeline` (layout, style,
+microtasks, GC from the trace), `categories` (self time per category), `selfTop` and `inclusiveTop`
+(function, ms). `OUT` also writes the raw trace events for offline analysis.
 
 ### `make_photo_fixture.py`
 

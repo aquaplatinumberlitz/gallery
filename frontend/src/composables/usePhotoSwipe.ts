@@ -17,6 +17,7 @@ import {
   type LightboxDimensions,
   type PhotoSwipeImageItem,
 } from "../utils/lightbox";
+import { createLazyList } from "../utils/lightboxLazyList";
 
 const shouldExposeLightboxTestHooks =
   import.meta.env.MODE === "test" || import.meta.env.VITE_EXPOSE_LIGHTBOX_TEST_HOOKS === "1";
@@ -325,12 +326,15 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
 
     if (!containerRef.value || !isOpen.value || pswp.value || runId !== initRunId.value) return;
 
-    const dataSource = items.value.map((item, index) =>
-      buildPhotoSwipeItem(
+    // Items are built when PhotoSwipe (or this composable) first reads them: at open that is the opening item
+    // and its neighbours, not the whole album.
+    const dataSource = createLazyList(items.value.length, (index) => {
+      const item = items.value[index];
+      return buildPhotoSwipeItem(
         item,
         index === openingIndex ? (openingDimensions ?? bestKnownDimensions(item)) : bestKnownDimensions(item),
-      ),
-    );
+      );
+    });
     const initialItem = dataSource[currentIndex.value];
     if (initialItem?.isAnimatedAsset) {
       const originalSrc = getImageUrl(initialItem.path);
