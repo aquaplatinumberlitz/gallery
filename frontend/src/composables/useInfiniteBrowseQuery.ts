@@ -30,10 +30,44 @@ const getCachedFirstPage = (
 const getCachedFirstPageUpdatedAt = (libraryId: number, requestPath: string | null, includeOffline: boolean) =>
   queryClient.getQueryState(queryKeys.browse(libraryId, requestPath, IMAGE_PAGE_SIZE, includeOffline))?.dataUpdatedAt;
 
+/** How long a browse page stays fresh; a page prefetched before mount (see `utils/homeBrowsePrefetch`) is reused within it. */
+export const BROWSE_STALE_TIME_MS = 60_000;
+
+/** The infinite browse query key. Shared with the pre-mount prefetch so the mounted query reuses its result. */
+export const browseInfiniteQueryKey = (libraryId: number, path: string | null | undefined, includeOffline = false) =>
+  queryKeys.browseInfinite(libraryId, normalizeBrowsePath(path), IMAGE_PAGE_SIZE, includeOffline);
+
+/** The infinite browse query function (one page per `pageParam` cursor), shared with the pre-mount prefetch. */
+export async function fetchBrowsePage({ queryKey, pageParam }: { queryKey: readonly unknown[]; pageParam: number }) {
+  const requestLibraryId = queryKey[1] as number;
+  const requestPath = queryKey[2] as string | null;
+  const requestIncludeOffline = queryKey[4] as boolean;
+  const result = await browseDirectory(requestLibraryId, requestPath, {
+    limit: IMAGE_PAGE_SIZE,
+    cursor: pageParam,
+    includeOffline: requestIncludeOffline,
+  });
+  return withBrowseRequestPath(result, requestPath);
+}
+
+export const getNextBrowsePageParam = (lastPage: BrowseResponse) =>
+  lastPage.next_media_cursor ?? lastPage.next_cursor ?? undefined;
+
+export interface InfiniteBrowseQueryOptions {
+  /**
+   * Called from the query function with each freshly fetched first page, before the data reaches Vue.
+   * Album open uses it to start the first viewport's thumbnails ahead of the render that mounts the grid.
+   * A returned promise is awaited, so the callback can end its task and let the render start in the next one.
+   * Errors thrown here never fail the query.
+   */
+  onFirstPageFetched?: (page: BrowseResponse) => void | Promise<void>;
+}
+
 export function useInfiniteBrowseQuery(
   libraryId: Ref<number | null | undefined>,
   path: Ref<string | null | undefined>,
   includeOffline?: Ref<boolean>,
+  options: InfiniteBrowseQueryOptions = {},
 ) {
   const normalizedPath = computed(() => normalizeBrowsePath(path.value));
   const activeLibraryId = computed(() => libraryId.value ?? null);
@@ -41,12 +75,7 @@ export function useInfiniteBrowseQuery(
 
   const queryKey = computed(() =>
     activeLibraryId.value
-      ? queryKeys.browseInfinite(
-          activeLibraryId.value,
-          normalizedPath.value,
-          IMAGE_PAGE_SIZE,
-          activeIncludeOffline.value,
-        )
+      ? browseInfiniteQueryKey(activeLibraryId.value, normalizedPath.value, activeIncludeOffline.value)
       : [],
   );
 
@@ -62,19 +91,19 @@ export function useInfiniteBrowseQuery(
       if (!activeLibraryId.value) return undefined;
       return getCachedFirstPageUpdatedAt(activeLibraryId.value, normalizedPath.value, activeIncludeOffline.value);
     },
-    staleTime: 60_000,
-    queryFn: async ({ queryKey, pageParam }) => {
-      const requestLibraryId = queryKey[1] as number;
-      const requestPath = queryKey[2] as string | null;
-      const requestIncludeOffline = queryKey[4] as boolean;
-      const result = await browseDirectory(requestLibraryId, requestPath, {
-        limit: IMAGE_PAGE_SIZE,
-        cursor: pageParam,
-        includeOffline: requestIncludeOffline,
-      });
-      return withBrowseRequestPath(result, requestPath);
+    staleTime: BROWSE_STALE_TIME_MS,
+    queryFn: async (context) => {
+      const page = await fetchBrowsePage(context);
+      if (context.pageParam === 0 && options.onFirstPageFetched) {
+        try {
+          await options.onFirstPageFetched(page);
+        } catch {
+          // A warm-up hint must never fail the browse request.
+        }
+      }
+      return page;
     },
-    getNextPageParam: (lastPage) => lastPage.next_media_cursor ?? lastPage.next_cursor ?? undefined,
+    getNextPageParam: getNextBrowsePageParam,
   });
 
   const pages = computed(() => browseQuery.data.value?.pages ?? []);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fuzzySearchFileNodes } from "../fuzzySearch";
+import { fuzzySearchFileNodes } from "../fuzzySearchEngine";
 import type { FileNode } from "@/types";
 
 function makeNode(name: string, path?: string): FileNode {

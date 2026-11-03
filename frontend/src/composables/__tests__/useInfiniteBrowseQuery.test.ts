@@ -132,3 +132,71 @@ describe("useInfiniteBrowseQuery", () => {
     expect(result.hasActivePage.value).toBe(false);
   });
 });
+
+describe("useInfiniteBrowseQuery onFirstPageFetched", () => {
+  const setupWithHook = (onFirstPageFetched: (page: BrowseResponse) => void | Promise<void>) => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    let result!: ReturnType<typeof useInfiniteBrowseQuery>;
+    mount(
+      defineComponent({
+        setup() {
+          result = useInfiniteBrowseQuery(ref(1), ref("/photos"), ref(false), { onFirstPageFetched });
+          return () => h("div");
+        },
+      }),
+      { global: { plugins: [[VueQueryPlugin, { queryClient }]] } },
+    );
+    return result;
+  };
+
+  it("calls the hook with the first page before the query data is published", async () => {
+    let dataSeenByHook: unknown = "unset";
+    const holder: { result?: ReturnType<typeof useInfiniteBrowseQuery> } = {};
+    const hook = vi.fn(() => {
+      dataSeenByHook = holder.result?.data.value;
+    });
+    holder.result = setupWithHook(hook);
+
+    await vi.waitFor(() => expect(holder.result?.isSuccess.value).toBe(true));
+
+    expect(hook).toHaveBeenCalledTimes(1);
+    expect((hook.mock.calls[0] as unknown[])[0]).toMatchObject({ library_id: 1, request_path: "/photos" });
+    expect(dataSeenByHook).toBeUndefined();
+  });
+
+  it("waits for a promise returned by the hook", async () => {
+    let release!: () => void;
+    const hook = vi.fn(() => new Promise<void>((resolve) => (release = resolve)));
+    const result = setupWithHook(hook);
+
+    await vi.waitFor(() => expect(hook).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(result.isSuccess.value).toBe(false);
+
+    release();
+    await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
+  });
+
+  it("is not called for later pages", async () => {
+    vi.mocked(browseDirectory)
+      .mockResolvedValueOnce(makeMockBrowseResponse({ next_media_cursor: 2 }))
+      .mockResolvedValueOnce(makeMockBrowseResponse({ next_media_cursor: null }));
+    const hook = vi.fn();
+    const result = setupWithHook(hook);
+    await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
+
+    await result.fetchNextPage();
+
+    expect(browseDirectory).toHaveBeenCalledTimes(2);
+    expect(hook).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fail the query when the hook throws", async () => {
+    const result = setupWithHook(() => {
+      throw new Error("warm-up failed");
+    });
+
+    await vi.waitFor(() => expect(result.isSuccess.value).toBe(true));
+    expect(result.media.value).toHaveLength(2);
+  });
+});

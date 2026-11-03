@@ -6,7 +6,7 @@ import GallerySectionHeader from "./GallerySectionHeader.vue";
 import AlbumCarouselDesktop from "./AlbumCarouselDesktop.vue";
 import AlbumScrollerNative from "./AlbumScrollerNative.vue";
 import { useDevice } from "../composables/useDevice";
-import { motion } from "motion-v";
+import { m } from "motion-v";
 
 defineProps<{
   folders: FileNode[];
@@ -45,7 +45,7 @@ const { isMobile, isTablet } = useDevice();
         :collapsed="collapsed"
       />
     </button>
-    <motion.div
+    <m.div
       :initial="false"
       :animate="{
         height: collapsed ? 0 : 'auto',
@@ -68,7 +68,7 @@ const { isMobile, isTablet } = useDevice();
         @open-folder="(path: string) => emit('open-folder', path)"
       />
       <AlbumScrollerNative v-else :folders="folders" @open-folder="(path: string) => emit('open-folder', path)" />
-    </motion.div>
+    </m.div>
   </section>
 </template>
 

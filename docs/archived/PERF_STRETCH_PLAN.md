@@ -1,0 +1,242 @@
+# Perf Stretch Plan
+
+Status: Completed (2026-11-03; archived)
+
+Created: 2026-11-02
+
+Source: "Status snapshot (2026-11-02)" in
+`docs/testing/PERFORMANCE_TESTING.md`. That section also defines the
+user-facing standard used here: Core Web Vitals, Nielsen limits and RAIL
+animation.
+
+## Goal
+
+Close the remaining stretch gaps on `main` (`5991830`) with **no visual
+change**. Same pixels, same layout, same animations, at 390×844, 1024×768 and
+1440×900. No regression on any metric that already passes.
+
+| ID | Gap | Now | Target |
+|----|-----|-----|--------|
+| ST-1 | Home LCP, mobile slow 4G | 2.7–2.8 s | ≤ 2.5 s |
+| ST-2 | Home FCP, mobile slow 4G | 2.4 s | ≤ 1.8 s (diagnostic; best effort) |
+| ST-3 | Album open → visible thumbnails, mobile typical 4G | 0.9–1.3 s | ≤ 1.0 s in every run |
+| ST-4 | Mobile album-open long task | 123 ms | ≤ 50 ms, or explain the irreducible part |
+| ST-5 | Mobile click INP (album open, lightbox open) | 128–160 ms | ≤ 100 ms (RAIL response) |
+
+## Measurement harness (all tracks)
+
+Today the harness only exists as scratch scripts, so the first task commits it
+to the repo. Every track then measures with it, against `main` and its own
+branch, on the same machine and in the same run.
+
+Profiles come from `docs/testing/PERFORMANCE_TESTING.md`:
+- desktop unthrottled
+- mobile typical 4G (85 ms RTT, 9 Mbps, 4× CPU)
+- mobile slow 4G (150 ms RTT, 1.6 Mbps, 4× CPU)
+
+All profiles run over HTTP/2 + gzip with immutable `/assets/`. Use
+photo-like fixtures: thumb_512 ≈ 44 KB, preview ≈ 250 KB.
+
+## Tracks
+
+Each track works in its own worktree and branch. Commit there; do not push.
+Agents run targeted checks and their own before/after harness numbers. The
+reviewer (Opus) merges the branches and runs the full e2e and perf suites,
+the harness, and a pixel diff.
+
+### Track H: harness into the repo (Haiku, branch `perf/st-harness`)
+
+H1. Add `scripts/perf/web_vitals/`. Port the scratch scripts listed below,
+keep their behaviour, and replace hard-coded `/tmp` paths with CLI arguments.
+
+| Script | Origin |
+|--------|--------|
+| `serve_dist.cjs` | `server.cjs` (HTTP/1.1, modes `asis`/`tuned`/`dev`) |
+| `serve_dist_h2.cjs` | `h2server2.cjs` (self-signed TLS + HTTP/2) |
+| `home_waterfall.cjs` | `waterfall.cjs` (cold + repeat home load; `NET=4g` or slow 4G; `LIST=1` prints the waterfall) |
+| `album_flow.cjs` | `album.cjs` (album open, two fast scrolls, lightbox open, 3× next) |
+| `album_revisit.cjs` | `revisit.cjs` |
+| `album_open_profile.cjs` | `openprof.cjs` (long tasks + API timings during album open) |
+| `make_photo_fixture.py` | the PIL generator used for the photo-like fixture |
+
+Sources are in
+`/tmp/claude-0/-home-user-gallery/7ef502ed-3644-56aa-b068-4cbda454f8d3/scratchpad/perf/cwv/`
+and `/tmp/claude-0/-home-user-gallery/7ef502ed-3644-56aa-b068-4cbda454f8d3/scratchpad/album/`.
+
+H2. Add `scripts/perf/web_vitals/README.md`. It covers:
+- how to start the backend on a fixture (env vars, the proxy-secret header)
+- how to serve `frontend/dist`
+- how to run each script, and what each prints
+
+Also link it from `docs/testing/PERFORMANCE_TESTING.md` and list it in
+`docs/testing/TEST_CATALOG.md` if that catalog covers scripts.
+
+These are manual tools, not CI gates.
+
+H3. Smoke-run each script once against a backend started on a tiny fixture.
+Report the output. The scripts must pass `./test.sh lint` (Python and ESLint
+scope permitting) and `./test.sh docs`.
+
+### Track L: home LCP / FCP (Sonnet, branch `perf/st-home`)
+
+The LCP element on the home page is an album cover thumbnail (512 px). The
+request chain is: HTML → entry JS → `/api/libraries` → mount →
+`/api/browse` (root) → cover `<img>`. On slow 4G, fonts (≈ 66 KB) and route
+chunks compete for bandwidth with that chain.
+
+Investigate with `home_waterfall.cjs` `LIST=1` first, then apply whichever of
+these the evidence supports:
+
+- **L1. Smaller cover bytes.** Album covers get the same 256/512 `srcset` +
+  `sizes` treatment as `PhotoCard`, so covers on DPR-1 desktop and small mobile
+  cards pick 256 when that renders identically. Keep `object-fit` softness in
+  mind; this is the rule A2 used.
+- **L2. Earlier root browse.** Start the root `/api/browse` request for the
+  last active library before mount. The library id persisted by
+  `useActiveLibrarySelection` / localStorage is the source. Use the exact
+  TanStack query key and function, so the mounted query reuses the result, and
+  fall back silently when there is no stored library.
+- **L3. Earlier LCP image.** Once root browse data exists, start the first
+  covers immediately: `fetchpriority=high`, an `Image()` warm-up or a
+  `<link rel=preload as=image>`. They must not wait for the card component's
+  visibility gate.
+- **L4. Fonts off the critical path.** Measure whether the Cinzel /
+  JetBrains Mono woff2 delay the LCP image. If they do:
+  - preload only the latin subset used above the fold, or
+  - keep the `swap` behaviour but lower their fetch priority.
+  The rendered glyphs must be identical.
+- **L5. FCP.** Check whether the 30 KB render-blocking main CSS can be split
+  so above-the-fold CSS arrives first. Only do it if the pixel diff stays
+  clean.
+
+Report before/after on all three profiles: home LCP, FCP and bytes, each the
+median of 3 runs.
+
+### Track M: album open, long task, INP (Sonnet, branch `perf/st-album`, after H is merged)
+
+- **M1. Profile first.** Run `album_open_profile.cjs` on mobile typical 4G
+  and capture a CPU profile (CDP `Profiler` or `Tracing`) of album open and of
+  the lightbox click. Attribute the 123 ms long task and the 128–160 ms INP to
+  functions:
+  - JSON parse
+  - TanStack Query structural sharing
+  - Vue reactivity over 200 items
+  - virtualizer measure
+  - `PhotoCard` setup
+  - lightbox/PhotoSwipe init
+  - the metadata panel
+
+  Put the attribution table in the report.
+- **M2. Fix the top items without visual change.** Candidates, only if the
+  profile shows they matter:
+  - `shallowRef` / `markRaw` for browse items, or `structuralSharing: false`
+    on the browse query when the data is replaced, not merged
+  - a smaller first page (e.g. 60 items, then 200 per page) if JSON and
+    render cost scale with the page. Keep infinite load and scroll
+    restoration intact.
+  - deferring non-visible work (metadata panel, related prefetch) to after the
+    first paint via `requestAnimationFrame` / `scheduler.yield()` for the
+    lightbox click
+  - splitting a long synchronous setup into chunks that yield
+- **M3. Targets.** ST-3 ≤ 1.0 s, ST-4 ≤ 50 ms (or a documented floor),
+  ST-5 ≤ 100 ms on mobile typical 4G. No regression on desktop or on other
+  flows.
+
+### Track P: mount-critical payload (Sonnet, branch `perf/st-payload`, after the CLS fix is merged)
+
+Track L measured about 305 KB gzip that must arrive before the app mounts. On
+slow 4G each ~20 KB removed from that chain moves LCP about 0.1 s.
+Target: ST-1 ≤ 2.5 s (Track L reached 2.58 s), with no visual change and no
+regression elsewhere.
+
+- **P1. Brotli.**
+  - Emit pre-compressed `.br` (and keep `.gz`) for `/assets/` at build time,
+    via a Vite compression plugin or a post-build script. Document the new
+    dependency in `docs/THIRD_PARTY_LIBRARIES.md`.
+  - Add `brotli_static on;` / `gzip_static on;` for `/assets/` in
+    `frontend/gallery-nginx-prod.conf`.
+  - In `docs/CONFIGURATION.md`, document the Ubuntu nginx Brotli module
+    package and its `load_module` lines, and keep dynamic gzip as the fallback.
+  - Teach `scripts/perf/web_vitals/serve_dist_h2.cjs` to serve `.br` when the
+    client accepts it, so the lab matches.
+  - Deploying the nginx module on the VPS is a separate step, done by the
+    VPS session after review.
+- **P2. Tooltip and popover content off the critical path.**
+  - Tooltip and popover triggers keep rendering immediately.
+  - Their content and positioning code (reka-ui content components,
+    floating-ui) load on first hover/focus, or after load + idle.
+  - Nothing changes visually or in behaviour; the first tooltip shown keeps
+    its delay and position.
+- **P3. Search-only code off the home critical path.**
+  - Move fuse.js, the search results panel and other search-only modules
+    out of the home route's static graph.
+  - Load them when search becomes active, and warm them after load + idle.
+- **P4. motion-v investigation only.**
+  - Check whether the installed motion-v supports a LazyMotion / `m` /
+    feature-bundle pattern like framer-motion's.
+  - If it does, and switching keeps animations identical, implement it.
+  - If not, document why, and leave motion-v as it is. Do not replace
+    animations with CSS.
+- **Evidence.** Show the effect of each item on mount-critical bytes and on
+  slow-4G LCP, main against the branch, median of 3. Keep only the items
+  that help.
+
+## Rules (all tracks)
+
+- No visual change. Never weaken, delete or skip assertions. Quote
+  before/after for any edit to a pre-existing test, with its justification.
+- Every behaviour change gets a Vitest/pytest test that fails before and
+  passes after.
+- Checks:
+  - `cd frontend && corepack pnpm run test:unit`
+  - `./test.sh lint`
+  - `corepack pnpm run build`
+  - `./test.sh docs`
+  - relevant single Playwright specs, with
+    `PLAYWRIGHT_BROWSERS_PATH=/tmp/claude-0/-home-user-gallery/7ef502ed-3644-56aa-b068-4cbda454f8d3/scratchpad/pwb`
+- Backend changes, if any, also need the targeted pytest and
+  `./test.sh backend-api`.
+- Do not run `./test.sh e2e` or the perf suite; the reviewer does.
+- Update the maintained docs: `docs/ARCHITECTURE.md` "Initial Load Path" /
+  "Grid Image Loading", and the status snapshot in
+  `docs/testing/PERFORMANCE_TESTING.md` with measured numbers, date and
+  commit.
+
+## Review gates (Opus)
+
+1. Merge each track, then:
+   - full backend suite (3.11 and 3.13) if backend changed
+   - Vitest
+   - `./test.sh e2e`
+   - the perf suite
+2. Harness on all three profiles against `main`, same run: home, album flow,
+   revisit, cold album.
+3. Pixel diff at 390/1024/1440: home, album (flat and photo-like) and
+   lightbox.
+4. Targets ST-1 to ST-5 met, or each miss explained with evidence of the
+   floor.
+
+## Progress log
+
+| Track | Item | Status | Evidence |
+|-------|------|--------|----------|
+| H | H1-H3: harness in `scripts/perf/web_vitals/` (six scripts, `lib.cjs`, `make_photo_fixture.py`, README); linked from `PERFORMANCE_TESTING.md`; `TEST_CATALOG.md` rows | Done | `perf/st-harness` @ `125789c`. Smoke run: 20-image fixture, backend on 127.0.0.1 with `PRODUCTION=1`, `serve_dist.cjs --mode tuned` and `serve_dist_h2.cjs`, all six scripts ran, backend and servers stopped by PID. `./test.sh lint` and `./test.sh docs` exit 0. |
+| L | L1 cover srcset/sizes | Skipped | Covers have no dimensions in the browse API, so the unknown-aspect rule (2×) keeps 512 for every card wider than 128 px at DPR 1. Rendered cover widths: 140 px at 390 (DPR 2), 198 px at 1024, 165 px at 1440; all resolve to 512. A 256 candidate would upscale tall images. Needs cover dimensions in the API first. |
+| L | L2 early root browse | Done (`d8911d1`) | `utils/homeBrowsePrefetch.ts` + `main.ts`; exact infinite-query key/function shared with `useInfiniteBrowseQuery`. Browse request starts at 1.45 s instead of 2.3 s on slow 4G. 25 Vitest tests. |
+| L | L3 early LCP image | Done (`d8911d1`) | The visibility-gate bypass for `priority` covers already existed in the cards; the new part is the pre-mount `Image()` request (high priority, card's URL) for the first cover. Photo-first slow-4G LCP 4.44 s to 2.58 s; flat-first 2.76 s to 2.58 s. |
+| L | L4 fonts | Skipped | Fonts (66 KB) are requested after the first render (2.55 s), after the LCP image has loaded. Preloading adds 66 KB to the pre-mount pipe (+0.33 s at 1.6 Mbps). |
+| L | L5 FCP / critical CSS | Skipped | The main CSS finishes at 0.85 s, FCP is 2.4-2.6 s; nothing paints before the app mounts, so splitting CSS cannot move FCP. FCP rose 0.15 s because the first frame now includes the data. |
+| L | Early preload script position | Rejected experiment | Moving the inline preload script before the stylesheet (it waits for the CSS) started 45 preloads at t = 0, delayed the entry from 1.0 s to 2.0 s and made LCP 3.2 s against 2.75 s. |
+| L | ST-1 / ST-2 | Not met | Slow 4G LCP 2.58 s (target 2.5), FCP 2.58 s (target 1.8). Floor: ≈ 305 KB gzip before mount plus ≈ 0.5 s CPU. See `docs/testing/PERFORMANCE_TESTING.md`. |
+| CLS | Desktop CLS regression (post-merge finding) | Done (`perf/st-cls`) | Home 1440×900 CLS 0.03–0.2 on `fada31d` (PR 7 introduced 0.04, PR 9 let it reach 0.2). Cause 1: Cinzel swap wraps the brand title (+63 px); fixed with a `local()` fallback face + `size-adjust`. Cause 2: sidebar/breadcrumb/toolbar painted before active-library hydration (+81 px); fixed by holding mount ≤ 300 ms for the library list. CLS 0.0004 at 1440, 0 at 1024, 0.0001 at 390; LCP not regressed. Guard `tests/e2e/perf/home-layout-shift.spec.ts` fails (0.0305) before, passes after. |
+| M | M1: attribution (CDP trace with the V8 CPU profile, `album_cpu_profile.cjs`, mobile typical 4G, 4x CPU, unminified build, 3 runs; traced ms are about 1.4x the untraced ones, so read the shares) | Done | Album render task (the 123 ms long task; 208 ms traced): Vue mount/patch/reactivity of the page and ~18 cards 79 ms (38%); forced layout inside `setGridRef` (`getBoundingClientRect` after the rows are mounted) 67 ms (32%); `PhotoCard` setup/render/watchers/observers 23 ms (11%); `GalleryGrid` computeds (three sorts, chunking, filters) 11 ms (5%); virtualizer range/measure/total size 10 ms (5%); TanStack Query `setOptions`/notify 10 ms (5%); thumbnail URL building, native and other 9 ms (4%). JSON parse of the 87.6 KB browse body: 0.2 ms at 4x (it is its own sub-millisecond task); structural sharing 0.7 ms (first fetch has no previous data); both under 1%, so no `markRaw`, `shallowRef`, `structuralSharing: false` or smaller first page. Album click task (the 58-84 ms task at the click; 82 ms traced): native style/layout/paint 29 ms (35%), Vue skeleton mount plus unmount of the home view 24 ms (29%), Playwright hit-target script 10 ms (12%, harness), Query `setOptions`/fetch start 8 ms (9%), `GalleryGrid` computeds 7 ms (8%). Album click INP (untraced 72-144 ms) is that click task plus the next paint: input delay 15-50, processing 10-48, presentation 25-100 (traced). Lightbox click task (194 ms traced, INP 96-152 ms): PhotoSwipe init/UI 53 ms (27%), forced layout in `getViewportSize`/`updateSize` 35 ms (18%), Vue mount of the lightbox and panels 29 ms (15%), building the 200 PhotoSwipe items (two URLs, animated check and dimension lookup each) 26 ms (13%), Reka `FocusScope` focus trap 17 ms (9%), native 11 ms, `images`/index computeds in the click handler 9 ms, metadata query start 2.5 ms. Timeline of the album open (4G): browse request starts 14-25 ms after the click and ends ~190 ms, render task 190-400 ms, thumbnails requested only at ~350-470 ms and done at ~850-1000 ms. |
+| M | M2: fixes (all with Vitest tests that fail before) | Done | (1) Thumbnail warm-up: the first viewport's thumbnails start as preload links when the first page is fetched (hook in the query function, geometry from the skeleton), so they overlap the render; visible thumbnails 920 -> 764 ms median (main 0.87-1.33 s, branch 0.65-0.88 s in every run). (2) Staged row mount: `rowBudget` on `useVirtualGridRows`, container first, then 1 row, then 4 cards per step (doubling when a step takes under 20 ms): the 120-170 ms render task is gone, steps are 47-59 ms traced. (3) Lazy PhotoSwipe data source (`createLazyList`): lightbox click task 194 -> 124 ms traced, item build 26 -> 0 ms; lightbox click INP 104 -> 96 ms median. Tried and not kept: warm-up from a pre-flush watcher in `GalleryGrid` (it ran inside the render task, +25 ms traced there; moved to the query function and ended the task with a promise); fixed `overscan: 1` then 5 after a frame (long task still 105-140 ms, replaced by the row budget); lazy per-property accessors on each PhotoSwipe item (14 ms to define 6 accessors x 200 items, replaced by the `Proxy` list). Not applied, no evidence for them: `markRaw`/`shallowRef`, `structuralSharing: false`, a 60-item first page (parse 0.2 ms; it would only save ~55 ms of browse transfer and ST-3 is met), deferring the metadata query (2.5 ms). |
+| M | M3: targets | ST-3 met, ST-4 met in the median with a documented floor, ST-5 met in the median | ST-3: typical 4G visible thumbnails 0.65-0.88 s in every branch run (main up to 1.33 s). ST-4: longest task after the click 166 -> none in 3 of 4 runs (worst 59 ms); the remaining > 50 ms task is the click task (pointer handlers, skeleton mount, home unmount, query start, style/layout) at 50-81 ms with the harness hit-target script included, a floor without a visual change. ST-5: album click INP median 88 ms, lightbox click INP median 96 ms (range 80-120 ms; 120 ms in 1 of 4 runs), floor is PhotoSwipe `init` plus the focus trap. Slow 4G, desktop, scroll settle, revisit and next/previous unchanged within noise. Pixel diff against `main` at 390x844, 1024x768, 1440x900 (album and lightbox, fonts loaded, mouse parked): 0 pixels above 16 and above 48, mean difference 0.0000 (0.0008 at 1440 album, same as `main` against itself). Branch `perf/st-album` @ `0b7425a` plus docs. |
+| M | ST-4 / ST-5 closure (owner decision, 2026-11-03) | Closed, no further work | Accepted as met in the median with a documented floor. INP 88-96 ms median (worst 120 ms) is well inside the Google "good" threshold (≤ 200 ms); ST-5 (≤ 100 ms) is a stricter stretch target. ST-4 is a RAIL diagnostic, not a Core Web Vital; the remaining 50-81 ms click task is measured at 4x CPU and includes 10-15 ms of harness overhead. Cutting further needs a visible change (lightbox open animation, focus trap, view transition), which is out of scope. Keep the harness numbers as regression guards. |
+| P | P1 Brotli | Done (`perf/st-payload`) | `precompressAssets()` build plugin writes `.br`/`.gz` for text assets; `brotli_static` / `gzip_static` in `gallery-nginx-prod.conf`; lab servers serve `.br` -> `.gz` -> dynamic gzip (`--no-brotli`); `docs/CONFIGURATION.md` has the VPS steps (not applied). Mount-critical set 308.0 KB gzip -> 271.2 KB Brotli (same files). 5 Vitest tests. |
+| P | P2 lazy tooltip/popover content | Dropped | Implemented and measured: -0.9 KB gzip on mobile (-2.3 KB desktop). `PopperContent`/floating-ui stay in the home graph through the dropdown menus and selects (a select must render its items to show its value), so nothing worth keeping moves. |
+| P | P3 search-only code | Done | fuse.js (`fuzzySearch.ts` facade over `fuzzySearchEngine.ts`) and the results panel (`SearchResultsPanel.vue` wrapper over `SearchResultsPanelImpl.vue`) load via `utils/searchChunks.ts`: URL with a search, first text-field focus, load + idle. -12.5 KB gzip. Early-chunk plugin now also finds route chunks that lost their facade. 13 Vitest tests. |
+| P | P4 motion-v | Done | motion-v 2.3.0 has `LazyMotion` / `m` / `domAnimation`. The app uses only `initial`/`animate`/`exit`, so a synchronous `domAnimation` bundle replaces `domMax` (no layout/drag/pan code); animations unchanged, no CSS replacement. `MotionProvider` is its own chunk (entry growth delayed the first API calls). -12.6 KB gzip (+1.0 KB chunk overhead). An asynchronous feature loader was rejected: an `m` element that mounts before the features arrive would stay at its `initial` style. |
+| P | ST-1 | Met with Brotli | Slow-4G LCP 2.57 s -> 2.41 s (9 runs, flat first), 2.65 -> 2.36 s photo first; 2.53 s on gzip alone, so it depends on the VPS Brotli module. Mount-critical 308.0 -> 283.9 KB gzip (271.2 -> 251.3 KB Brotli, the Brotli figure of the old set being the same files). CLS guard passes. Pixel diff: 0 over 48. See `docs/testing/PERFORMANCE_TESTING.md`. |
+| All | Final validation (`perf/stretch` @ `cb9bd43` vs `main` @ `5991830`, 2026-11-03) | Done | `./test.sh e2e` 199 passed / 6 skipped / 0 failed; `./test.sh backend-api` 106 passed; `./test.sh perf` 5/5 incl. the CLS guard; Vitest 1607 passed; lint, build, docs pass. Two backend failures are identical on `main` (root user defeats `chmod 000`; `worker_contention` flaky only under `-x` with coverage, full suite 1683 passed at 91.27%). Harness, interleaved, median: slow-4G home LCP 3.27 -> 2.32 s (Brotli) / 2.44 s (gzip only); typical-4G LCP 1.37 -> 1.12 s; desktop LCP 0.52 -> 0.42 s, CLS 0.043 -> 0.000; 4G album open 883 -> 648 ms; INP worst 152 -> 128 ms; home transfer 498 -> 446 KB. Pixel diff 390/1024/1440 home/album/lightbox: 0 pixels above 16 after re-shoot. |
+| L | ST-2 closure (owner decision, 2026-11-03) | Closed, no further work | Slow-4G FCP 2.48 -> 2.32 s against the 1.8 s diagnostic target. FCP is not a Core Web Vital; at the gate profiles it is 0.42 s (desktop) and 1.12 s (typical 4G). FCP equals LCP because the SPA paints nothing before mount and the mount waits for the library list (the CLS fix), so the first frame is the complete one. The only lever is a static app shell in `index.html`, which would not move LCP, must match the app pixel for pixel at every breakpoint to avoid reintroducing CLS, and doubles the header/sidebar maintenance. Revisit only if a high Lighthouse mobile score becomes a goal. |

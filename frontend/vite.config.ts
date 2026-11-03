@@ -3,6 +3,7 @@ import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 import vitePluginIstanbul from "vite-plugin-istanbul";
+import { precompressAssets } from "./src/build/precompressAssets";
 
 const DEV_PORT = Number(process.env.VITE_PORT) || 4702;
 const API_TARGET = process.env.VITE_API_URL || "http://localhost:4701";
@@ -11,6 +12,7 @@ const API_TARGET = process.env.VITE_API_URL || "http://localhost:4701";
 // after it has executed: the gallery route (router.isReady() waits for it before mounting) and
 // the layout for the current viewport. Widths mirror BREAKPOINTS in src/composables/useDevice.ts.
 const EARLY_CHUNKS: Array<{ module: string; when: string }> = [
+  { module: "src/components/MotionProvider.vue", when: "true" },
   { module: "src/components/GalleryRoute.vue", when: 'location.pathname === "/"' },
   { module: "src/layouts/MobileLayout.vue", when: "innerWidth < 768" },
   { module: "src/layouts/TabletLayout.vue", when: "innerWidth >= 768 && innerWidth < 1200" },
@@ -30,8 +32,15 @@ function earlyChunkPreload(): Plugin {
         const entry = chunks.find((chunk) => chunk.isEntry);
         const alreadyLoaded = new Set<string>(entry ? [entry.fileName, ...entry.imports] : []);
         const groups = EARLY_CHUNKS.flatMap(({ module, when }) => {
-          const root = chunks.find((chunk) => chunk.facadeModuleId?.endsWith(module));
-          if (!root) return [];
+          // A route chunk that other chunks import from (for example the search results panel importing the grid's
+          // components) is merged by Rollup and loses its facade, so fall back to "the chunk that contains the module".
+          const root =
+            chunks.find((chunk) => chunk.facadeModuleId?.endsWith(module)) ??
+            chunks.find((chunk) => Object.keys(chunk.modules).some((id) => id.endsWith(module)));
+          if (!root) {
+            console.warn(`[gallery-early-chunk-preload] no chunk contains ${module}; its graph is not preloaded`);
+            return [];
+          }
           const js = new Set<string>();
           const css = new Set<string>();
           const visit = (fileName: string) => {
@@ -73,7 +82,8 @@ ${groups
   };
 }
 
-const plugins = [tailwindcss(), vue(), earlyChunkPreload()];
+// Pre-compressed .br/.gz siblings of every text asset, served by nginx `brotli_static` / `gzip_static`.
+const plugins = [tailwindcss(), vue(), earlyChunkPreload(), precompressAssets()];
 if (process.env.VITE_COVERAGE === "true") {
   plugins.push(
     vitePluginIstanbul({

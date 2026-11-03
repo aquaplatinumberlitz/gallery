@@ -7,7 +7,7 @@ import IndexProgressBar from "@/components/IndexProgressBar.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { CatalogStatusPresentation } from "@/lib/catalog/labels";
 import type { UnifiedStatus } from "@/lib/catalog/status";
-import { motion } from "motion-v";
+import { m } from "motion-v";
 
 const props = defineProps<{
   status: UnifiedStatus | null;
@@ -137,7 +137,7 @@ const bodyText = computed(() => {
           {{ bodyText }}
         </span>
 
-        <motion.div
+        <m.div
           :initial="false"
           :animate="{
             height: showProcessingProgress ? 'auto' : 0,
@@ -153,7 +153,7 @@ const bodyText = computed(() => {
           :aria-hidden="!showProcessingProgress"
         >
           <IndexProgressBar v-if="showProcessingProgress" :percent="processingProgressPercent" />
-        </motion.div>
+        </m.div>
 
         <span class="index-status-card__details">Details</span>
       </button>

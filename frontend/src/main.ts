@@ -11,7 +11,11 @@ import { installVueQuery, queryClient } from "./query";
 import { queryKeys } from "./query/keys";
 import { fetchLibraries } from "./services/api";
 import { router } from "./router";
+import type { RegisteredLibrary } from "./types";
+import { startHomeBrowsePrefetch } from "./utils/homeBrowsePrefetch";
+import { settleWithin } from "./utils/settleWithin";
 import { BREAKPOINTS } from "./composables/useDevice";
+import { loadMotionProvider } from "./components/loadMotionProvider";
 
 // Reload BlackBox monitor — installs BEFORE Vue init to patch WebSocket
 // and capture lifecycle events. Enable via ?debugReload=1 or the persisted
@@ -34,7 +38,12 @@ const reloadBlackBoxReady: Promise<void> = reloadBlackBoxRequested()
 // the next thing App renders. Both previously waited until the route chunk tree had
 // loaded and the app had mounted. Same query key/fn and module specifiers as their
 // consumers, so TanStack Query and the module cache dedupe them.
-void queryClient.prefetchQuery({ queryKey: queryKeys.libraries(), queryFn: fetchLibraries });
+const librariesReady = queryClient.prefetchQuery({ queryKey: queryKeys.libraries(), queryFn: fetchLibraries });
+// The root browse page (and first cover) of the library the gallery opens on follows as soon as the list is
+// known, before the route chunks have loaded and the app has mounted. Best effort; see homeBrowsePrefetch.ts.
+void startHomeBrowsePrefetch(queryClient, librariesReady, () =>
+  queryClient.getQueryData<RegisteredLibrary[]>(queryKeys.libraries()),
+);
 const viewportWidth = window.innerWidth;
 void (
   viewportWidth < BREAKPOINTS.mobile
@@ -85,6 +94,17 @@ installVueQuery(app);
 
 // Resolve the browser's initial URL before App setup reads route metadata.
 // Otherwise a hard reload on a lazy route can briefly render the gallery intro.
-Promise.all([router.isReady(), reloadBlackBoxReady]).then(() => {
+// The library list is awaited too (at most LIBRARIES_MOUNT_WAIT_MS): App hydrates the active library synchronously
+// in setup when the list is cached, so the first frame already has the final sidebar, breadcrumb and toolbar
+// instead of a pre-hydration state that shifts when the list arrives. On slow links the list is long done by
+// the time the route chunks are, so this costs nothing there.
+const LIBRARIES_MOUNT_WAIT_MS = 300;
+// The motion provider chunk is awaited too, so App's first render already has the animation features.
+Promise.all([
+  router.isReady(),
+  reloadBlackBoxReady,
+  settleWithin(librariesReady, LIBRARIES_MOUNT_WAIT_MS),
+  loadMotionProvider().catch(() => undefined),
+]).then(() => {
   app.mount("#app");
 });

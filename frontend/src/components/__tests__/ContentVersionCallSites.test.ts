@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import AlbumCard from "../AlbumCard.vue";
 import AlbumCardMobile from "../AlbumCardMobile.vue";
 import AlbumCardTablet from "../AlbumCardTablet.vue";
-import SearchResultsPanel from "../search/SearchResultsPanel.vue";
+import SearchResultsPanel from "../search/SearchResultsPanelImpl.vue";
 import { buildPhotoSwipeItem } from "@/utils/lightbox";
 import { useLightboxStore } from "@/stores/lightbox";
 import { useRelatedAssetsStore } from "@/stores/relatedAssets";

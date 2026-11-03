@@ -35,7 +35,7 @@ const readStoredPositiveId = (key: string): number | null => {
   return id;
 };
 
-const orderedImportPaths = (library: RegisteredLibrary): LibraryImportPath[] =>
+export const orderedImportPaths = (library: RegisteredLibrary): LibraryImportPath[] =>
   [...library.import_paths].sort((a, b) => a.position - b.position || a.id - b.id);
 
 const comparablePath = (path: string): string => {
@@ -86,7 +86,7 @@ export function resolveActiveImportPath(
   return library?.import_paths.find((item) => item.id === importPathId) ?? null;
 }
 
-const getStoredSort = (): { field: SortField; order: SortOrder } => {
+export const getStoredSort = (): { field: SortField; order: SortOrder } => {
   if (typeof window === "undefined") return { field: "name", order: "asc" };
   try {
     const stored = localStorage.getItem(SORT_STORAGE_KEY);

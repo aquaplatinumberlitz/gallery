@@ -1321,6 +1321,10 @@ Mobile       -> MobilePhotoSwipe.vue + LightboxMobileSheet.vue
 
 - All PhotoSwipe wrappers share `usePhotoSwipe.ts` for lifecycle, item creation, index sync, and destroy guards.
 - Lightbox item URL construction lives in `frontend/src/utils/lightbox.ts`.
+- `usePhotoSwipe.ts` hands PhotoSwipe a lazily built data source (`utils/lightboxLazyList.ts`, a `Proxy` over an
+  array): `buildPhotoSwipeItem` runs the first time an index is read, so opening a lightbox over a 200-item
+  album builds the opening item and its neighbours instead of all 200 (about 15 ms of the click task at 4x CPU).
+  `Array.isArray`, `length`, indexing, `map` and mutation behave as on a plain array.
 - Desktop reserves `DESKTOP_METADATA_WIDTH` through PhotoSwipe padding so the image is not hidden under the metadata sidebar.
 - Tablet uses custom top/bottom controls and a bottom metadata panel.
 - Mobile uses `@douxcode/vue-spring-bottom-sheet` as a non-modal metadata sheet inside PhotoSwipe.
@@ -1365,6 +1369,61 @@ kept short by these rules; keep them when moving components between chunks:
   layout module before `router.isReady()` resolves. The reload black box
   (`src/debug/reloadBlackBox.ts`) is a dynamic import, downloaded only when
   `?debugReload` or `GALLERY_DEBUG_RELOAD` is set.
+- `main.ts` also calls `startHomeBrowsePrefetch` (`utils/homeBrowsePrefetch.ts`) as soon as the library
+  list settles. On `/` without a query string it resolves the library the gallery will open (the persisted
+  selection, else the only library with an import path; the same choice `hydrateActiveLibrary` makes, without its
+  side effects) and runs `queryClient.prefetchInfiniteQuery` for that library's root folder with the exact key and
+  function of `useInfiniteBrowseQuery` (`browseInfiniteQueryKey`, `fetchBrowsePage`, `getNextBrowsePageParam`,
+  `BROWSE_STALE_TIME_MS`, exported from that composable so the two cannot drift). The mounted query finds the page
+  cached, or joins the request still in flight, instead of starting it after the route chunks and mount. Once the
+  page is cached it requests the cover of the first folder in the user's sort order (`sortByPreference`, the
+  grid's own ordering) with `new Image()` at `fetchPriority = "high"` and the card's exact thumbnail URL, so the
+  likely LCP image is already loading when the card renders; skipped when the album strip is collapsed
+  (`gallery-albums-collapsed-v2`). Every step is best effort: no stored library, an unknown library, a failed
+  request, throwing storage or a non-home URL end silently and the mounted app loads as before. Do not add
+  covers beyond the first here: each extra one competes with the route chunks that gate mount.
+- The early chunk preload script in `index.html` sits after the render-blocking stylesheet, so the browser only
+  runs it once the main CSS has loaded. Do not move it earlier: on the HTTP/2 + gzip lab setup (fair-share
+  streams) 45 preloads started at t = 0 delayed the entry module from 1.0 s to 2.0 s, and with it the library and
+  browse requests, which made LCP worse (3.2 s against 2.75 s on slow 4G). Mount is bandwidth-bound: the entry, Vue,
+  icons, CSS and the gallery route graph must arrive before the app mounts (about 308 KB gzip before the payload
+  work below, about 284 KB gzip / 251 KB Brotli after it, at 1.6 Mbps each ~20 KB is ~0.1 s).
+- **Mount-critical payload (Track P).** Keep these when adding code to the home graph:
+  - `vite.config.ts` `precompressAssets()` (`src/build/precompressAssets.ts`) writes `.br` (q11) and `.gz` (9)
+    siblings of every text asset; nginx serves them with `brotli_static` / `gzip_static` (see
+    `docs/CONFIGURATION.md`). Without the Brotli module the `.gz` files and dynamic gzip still work.
+  - `motion-v` runs through `LazyMotion` with the synchronous `domAnimation` bundle (`MotionProvider.vue`), and every
+    animated element is an `m.*` component. The full `motion.*` component bundles layout projection, drag and pan
+    code (about 36 KB raw) that the app never uses; `src/components/__tests__/MotionProvider.test.ts` fails if a
+    file imports `motion` again. `MotionProvider` is its own chunk (`loadMotionProvider.ts`, in the early preload
+    list, awaited by `main.ts` before the first mount) because everything in the entry chunk delays the first API
+    requests, which start when the entry executes. The feature bundle is passed as an object, not a loader, so the
+    first render and every animation are the same as with `motion.*`; do not make it asynchronous.
+  - fuse.js and the search results panel are not in the home graph. `utils/fuzzySearch.ts` is a synchronous facade
+    over `utils/fuzzySearchEngine.ts` (the only importer of fuse.js; until the engine has loaded it returns the list
+    unfiltered and re-evaluates dependent computeds when it arrives), and `components/search/SearchResultsPanel.vue`
+    is a lazy wrapper over `SearchResultsPanelImpl.vue`. `utils/searchChunks.ts` (started by `GalleryRoute.vue`)
+    loads both when the URL carries a search, on the first text-field focus, and after `load` + idle.
+  - Tooltip and popover content cannot leave the home graph by themselves: reka-ui's `PopperContent` and
+    floating-ui are also imported by the dropdown menus and the selects on the home route (the select must render
+    its items to show its value), so making only `TooltipContent` / `PopoverContent` lazy removed 0.9 KB gzip and was
+    dropped.
+- **Layout stability (CLS).** Two things moved the desktop layout on cold loads (0.03–0.2 at 1440 px) and are
+  fixed; keep them when touching the header, sidebar or start-up:
+  - The brand title (`.brand-title`, Cinzel 600, 42 px) sits in a width-limited header box. Cinzel is ~23% wider
+    than a Times-style fallback, so when it swapped in (`font-display: swap`) the title wrapped to a second line
+    (+63 px) and pushed the toolbar, sidebar and content down. `fonts.css` declares `"Cinzel Fallback"`, a
+    `local()`-only face (Times New Roman / Liberation Serif / Tinos / Times, bold) with `size-adjust: 123%`, and
+    `.brand-title` uses `"Cinzel", "Cinzel Fallback", serif`, so the stand-in wraps like Cinzel. It downloads
+    nothing and the settled rendering is Cinzel as before. Re-measure `size-adjust` if the title text, weight or
+    letter-spacing change.
+  - `LibrarySidebarHeader`, the breadcrumb and the toolbar render differently before the active library is
+    hydrated (sidebar +81 px, breadcrumb and action buttons move). `App.vue` hydrates synchronously in setup when
+    the library list is already cached, so `main.ts` holds the first mount for the list prefetch for at most
+    `LIBRARIES_MOUNT_WAIT_MS` (300 ms, `utils/settleWithin.ts`). On slow links the list arrives long before the
+    route chunks, so the wait costs nothing there; if the list is slower than 300 ms the app mounts anyway and
+    shows the pre-hydration state as before.
+  Guard: `tests/e2e/perf/home-layout-shift.spec.ts` (production build only; CLS < 0.01 at 1440×900 and 390×844).
 - `App.vue` mounts `Lightbox` and `RelatedAssetsPanel` lazily: as soon as their
   store opens, otherwise after `load` + a settle delay + an idle period
   (`utils/idleAfterLoad.ts`). `MobileLayout.vue` loads `GallerySidebarContent`
@@ -1436,6 +1495,13 @@ downloads what the user rests on:
   and is left out while the card has no measured width (jsdom, `display: none`). The `dimensions`
   event may therefore report the 256 px natural size; `lightboxStore.rememberDimensions` ignores
   `source: "thumbnail"` dimensions, so nothing depends on it.
+- **Album covers have no `srcset`.** The browse API gives a cover's path and version but not its dimensions,
+  so `thumbnailSizes` can only use the unknown-aspect ratio (2), under which a card wider than 128 px at DPR 1
+  keeps the 512 px derivative. The covers' rendered widths (390 px phone 140 px at DPR 2, 1024 px tablet 198 px,
+  1440 px desktop 165 px) therefore all resolve to 512, and a 256 px candidate would only change bytes by
+  upscaling tall images. A cover `srcset` needs cover dimensions in `cover_images` metadata first. Covers keep
+  one URL per cover (`getThumbnailUrl(path, 512, version)`), which the pre-mount cover request in "Initial
+  Load Path" relies on: `homeBrowsePrefetch.test.ts` asserts that all three album cards ask for the same URL.
 - **Retry of failed thumbnails and covers.** A cold album can answer `/api/thumbnail` with a 503 after
   its 10 s generation wait, and the derivative is ready a few seconds later. `<img>` does not expose the
   status, so every real `error` event (not the one a cleared `src` raises) is retryable:
@@ -1447,6 +1513,27 @@ downloads what the user rests on:
   `shouldLoad` off), unmounting or changing the image cancels the pending retry and resets the budget, so
   a card that comes back starts again from the plain URL. `useCoverImageLoad` exposes the same behaviour as
   `onCoverError` / `retryAttempt` / `resetRetry` for `AlbumCard*`.
+- **Album-open thumbnail warm-up.** Album open is request-bound: the grid mounts about 150 ms (4x CPU)
+  after the browse response lands, and until then no `<img>` exists. `useInfiniteBrowseQuery` takes an
+  `onFirstPageFetched` hook that runs in the query function with each fresh first page, before Vue sees the
+  data. `GalleryGrid.vue` uses it while the skeleton is on screen: the skeleton cell gives the card width, the
+  row pitch and the grid top, `utils/thumbnailWarmup.ts` plans the thumbnails of the rows that start above the
+  viewport bottom (after a 64 px header allowance, and 170 px more when the folder has subfolders; at most 24;
+  videos and images whose 256/512 choice depends on the exact card width are skipped) and adds one
+  `<link rel="preload" as="image">` each, with the same `href`, `imagesrcset` and `imagesizes`
+  (`thumbnailSizes()`) as the `PhotoCard` `<img>`, `fetchpriority=high` for the first row. The browser picks the
+  candidate exactly as it does for the `<img>`, and the card later claims the in-flight or finished response, so
+  nothing is downloaded twice. The hook returns a promise that resolves in the next task, so the render that
+  mounts the grid is not queued behind the request setup. The links leave `<head>` after 15 s. Without a
+  skeleton (revisit, cache hit) nothing is warmed. Search results are not warmed.
+- **Staged row mount.** Mounting every row in range at once was the album-open long task (about 120-170 ms at
+  4x CPU). `useVirtualGridRows` takes a `rowBudget` ref (a `rangeExtractor` that keeps at most that many rows,
+  counted from the first row of the range). `GalleryGrid.vue` starts a newly populated grid at budget 0 (the
+  container and page chrome only), then 1 row, then `ceil(cards / columns)` rows per task (4 cards per step,
+  doubled each time a step finished within 20 ms, up to 48), until the budget no longer limits the range. The
+  steps are `setTimeout(0)` ticks, so the browser can paint and handle input between them. A scroll, or the
+  grid unmounting, ends the staging at once (budget `Infinity`). Settled DOM and pixels are identical; the
+  virtualizer's range (viewport plus `overscan: 5`) is unchanged.
 - `GalleryGrid.vue` virtualizes all three layouts with the same
   `useVirtualGridRows` (`mediaRows`, `overscan: 5`). Mobile differs only in
   geometry: its rows are `top`-positioned (a fractional `translateY` would

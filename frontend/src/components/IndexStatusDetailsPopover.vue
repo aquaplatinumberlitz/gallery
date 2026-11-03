@@ -8,7 +8,7 @@ import { formatLibraryTimestamp } from "@/utils/libraryStatus";
 import type { CatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
 import type { UnifiedStatus } from "@/lib/catalog/status";
-import { motion } from "motion-v";
+import { m } from "motion-v";
 
 const props = defineProps<{
   status: UnifiedStatus | null;
@@ -167,7 +167,7 @@ function formatMiddlePath(value: string, maxLength = 34) {
         </Tooltip>
       </div>
 
-      <motion.div
+      <m.div
         :initial="false"
         :animate="{
           height: showProcessingProgress ? 'auto' : 0,
@@ -189,7 +189,7 @@ function formatMiddlePath(value: string, maxLength = 34) {
           </p>
           <IndexProgressBar :percent="processingProgressPercent" />
         </div>
-      </motion.div>
+      </m.div>
 
       <div class="index-details__section">
         <p class="index-details__section-label">Location</p>

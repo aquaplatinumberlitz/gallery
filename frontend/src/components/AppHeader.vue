@@ -46,7 +46,7 @@ import { useRouteChrome } from "@/composables/useRouteChrome";
 import { galleryScrollContainerRefKey } from "@/injectionKeys";
 import { useCollapsibleHeader } from "@/composables/useCollapsibleHeader";
 import { useInfiniteBrowseQuery } from "@/composables/useInfiniteBrowseQuery";
-import { motion } from "motion-v";
+import { m } from "motion-v";
 import { GALLERY_SEARCH_MIN_CHARS } from "@/constants";
 
 interface Props {
@@ -233,7 +233,7 @@ function handleClearAll() {
     }"
   >
     <template v-if="showGalleryHeader">
-      <motion.div
+      <m.div
         class="expanded-header"
         :initial="false"
         :animate="{
@@ -519,9 +519,9 @@ function handleClearAll() {
             <span>{{ isBrowseRefetching && !isBrowseLoading ? "Refreshing" : "Loading" }}</span>
           </Badge>
         </div>
-      </motion.div>
+      </m.div>
 
-      <motion.div
+      <m.div
         class="compact-header"
         :initial="false"
         :animate="{
@@ -669,7 +669,7 @@ function handleClearAll() {
             <span>{{ isBrowseRefetching && !isBrowseLoading ? "Refreshing" : "Loading" }}</span>
           </Badge>
         </div>
-      </motion.div>
+      </m.div>
     </template>
 
     <template v-else>
@@ -1095,7 +1095,8 @@ h1 {
 
 .brand-title {
   margin: 0;
-  font-family: "Cinzel", serif;
+  /* "Cinzel Fallback" (fonts.css) keeps the title wrapping the same before and after Cinzel loads. */
+  font-family: "Cinzel", "Cinzel Fallback", serif;
   font-size: clamp(28px, 5vw, 42px);
   font-weight: 600;
   letter-spacing: 0.08em;
