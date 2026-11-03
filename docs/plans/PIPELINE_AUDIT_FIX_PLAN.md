@@ -80,6 +80,10 @@ Add the note: "Steps 2 and 3 start once files are cataloged and run side by side
 | BL-5 | Scan holds all records in memory before the first write and runs ffprobe serially (`file_index.py:424,491-508,555`) | Measure on a large library before changing |
 | BL-6 | Offline assets keep ready derivatives; a move is delete + create (re-extract, re-render) | Correct but wasteful; no user-visible error |
 | BL-7 | `visual_fingerprints` showed `skipped_count 4` with skip reasons summing to 2 | Unexplained; needs a repro |
+| BL-8 | `METADATA_INDEXER_SCAN_YIELD_*` env vars are parsed but unused (`config.py`, `CONFIGURATION.md`) | Not part of the staged queue removed by IM-3; remove after confirming no reader |
+| BL-9 (OR-02) | An on-demand derivative request waits up to 10 s in a sleep loop inside the threadpool (`thumbnails.py` `wait_for_derivative`); anyio's default limiter is 40 threads and is not configured | More than 40 concurrent cold requests could stall other threadpool work; the frontend only requests visible tiles, so measure under load before changing to an async wait |
+| BL-10 (OR-03) | `_served_paths` is a set, not a refcount: with two concurrent responses for the same file, the first release can let a deferred unlink remove the file before the second response opens it | Needs the file to be superseded while served twice; no repro |
+| BL-11 (OR-04) | `_serve_derivative` has an unreachable `asset_id is None` branch that would return `null` | Dead code only |
 
 ## Progress
 
