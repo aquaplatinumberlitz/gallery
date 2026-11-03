@@ -7,11 +7,15 @@
  * * Clear removes derived catalog data without unregistering libraries
  * * Rebuild repopulates derived catalog data from registered import paths
  * * Reset app data requires the type-confirm phrase and returns the app to empty libraries state
+ * * The Maintenance pipeline shows 1 -> (2 and 3 side by side) at 390/1024/1440 px without horizontal overflow,
+ *   with the search-index state as an unnumbered note
  *
  * Run when:
  * Imported-data maintenance endpoints, labels, or destructive action flows change.
  */
 
+import * as fs from "fs";
+import * as path from "path";
 import { browseResponse, statusBatch, statusEnvelope } from "./helpers/catalogFixtures";
 import { expect, test, type Page, type Request } from "./helpers/monitorErrors";
 
@@ -337,6 +341,33 @@ async function installImportedDataApi(page: Page): Promise<MockState> {
       return;
     }
 
+    if (url.pathname === "/api/search/indexes") {
+      const indexRow = (index_name: string, extra: Record<string, unknown>) => ({
+        index_name,
+        library_id: 1,
+        library_name: "Imported Library",
+        state: "ready",
+        usable: true,
+        enabled: true,
+        schema_version: 1,
+        extractor_version: 1,
+        indexed_count: 100,
+        target_count: 100,
+        failed_count: 0,
+        skipped_count: 0,
+        skip_reasons: {},
+        active_job_id: null,
+        ...extra,
+      });
+      await route.fulfill({
+        json: [
+          indexRow("prompt_values", {}),
+          indexRow("workflow_properties", { state: "building", indexed_count: 40, active_job_id: 5 }),
+        ],
+      });
+      return;
+    }
+
     if (url.pathname === "/api/jobs") {
       await route.fulfill({ json: [] });
       return;
@@ -397,6 +428,59 @@ async function openMaintenance(page: Page) {
 
 test.describe("imported-data maintenance verification", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
+
+  for (const width of [390, 1024, 1440]) {
+    test(`pipeline shows 1 then 2 and 3 side by side at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await prepare(page);
+      await installImportedDataApi(page);
+      await openMaintenance(page);
+
+      const stages = page.getByTestId("pipeline-stages");
+      await expect(stages).toBeVisible();
+      await expect(stages).toContainText("1. File catalog");
+      await expect(stages).toContainText("Finds images and videos in your libraries");
+      await expect(stages).toContainText("Reads prompts and settings from images");
+      await expect(stages).toContainText("Builds thumbnails and previews, ahead of time or on first view");
+      await expect(page.getByTestId("pipeline-parallel-note")).toHaveText(
+        "Steps 2 and 3 start once files are cataloged and run side by side.",
+      );
+      await expect(page.getByTestId("pipeline-search-index-note")).toHaveText(
+        "Search indexes: prompt groups ready, workflow fields building 40 %",
+      );
+
+      const box = async (text: string) => {
+        const found = await stages.getByText(text, { exact: false }).first().boundingBox();
+        if (!found) throw new Error(`no box for ${text}`);
+        return found;
+      };
+      const step1 = await box("1. File catalog");
+      const step2 = await box("2. Metadata extraction");
+      const step3 = await box("3. Image cache");
+      expect(step3.y).toBeGreaterThan(step2.y); // 2 and 3 are stacked inside one group
+      expect(Math.abs(step3.x - step2.x)).toBeLessThan(2);
+      if (width >= 768) {
+        expect(step2.x).toBeGreaterThan(step1.x + step1.width); // the group sits to the right of step 1
+        expect(Math.abs(step1.y - (step2.y + step3.y) / 2)).toBeLessThan(120); // step 1 feeds the middle of the group
+      } else {
+        expect(step2.y).toBeGreaterThan(step1.y + step1.height); // stacked below step 1 on a phone
+      }
+
+      const overflow = await page.getByTestId("pipeline-stages").evaluate((element) => {
+        const card = element.closest("[aria-labelledby='imported-data-flow-heading']") as HTMLElement;
+        return card.scrollWidth - card.clientWidth;
+      });
+      expect(overflow).toBeLessThanOrEqual(0);
+
+      const shotsDir = process.env.PIPELINE_SHOTS_DIR;
+      if (shotsDir) {
+        fs.mkdirSync(shotsDir, { recursive: true });
+        await page
+          .locator("[aria-labelledby='imported-data-flow-heading']")
+          .screenshot({ path: path.join(shotsDir, `pipeline-${width}.png`) });
+      }
+    });
+  }
 
   test("Update buttons still call scan endpoints", async ({ page }) => {
     await prepare(page);
