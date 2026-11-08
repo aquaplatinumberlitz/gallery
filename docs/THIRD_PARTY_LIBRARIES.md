@@ -417,7 +417,7 @@ The frontend uses Tailwind 4 through `@tailwindcss/vite` and `frontend/src/style
 
 Local UI primitives live under `frontend/src/components/ui/` and follow shadcn-vue patterns:
 
-- Reka UI provides headless primitives for dialog, sheet, dropdown menu, select, tooltip, popover, tabs, separator, and primitive/sidebar context.
+- Reka UI provides headless primitives for dialog, sheet, dropdown menu, select, switch, tooltip, popover, tabs, separator, and primitive/sidebar context. The `ui/switch` wrapper binds `SettingsModal` via `v-model` (`modelValue`/`update:modelValue`), not `checked`.
 - `class-variance-authority` defines component variants.
 - `clsx` and `tailwind-merge` are wrapped by `cn()` in `frontend/src/lib/utils.ts`.
 - `_shadcn-token-bridge.css` maps neutral shadcn tokens without replacing gallery brand/design tokens.
