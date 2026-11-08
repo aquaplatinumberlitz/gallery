@@ -66,7 +66,14 @@ scratchpad. Each track re-establishes its own fail-before.
 
 | Track | Status | Evidence |
 |-------|--------|----------|
-| A | Pending | |
-| B | Done (pending Opus review) | Commits on `fix/ux-landing`; evidence in the Track B report (toggle 0.6 s reload to under 0.1 s in place, day first load 592 KB to 409 KB) |
-| C | Pending | |
-| D | Pending | |
+| A | Merged after Opus review | SR-01: CJK bigram index (schema v13, backup and backfill, verified on a real v12 database). Counts: 少女 0 to 10, 東京 0 to 9, "ch" 0 to 291. Search benchmark: all workloads under 300 ms p95. SR-02: header shows the total ("291+"). The backfill streams rows instead of loading every prompt. |
+| B | Merged after Opus review | Toggle: 0.6 s reload became 0.05-0.12 s in place, with 0 navigations. Day first load: 592 KB to 409 KB. Frozen scenes are pixel-identical. The toggle check passes on the merged build. |
+| C | Merged after Opus review | Unreadable assets are skipped as covers. Subfolder-only albums get 3 descendant covers in one ranged query per batch. 20k library listing p50 is +13 ms, and p95 is within the old range. |
+| D | Merged after Opus review | LC-01 amber "Ready with issues", MD-02 full "View" label, UX-1 landscape header 88 to 29 px, UX-2 breadcrumb from the library root, UX-4 "No subfolders". |
+
+Integration on `fix/ux-review`:
+- `./test.sh e2e`: 205 passed.
+- `./test.sh perf`: all reports pass.
+- `./test.sh fast`: lint, frontend and the backend suite pass, except one test in `test_worker_contention_phase2_derivative.py` ("unable to open database file"). It also fails on `main` @ `4676dbe` in the same run mode, and it passes alone. This is a pre-existing flake, recorded in the backlog.
+
+Open owner question: `newyear` is a 3F Fansub anniversary page. It currently shows only on 1 January.
