@@ -2,18 +2,21 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-11-03
+Last reviewed: 2026-11-08
 
 Active plans:
 
 | Plan | Status | Created |
 |------|--------|---------|
-| [Pipeline Audit Fix](PIPELINE_AUDIT_FIX_PLAN.md) | Active | 2026-11-03 |
+| None | — | — |
+
+Deferred work no plan owns yet is tracked in [Backlog](BACKLOG.md).
 
 Completed plans:
 
 | Plan | Completed | Archived |
 |------|-----------|----------|
+| Pipeline Audit Fix | 2026-11-03 | [`../archived/PIPELINE_AUDIT_FIX_PLAN.md`](../archived/PIPELINE_AUDIT_FIX_PLAN.md) |
 | Perf Stretch | 2026-11-03 | [`../archived/PERF_STRETCH_PLAN.md`](../archived/PERF_STRETCH_PLAN.md) |
 | Image Pipeline | 2026-11-02 | [`../archived/IMAGE_PIPELINE_PLAN.md`](../archived/IMAGE_PIPELINE_PLAN.md) |
 | Worker Lifecycle Hardening | 2026-11-01 | [`../archived/WORKER_LIFECYCLE_HARDENING_PLAN.md`](../archived/WORKER_LIFECYCLE_HARDENING_PLAN.md) |

@@ -1,6 +1,6 @@
 # Pipeline Audit Fix Plan
 
-Status: Active
+Status: Completed (2026-11-03; archived)
 
 Created: 2026-11-03
 
@@ -95,3 +95,4 @@ Add the note: "Steps 2 and 3 start once files are cataloged and run side by side
 | H2 | Done | `fix/pa-docs-key` @ `b73955a`: CP-06 doc fixes; IM-2 `["metadata", path, contentVersion]` (keys, query, PhotoSwipe tests) |
 | Follow-up | Done | `fix/pa-unreadable-retry` @ `c2d46bf`: no retry of the permanent `image_unreadable` metadata error |
 | Integration | Done | `fix/pipeline-audit` @ `5e1e4c3`: backend 1717 passed, `backend-api` 106, e2e 203 passed / 6 skipped, Vitest 1632, lint and docs pass; the five audit repro tests pass (all five failed on `7b251d0`) |
+| Deploy | Done | `main` @ `0588767` deployed 2026-11-03 10:50 UTC: health ok, no journal errors, library 209/209 metadata ready, filename search 200, `prompt_values` and `workflow_properties` auto-built to ready (209/209) within about 2 minutes, `workflow_raw` stays disabled |
