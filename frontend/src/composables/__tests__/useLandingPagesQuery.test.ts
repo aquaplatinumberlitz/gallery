@@ -109,3 +109,14 @@ describe("useLandingPagesQuery", () => {
     expect(result.data.value).toBeUndefined();
   });
 });
+
+describe("normalizeLandingPages hidden pages", () => {
+  it("drops the developer sample_test page so Settings never offers it", () => {
+    expect(
+      normalizeLandingPages(["/landpage/a/index.html", "/landpage/sample_test/index.html", "/landpage/b/index.html"]),
+    ).toEqual([
+      { url: "/landpage/a/index.html", index: 0 },
+      { url: "/landpage/b/index.html", index: 2 },
+    ]);
+  });
+});
