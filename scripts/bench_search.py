@@ -72,6 +72,11 @@ SEARCH_QUERY_CLASSES = (
     ("fielded_sampler_only", 'sampler:"Euler a"', 1, 50),
     ("mixed_short_token", "Euler a", 1, 50),
     ("cjk", "星空 猫 風景", 1, 50),
+    ("short_cjk_two_char", "少女", 1, 50),
+    ("short_cjk_one_char", "猫", 1, 50),
+    ("short_cjk_mixed", "forest 東京", 1, 50),
+    ("short_latin_prefix", "bl", 1, 50),
+    ("short_cjk_keyset_pages", "東京", 3, 150),
     ("repeated_keyset_pages", "search_asset_00", 3, 150),
 )
 

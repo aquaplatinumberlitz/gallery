@@ -805,6 +805,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_store/metadata_persist.py` | Metadata persistence helpers                              |
 | `metadata_store/search_store.py`     | FTS5 search queries                                       |
 | `metadata_store/ranked_search.py`    | Tiered search candidates and opaque keyset cursors        |
+| `metadata_store/cjk_index.py`        | CJK bigram prompt index maintenance and short-query plan  |
 | `metadata_store/search_index_store.py` | Derived-index states, fenced jobs, keyset asset batches, and extraction fingerprints |
 | `metadata_store/inspector_store.py`  | Library Inspector data access                             |
 | `metadata_store/_asset_store.py`     | Shared asset upsert helper                                |
@@ -886,6 +887,15 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
+- Catalog schema version 13 adds the CJK bigram prompt index: `image_metadata_cjk`
+  (one row per prompt or negative prompt that contains CJK text, holding the
+  space-joined overlapping bigrams of each CJK run plus a one-character run-end
+  token) and its external-content `unicode61` FTS5 table `image_metadata_fts_cjk`,
+  kept in step by insert/update/delete triggers; an `image_metadata` delete
+  trigger removes the row. Its `.v12.bak` migration backfills from stored prompt
+  text only (no media decoding) with `cjk_index.rebuild_cjk_index`. Prompt writes
+  in `metadata_persist.py` call `cjk_index.sync_cjk_path`; any code that writes
+  `image_metadata.prompt` with raw SQL must call `rebuild_cjk_index` afterwards.
 - Catalog schema version 12 rebuilds `asset_visual_hash_bands` and
   `asset_search_extractions` as `WITHOUT ROWID` tables through a rollback-safe
   `.v11.bak` migration, reducing the storage cost of their composite primary
@@ -1266,9 +1276,16 @@ Header search or AdvancedSearchDrawer
   only for compatibility rows that lack IDs; legacy arrays are consumed only
   when canonical `media` is absent.
 - Ranked search unions filename token-prefix candidates with trigger-maintained
-  trigram filename/metadata substring candidates. Short or mixed-length tokens
-  stay on Unicode FTS token/prefix semantics; full-table LIKE is reserved for
-  the FTS-unavailable degraded path. Metadata trigram queries retain AND-token
+  trigram filename/metadata substring candidates. Queries in which every token
+  has three or more characters use trigram substring matching. Any query with a
+  shorter token uses short-token semantics instead: Latin terms prefix-match
+  prompt tokens (`ch` matches `cherry`), and CJK runs match through the CJK bigram
+  index (a 1-character CJK term is a prefix on bigrams and run-end tokens, a longer
+  CJK run is a bigram phrase, so `少女` matches inside `桜の下の少女`). All terms are
+  ANDed; a mixed Latin and CJK query matches the Latin terms on the Unicode table
+  and constrains rows with `rowid IN` the CJK table. Tiers, bounded preselection
+  and keyset cursors are unchanged. Hangul is space-delimited and uses Unicode token
+  prefixes. Full-table LIKE is reserved for the FTS-unavailable degraded path. Metadata trigram queries retain AND-token
   semantics, and unscoped FTS plus structured-filter-only sources use bounded,
   cursor-aware preselection before strict catalog authorization. The candidate union also includes
   positive-prompt phrase tiers, negative prompts, and structured-filter-only rows. It

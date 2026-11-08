@@ -35,9 +35,16 @@ def test_search_benchmark_covers_required_query_classes() -> None:
         "fielded_sampler_only",
         "mixed_short_token",
         "cjk",
+        "short_cjk_two_char",
+        "short_cjk_one_char",
+        "short_cjk_mixed",
+        "short_latin_prefix",
+        "short_cjk_keyset_pages",
         "repeated_keyset_pages",
     }
     cases = {name: (query, pages, min_matches) for name, query, pages, min_matches in SEARCH_QUERY_CLASSES}
+    assert cases["short_cjk_two_char"] == ("少女", 1, 50)
+    assert cases["short_cjk_keyset_pages"][1] >= 2
     assert cases["repeated_keyset_pages"][1] >= 2
     assert cases["repeated_keyset_pages"][2] >= 100
     assert cases["prompt_heavy"][0] == "blue forest prompt heavy constellation"

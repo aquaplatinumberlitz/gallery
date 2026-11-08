@@ -143,7 +143,9 @@ The `image_metadata` table stores:
 | Timestamps               | `updated_at`, `indexed_at`                                                                                                                                                     |
 
 FTS5 unicode and trigram tables index `name`, `prompt`, `negative_prompt`, `model`,
-`sampler`, and `raw_metadata_text`.
+`sampler`, and `raw_metadata_text`. A separate CJK bigram FTS table
+(`image_metadata_fts_cjk`, schema version 13) indexes the overlapping bigrams of CJK runs in
+`prompt` and `negative_prompt` so one- and two-character CJK words are searchable.
 
 Parsed LoRA/resource data is also normalized into `image_resources` with `path`, `kind`,
 `name`, `hash`, `resource_hash`, `weight`, `strength`, `raw_json`, and `updated_at`.

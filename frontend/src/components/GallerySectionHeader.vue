@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-vue-next";
 
 defineProps<{
   title: string;
-  count?: number;
+  count?: number | string;
   badgeIcon?: Component;
   clickable?: boolean;
   collapsed?: boolean;
