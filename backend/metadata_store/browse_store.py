@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,7 @@ from typing import Any
 from ..files import content_version
 from ..models import FileNode, VideoFileNode
 from ._db import _active_asset_where, _connect_read
-from .identity import catalog_direct_child_sql, catalog_import_path_owns_sql
+from .identity import asset_matches_metadata_job_sql, catalog_direct_child_sql, catalog_import_path_owns_sql
 from .library_store import _find_library_for_path_conn
 from .path_utils import canonicalize_catalog_path, catalog_path_contains
 from .types import CatalogBrowseScopeError
@@ -80,6 +81,119 @@ def _import_root_availability(root_path: str) -> str:
         return "unavailable"
 
 
+COVER_LIMIT = 3
+_DESCENDANT_COVER_BATCH = 300
+
+
+def _cover_readable_sql(alias: str) -> str:
+    """Return the predicate that keeps assets known to be unreadable out of folder covers.
+
+    A cover is a readable image. Two failure signals exist and both are cheap indexed probes, so the check
+    works the same on a library that was scanned a moment ago and on one that has been indexed for months:
+
+    * metadata: ``assets.metadata_state = 'failed'``, or a ``failed`` metadata job (``path`` is its primary
+      key) for the asset's current ``mtime_ns``/``size`` identity; the job is what an undecodable file
+      leaves behind (``fail_metadata_job``);
+    * derivatives: a ``thumbnail`` derivative of the current identity that ended ``failed`` with the terminal
+      ``invalid_source`` result code. Decoding is per source, so one variant is enough; retryable failures
+      (``attempts_exhausted``, ``internal_error``) do not hide a cover.
+
+    A fresh scan has no failure signal yet, so a file that is unreadable but not yet processed can still be
+    a cover until its metadata job runs. A changed file has a new identity and is judged again.
+    """
+    job_match = asset_matches_metadata_job_sql(asset_alias=alias, job_alias="cover_mj")
+    return f"""{alias}.metadata_state IS NOT 'failed'
+        AND NOT EXISTS (
+          SELECT 1 FROM metadata_index_jobs AS cover_mj
+          WHERE cover_mj.path = {alias}.path AND cover_mj.state = 'failed' AND cover_mj.size = {alias}.size
+            AND {job_match}
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM asset_derivatives AS cover_d
+          JOIN derivative_jobs AS cover_dj ON cover_dj.derivative_id = cover_d.id
+          WHERE cover_d.asset_id = {alias}.id AND cover_d.kind = 'thumbnail' AND cover_d.status = 'failed'
+            AND cover_d.source_mtime_ns = {alias}.mtime_ns AND cover_d.source_size = {alias}.size
+            AND cover_dj.result_code = 'invalid_source'
+        )"""
+
+
+def _cover_unreadable_cte(library_id: int) -> str:
+    """The set form of ``_cover_readable_sql``: ``cover_unreadable(id)``, built once per query.
+
+    ``CROSS JOIN`` pins the loop order (small sets drive the probes). Failed jobs are few, so scanning them once and probing a set per candidate row is much cheaper than
+    running correlated probes for every asset of a large subtree. Same signals, same identity rules.
+    """
+    lib = int(library_id)
+    return f"""cover_unreadable(id) AS (
+          SELECT a.id FROM metadata_index_jobs AS cover_mj
+          CROSS JOIN assets AS a ON a.library_id = {lib} AND a.path = cover_mj.path AND a.size = cover_mj.size
+          WHERE cover_mj.state = 'failed' AND {asset_matches_metadata_job_sql(asset_alias="a", job_alias="cover_mj")}
+          UNION
+          SELECT a.id FROM asset_derivatives AS cover_d
+          CROSS JOIN derivative_jobs AS cover_dj ON cover_dj.derivative_id = cover_d.id
+          CROSS JOIN assets AS a ON a.id = cover_d.asset_id
+          WHERE cover_d.status = 'failed' AND cover_d.kind = 'thumbnail' AND cover_dj.result_code = 'invalid_source'
+            AND cover_d.source_mtime_ns = a.mtime_ns AND cover_d.source_size = a.size
+        )"""
+
+
+def _cover_readable_set_sql(alias: str) -> str:
+    return f"{alias}.metadata_state IS NOT 'failed' AND {alias}.id NOT IN (SELECT id FROM cover_unreadable)"
+
+
+def _descendant_bounds(folder_path: str) -> tuple[str, str]:
+    """Half-open ``path`` range ``[lo, hi)`` that holds exactly the paths below ``folder_path``."""
+    prefix = folder_path if folder_path.endswith(os.sep) else folder_path + os.sep
+    return prefix, prefix[:-1] + chr(ord(prefix[-1]) + 1)
+
+
+def _browse_descendant_covers_conn(
+    conn: sqlite3.Connection,
+    library_id: int,
+    folder_paths: list[str],
+    *,
+    include_offline: bool,
+) -> list[sqlite3.Row]:
+    """Top covers of each folder from its descendants: one ranged query per batch, not one per folder.
+
+    The same order as direct covers (``mtime_ns DESC, path ASC``), over every readable image below the
+    folder. The ``assets(library_id, path)`` index serves the ``[lo, hi)`` range of each folder. Import-path
+    ownership is inherited: the folders passed in are already owned, and ownership is a path-prefix rule.
+    """
+    visibility_sql = _browse_visibility_sql("a", include_offline=include_offline)
+    readable_sql = _cover_readable_set_sql("a")
+    unreadable_cte = _cover_unreadable_cte(library_id)
+    rows: list[sqlite3.Row] = []
+    for start in range(0, len(folder_paths), _DESCENDANT_COVER_BATCH):
+        chunk = folder_paths[start : start + _DESCENDANT_COVER_BATCH]
+        values = ", ".join("(?, ?, ?)" for _ in chunk)
+        params: list[Any] = []
+        for folder_path in chunk:
+            params.extend((folder_path, *_descendant_bounds(folder_path)))
+        rows.extend(
+            conn.execute(
+                f"""
+                WITH {unreadable_cte}, folders(folder_path, lo, hi) AS (VALUES {values})
+                SELECT folder_path, path, mtime_ns, size
+                FROM (
+                  SELECT f.folder_path, a.path, a.mtime_ns, a.size,
+                         row_number() OVER (
+                           PARTITION BY f.folder_path ORDER BY a.mtime_ns DESC, a.path ASC
+                         ) AS cover_rank
+                  FROM folders AS f
+                  CROSS JOIN assets AS a ON a.library_id = ? AND a.path >= f.lo AND a.path < f.hi
+                  WHERE a.type IN ('image', 'photo')
+                    AND {visibility_sql} AND {readable_sql}
+                )
+                WHERE cover_rank <= {COVER_LIMIT}
+                ORDER BY folder_path, cover_rank
+                """,
+                (*params, library_id),
+            )
+        )
+    return rows
+
+
 def _browse_folder_counts_conn(
     conn: sqlite3.Connection,
     library_id: int,
@@ -107,8 +221,8 @@ def _browse_folder_counts_conn(
             SELECT a.path FROM assets AS a
             WHERE a.library_id = :library_id AND a.parent_path = :folder_path
               AND a.type IN ('image', 'photo') AND {direct_child_sql}
-              AND {import_ownership_sql} AND {visibility_sql}
-            ORDER BY mtime_ns DESC LIMIT 3
+              AND {import_ownership_sql} AND {visibility_sql} AND {_cover_readable_sql("a")}
+            ORDER BY mtime_ns DESC LIMIT {COVER_LIMIT}
             """,
             {"library_id": library_id, "folder_path": folder_path},
         )
@@ -122,6 +236,7 @@ def _browse_folder_counts_batch_conn(
     folder_paths: list[str],
     *,
     include_offline: bool,
+    descendant_covers: bool = False,
 ) -> dict[str, tuple[bool, int, list[str], list[str]]]:
     if not folder_paths:
         return {}
@@ -147,6 +262,7 @@ def _browse_folder_counts_batch_conn(
 
     cover_rows = conn.execute(
         f"""
+        WITH {_cover_unreadable_cte(library_id)}
         SELECT parent_path, path, mtime_ns, size
         FROM (
           SELECT a.parent_path, a.path, a.mtime_ns, a.size,
@@ -158,19 +274,35 @@ def _browse_folder_counts_batch_conn(
             AND {direct_child_sql}
             AND {import_ownership_sql}
             AND {visibility_sql}
+            AND {_cover_readable_set_sql("a")}
         )
-        WHERE cover_rank <= 3
+        WHERE cover_rank <= {COVER_LIMIT}
         ORDER BY parent_path, cover_rank
         """,
         (library_id, *folder_paths),
     ).fetchall()
+    # A folder without direct images (only subfolders) borrows covers from its descendants. A folder whose
+    # direct images are all unreadable keeps no covers: it still holds images, so it shows the placeholder.
+    # Only folder listings ask for it: ranking a whole tree is a scan of the subtree, which the virtual root
+    # (import roots can hold the entire library) and search albums must not pay.
+    descendant_rows = (
+        _browse_descendant_covers_conn(
+            conn,
+            library_id,
+            [folder_path for folder_path, (_has_children, image_count) in counts.items() if image_count == 0],
+            include_offline=include_offline,
+        )
+        if descendant_covers
+        else []
+    )
     covers: dict[str, list[str]] = {folder_path: [] for folder_path in folder_paths}
     cover_versions: dict[str, list[str]] = {folder_path: [] for folder_path in folder_paths}
-    for row in cover_rows:
-        parent = str(row["parent_path"])
-        covers.setdefault(parent, []).append(str(row["path"]))
-        # Aligned with ``covers``: an asset without a recorded identity gets "" (no version to offer).
-        cover_versions.setdefault(parent, []).append(content_version(row["mtime_ns"], row["size"]) or "")
+    for parent_key, rows in (("parent_path", cover_rows), ("folder_path", descendant_rows)):
+        for row in rows:
+            parent = str(row[parent_key])
+            covers.setdefault(parent, []).append(str(row["path"]))
+            # Aligned with ``covers``: an asset without a recorded identity gets "" (no version to offer).
+            cover_versions.setdefault(parent, []).append(content_version(row["mtime_ns"], row["size"]) or "")
 
     return {
         folder_path: (has_children, image_count, covers.get(folder_path, []), cover_versions.get(folder_path, []))
@@ -342,6 +474,7 @@ def _catalog_browse_path_conn(
         int(library["id"]),
         [str(row["path"]) for row in folder_rows],
         include_offline=include_offline,
+        descendant_covers=True,
     )
     for row in folder_rows:
         has_children, image_count, cover_images, cover_versions = folder_counts.get(
@@ -541,9 +674,10 @@ def get_asset_folder_listing(
             ).fetchone()
             cover_rows = conn.execute(
                 f"""
-                SELECT path, mtime_ns, size FROM assets
-                WHERE library_id = ? AND parent_path = ? AND type = 'image' AND {_active_asset_where()}
-                ORDER BY mtime_ns DESC LIMIT 3
+                SELECT a.path, a.mtime_ns, a.size FROM assets AS a
+                WHERE a.library_id = ? AND a.parent_path = ? AND a.type = 'image' AND {_active_asset_where("a")}
+                  AND {_cover_readable_sql("a")}
+                ORDER BY a.mtime_ns DESC LIMIT {COVER_LIMIT}
                 """,
                 (library["id"], row["path"]),
             ).fetchall()
