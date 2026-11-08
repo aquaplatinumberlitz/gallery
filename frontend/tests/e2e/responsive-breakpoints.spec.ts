@@ -333,6 +333,22 @@ test.describe("Tablet layout on a short landscape phone (844x390)", () => {
       .poll(() => panel.evaluate((el) => Math.round(el.getBoundingClientRect().top)))
       .toBeGreaterThanOrEqual(Math.floor(390 * 0.5) - 1);
   });
+
+  test("shows at least 120px of lightbox metadata below the header without scrolling", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    await page.getByTestId("photo-card").first().click();
+    await page.getByRole("button", { name: "View image info" }).click();
+    await expect(page.locator(".tablet-panel .tablet-header")).toBeVisible();
+
+    const visibleMetadata = await page.locator(".tablet-panel").evaluate((panel) => {
+      const header = panel.querySelector(".tablet-header");
+      if (!header) throw new Error("Missing tablet lightbox header");
+      return panel.getBoundingClientRect().bottom - header.getBoundingClientRect().bottom;
+    });
+    expect(visibleMetadata).toBeGreaterThanOrEqual(120);
+  });
 });
 
 test.describe("Mobile search touch interactions", () => {

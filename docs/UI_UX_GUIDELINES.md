@@ -51,7 +51,10 @@ Tablet:
 - Phones in landscape (e.g. 844x390) get the tablet layout by width. Under `max-height: 500px` the
   tablet chrome compacts: the header drops its kicker and shrinks to 52px, the toolbar to its 44px
   controls, and the lightbox metadata panel is capped at 50dvh (85dvh expanded) so the image keeps at
-  least half the screen.
+  least half the screen. In the lightbox metadata panel the filename and the source/size chips share one
+  short row (about 29px) and the chips scroll sideways when they do not fit. The 44px handle and the 44px
+  close-button hit area stay. At least 120px of metadata shows below the header at 844x390 without
+  scrolling. Tablet portrait and desktop are unchanged.
 
 Mobile:
 
