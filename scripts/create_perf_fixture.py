@@ -36,6 +36,10 @@ RELATED_FIXTURE_VERSION = 1
 SEARCH_BENCHMARK_COHORT_ROWS = 5_000
 
 
+# Unspaced CJK run on every 7th row: exercised by the short-CJK search workloads (SR-01).
+_UNSPACED_CJK = ", 夜の東京の少女と猫"
+
+
 def _synthetic_search_values(
     index: int,
     *,
@@ -51,10 +55,10 @@ def _synthetic_search_values(
     elif index <= 300:
         prompt = f"unrelated ceramic harbor subject {index}"
     elif index >= search_cohort_rows:
-        prompt = f"relation corpus prompt {index}"
+        prompt = f"relation corpus prompt {index}{_UNSPACED_CJK if index % 7 == 3 else ''}"
     else:
         cjk = " 星空 猫 風景" if index % 10 == 0 else ""
-        prompt = f"blue forest prompt heavy constellation {index}{cjk}"
+        prompt = f"blue forest prompt heavy constellation {index}{cjk}{_UNSPACED_CJK if index % 7 == 3 else ''}"
     model = "related-perf-model" if index <= 300 else f"perf-model-{index % 8}"
     sampler = "Euler a" if index <= 60 else "DPM++ 2M" if index <= 100 else ("Euler a", "DPM++ 2M", "UniPC")[index % 3]
     seed = "424242" if index <= 20 else str(200_000 + index)
@@ -273,6 +277,12 @@ def _seed_synthetic_search_rows(
                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             metadata_rows,
         )
+        try:
+            from backend.metadata_store.cjk_index import rebuild_cjk_index
+        except ImportError:  # pre-v13 checkout: no CJK bigram index to populate
+            pass
+        else:
+            rebuild_cjk_index(connection)
         connection.commit()
     finally:
         connection.close()

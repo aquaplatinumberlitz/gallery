@@ -32,6 +32,7 @@ from pathlib import Path
 import pytest
 
 import backend.config as config
+from backend.metadata_store._schema import CATALOG_SCHEMA_VERSION
 from tests.worker_contention_support import capture_sql, seed_assets, seed_library
 
 METADATA_STATES = ("queued", "running", "done", "stale", "failed", "skipped")
@@ -155,7 +156,7 @@ def test_an_existing_database_gains_the_table_and_triggers_with_backfilled_value
     ms.initialize_database()
 
     with sqlite3.connect(db_path) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 12, "no catalog version bump"
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION, "no catalog version bump"
         assert (
             conn.execute(
                 "SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%'"

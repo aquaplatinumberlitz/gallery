@@ -13,6 +13,7 @@ from typing import Any
 
 from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
 from ..workflow_discovery import build_workflow_group_conditions
+from .cjk_index import CJK_FTS_TABLE, plan_short_query
 from .identity import asset_owns_file_index_sql, catalog_import_path_owns_sql, file_index_matches_image_metadata_sql
 from .path_utils import canonicalize_catalog_path, named_path_scope_sql
 
@@ -94,6 +95,28 @@ def _can_use_trigram_candidates(query: str) -> bool:
         return False
     tokens = re.findall(r"[\w.-]+", trimmed, flags=re.UNICODE)
     return bool(tokens) and all(len(token) >= 3 for token in tokens)
+
+
+def _short_match_params(query: str) -> dict[str, str]:
+    """Match overrides for queries that cannot use trigram candidates (a token under three characters).
+
+    Latin terms become token prefixes on the Unicode FTS table; CJK terms become bigram phrases or
+    one-character prefixes on the CJK bigram table. Every term is ANDed; a mixed query matches the
+    Latin terms on the Unicode table and constrains rows to the CJK table with ``IN (...)``.
+    """
+    plan = None if _can_use_trigram_candidates(query) else plan_short_query(query)
+    if plan is None:
+        return {}
+    prefix_all = _unicode_prefix_match_query(query)
+    params = {"metadata_match": f"(model : ({prefix_all})) OR (sampler : ({prefix_all}))"}
+    for column, param in (("prompt", "positive"), ("negative_prompt", "negative")):
+        if plan.cjk_terms:
+            params[f"{param}_cjk_match"] = f"{column} : ({plan.cjk_match})"
+        if plan.latin_terms:
+            params[f"{param}_match"] = f"{column} : ({plan.latin_match})"
+        else:
+            params[f"{param}_match"] = params[f"{param}_cjk_match"]
+    return params
 
 
 def _column_fts_query(column: str, query: str, *, trigram: bool) -> str:
@@ -292,6 +315,7 @@ def _metadata_candidate_select(
     bounded_fts: bool = False,
     bounded_field_only: bool = False,
     has_cursor: bool = False,
+    cjk_match_param: str | None = None,
 ) -> str:
     field_clause = f"AND {field_where}" if field_where else ""
     if source_kind == "positive_phrase":
@@ -380,6 +404,13 @@ def _metadata_candidate_select(
             match_type_sql = "'metadata'"
             snippet = "coalesce(m.model, m.sampler, '')"
             pre_tier = "65"
+        cjk_subquery = (
+            f"IN (SELECT rowid FROM {CJK_FTS_TABLE} WHERE {CJK_FTS_TABLE} MATCH :{cjk_match_param})"
+            if cjk_match_param
+            else ""
+        )
+        pre_cjk_filter = f"AND pre_m.id {cjk_subquery}" if cjk_subquery else ""
+        cjk_filter = f"AND m.id {cjk_subquery}" if cjk_subquery else ""
         if bounded_fts:
             pre_rank = f"round({fts_table}.rank, 6)"
             if has_cursor:
@@ -404,6 +435,7 @@ def _metadata_candidate_select(
                 JOIN image_metadata AS pre_m ON pre_m.id = {fts_table}.rowid
                 {pre_joins}
                 WHERE {fts_table} MATCH :{match_param} {pre_cursor}
+                  {pre_cjk_filter}
                 ORDER BY pre_tier DESC, pre_rank ASC, {pre_order}
                 LIMIT :fts_candidate_limit
               ) AS bounded_fts_rows
@@ -420,6 +452,7 @@ def _metadata_candidate_select(
               CROSS JOIN file_index fi ON fi.path = m.path
               {_active_asset_join_sql()}
               WHERE {fts_table} MATCH :{match_param}
+                {cjk_filter}
                 AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
             """
             rank = f"round(bm25({fts_table}), 6)"
@@ -503,7 +536,16 @@ def _candidate_selects(
         return selects
 
     use_trigram = _can_use_trigram_candidates(query)
+    short_plan = None if use_trigram else plan_short_query(query)
     metadata_table = "image_metadata_fts_trigram" if use_trigram else "image_metadata_fts"
+    prompt_table = metadata_table
+    prompt_cjk_param: str | None = None
+    negative_cjk_param: str | None = None
+    if short_plan is not None and short_plan.cjk_terms:
+        if short_plan.latin_terms:
+            prompt_cjk_param, negative_cjk_param = "positive_cjk_match", "negative_cjk_match"
+        else:
+            prompt_table = CJK_FTS_TABLE
     positive_kind = "positive_trigram" if use_trigram else "positive_fts"
     negative_kind = "negative_trigram" if use_trigram else "negative_fts"
     metadata_kind = "metadata_trigram" if use_trigram else "metadata_fts"
@@ -519,17 +561,19 @@ def _candidate_selects(
             source_kind=positive_kind,
             scope_sql=scope_sql,
             field_where=field_where,
-            fts_table=metadata_table,
+            fts_table=prompt_table,
             bounded_fts=bounded_metadata_fts,
             has_cursor=has_cursor,
+            cjk_match_param=prompt_cjk_param,
         ),
         _metadata_candidate_select(
             source_kind=negative_kind,
             scope_sql=scope_sql,
             field_where=field_where,
-            fts_table=metadata_table,
+            fts_table=prompt_table,
             bounded_fts=bounded_metadata_fts,
             has_cursor=has_cursor,
+            cjk_match_param=negative_cjk_param,
         ),
         _metadata_candidate_select(
             source_kind=metadata_kind,
@@ -733,6 +777,7 @@ def search_ranked_media_page(
         **scope_params,
         **field_params,
     }
+    params.update(_short_match_params(residual))
     if cursor_position is not None:
         params.update(
             {
@@ -864,6 +909,7 @@ def search_ranked_media_count(
         **scope_params,
         **field_params,
     }
+    params.update(_short_match_params(residual))
 
     field_only = parsed is not None and not residual
     include_videos = parsed is None
