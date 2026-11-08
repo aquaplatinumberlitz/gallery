@@ -1,4 +1,23 @@
-import type { SummaryState } from "./status";
+import type { MetadataState, SummaryState } from "./status";
+import { formatAssetCount } from "@/utils/libraryStatus";
+
+export const METADATA_READY_WITH_ISSUES_LABEL = "Ready with issues";
+
+/**
+ * A metadata stage with `state === "failed"` is only "failed" when nothing is
+ * ready. The backend marks the whole stage failed when any asset is unreadable,
+ * so a stage with ready assets reads as "Ready with issues" (amber).
+ */
+export function isMetadataReadyWithIssues(metadata: {
+  state: MetadataState;
+  ready_assets: number | null | undefined;
+}): boolean {
+  return metadata.state === "failed" && (metadata.ready_assets ?? 0) > 0;
+}
+
+export function formatMetadataUnreadableDetail(ready: number, unreadable: number): string {
+  return `${formatAssetCount(ready)} ready · ${formatAssetCount(unreadable)} can't be read`;
+}
 
 export interface CatalogStatusPresentation {
   label: string;
@@ -62,7 +81,7 @@ const PRESENTATIONS: Record<SummaryState, CatalogStatusPresentation> = {
     meaning: "Pending metadata work without active extraction.",
   },
   ready_with_issues: {
-    label: "Ready with issues",
+    label: METADATA_READY_WITH_ISSUES_LABEL,
     variant: "default",
     tone: "yellow",
     indicator: "warning",

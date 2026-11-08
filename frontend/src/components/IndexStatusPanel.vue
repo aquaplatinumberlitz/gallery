@@ -13,7 +13,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { queryClient } from "@/query";
 import { normalizeQueryPath, queryKeys } from "@/query/keys";
 import { scanLibrary } from "@/services/api";
-import { CATALOG_STATUS_UNAVAILABLE_PRESENTATION, getCatalogStatusPresentation } from "@/lib/catalog/labels";
+import {
+  CATALOG_STATUS_UNAVAILABLE_PRESENTATION,
+  getCatalogStatusPresentation,
+  isMetadataReadyWithIssues,
+} from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE, isStatusContractError } from "@/lib/catalog/contractGuard";
 import { formatLibraryTimestamp } from "@/utils/libraryStatus";
 import type { UnifiedStatus } from "@/lib/catalog/status";
@@ -59,6 +63,7 @@ const globalWorkOutsideScope = computed(() => status.value?.metadata.global_acti
 const mediaFilesFound = computed(() => status.value?.metadata.total_assets ?? 0);
 const mediaMetadataReady = computed(() => status.value?.metadata.ready_assets ?? 0);
 const failedAssets = computed(() => status.value?.metadata.failed_assets ?? 0);
+const metadataHasIssues = computed(() => (status.value ? isMetadataReadyWithIssues(status.value.metadata) : false));
 const notReadyAssets = computed(() => status.value?.metadata.not_ready_assets ?? 0);
 const metadataProgress = computed(() => status.value?.metadata.progress_percent ?? null);
 const isIndexing = computed(
@@ -303,7 +308,9 @@ function formatCount(value: number) {
           <div v-if="failedAssets > 0" class="space-y-1.5">
             <p class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Health</p>
             <div class="flex items-center justify-between text-xs">
-              <span class="text-destructive">Failed metadata</span>
+              <span :class="metadataHasIssues ? 'text-warning' : 'text-destructive'">{{
+                metadataHasIssues ? "Can't be read" : "Failed metadata"
+              }}</span>
               <span class="text-right font-medium">{{ formatCount(failedAssets) }}</span>
             </div>
           </div>

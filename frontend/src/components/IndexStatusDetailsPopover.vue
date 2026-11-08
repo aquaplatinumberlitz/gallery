@@ -5,7 +5,7 @@ import IndexStatusBadge from "@/components/IndexStatusBadge.vue";
 import IndexProgressBar from "@/components/IndexProgressBar.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatLibraryTimestamp } from "@/utils/libraryStatus";
-import type { CatalogStatusPresentation } from "@/lib/catalog/labels";
+import { isMetadataReadyWithIssues, type CatalogStatusPresentation } from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
 import type { UnifiedStatus } from "@/lib/catalog/status";
 import { m } from "motion-v";
@@ -40,6 +40,7 @@ const isIndexing = computed(
   () => props.status?.metadata.state === "queued" || props.status?.metadata.state === "indexing",
 );
 const failedAssets = computed(() => props.status?.metadata.failed_assets ?? 0);
+const metadataHasIssues = computed(() => (props.status ? isMetadataReadyWithIssues(props.status.metadata) : false));
 const issueCount = computed(() => props.status?.issue_count ?? 0);
 const scopePathText = computed(() => props.path || "Library root");
 const scopePathDisplay = computed(() => formatMiddlePath(scopePathText.value));
@@ -215,7 +216,11 @@ function formatMiddlePath(value: string, maxLength = 34) {
       <div v-if="failedAssets > 0 || issueCount > 0" class="index-details__section">
         <p class="index-details__section-label">Health</p>
         <div v-if="failedAssets > 0" class="index-details__row">
-          <span class="index-details__row-key index-details__row-key--error">Failed metadata</span>
+          <span
+            class="index-details__row-key"
+            :class="metadataHasIssues ? 'index-details__row-key--warning' : 'index-details__row-key--error'"
+            >{{ metadataHasIssues ? "Can't be read" : "Failed metadata" }}</span
+          >
           <strong>{{ formatCount(failedAssets) }}</strong>
         </div>
         <div class="index-details__row">
@@ -318,6 +323,10 @@ function formatMiddlePath(value: string, maxLength = 34) {
 
 .index-details__row-key--error {
   color: var(--gallery-error);
+}
+
+.index-details__row-key--warning {
+  color: var(--gallery-warning);
 }
 
 .index-details__row .index-details__scope-path {

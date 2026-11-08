@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { formatAssetCount } from "@/utils/libraryStatus";
 import { formatLibraryProgressLabel } from "@/utils/libraryProgress";
+import { isMetadataReadyWithIssues } from "@/lib/catalog/labels";
 import LibraryProgressBar from "./LibraryProgressBar.vue";
 import type { UnifiedStatus } from "@/lib/catalog/status";
 
@@ -13,7 +14,11 @@ const issueCount = computed(() => props.status?.issue_count ?? 0);
 const metadataReadyLabel = computed(() => {
   if (!props.status) return "";
   const base = formatLibraryProgressLabel(props.status, { completeLabel: true });
-  return failedAssets.value > 0 ? `${base} · ${formatAssetCount(failedAssets.value)} failed` : base;
+  if (failedAssets.value <= 0) return base;
+  if (isMetadataReadyWithIssues(props.status.metadata)) {
+    return `${base} · ${formatAssetCount(failedAssets.value)} can't be read`;
+  }
+  return `${base} · ${formatAssetCount(failedAssets.value)} failed`;
 });
 </script>
 
