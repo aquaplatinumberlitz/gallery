@@ -8,7 +8,7 @@ Active plans:
 
 | Plan | Status | Created |
 |------|--------|---------|
-| None | — | — |
+| [UX Review Fix](UX_REVIEW_FIX_PLAN.md) | Active | 2026-11-08 |
 
 Deferred work no plan owns yet is tracked in [Backlog](BACKLOG.md).
 
