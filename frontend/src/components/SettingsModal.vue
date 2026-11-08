@@ -80,6 +80,9 @@ watch(
   (open) => {
     if (open) {
       loadSettings();
+    } else {
+      // Clear the reset input so a stale phrase can't arm the reset on re-open.
+      resetConfirmInput.value = "";
     }
   },
   { immediate: true },
@@ -125,8 +128,6 @@ const optionMarkClass = (active: boolean) =>
 
 function onOpenChange(open: boolean) {
   if (!open) {
-    // Clear the reset input so it can't be accidentally triggered on re-open
-    resetConfirmInput.value = "";
     emit("close");
   }
 }
@@ -236,13 +237,12 @@ async function handleResetCatalog() {
             leave-active-class="transition-all duration-150 ease-in"
             leave-to-class="opacity-0 -translate-y-1"
           >
-            <div
-              v-if="introMode === 'manual'"
-              class="rounded-xl border border-border bg-muted/60 p-4"
-            >
+            <div v-if="introMode === 'manual'" class="rounded-xl border border-border bg-muted/60 p-4">
               <div class="flex flex-col gap-3">
                 <div class="flex flex-col gap-1">
-                  <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/65">Theme Override</span>
+                  <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/65"
+                    >Theme Override</span
+                  >
                   <span class="text-xs text-muted-foreground">Preview before applying it to launch.</span>
                 </div>
                 <div v-if="isLoadingThemes" class="text-sm text-muted-foreground">Loading themes...</div>
@@ -280,10 +280,11 @@ async function handleResetCatalog() {
             <FieldLegend class="mb-0 text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/65">
               Viewer Images
             </FieldLegend>
-            <FieldDescription class="text-xs text-muted-foreground">Control the image source used inside the lightbox.</FieldDescription>
+            <FieldDescription class="text-xs text-muted-foreground">
+              Control the image source used inside the lightbox.
+            </FieldDescription>
           </div>
 
-          <!-- Switch replaces checkbox — binary setting, not a selection from a list -->
           <div class="flex items-center justify-between gap-4 rounded-xl border border-border bg-card/80 px-4 py-3">
             <div class="flex min-w-0 flex-col gap-0.5">
               <span class="text-sm font-semibold text-foreground">Always load original</span>
@@ -291,9 +292,8 @@ async function handleResetCatalog() {
             </div>
             <Switch
               id="settings-always-load-original"
-              :checked="alwaysLoadOriginal"
+              v-model="alwaysLoadOriginal"
               aria-label="Always load original image"
-              @update:checked="alwaysLoadOriginal = $event"
             />
           </div>
         </FieldSet>
@@ -312,9 +312,9 @@ async function handleResetCatalog() {
                 </AlertTitle>
                 <AlertDescription class="text-xs text-muted-foreground">
                   Reset app data removes library registrations, imported catalog data, extracted metadata, thumbnails,
-                  previews, job history, and local gallery state. Source photos and videos are not deleted.
-                  Use this before handing the app to another user. Embedded metadata remains in any source files you
-                  keep or share.
+                  previews, job history, and local gallery state. Source photos and videos are not deleted. Use this
+                  before handing the app to another user. Embedded metadata remains in any source files you keep or
+                  share.
                 </AlertDescription>
               </div>
             </div>
@@ -326,8 +326,7 @@ async function handleResetCatalog() {
               <Input
                 id="catalog-reset-confirm"
                 v-model="resetConfirmInput"
-                autocomplete="new-password"
-                data-form-type="other"
+                autocomplete="off"
                 spellcheck="false"
                 :disabled="resetMutation.isPending.value"
                 class="h-11 rounded-lg bg-background/80"

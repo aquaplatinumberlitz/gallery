@@ -95,19 +95,44 @@ describe("SettingsModal", () => {
   it("reloads persisted settings when reopened after reset clears local state", async () => {
     window.localStorage.setItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY, "true");
     const wrapper = mountSubject();
-    const alwaysLoadOriginal = () => wrapper.find<HTMLInputElement>('input[type="checkbox"]');
+    const alwaysLoadOriginal = () => wrapper.find("#settings-always-load-original");
 
-    expect(alwaysLoadOriginal().element.checked).toBe(true);
+    expect(alwaysLoadOriginal().attributes("aria-checked")).toBe("true");
 
     window.localStorage.removeItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY);
     await wrapper.setProps({ isOpen: false });
     await wrapper.setProps({ isOpen: true });
     await nextTick();
 
-    expect(alwaysLoadOriginal().element.checked).toBe(false);
+    expect(alwaysLoadOriginal().attributes("aria-checked")).toBe("false");
 
     await wrapper.find<HTMLInputElement>('input[type="radio"][value="manual"]').setValue(true);
 
     expect(window.localStorage.getItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY)).not.toBe("true");
+  });
+
+  it("toggles and persists the always-load-original switch", async () => {
+    const wrapper = mountSubject();
+    const toggle = wrapper.find('[role="switch"][aria-label="Always load original image"]');
+
+    expect(toggle.attributes("aria-checked")).toBe("false");
+
+    await toggle.trigger("click");
+
+    expect(toggle.attributes("aria-checked")).toBe("true");
+    expect(window.localStorage.getItem(LIGHTBOX_ALWAYS_LOAD_ORIGINAL_KEY)).toBe("true");
+  });
+
+  it("clears the reset confirmation input when the modal closes", async () => {
+    const wrapper = mountSubject();
+
+    await wrapper.find("#catalog-reset-confirm").setValue("RESET CATALOG DATABASE");
+    await wrapper.setProps({ isOpen: false });
+    await wrapper.setProps({ isOpen: true });
+    await nextTick();
+
+    expect(wrapper.find<HTMLInputElement>("#catalog-reset-confirm").element.value).toBe("");
+    const button = wrapper.findAll("button").find((candidate) => candidate.text().includes("Reset app data"));
+    expect(button?.attributes("disabled")).toBeDefined();
   });
 });
