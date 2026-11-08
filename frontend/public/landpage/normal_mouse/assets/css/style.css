@@ -56,7 +56,6 @@ a img {
 	width: 100%;
 	min-width: 980px;
 	height: 480px;
-	background: url(../img/top_headbg_day.gif) repeat-x center top;
 	position: relative;
 	overflow: hidden;
 }
@@ -169,6 +168,10 @@ a img {
 }
 
 /* ===== NIGHT THEME ===== */
+#headerBG:not(.night-theme) {
+	background: url(../img/top_headbg_day.gif) repeat-x center top;
+}
+
 #headerBG.night-theme {
 	background: url(../img/top_headbg_night.webp) repeat-x center top;
 }
@@ -442,4 +445,43 @@ a img {
 
 .theme-default .nivo-caption a:hover {
 	color: #fff;
+}
+
+/* ===== THEME TOGGLE: "Auto" chip (only while a manual day/night choice is active) ===== */
+#themeToggleText {
+	cursor: pointer;
+}
+
+#themeAuto {
+	display: none;
+	margin-left: 8px;
+	padding-left: 8px;
+	border-left: 1px solid rgba(0, 0, 0, 0.2);
+	font-size: 12px;
+	opacity: 0.8;
+	cursor: pointer;
+}
+
+#themeToggle.is-manual #themeAuto {
+	display: inline;
+}
+
+#themeAuto:hover {
+	opacity: 1;
+	text-decoration: underline;
+}
+
+.night-theme #themeAuto {
+	border-left-color: rgba(255, 255, 255, 0.2);
+}
+
+#themeToggleText:focus-visible,
+#themeAuto:focus-visible {
+	outline: 1px solid currentColor;
+	outline-offset: 2px;
+}
+
+/* Scene images get their src from script.js when their scene is shown; hide the empty box until then. */
+img[data-src]:not([src]) {
+	visibility: hidden;
 }

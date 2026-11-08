@@ -176,69 +176,167 @@ function storageRemove(key) {
     try { localStorage.removeItem(key); } catch (e) {}
 }
 
+function timeBasedTheme() {
+    var hours = new Date().getHours();
+    return (hours > 5 && hours < 19) ? 'day' : 'night';
+}
+
 function getThemeToUse() {
     var manualTheme = storageGet('themePreference');
     var isAutoMode = storageGet('themeAutoMode') !== 'false';
-    var hours = new Date().getHours();
-    
-    if (manualTheme && !isAutoMode) {
+
+    if ((manualTheme === 'day' || manualTheme === 'night') && !isAutoMode) {
         return manualTheme;
-    } else {
-        return (hours > 5 && hours < 19) ? 'day' : 'night';
     }
+    return timeBasedTheme();
 }
 
 function isAutoMode() {
     return storageGet('themeAutoMode') !== 'false';
 }
 
+/* ===== SCENES (day / night) =====
+ * Only the active scene's images are requested: scene images carry `data-src` and get their `src` when the scene
+ * is first shown. The header backgrounds are CSS, so they load with the theme class. Switching scenes happens in
+ * place (no page reload): swap classes, stop the old scene's jQuery loops, start the new scene's. */
+var DAY_ELEMENTS = '#minidora_day, #dora_day, #dorami_day, #cloud1, #cloud2, #cloud3, #cloud4, #cloud5';
+var NIGHT_ELEMENTS = '#dora_night, #dorami_night';
+var activeScene = null;      // scene currently on screen (null before the first paint)
+var switchToken = 0;         // invalidates a pending scene swap when the user clicks again
+
+// Header backgrounds are CSS-owned; these URLs are only used to warm the cache before a swap.
+var SCENE_BACKGROUNDS = {
+    day: 'assets/img/top_headbg_day.gif',
+    night: 'assets/img/top_headbg_night.webp'
+};
+
+var warmedBackgrounds = {};
+
+// Start fetching a scene's images and call `done` once they are all decoded (or failed). Safe to call repeatedly.
+function loadScene(theme, done) {
+    var pending = 1;
+    function settle() { if (--pending === 0 && done) done(); }
+    $('[data-scene="' + theme + '"] img[data-src]').each(function() {
+        var img = this;
+        img.setAttribute('src', img.getAttribute('data-src'));
+        img.removeAttribute('data-src');
+    });
+    $('[data-scene="' + theme + '"] img').each(function() {
+        var img = this;
+        if (img.complete) return;
+        pending++;
+        $(img).one('load error', settle);
+    });
+    if (!warmedBackgrounds[theme]) {
+        warmedBackgrounds[theme] = true;
+        pending++;
+        var bg = new Image();
+        bg.onload = bg.onerror = settle;
+        bg.src = SCENE_BACKGROUNDS[theme];
+    }
+    settle();
+}
+
+// Remove every animated inline style so a scene starts from its stylesheet position again.
+function resetAnimated($els) {
+    $els.each(function() {
+        this.style.top = '';
+        this.style.left = '';
+        this.style.transform = '';
+        $(this).removeData('_ARS_data');
+    });
+}
+
+function stopAnimations() {
+    var $els = $(DAY_ELEMENTS + ', ' + NIGHT_ELEMENTS);
+    $els.stop(true);
+    resetAnimated($els);
+}
+
+function applyScene(theme) {
+    var headerBG = document.getElementById('headerBG');
+    stopAnimations();
+    activeScene = theme;
+    $('body').removeClass('theme-day theme-night').addClass('theme-' + theme);
+    if (headerBG) headerBG.className = theme === 'night' ? 'night-theme' : '';
+    startAnimations();
+}
+
 /* ===== MAIN FUNCTIONALITY ===== */
 $(document).ready(function() {
-    var currentTheme = getThemeToUse();
-    var headerBG = document.getElementById('headerBG');
     var themeToggle = document.getElementById('themeToggle');
     var themeToggleText = document.getElementById('themeToggleText');
-    
-    // Apply theme class
-    if (currentTheme === 'night') {
-        $('body').addClass('theme-night');
-        if (headerBG) headerBG.className = 'night-theme';
-    } else {
-        $('body').addClass('theme-day');
+    var themeAuto = document.getElementById('themeAuto');
+    var shownTheme = getThemeToUse();
+    var intended = shownTheme;   // last requested theme, even while its swap is pending
+    var autoMode = isAutoMode(); // kept in memory too, so the toggle still works when storage is blocked
+
+    // First paint: show the chosen scene as soon as its own images are requested.
+    loadScene(shownTheme);
+    applyScene(shownTheme);
+
+    // The button names the theme a click switches to; "Auto" appears only while a manual choice is active.
+    function updateToggle(theme) {
+        if (themeToggleText) {
+            var autoIndicator = autoMode ? ' (Auto)' : '';
+            themeToggleText.textContent = theme === 'day' ? 'Night' + autoIndicator : 'Day' + autoIndicator;
+        }
+        if (themeToggle) $(themeToggle).toggleClass('is-manual', !autoMode);
     }
-    
-    // Update toggle button text
-    function updateToggleText() {
-        if (!themeToggleText) return;
-        var theme = getThemeToUse();
-        var autoIndicator = isAutoMode() ? ' (Auto)' : '';
-        themeToggleText.textContent = theme === 'day' ? 'Night' + autoIndicator : 'Day' + autoIndicator;
+    updateToggle(shownTheme);
+
+    // Switch scenes in place. The label updates at once; the scene swaps as soon as its images are ready
+    // (immediately when they are already loaded).
+    function switchTo(theme) {
+        var token = ++switchToken;
+        updateToggle(theme);
+        var swapped = false;
+        function swap() {
+            if (swapped || token !== switchToken) return;
+            swapped = true;
+            shownTheme = theme;
+            applyScene(theme);
+        }
+        if (theme === activeScene) return;
+        loadScene(theme, swap);
+        setTimeout(swap, 1500); // never leave the old scene up if an image stalls
     }
-    updateToggleText();
-    
-    // Theme toggle click handler
+
     if (themeToggle) {
-        var toggleClickTimer = null;
-        $(themeToggle).on('click', function() {
-            clearTimeout(toggleClickTimer);
-            toggleClickTimer = setTimeout(function() {
-                var theme = getThemeToUse();
-                var newTheme = theme === 'day' ? 'night' : 'day';
-                storageSet('themePreference', newTheme);
-                storageSet('themeAutoMode', 'false');
-                location.reload();
-            }, 250);
+        // Warm the other scene while the pointer is on its way to the button.
+        $(themeToggle).on('pointerenter pointerdown focusin', function() {
+            loadScene(shownTheme === 'day' ? 'night' : 'day');
         });
-        
-        // Double click to return to auto mode
-        $(themeToggle).on('dblclick', function() {
-            clearTimeout(toggleClickTimer);
+
+        $(themeToggle).on('click', function(e) {
+            if ($(e.target).closest('#themeAuto').length) return;
+            var newTheme = intended === 'day' ? 'night' : 'day';
+            intended = newTheme;
+            autoMode = false;
+            storageSet('themePreference', newTheme);
+            storageSet('themeAutoMode', 'false');
+            switchTo(newTheme);
+        });
+
+        $(themeToggle).on('keydown', function(e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            (e.target === themeAuto ? $(themeAuto) : $(themeToggle)).trigger('click');
+        });
+    }
+
+    // Back to automatic (time-based) mode, without delaying a normal click.
+    if (themeAuto) {
+        $(themeAuto).on('click', function(e) {
+            e.stopPropagation();
             storageSet('themeAutoMode', 'true');
             storageRemove('themePreference');
-            location.reload();
+            autoMode = true;
+            intended = timeBasedTheme();
+            switchTo(intended);
         });
     }
-    
+
     // Initialize Nivo Slider
     $(window).on('load', function() {
         $('#slider').nivoSlider({
@@ -250,12 +348,7 @@ $(document).ready(function() {
             pauseOnHover: true
         });
     });
-    
-    // Start animations after short delay
-    setTimeout(function() {
-        startAnimations();
-    }, 300);
-    
+
     // Smooth scroll for anchor links
     $('a[href^=#]').click(function(){
         var speed = 500;
@@ -267,7 +360,7 @@ $(document).ready(function() {
         }
         return false;
     });
-    
+
     // Image hover effects
     $("a img").hover(
         function(){
@@ -277,16 +370,18 @@ $(document).ready(function() {
             $(this).fadeTo(100, 1.0);
         }
     );
-    
+
     // Back to Top functionality
     initBackToTop();
 });
 
 /* ===== ANIMATION FUNCTIONS ===== */
+// Each loop re-arms itself from its completion callback. `.stop(true)` clears the queue so a stopped loop never
+// re-arms; the `activeScene` guard also covers a callback that was already running when the scene changed.
 function startAnimations() {
-    if ($('body').hasClass('theme-day')) {
+    if (activeScene === 'day') {
         startDayAnimations();
-    } else {
+    } else if (activeScene === 'night') {
         startNightAnimations();
     }
 }
@@ -304,16 +399,19 @@ function startNightAnimations() {
 }
 
 function animateMinidora() {
+    if (activeScene !== 'day') return;
     $("#minidora_day").animate({top:"-=15px"}, 1000, 'easeInOutSine')
                       .animate({top:"+=15px"}, 1000, 'easeInOutSine', animateMinidora);
 }
 
 function animateDora() {
+    if (activeScene !== 'day') return;
     $("#dora_day").animate({rotate:"10deg"}, 800, 'easeInOutQuad')
                   .animate({rotate:"0deg"}, 800, 'easeInOutQuad', animateDora);
 }
 
 function animateDorami() {
+    if (activeScene !== 'day') return;
     $("#dorami_day").animate({rotate:"4deg"}, 120, 'easeInOutQuad')
                     .animate({rotate:"0deg"}, 120, 'easeInOutQuad', animateDorami);
 }
@@ -327,6 +425,7 @@ function animateClouds() {
 }
 
 function animateCloud(selector, duration, resetLeft) {
+    if (activeScene !== 'day') return;
     var cloudWidth = Math.floor($(window).width() + 600);
     $(selector).animate({left: cloudWidth}, duration, 'linear').animate({left: resetLeft}, 0, function() {
         animateCloud(selector, duration, resetLeft);
@@ -334,11 +433,13 @@ function animateCloud(selector, duration, resetLeft) {
 }
 
 function animateDoraAtNight() {
+    if (activeScene !== 'night') return;
     $("#dora_night").animate({rotate:"15deg"}, 2000, 'easeInOutQuad')
                     .animate({rotate:"0deg"}, 2000, 'easeInOutQuad', animateDoraAtNight);
 }
 
 function animateDoramiAtNight() {
+    if (activeScene !== 'night') return;
     $("#dorami_night").animate({rotate:"10deg"}, 2000, 'easeInOutQuad')
                       .animate({rotate:"0deg"}, 2000, 'easeInOutQuad', animateDoramiAtNight);
 }
@@ -363,4 +464,4 @@ function initBackToTop() {
         }, 800, 'easeOutQuad');
         return false;
     });
-}
+}

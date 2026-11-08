@@ -67,6 +67,6 @@ scratchpad. Each track re-establishes its own fail-before.
 | Track | Status | Evidence |
 |-------|--------|----------|
 | A | Pending | |
-| B | Pending | |
+| B | Done (pending Opus review) | Commits on `fix/ux-landing`; evidence in the Track B report (toggle 0.6 s reload to under 0.1 s in place, day first load 592 KB to 409 KB) |
 | C | Pending | |
 | D | Pending | |
