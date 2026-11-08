@@ -135,7 +135,9 @@ default 4833). Use `tuned` to match the production intent.
 `tuned` and `serve_dist_h2.cjs` answer like nginx with `brotli_static on; gzip_static on;` on `/assets/`: the
 `<file>.br` that `pnpm run build` writes when the client sends `Accept-Encoding: br`, else `<file>.gz`, else
 dynamic gzip (level 6) for text files. A `dist` built before the pre-compression step has no `.br`/`.gz`
-files and is served with dynamic gzip, which is how to measure an older build. `--no-brotli` skips the `.br` files
+files and is served with dynamic gzip, which is how to measure an older build.
+`/landpage/` is served with `public, max-age=86400` (its file names are not hashed, so never `immutable`), as in the
+production template; `--no-landpage-cache` serves it `no-cache` like the template before that block existed. `--no-brotli` skips the `.br` files
 (a server without the Brotli module) so the same build can be measured with gzip only.
 
 `serve_dist_h2.cjs` with no `--cert`/`--key` writes a two-day self-signed `localhost`
@@ -174,7 +176,7 @@ Every script prints to stdout. Errors go to stderr with an `ERR` prefix and exit
 
 ```text
 node scripts/perf/web_vitals/serve_dist.cjs --secret-file PATH
-     [--dist DIR] [--port 8080] [--backend-port 4701] [--mode asis|tuned|dev] [--vite-port 4833] [--no-brotli]
+     [--dist DIR] [--port 8080] [--backend-port 4701] [--mode asis|tuned|dev] [--vite-port 4833] [--no-brotli] [--no-landpage-cache]
 ```
 
 The secret comes from `--secret-file` or the `GALLERY_PROXY_SECRET` environment variable; one of
@@ -185,7 +187,7 @@ Output: `tuned on 8080 (dist …, backend 127.0.0.1:4701)`.
 
 ```text
 node scripts/perf/web_vitals/serve_dist_h2.cjs --secret-file PATH
-     [--dist DIR] [--port 8443] [--backend-port 4701] [--cert CERT --key KEY] [--no-brotli]
+     [--dist DIR] [--port 8443] [--backend-port 4701] [--cert CERT --key KEY] [--no-brotli] [--no-landpage-cache]
 ```
 
 Output: `h2 on 8443 (dist …, backend 127.0.0.1:4701, https)`.

@@ -9,7 +9,8 @@
 // * binds 127.0.0.1 only
 // * --mode asis (default) matches the nginx template as written: gzip for text/html only, ETag, no Cache-Control
 // * --mode tuned adds gzip for every text asset and immutable caching for /assets/ (plus no-cache for other files);
-//   text assets under /assets/ come from pre-compressed `.br` / `.gz` siblings when the client accepts them
+//   `/landpage/` gets `public, max-age=86400` (unhashed file names, so never immutable; `--no-landpage-cache` restores the
+//   old no-cache); text assets under /assets/ come from pre-compressed `.br` / `.gz` siblings when the client accepts them
 //   (`--no-brotli` skips the `.br` files, like a server without the Brotli module)
 // * --mode dev proxies everything that is not /api to a Vite dev server (--vite-port)
 // * /api requests get the X-Gallery-Proxy-Secret header from the secret file or GALLERY_PROXY_SECRET
@@ -17,7 +18,7 @@
 //
 // Usage:
 //   node scripts/perf/web_vitals/serve_dist.cjs --secret-file PATH [--dist DIR] [--port 8080]
-//        [--backend-port 4701] [--mode asis|tuned|dev] [--vite-port 4833] [--no-brotli]
+//        [--backend-port 4701] [--mode asis|tuned|dev] [--vite-port 4833] [--no-brotli] [--no-landpage-cache]
 //   GALLERY_PROXY_SECRET=... node scripts/perf/web_vitals/serve_dist.cjs --mode tuned
 //
 // Run when:
@@ -28,7 +29,15 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { parseArgs, intArg, readProxySecret, assertDist, negotiateStatic, DEFAULT_DIST } = require("./lib.cjs");
+const {
+  parseArgs,
+  intArg,
+  readProxySecret,
+  assertDist,
+  negotiateStatic,
+  cacheControlFor,
+  DEFAULT_DIST,
+} = require("./lib.cjs");
 
 const args = parseArgs();
 const MODE = typeof args.mode === "string" ? args.mode : "asis";
@@ -39,6 +48,7 @@ const VITE_PORT = intArg(args["vite-port"], 4833);
 const DIST = path.resolve(typeof args.dist === "string" ? args.dist : DEFAULT_DIST);
 const SECRET = readProxySecret(args);
 const ALLOW_BROTLI = !args["no-brotli"];
+const LANDPAGE_CACHE = !args["no-landpage-cache"];
 assertDist(DIST);
 
 const types = {
@@ -76,7 +86,8 @@ http
     const st = fs.statSync(f);
     const etag = '"' + crypto.createHash("md5").update(body).digest("hex").slice(0, 16) + '"';
     const h = { "content-type": types[ext] || "application/octet-stream", etag, "last-modified": st.mtime.toUTCString() };
-    if (MODE === "tuned") h["cache-control"] = f.includes("/assets/") ? "public, max-age=31536000, immutable" : "no-cache";
+    const rel = path.relative(DIST, f).split(path.sep).join("/");
+    if (MODE === "tuned") h["cache-control"] = cacheControlFor(rel, { landpageCache: LANDPAGE_CACHE });
     if (req.headers["if-none-match"] === etag) {
       res.writeHead(304, h);
       return res.end();

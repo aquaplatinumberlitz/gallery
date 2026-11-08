@@ -9,14 +9,17 @@
 // * binds 127.0.0.1 only
 // * text assets under /assets/ are served from a pre-compressed `.br` (client sends `br`) or `.gz` sibling, like nginx
 //   `brotli_static on; gzip_static on;`, and fall back to dynamic gzip; other text files use dynamic gzip.
-//   Cache-Control: immutable under /assets/, no-cache elsewhere. `--no-brotli` mimics a server without the module.
+//   Cache-Control: immutable under /assets/, `public, max-age=86400` under /landpage/ (unhashed names, so never
+//   immutable), no-cache elsewhere. Every static file carries an ETag and answers If-None-Match with 304, like nginx.
+//   `--no-brotli` mimics a server without the module; `--no-landpage-cache` mimics the old template without a
+//   /landpage/ block (no-cache, so every landing-page reload revalidates).
 // * /api is forwarded to the backend with X-Gallery-Proxy-Secret; hop-by-hop headers are dropped
 // * with no --cert/--key, a self-signed localhost certificate is generated into a temp directory that is
 //   removed on exit; pass ignoreHTTPSErrors in the browser (the measurement scripts already do)
 //
 // Usage:
 //   node scripts/perf/web_vitals/serve_dist_h2.cjs --secret-file PATH [--dist DIR] [--port 8443]
-//        [--backend-port 4701] [--cert CERT.pem --key KEY.pem] [--no-brotli]
+//        [--backend-port 4701] [--cert CERT.pem --key KEY.pem] [--no-brotli] [--no-landpage-cache]
 //
 // Manual certificate (equivalent to what the script does when --cert/--key are omitted):
 //   openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 2 \
@@ -37,6 +40,7 @@ const {
   assertDist,
   generateSelfSignedCert,
   negotiateStatic,
+  cacheControlFor,
   DEFAULT_DIST,
 } = require("./lib.cjs");
 
@@ -46,6 +50,7 @@ const BACKEND_PORT = intArg(args["backend-port"], 4701);
 const DIST = path.resolve(typeof args.dist === "string" ? args.dist : DEFAULT_DIST);
 const SECRET = readProxySecret(args);
 const ALLOW_BROTLI = !args["no-brotli"];
+const LANDPAGE_CACHE = !args["no-landpage-cache"];
 assertDist(DIST);
 
 let tls;
@@ -94,12 +99,21 @@ srv.on("request", (req, res) => {
   let f = path.join(DIST, decodeURIComponent(req.url.split("?")[0]));
   if (!f.startsWith(DIST) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(DIST, "index.html");
   const ext = path.extname(f);
-  const inAssets = f.includes("/assets/");
+  const rel = path.relative(DIST, f).split(path.sep).join("/");
+  const inAssets = rel.startsWith("assets/");
+  const st = fs.statSync(f);
+  const etag = `"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`;
   const h = {
     "content-type": types[ext] || "application/octet-stream",
-    "cache-control": inAssets ? "public, max-age=31536000, immutable" : "no-cache",
+    "cache-control": cacheControlFor(rel, { landpageCache: LANDPAGE_CACHE }),
+    etag,
+    "last-modified": st.mtime.toUTCString(),
     vary: "Accept-Encoding",
   };
+  if (req.headers["if-none-match"] === etag) {
+    res.writeHead(304, h);
+    return res.end();
+  }
   const { body, encoding } = negotiateStatic(f, req.headers["accept-encoding"], {
     textType: !!types[ext],
     staticDir: inAssets,

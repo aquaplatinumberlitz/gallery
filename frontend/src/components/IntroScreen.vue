@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { fetchLandingPages } from "../services/api";
+import { isSelectableLandingPage, pickIntroPage } from "../utils/introPage";
 import { ArrowRight } from "lucide-vue-next";
 
 const props = defineProps<{
@@ -19,58 +20,6 @@ const introFallbackMessage = "Welcome to Museum Art Gallery — intro page unava
 
 const setVisible = (value: boolean) => emit("update:visible", value);
 
-const isLunarNewYear = (): boolean => {
-  try {
-    const formatter = new Intl.DateTimeFormat("en-u-ca-chinese", {
-      month: "numeric",
-      day: "numeric",
-    });
-    const parts = formatter.formatToParts(new Date());
-    const month = Number(parts.find((p) => p.type === "month")?.value);
-    const day = Number(parts.find((p) => p.type === "day")?.value);
-    const isYearEnd = month === 12 && day >= 30;
-    const isNewYear = month === 1 && day <= 3;
-    return isYearEnd || isNewYear;
-  } catch {
-    return false;
-  }
-};
-
-const isBirthday = (): boolean => {
-  const now = new Date();
-  const month = now.getMonth() + 1; // 1-based
-  const day = now.getDate();
-  return month === 9 && day === 3;
-};
-
-const isChristmas = (): boolean => {
-  const now = new Date();
-  const month = now.getMonth() + 1; // 1-based
-  const day = now.getDate();
-  return month === 12 && (day === 24 || day === 25);
-};
-
-const pickIntroPage = (pages: string[]): string | undefined => {
-  const lower = pages.map((p) => p.toLowerCase());
-  const findBySlug = (slug: string) => {
-    const idx = lower.findIndex((p) => p.includes(slug));
-    return idx >= 0 ? pages[idx] : undefined;
-  };
-
-  const birthdayPage = findBySlug("/landpage/birthday/");
-  const christmasPage = findBySlug("/landpage/noel/");
-  const lunarPage = findBySlug("/landpage/lunar_newyear/");
-
-  if (isBirthday() && birthdayPage) return birthdayPage;
-  if (isChristmas() && christmasPage) return christmasPage;
-  if (isLunarNewYear() && lunarPage) return lunarPage;
-
-  if (pages.length > 0) {
-    return pages[Math.floor(Math.random() * pages.length)];
-  }
-  return undefined;
-};
-
 const loadIntro = async () => {
   if (!props.visible) return;
 
@@ -87,7 +36,7 @@ const loadIntro = async () => {
     return;
   }
 
-  if (savedMode === "manual" && savedTheme) {
+  if (savedMode === "manual" && savedTheme && isSelectableLandingPage(savedTheme)) {
     introUrl.value = savedTheme;
     return;
   }

@@ -395,3 +395,22 @@ Rules:
   hidden`; the header never shrinks and one inner body owns vertical scrolling.
   Keep bottom safe-area padding so three or more result rows remain reachable
   instead of being clipped by the sheet boundary.
+
+## Intro landing pages
+
+- Automatic mode (`frontend/src/utils/introPage.ts`) picks only ordinary themes (`normal_angel`, `normal_mouse`,
+  `eiga`) on ordinary days. Seasonal pages show only on their dates: `birthday` 3 September, `noel` 24-25
+  December, `lunar_newyear` Chinese-calendar 30 December to 3 January, `newyear` 1 January. A seasonal page
+  that is not shipped falls back to an ordinary one. `sample_test` is never offered. Manual mode and the
+  Settings preview list may show every real theme.
+- `frontend/public/landpage/` is copied verbatim into `dist`: it holds theme folders only. No archives, sources
+  or developer pages.
+- A page with a day/night toggle (`normal_angel`, `normal_mouse`) switches in place: no reload, the label
+  changes at once, and the scene swaps as soon as its images are ready (immediately when already loaded). The
+  old scene's jQuery loops are stopped with `.stop(true)` and their inline positions cleared; the new scene's
+  loops start; the slider is untouched. A small "Auto" chip inside the control appears only while a manual
+  choice is active and returns to time-based mode; a normal click is never delayed. `themePreference` and
+  `themeAutoMode` keep their meaning.
+- A scene loads only its own images: scene `<img>` elements carry `data-src` and get `src` when the scene is
+  first shown (or when the pointer or focus reaches the toggle). Header backgrounds are CSS and load with the
+  theme class.

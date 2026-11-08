@@ -25,26 +25,27 @@
 <h1 id="headlogo">Doraemon Channel</h1>
 <div id="header"></div>
 
-<!-- Theme Toggle Button -->
-<div id="themeToggle">
-    <span id="themeToggleText">Toggle Theme</span>
+<!-- Theme Toggle Button: a click switches day/night in place; "Auto" (shown while a manual choice is active) returns to time-based mode -->
+<div id="themeToggle" role="group" aria-label="Day and night theme">
+    <span id="themeToggleText" role="button" tabindex="0">Toggle Theme</span><span id="themeAuto" role="button" tabindex="0" title="Back to automatic day and night" aria-label="Back to automatic day and night">Auto</span>
 </div>
 
-<!-- Day Theme Elements (will be shown/hidden by JavaScript) -->
-<div id="cloud1"><img src="assets/img/cloud.png" alt="Cloud illustration"></div>
-<div id="cloud2"><img src="assets/img/cloud.png" alt="Cloud illustration"></div>
-<div id="cloud3"><img src="assets/img/cloud.png" alt="Cloud illustration"></div>
-<div id="cloud4"><img src="assets/img/cloud.png" alt="Cloud illustration"></div>
-<div id="cloud5"><img src="assets/img/cloud.png" alt="Cloud illustration"></div>
+<!-- Scene images carry data-src: script.js sets src only for the scene that is shown (or about to be shown) -->
+<!-- Day Theme Elements -->
+<div id="cloud1" data-scene="day"><img data-src="assets/img/cloud.png" alt="Cloud illustration"></div>
+<div id="cloud2" data-scene="day"><img data-src="assets/img/cloud.png" alt="Cloud illustration"></div>
+<div id="cloud3" data-scene="day"><img data-src="assets/img/cloud.png" alt="Cloud illustration"></div>
+<div id="cloud4" data-scene="day"><img data-src="assets/img/cloud.png" alt="Cloud illustration"></div>
+<div id="cloud5" data-scene="day"><img data-src="assets/img/cloud.png" alt="Cloud illustration"></div>
 
-<div id="minidora_day"><img src="assets/img/minidora.png" alt="Mini Doraemon floating"></div>
-<div id="dora_day"><img src="assets/img/dora_michibiki.png" alt="Doraemon guiding pose"></div>
-<div id="dorami_day"><img src="assets/img/dorami_bikkuri.png" alt="Dorami surprised"></div>
+<div id="minidora_day" data-scene="day"><img data-src="assets/img/minidora.png" alt="Mini Doraemon floating"></div>
+<div id="dora_day" data-scene="day"><img data-src="assets/img/dora_michibiki.png" alt="Doraemon guiding pose"></div>
+<div id="dorami_day" data-scene="day"><img data-src="assets/img/dorami_bikkuri.png" alt="Dorami surprised"></div>
 
 <!-- Night Theme Elements -->
-<div id="dora_night"><img src="assets/img/dora_moon.png" alt="Doraemon watching the moon"></div>
-<div id="dorami_night"><img src="assets/img/dorami_miage.png" alt="Dorami looking up at night sky"></div>
-<div id="mood"><img src="assets/img/mood.webp" alt="Moon animation"></div>
+<div id="dora_night" data-scene="night"><img data-src="assets/img/dora_moon.png" alt="Doraemon watching the moon"></div>
+<div id="dorami_night" data-scene="night"><img data-src="assets/img/dorami_miage.png" alt="Dorami looking up at night sky"></div>
+<div id="mood" data-scene="night"><img data-src="assets/img/mood.webp" alt="Moon animation"></div>
 
 <div id="header980">
 

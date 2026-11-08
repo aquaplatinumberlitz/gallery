@@ -126,6 +126,17 @@ function negotiateStatic(file, acceptEncoding, { textType, staticDir, allowBrotl
   return { body, encoding: null };
 }
 
+// Cache-Control the production nginx template sends for a file, given its dist-relative POSIX path
+// (`assets/x.js`, `landpage/normal_angel/index.html`, `index.html`). `/assets/` is content-hashed, so it is
+// immutable. `/landpage/` keeps its original, unhashed file names, so it gets a day of freshness and then ETag
+// revalidation, never `immutable`. Everything else is revalidated. `landpageCache: false` reproduces the old
+// template (no `/landpage/` block, so `no-cache`) to measure the "before" of the landing-page cache change.
+function cacheControlFor(relPath, { landpageCache = true } = {}) {
+  if (relPath.startsWith("assets/")) return "public, max-age=31536000, immutable";
+  if (landpageCache && relPath.startsWith("landpage/")) return "public, max-age=86400";
+  return "no-cache";
+}
+
 // Playwright is pinned as a devDependency of frontend/ (@playwright/test). Resolve it from the current directory
 // first, so running from frontend/ uses the pinned version, then fall back to a plain `playwright` install.
 function loadChromium() {
@@ -156,5 +167,6 @@ module.exports = {
   assertDist,
   generateSelfSignedCert,
   negotiateStatic,
+  cacheControlFor,
   loadChromium,
 };

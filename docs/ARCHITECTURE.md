@@ -840,7 +840,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/facets`                         | DB-derived model/tool/sampler/etc. aggregation counts                 | `facets.py`         |
 | `POST /api/open-folder`                   | Open a folder in the OS file explorer when enabled                    | `folders.py`        |
 | `GET /api/health`                         | Return service health and commit metadata                             | `health.py`         |
-| `GET /api/landing-pages`                  | List intro page HTML templates from `frontend/public/landpage/`       | `static_files.py`   |
+| `GET /api/landing-pages`                  | List intro page HTML templates from `frontend/public/landpage/` (theme folders only; no archives or `sample_test`) | `static_files.py`   |
 | `GET /api/maintenance/runtime`            | Return global runtime diagnostics and metadata lifecycle counters     | `maintenance.py`    |
 | `GET /api/libraries`                      | List libraries with ordered import paths and exclusions               | `libraries.py`      |
 | `GET /api/libraries/status`               | Return admin batch status for all libraries                           | `libraries.py`      |
