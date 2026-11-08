@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Field, FieldDescription, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 const props = withDefaults(
@@ -79,6 +80,9 @@ watch(
   (open) => {
     if (open) {
       loadSettings();
+    } else {
+      // Clear the reset input so a stale phrase can't arm the reset on re-open.
+      resetConfirmInput.value = "";
     }
   },
   { immediate: true },
@@ -113,7 +117,7 @@ const handlePreview = () => {
 const optionCardClass = (active: boolean) =>
   cn(
     "group relative flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-card/80 p-4 shadow-sm transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5 hover:border-primary/35 hover:bg-accent/40",
-    active && "border-primary/70 bg-primary/10 shadow-sm",
+    active && "border-primary/60 bg-accent/60 shadow-sm",
   );
 
 const optionMarkClass = (active: boolean) =>
@@ -145,26 +149,28 @@ async function handleResetCatalog() {
     <DialogContent
       class="settings-dialog max-h-[min(92dvh,760px)] gap-0 overflow-hidden border-border bg-background p-0 shadow-xl sm:max-w-[620px] sm:rounded-2xl"
     >
-      <DialogHeader class="settings-dialog-header border-b border-border bg-muted/25 px-5 py-4 text-left sm:px-6">
+      <DialogHeader class="settings-dialog-header border-b border-border bg-muted/40 px-5 py-4 text-left sm:px-6">
         <div class="flex items-start justify-between gap-4 pr-9">
-          <div class="flex min-w-0 flex-col">
-            <DialogTitle class="font-[Cinzel] text-xl leading-tight tracking-normal text-foreground">
+          <div class="flex min-w-0 flex-col gap-0.5">
+            <DialogTitle class="text-base font-semibold leading-tight tracking-tight text-foreground">
               Settings
             </DialogTitle>
+            <DialogDescription class="text-xs text-muted-foreground">
+              Configure gallery intro and viewer settings
+            </DialogDescription>
           </div>
         </div>
-        <DialogDescription class="sr-only"> Configure gallery intro and viewer settings </DialogDescription>
       </DialogHeader>
 
       <div
         class="settings-dialog-body flex max-h-[calc(min(92dvh,760px)-74px)] flex-col gap-4 overflow-y-auto px-4 py-4 sm:px-5"
       >
         <FieldSet class="gap-4 rounded-xl border border-border bg-card/65 p-4 shadow-sm">
-          <div class="flex flex-col gap-1.5">
-            <FieldLegend class="mb-0 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          <div class="flex flex-col gap-1">
+            <FieldLegend class="mb-0 text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/65">
               Landing Page
             </FieldLegend>
-            <FieldDescription class="text-xs">
+            <FieldDescription class="text-xs text-muted-foreground">
               Configure the landing page shown before entering the main gallery.
             </FieldDescription>
           </div>
@@ -225,84 +231,93 @@ async function handleResetCatalog() {
             </label>
           </FieldGroup>
 
-          <div
-            v-if="introMode === 'manual'"
-            class="rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-[inset_0_1px_0_hsl(var(--background)/0.72)]"
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="opacity-0 -translate-y-1"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-to-class="opacity-0 -translate-y-1"
           >
-            <div class="flex flex-col gap-3">
-              <div class="flex flex-col gap-1">
-                <span class="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Theme Override</span>
-                <span class="text-xs text-muted-foreground">Preview before applying it to launch.</span>
-              </div>
-              <div v-if="isLoadingThemes" class="text-sm text-muted-foreground">Loading themes...</div>
-              <div v-else class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-                <Select v-model="selectedTheme">
-                  <SelectTrigger class="h-11 rounded-lg bg-background/80 px-4 shadow-sm">
-                    <SelectValue placeholder="Select intro theme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem v-for="theme in availableThemes" :key="theme" :value="theme">
-                        {{ formatThemeName(theme) }}
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <Button
-                  class="h-11 rounded-lg px-5 uppercase tracking-[0.14em] transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5"
-                  @click="handlePreview"
-                >
-                  Preview
-                  <ArrowUpRight data-icon="inline-end" />
-                </Button>
+            <div v-if="introMode === 'manual'" class="rounded-xl border border-border bg-muted/60 p-4">
+              <div class="flex flex-col gap-3">
+                <div class="flex flex-col gap-1">
+                  <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/65"
+                    >Theme Override</span
+                  >
+                  <span class="text-xs text-muted-foreground">Preview before applying it to launch.</span>
+                </div>
+                <div v-if="isLoadingThemes" class="text-sm text-muted-foreground">Loading themes...</div>
+                <div v-else class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <div class="flex flex-col gap-1">
+                    <label for="theme-select" class="sr-only">Intro theme</label>
+                    <Select v-model="selectedTheme">
+                      <SelectTrigger id="theme-select" class="h-11 rounded-lg bg-background/80 px-4 shadow-sm">
+                        <SelectValue placeholder="Select intro theme" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem v-for="theme in availableThemes" :key="theme" :value="theme">
+                            {{ formatThemeName(theme) }}
+                          </SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    class="h-11 rounded-lg px-5 transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5"
+                    @click="handlePreview"
+                  >
+                    Preview
+                    <ArrowUpRight data-icon="inline-end" />
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          </Transition>
         </FieldSet>
 
         <FieldSet class="gap-4 rounded-xl border border-border bg-card/65 p-4 shadow-sm">
-          <div class="flex flex-col gap-1.5">
-            <FieldLegend class="mb-0 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          <div class="flex flex-col gap-1">
+            <FieldLegend class="mb-0 text-[11px] font-bold uppercase tracking-[0.14em] text-foreground/65">
               Viewer Images
             </FieldLegend>
-            <FieldDescription class="text-xs">Control the image source used inside the lightbox.</FieldDescription>
+            <FieldDescription class="text-xs text-muted-foreground">
+              Control the image source used inside the lightbox.
+            </FieldDescription>
           </div>
 
-          <label :class="optionCardClass(alwaysLoadOriginal)">
-            <input
-              id="settings-always-load-original"
-              v-model="alwaysLoadOriginal"
-              type="checkbox"
-              name="always-load-original"
-              class="sr-only"
-            />
-            <span :class="optionMarkClass(alwaysLoadOriginal)" aria-hidden="true">
-              <span v-if="alwaysLoadOriginal" class="size-2 rounded-full bg-primary"></span>
-            </span>
-            <span class="flex min-w-0 flex-col gap-1">
+          <div class="flex items-center justify-between gap-4 rounded-xl border border-border bg-card/80 px-4 py-3">
+            <div class="flex min-w-0 flex-col gap-0.5">
               <span class="text-sm font-semibold text-foreground">Always load original</span>
               <span class="text-xs text-muted-foreground">Use source files immediately in the viewer</span>
-            </span>
-          </label>
+            </div>
+            <Switch
+              id="settings-always-load-original"
+              v-model="alwaysLoadOriginal"
+              aria-label="Always load original image"
+            />
+          </div>
         </FieldSet>
 
         <Alert
           v-if="props.canResetCatalogDatabase"
           variant="destructive"
-          class="rounded-xl border-destructive/45 bg-destructive/5 p-4"
+          class="rounded-xl border-destructive/60 bg-destructive/8 p-4"
         >
           <div class="flex min-w-0 flex-1 flex-col gap-4">
-            <div class="flex items-start gap-3">
-              <AlertTriangle class="size-4 shrink-0 text-destructive" aria-hidden="true" />
-              <AlertTitle class="mb-0 text-xs font-bold leading-4 uppercase tracking-[0.18em]">
-                Danger Zone
-              </AlertTitle>
+            <div class="flex items-start gap-2.5">
+              <AlertTriangle class="mt-px size-[18px] shrink-0 text-destructive" aria-hidden="true" />
+              <div class="flex flex-col gap-1">
+                <AlertTitle class="mb-0 text-xs font-bold leading-4 uppercase tracking-[0.14em]">
+                  Danger Zone
+                </AlertTitle>
+                <AlertDescription class="text-xs text-muted-foreground">
+                  Reset app data removes library registrations, imported catalog data, extracted metadata, thumbnails,
+                  previews, job history, and local gallery state. Source photos and videos are not deleted. Use this
+                  before handing the app to another user. Embedded metadata remains in any source files you keep or
+                  share.
+                </AlertDescription>
+              </div>
             </div>
-
-            <AlertDescription class="text-xs text-muted-foreground">
-              Reset app data removes library registrations, imported catalog data, extracted metadata, thumbnails,
-              previews, job history, and local gallery state. Source photos and videos are not deleted.
-            </AlertDescription>
 
             <Field class="gap-2">
               <label for="catalog-reset-confirm" class="text-xs font-medium text-muted-foreground">
@@ -314,18 +329,14 @@ async function handleResetCatalog() {
                 autocomplete="off"
                 spellcheck="false"
                 :disabled="resetMutation.isPending.value"
-                aria-describedby="catalog-reset-help"
                 class="h-11 rounded-lg bg-background/80"
               />
-              <p id="catalog-reset-help" class="text-xs text-muted-foreground">
-                Use this before handing the app to another user. Embedded metadata remains in any source files you keep
-                or share.
-              </p>
             </Field>
 
             <Button
               variant="destructive"
-              class="h-11 w-full rounded-lg"
+              class="h-11 w-full rounded-lg transition-opacity"
+              :class="{ 'opacity-40': !canSubmitReset && !resetMutation.isPending.value }"
               :disabled="!canSubmitReset || resetMutation.isPending.value"
               @click="handleResetCatalog"
             >

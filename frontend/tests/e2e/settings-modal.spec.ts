@@ -235,14 +235,14 @@ test.describe("SettingsModal", () => {
     await expect(dialog.getByRole("button", { name: "Preview" })).toBeVisible();
   });
 
-  test("always load original checkbox is toggleable", async ({ page }) => {
+  test("always load original switch is toggleable", async ({ page }) => {
     const settingsButton = page.getByLabel("Change Intro Page");
     await settingsButton.click();
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    await dialog.locator("label").filter({ hasText: "Always load original" }).click();
+    await dialog.getByRole("switch", { name: /Always load original/ }).click();
 
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible({ timeout: 5_000 });
@@ -254,7 +254,7 @@ test.describe("SettingsModal", () => {
     const reopenedDialog = page.getByRole("dialog");
     await expect(reopenedDialog).toBeVisible({ timeout: 5_000 });
 
-    await expect(reopenedDialog.getByRole("checkbox", { name: /Always load original/ })).toBeChecked();
+    await expect(reopenedDialog.getByRole("switch", { name: /Always load original/ })).toBeChecked();
   });
 
   test("settings dialog has accessibility features", async ({ page }) => {
@@ -272,7 +272,7 @@ test.describe("SettingsModal", () => {
     const radioInputs = dialog.locator('input[type="radio"]');
     await expect(radioInputs).toHaveCount(3);
 
-    await expect(dialog.locator('input[type="checkbox"]')).toHaveCount(1);
+    await expect(dialog.getByRole("switch")).toHaveCount(1);
   });
 
   test("settings persist across close and reopen", async ({ page }) => {
