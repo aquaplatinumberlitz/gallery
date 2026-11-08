@@ -402,6 +402,29 @@ test.describe("Desktop layout (1200px+)", () => {
     await expectHaloFocusRing(page, density);
   });
 
+  test("shows the full View density label next to Sort without clipping", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    const expandedHeader = page.locator(".expanded-header:not([inert])");
+    const sort = expandedHeader.locator(".sort-trigger");
+    const density = expandedHeader.locator(".gallery-density-trigger");
+    const label = density.locator("span").first();
+    await expect(label).toHaveText("View");
+
+    const metrics = await label.evaluate((element) => ({
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+    }));
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+
+    const [sortWidth, densityWidth] = await Promise.all([
+      sort.evaluate((element) => element.getBoundingClientRect().width),
+      density.evaluate((element) => element.getBoundingClientRect().width),
+    ]);
+    expect(densityWidth).toBeCloseTo(sortWidth, 0);
+  });
+
   test("desktop layout shows folder tree or sidebar", async ({ page }) => {
     await installStubbedGallery(page);
     await openStubbedGallery(page);
