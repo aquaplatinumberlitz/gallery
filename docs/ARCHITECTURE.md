@@ -449,6 +449,25 @@ identity). `/api/thumbnail` and `/api/preview` accept an optional `v`. When `v` 
 `Cache-Control: public, max-age=31536000, immutable`; with the same ETag, an absent, malformed or
 stale `v` keeps `public, max-age=0, must-revalidate`.
 
+**Browse covers (MD-01, UX-3).** A folder in `/api/browse` carries up to 3 `cover_images` with aligned
+`cover_versions`, ranked `mtime_ns DESC, path ASC` and read by `_browse_folder_counts_batch_conn` (one
+aggregated direct-child query plus, for the folder listing only, one ranged descendant query per batch of up
+to 300 folders; no per-folder queries).
+
+- A cover is a readable image. An asset is skipped when `assets.metadata_state = 'failed'`, when a `failed`
+  `metadata_index_jobs` row exists for its current `mtime_ns`/`size` (the outcome of `fail_metadata_job` for an
+  undecodable file), or when a `thumbnail` derivative of the current identity ended `failed` with the terminal
+  `invalid_source` result code. Retryable failures (`attempts_exhausted`, `internal_error`) do not hide a
+  cover; a changed file has a new identity and is judged again. The failed sets are read once per query
+  (`cover_unreadable` CTE), so the check costs the same on a large subtree. A fresh scan has no failure signal
+  yet: a corrupt file can be a cover until its metadata job has run.
+- A folder whose direct images are all unreadable has no covers (the placeholder is shown). `image_count`
+  still counts every direct image.
+- A folder with no direct images (only subfolders) takes its covers from its descendants (any depth), under
+  the same readability rule and ordering. The range is `path >= '<folder>/' AND path < '<folder>0'` on
+  `assets(library_id, path)`, so the cost is bounded by the subtree size of the folders on the page. The
+  virtual root (import roots) and search albums do not use descendant covers, so their latency is unchanged.
+
 **Serving fast path (B4).** `backend/derivative_fastpath.py` holds a bounded in-process LRU
 (`GALLERY_DERIVATIVE_FASTPATH_ENTRIES`, default 4096) from (metadata database, requested path or
 asset id, kind, variant) to (source path, source identity, asset id, derivative id, cache file,
