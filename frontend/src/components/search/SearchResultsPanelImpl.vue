@@ -14,6 +14,7 @@ import { useInfiniteLoadSentinel } from "@/composables/useInfiniteLoadSentinel";
 import { galleryScrollContainerRefKey } from "@/injectionKeys";
 import type { FileNode, UnifiedSearchResult } from "@/types";
 import { normalizeAssetType } from "@/utils/assetType";
+import { formatSearchMediaCount, type SearchMediaTotal } from "@/utils/searchResultCount";
 import SearchFeedback from "./SearchFeedback.vue";
 import SearchResultMetadata from "./SearchResultMetadata.vue";
 
@@ -34,9 +35,14 @@ interface Props {
   hasNextPage: boolean;
   fetchingNextPage: boolean;
   showAllIndexedHint: boolean;
+  /** Total from the `search-count` query; `null` while pending or unavailable. */
+  mediaTotal?: SearchMediaTotal | null;
 }
 
-const props = withDefaults(defineProps<Props>(), { errorMessage: "Unable to load search results." });
+const props = withDefaults(defineProps<Props>(), {
+  errorMessage: "Unable to load search results.",
+  mediaTotal: null,
+});
 const emit = defineEmits<{
   openFolder: [path: string];
   openMedia: [result: UnifiedSearchResult];
@@ -139,7 +145,7 @@ const albumTemplate = computed(() =>
 
 type SearchSection = "albums" | "media";
 type SearchRow =
-  | { id: string; kind: "header"; section: SearchSection; count: number }
+  | { id: string; kind: "header"; section: SearchSection; count: number | string }
   | { id: string; kind: "albums"; items: FileNode[] }
   | { id: string; kind: "media"; items: UnifiedSearchResult[] };
 
@@ -152,7 +158,12 @@ const rows = computed<SearchRow[]>(() => {
     });
   }
   if (props.media.length) {
-    result.push({ id: "header-media", kind: "header", section: "media", count: props.media.length });
+    result.push({
+      id: "header-media",
+      kind: "header",
+      section: "media",
+      count: formatSearchMediaCount(props.media.length, props.mediaTotal, props.hasNextPage),
+    });
     chunkItems(props.media, props.columnCount).forEach((items, index) => {
       result.push({ id: `media-${props.columnCount}-${index}`, kind: "media", items });
     });

@@ -104,6 +104,15 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/search/count") {
+      // The results header reads the total from the count query (SR-02).
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ schema_version: 1, total: 0, has_more: false }),
+      });
+      return;
+    }
+
     if (url.pathname === "/api/search/query") {
       await route.fulfill({
         contentType: "application/json",

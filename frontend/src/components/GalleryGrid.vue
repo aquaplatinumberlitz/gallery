@@ -34,7 +34,8 @@ import { useDelayedBoolean } from "../composables/useDelayedBoolean";
 import { useInfiniteBrowseQuery } from "../composables/useInfiniteBrowseQuery";
 import { useInfiniteLoadSentinel } from "../composables/useInfiniteLoadSentinel";
 import { useUnifiedSearchQuery } from "../composables/useUnifiedSearchQuery";
-import { buildSearchRequestV1, buildSearchScopeV1 } from "@/utils/searchRequest";
+import { buildSearchRequestV1, buildSearchScopeV1, persistableSearchRequest } from "@/utils/searchRequest";
+import { useSearchMatchPreview } from "../composables/useSearchMatchPreview";
 import { chunkGridRows, useVirtualGridRows } from "../composables/useVirtualGridRows";
 import { useUniformRowSize, useVirtualScrollMargin } from "../composables/useVirtualGridMetrics";
 import { galleryScrollContainerRefKey } from "../injectionKeys";
@@ -198,6 +199,18 @@ const hasSearchQuery = computed(
     isSubmittedSearchQuery.value ||
     (settledSearchQuery.value.length > 0 && settledSearchQuery.value === effectiveSearchQuery.value),
 );
+// Same `search-count` query (and cache entry) as the Advanced Search drawer; the request is already settled here.
+const searchCountPreview = useSearchMatchPreview(
+  () =>
+    hasSearchQuery.value && canonicalSearchRequest.value
+      ? persistableSearchRequest({ ...canonicalSearchRequest.value, text: settledSearchQuery.value })
+      : null,
+  { debounceMs: 0 },
+);
+const searchMediaTotal = computed(() => {
+  const state = searchCountPreview.state.value;
+  return state.status === "done" ? { total: state.total, hasMore: state.hasMore } : null;
+});
 const showSearchWarmupHint = computed(() => trimmedSearchQuery.value.length > 0 && !hasSearchQuery.value);
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
@@ -897,6 +910,7 @@ useInfiniteLoadSentinel({
       :has-next-page="Boolean(unifiedSearchQuery.hasNextPage.value)"
       :fetching-next-page="isSearchFetchingNextPage"
       :show-all-indexed-hint="showAllIndexedHint"
+      :media-total="searchMediaTotal"
       @open-folder="handleOpenFolder"
       @open-media="handleOpenMedia(searchResultToFileNode($event))"
       @find-related="handleFindRelated(searchResultToFileNode($event))"
