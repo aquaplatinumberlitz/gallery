@@ -15,8 +15,17 @@ import { browseResponse, statusEnvelope } from "./helpers/catalogFixtures";
 import { expect, test, type Page } from "./helpers/monitorErrors";
 
 const baseUrl = process.env.GALLERY_BASE_URL ?? "http://localhost:5173";
+// The breadcrumb starts at the import root. The import root sits one level above the deep
+// folder, so the trail below it is long enough to collapse; the test walks down to it.
+const importRoot = "/breadcrumb-root/alpha";
 const rootPath = "/breadcrumb-root/alpha/beta/gamma/delta/epsilon/zeta";
 const imagePath = `${rootPath}/image_1.png`;
+
+function childFolderOf(path: string) {
+  if (!rootPath.startsWith(`${path}/`)) return [];
+  const name = rootPath.slice(path.length + 1).split("/")[0];
+  return [{ name, path: `${path}/${name}`, type: "folder" as const, has_children: true, image_count: 0 }];
+}
 const png1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/luz4nQAAAABJRU5ErkJggg==",
   "base64",
@@ -24,8 +33,8 @@ const png1x1 = Buffer.from(
 
 const stubLibrary = {
   id: 1,
-  root_path: rootPath,
-  import_paths: [{ id: 10, library_id: 1, path: rootPath, position: 0, created_at: 1, updated_at: 1 }],
+  root_path: importRoot,
+  import_paths: [{ id: 10, library_id: 1, path: importRoot, position: 0, created_at: 1, updated_at: 1 }],
   exclusion_patterns: [],
   name: "Test Library",
   state: "ready",
@@ -50,13 +59,22 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/folders") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify(childFolderOf(url.searchParams.get("path") ?? importRoot)),
+      });
+      return;
+    }
+
     if (url.pathname === "/api/browse") {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify(
           browseResponse({
             libraryId: Number(url.searchParams.get("library_id") ?? 1),
-            path: url.searchParams.get("path") ?? rootPath,
+            path: url.searchParams.get("path") ?? importRoot,
+            folders: childFolderOf(url.searchParams.get("path") ?? importRoot),
             media: [
               {
                 name: "image_1.png",
@@ -150,6 +168,12 @@ test.describe("Breadcrumb", () => {
   }) => {
     await installStubbedGallery(page);
     await openStubbedGallery(page);
+    for (const name of ["beta", "gamma", "delta", "epsilon", "zeta"]) {
+      await page.locator(`[data-testid="album-card"][data-album-name="${name}"]`).first().click();
+    }
+    await expect(
+      page.locator(".expanded-header:not([inert]), .compact-header:not([inert])").getByText("zeta").first(),
+    ).toBeVisible();
 
     const activeHeader = page.locator(".expanded-header:not([inert]), .compact-header:not([inert])");
     const ellipsisButton = activeHeader.locator('button[aria-label$="more folders"]');
@@ -169,7 +193,22 @@ test.describe("Breadcrumb", () => {
   });
 });
 
-const tabletRoot = "/tmp/scratch-session/fixture-lib/Characters/Miku ver.2 — long album name for truncation testing";
+// The import root is the fixture library; the test walks down to the long album name.
+const tabletImportRoot = "/tmp/scratch-session/fixture-lib";
+const tabletFolderName = "Miku ver.2 — long album name for truncation testing";
+const tabletRoot = `${tabletImportRoot}/Characters/${tabletFolderName}`;
+
+function tabletFoldersOf(path: string) {
+  if (path === tabletImportRoot) {
+    return [
+      { name: "Characters", path: `${tabletImportRoot}/Characters`, type: "folder" as const, has_children: true },
+    ];
+  }
+  if (path === `${tabletImportRoot}/Characters`) {
+    return [{ name: tabletFolderName, path: tabletRoot, type: "folder" as const, has_children: false }];
+  }
+  return [];
+}
 
 test.describe("Breadcrumb on tablet header", () => {
   test.use({ viewport: { width: 768, height: 1024 }, hasTouch: true, isMobile: true });
@@ -177,8 +216,8 @@ test.describe("Breadcrumb on tablet header", () => {
   test("segments stay on one line and the current folder truncates with an ellipsis", async ({ page }) => {
     const library = {
       ...stubLibrary,
-      root_path: tabletRoot,
-      import_paths: [{ ...stubLibrary.import_paths[0], path: tabletRoot }],
+      root_path: tabletImportRoot,
+      import_paths: [{ ...stubLibrary.import_paths[0], path: tabletImportRoot }],
     };
     await page.route("**/api/**", async (route) => {
       const url = new URL(route.request().url());
@@ -190,7 +229,7 @@ test.describe("Breadcrumb on tablet header", () => {
         await route.fulfill({
           contentType: "application/json",
           body: JSON.stringify(
-            statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? tabletRoot }),
+            statusEnvelope({ libraryId: 1, path: url.searchParams.get("scope_path") ?? tabletImportRoot }),
           ),
         });
         return;
@@ -201,7 +240,8 @@ test.describe("Breadcrumb on tablet header", () => {
           body: JSON.stringify(
             browseResponse({
               libraryId: 1,
-              path: tabletRoot,
+              path: url.searchParams.get("path") ?? tabletImportRoot,
+              folders: tabletFoldersOf(url.searchParams.get("path") ?? tabletImportRoot),
               media: [
                 {
                   name: "image_1.png",
@@ -224,16 +264,23 @@ test.describe("Breadcrumb on tablet header", () => {
       await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
     });
     await openStubbedGallery(page);
+    for (const name of ["Characters", tabletFolderName]) {
+      await page.locator(`[data-testid="album-card"][data-album-name="${name}"]`).first().click();
+    }
 
     const breadcrumb = page.locator(".th-context-path .breadcrumb-list");
     await expect(breadcrumb).toBeVisible();
     const labels = await breadcrumb.evaluate((list) =>
       [...list.querySelectorAll<HTMLElement>(".breadcrumb-link, [aria-current='page']")].map((el) => {
         const style = getComputedStyle(el);
-        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5;
+        // Count text line boxes. Height / line-height is not usable: touch-sized links
+        // (min-height 44px) would always read as two lines.
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const textLines = new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
         return {
           text: el.textContent?.trim(),
-          lines: Math.round(el.getBoundingClientRect().height / lineHeight),
+          lines: textLines,
           whiteSpace: style.whiteSpace,
           textOverflow: style.textOverflow,
           truncated: el.scrollWidth > el.clientWidth,
@@ -243,6 +290,7 @@ test.describe("Breadcrumb on tablet header", () => {
       }),
     );
     expect(labels.length).toBeGreaterThan(1);
+    expect(labels[0].text).toBe("fixture-lib");
     for (const label of labels) {
       expect(label.whiteSpace, label.text).toBe("nowrap");
       expect(label.lines, label.text).toBeLessThanOrEqual(1);

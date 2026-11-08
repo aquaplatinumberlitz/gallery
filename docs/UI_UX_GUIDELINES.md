@@ -259,6 +259,9 @@ Rules:
   implicit `auto` track and clip cards and their action menus off-screen. Admin stat-card grids use two
   columns on phones.
 - Breadcrumb segments never wrap. Each segment truncates with an ellipsis inside the header row.
+- The breadcrumb starts at the active import root, shown with its folder name, the same way the folder
+  tree starts at the library root. It does not start at the filesystem root. Folders above the import root
+  are not shown. `buildBreadcrumbSegments()` in `frontend/src/utils/breadcrumbSegments.ts` builds the trail.
 - Album card counts come from `albumCountLabel()`: `N photo(s)` for direct images, no count for a folder
   that only holds subfolders or videos (`image_count` is direct-only, so `0 photos` would be misleading),
   and `Empty` when the folder has no children.

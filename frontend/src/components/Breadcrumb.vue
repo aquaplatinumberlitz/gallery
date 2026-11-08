@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { pathContains } from "../stores/gallery";
+import { buildBreadcrumbSegments, type BreadcrumbSegment } from "../utils/breadcrumbSegments";
 
 const props = defineProps<{
   path?: string;
@@ -29,37 +30,12 @@ const emit = defineEmits<{
 const isExpanded = ref(false);
 const ellipsisMenuOpen = ref(false);
 
-const separator = computed(() => (props.path?.includes("\\") ? "\\" : "/"));
 const maxSegments = computed(() => props.maxVisible ?? 4);
 const rootPath = computed(() => props.rootPath?.trim() ?? "");
 
-type Segment = { name: string; fullPath: string; isLast: boolean; index: number };
+type Segment = BreadcrumbSegment;
 
-const allSegments = computed(() => {
-  const raw = props.path || "";
-  const sep = separator.value;
-  const prefix = raw.startsWith("\\\\") ? "\\\\" : raw.startsWith(sep) ? sep : "";
-  const parts = raw.split(/[\\/]+/).filter(Boolean);
-
-  const result: Segment[] = [];
-  let current = prefix;
-
-  parts.forEach((part, idx) => {
-    if (current && !current.endsWith(sep)) {
-      current += sep + part;
-    } else {
-      current += part;
-    }
-    result.push({
-      name: part,
-      fullPath: current,
-      isLast: idx === parts.length - 1,
-      index: idx,
-    });
-  });
-
-  return result;
-});
+const allSegments = computed(() => buildBreadcrumbSegments(props.path || "", rootPath.value));
 
 const shouldCollapse = computed(() => !isExpanded.value && allSegments.value.length > maxSegments.value);
 
