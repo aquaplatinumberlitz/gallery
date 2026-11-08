@@ -76,4 +76,4 @@ Integration on `fix/ux-review`:
 - `./test.sh perf`: all reports pass.
 - `./test.sh fast`: lint, frontend and the backend suite pass, except one test in `test_worker_contention_phase2_derivative.py` ("unable to open database file"). It also fails on `main` @ `4676dbe` in the same run mode, and it passes alone. This is a pre-existing flake, recorded in the backlog.
 
-Open owner question: `newyear` is a 3F Fansub anniversary page. It currently shows only on 1 January.
+Owner decision (2026-11-08): `newyear` (a 3F Fansub anniversary page) stays a 1 January page.
