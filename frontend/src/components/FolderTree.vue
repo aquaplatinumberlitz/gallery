@@ -52,7 +52,8 @@ const makeDisplayNode = (node: FolderTreeNode): FolderTreeDisplayItem => {
     children = knownChildren.map(makeDisplayNode);
   } else if (node.has_children) {
     if (hasLoadedChildren) {
-      children = [makePlaceholder(path, "empty")];
+      // A folder with media but no subfolders is not empty; say so.
+      children = [makePlaceholder(path, "empty", (node.image_count ?? 0) > 0 ? "No subfolders" : undefined)];
     } else {
       const state = loadStates[path];
       children = [
