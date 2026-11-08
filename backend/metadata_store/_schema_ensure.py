@@ -212,6 +212,58 @@ def _ensure_file_index_trigram_schema(conn: sqlite3.Connection) -> None:
         conn.execute("INSERT INTO file_index_fts_trigram(file_index_fts_trigram) VALUES ('rebuild')")
 
 
+def _ensure_cjk_search_schema(
+    conn: sqlite3.Connection,
+    *,
+    execute_statement: Callable[[str], object] | None = None,
+) -> None:
+    """Create the CJK bigram rows, their external-content FTS table, and the trigger chain (no backfill)."""
+    run = execute_statement or conn.execute
+    for statement in (
+        """
+        CREATE TABLE IF NOT EXISTS image_metadata_cjk (
+          metadata_id INTEGER PRIMARY KEY,
+          prompt TEXT NOT NULL DEFAULT '',
+          negative_prompt TEXT NOT NULL DEFAULT ''
+        )
+        """,
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS image_metadata_fts_cjk USING fts5(
+          prompt, negative_prompt,
+          content='image_metadata_cjk',
+          content_rowid='metadata_id',
+          tokenize='unicode61'
+        )
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS image_metadata_cjk_ai AFTER INSERT ON image_metadata_cjk BEGIN
+          INSERT INTO image_metadata_fts_cjk(rowid, prompt, negative_prompt)
+          VALUES (new.metadata_id, new.prompt, new.negative_prompt);
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS image_metadata_cjk_ad AFTER DELETE ON image_metadata_cjk BEGIN
+          INSERT INTO image_metadata_fts_cjk(image_metadata_fts_cjk, rowid, prompt, negative_prompt)
+          VALUES ('delete', old.metadata_id, old.prompt, old.negative_prompt);
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS image_metadata_cjk_au AFTER UPDATE ON image_metadata_cjk BEGIN
+          INSERT INTO image_metadata_fts_cjk(image_metadata_fts_cjk, rowid, prompt, negative_prompt)
+          VALUES ('delete', old.metadata_id, old.prompt, old.negative_prompt);
+          INSERT INTO image_metadata_fts_cjk(rowid, prompt, negative_prompt)
+          VALUES (new.metadata_id, new.prompt, new.negative_prompt);
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS image_metadata_cjk_cleanup AFTER DELETE ON image_metadata BEGIN
+          DELETE FROM image_metadata_cjk WHERE metadata_id = old.id;
+        END
+        """,
+    ):
+        run(statement)
+
+
 def _ensure_workflow_property_schema(
     conn: sqlite3.Connection,
     *,

@@ -149,6 +149,53 @@ describe("IndexStatusDetailsPopover edge states", () => {
     expect(getByText("Metadata extraction running in another folder")).toBeVisible();
   });
 
+  it("labels unreadable assets as Can't be read when some metadata is ready", () => {
+    const status = makeStatus({
+      summary_state: "ready_with_issues",
+      issue_count: 2,
+      issues: { availability: 0, scan: 0, metadata: 2 },
+      metadata: {
+        state: "failed",
+        total_assets: 333,
+        ready_assets: 331,
+        not_ready_assets: 2,
+        queued_assets: 0,
+        running_assets: 0,
+        stale_assets: 0,
+        idle_pending_assets: 0,
+        failed_assets: 2,
+        progress_percent: 99.4,
+        global_active_outside_scope: false,
+      },
+    });
+    const { getByText, queryByText } = renderPopover(status);
+    expect(getByText("Can't be read")).toBeVisible();
+    expect(queryByText("Failed metadata")).toBeNull();
+  });
+
+  it("keeps Failed metadata when no metadata is ready", () => {
+    const status = makeStatus({
+      summary_state: "error",
+      issue_count: 2,
+      issues: { availability: 0, scan: 0, metadata: 2 },
+      metadata: {
+        state: "failed",
+        total_assets: 2,
+        ready_assets: 0,
+        not_ready_assets: 2,
+        queued_assets: 0,
+        running_assets: 0,
+        stale_assets: 0,
+        idle_pending_assets: 0,
+        failed_assets: 2,
+        progress_percent: 0,
+        global_active_outside_scope: false,
+      },
+    });
+    const { getByText } = renderPopover(status);
+    expect(getByText("Failed metadata")).toBeVisible();
+  });
+
   it("renders the latest issue message when latest_issue is non-null", () => {
     const status = makeStatus({
       summary_state: "ready_with_issues",

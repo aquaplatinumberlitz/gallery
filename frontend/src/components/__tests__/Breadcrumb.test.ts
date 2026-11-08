@@ -122,6 +122,16 @@ describe("Breadcrumb", () => {
     expect(wrapper.emitted("navigate")![0]).toEqual(["/parent"]);
   });
 
+  it("starts at the import root name instead of the filesystem root", () => {
+    const wrapper = createWrapper({ path: "/tmp/data/library/Night City", rootPath: "/tmp/data/library" });
+    const text = wrapper.text().replace(/\s+/g, " ");
+
+    expect(text).toContain("library");
+    expect(text).toContain("Night City");
+    expect(text).not.toContain("tmp");
+    expect(text).not.toContain("data");
+  });
+
   it("does not allow navigation above the configured root path", async () => {
     const wrapper = createWrapper({
       path: "/home/ubuntu/gallery-repo/frontend",
@@ -194,15 +204,16 @@ describe("Breadcrumb", () => {
     expect(wrapper.emitted("navigate")![0][0]).toBe("/a/b");
   });
 
-  it("disables hidden ellipsis ancestors above the root path", async () => {
+  it("keeps folders above the root path out of the trail and its ellipsis menu", async () => {
     const wrapper = createWrapper({ path: "/a/b/c/d/e/f", rootPath: "/a/b/c", maxVisible: 3 });
     await wrapper.find('[aria-label$="more folders"]').trigger("click");
 
-    const hiddenB = wrapper.findAll("button").find((button) => button.text() === "b");
-    const hiddenC = wrapper.findAll("button").find((button) => button.text() === "c");
+    const buttons = wrapper.findAll("button");
+    expect(buttons.find((button) => button.text() === "a")).toBeUndefined();
+    expect(buttons.find((button) => button.text() === "b")).toBeUndefined();
 
-    expect(hiddenB?.attributes("disabled")).toBeDefined();
-    expect(hiddenC?.attributes("disabled")).toBeUndefined();
+    const hiddenD = buttons.find((button) => button.text() === "d");
+    expect(hiddenD?.attributes("disabled")).toBeUndefined();
   });
 
   it("expands and collapses full path", async () => {

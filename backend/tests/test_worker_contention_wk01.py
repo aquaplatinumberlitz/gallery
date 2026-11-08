@@ -31,6 +31,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.metadata_store._schema import CATALOG_SCHEMA_VERSION
 from tests.worker_contention_support import (
     VARIANTS,
     capture_sql,
@@ -120,7 +121,7 @@ def test_existing_database_gains_index_through_additive_ensure(
 
     with sqlite3.connect(isolated_metadata_db) as conn:
         assert conn.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (INDEX_NAME,)).fetchone() is not None
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION
 
 
 def test_runtime_derivative_count_query_uses_derivative_id_index(

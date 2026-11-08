@@ -1,4 +1,4 @@
-"""Versioned catalog schema migrations (v1 through v12) and their pre-migration backups."""
+"""Versioned catalog schema migrations (v1 through v13) and their pre-migration backups."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from pathlib import Path
 from . import _db as _db
 from ._db import _gallery_metadata_db_path
 from ._schema_ensure import (
+    _ensure_cjk_search_schema,
     _ensure_generation_signature_schema,
     _ensure_post_v1_additive_columns,
     _ensure_prompt_discovery_schema,
@@ -16,6 +17,7 @@ from ._schema_ensure import (
     _ensure_visual_fingerprint_schema,
     _ensure_workflow_property_schema,
 )
+from .cjk_index import rebuild_cjk_index
 
 
 def _gallery_metadata_db() -> Path:
@@ -514,6 +516,42 @@ def _migrate_v11_to_v12(conn: sqlite3.Connection) -> None:
         if violations:
             raise RuntimeError(f"v12 migration foreign key check failed: {len(violations)} violation(s)")
         conn.execute("PRAGMA user_version = 12")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def _execute_v13_migration_statement(conn: sqlite3.Connection, statement: str) -> None:
+    """Execute one v12-to-v13 migration statement (test injection seam)."""
+    conn.execute(statement)
+
+
+def _backup_v12_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v13 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v12.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v12_to_v13(conn: sqlite3.Connection) -> None:
+    """Add the CJK bigram prompt index and backfill it from stored prompt text (no media decoding)."""
+    conn.commit()
+    _backup_v12_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _ensure_cjk_search_schema(
+            conn,
+            execute_statement=lambda statement: _execute_v13_migration_statement(conn, statement),
+        )
+        rebuild_cjk_index(conn)
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v13 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 13")
         conn.commit()
     except Exception:
         conn.rollback()

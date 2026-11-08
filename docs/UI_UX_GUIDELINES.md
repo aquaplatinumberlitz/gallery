@@ -51,7 +51,10 @@ Tablet:
 - Phones in landscape (e.g. 844x390) get the tablet layout by width. Under `max-height: 500px` the
   tablet chrome compacts: the header drops its kicker and shrinks to 52px, the toolbar to its 44px
   controls, and the lightbox metadata panel is capped at 50dvh (85dvh expanded) so the image keeps at
-  least half the screen.
+  least half the screen. In the lightbox metadata panel the filename and the source/size chips share one
+  short row (about 29px) and the chips scroll sideways when they do not fit. The 44px handle and the 44px
+  close-button hit area stay. At least 120px of metadata shows below the header at 844x390 without
+  scrolling. Tablet portrait and desktop are unchanged.
 
 Mobile:
 
@@ -259,6 +262,9 @@ Rules:
   implicit `auto` track and clip cards and their action menus off-screen. Admin stat-card grids use two
   columns on phones.
 - Breadcrumb segments never wrap. Each segment truncates with an ellipsis inside the header row.
+- The breadcrumb starts at the active import root, shown with its folder name, the same way the folder
+  tree starts at the library root. It does not start at the filesystem root. Folders above the import root
+  are not shown. `buildBreadcrumbSegments()` in `frontend/src/utils/breadcrumbSegments.ts` builds the trail.
 - Album card counts come from `albumCountLabel()`: `N photo(s)` for direct images, no count for a folder
   that only holds subfolders or videos (`image_count` is direct-only, so `0 photos` would be misleading),
   and `Empty` when the folder has no children.
@@ -289,6 +295,7 @@ Rules:
 - The drawer separates discovery sections (Recent searches, Prompt usage, Workflow, Raw workflow, Index status) from filter sections (Prompt, Metadata, Custom) with a visual group heading (`<p class="advanced-search-group-heading">Discovery & tools</p>`) and a divider (`<hr>`). A jump-to-field quick-input at the top of the filter group lets users type a field label to focus and scroll to the matching field, skipping long accordion navigation.
 - Accordion section triggers in the drawer are `position: sticky; top: 0; z-index: 2` so the section header remains visible while scrolling through a long facet list inside the accordion content.
 - Show a debounced live match preview above the selected-filter chips. The preview calls the dedicated `/api/search/count` endpoint (returns `{total, has_more}`) and reports the exact count: `No matches`, `1 match`, `N matches`, or `N+ matches` when more results exist than the count reports. It stays idle when there are no staged filters and no residual text, and it does not run while validation errors are present.
+- The search results "Media" header shows the total from the same `/api/search/count` query (shared cache entry with the drawer preview), formatted `N` or `N+` by the drawer's convention, and falls back to the loaded count while the total is pending, unavailable, or when every page is already loaded (exact, no `+`). The layout is unchanged.
 - Show validation counts on affected section headers and in the footer; submitting an invalid form must open and focus the first invalid field.
 - Do not dismiss dirty edits from an outside pointer interaction. Explicit Cancel, Close, or Escape may discard staged changes.
 - Maintain 44x44px touch targets for compact-header actions and sheet close controls.
@@ -395,3 +402,22 @@ Rules:
   hidden`; the header never shrinks and one inner body owns vertical scrolling.
   Keep bottom safe-area padding so three or more result rows remain reachable
   instead of being clipped by the sheet boundary.
+
+## Intro landing pages
+
+- Automatic mode (`frontend/src/utils/introPage.ts`) picks only ordinary themes (`normal_angel`, `normal_mouse`,
+  `eiga`) on ordinary days. Seasonal pages show only on their dates: `birthday` 3 September, `noel` 24-25
+  December, `lunar_newyear` Chinese-calendar 30 December to 3 January, `newyear` 1 January. A seasonal page
+  that is not shipped falls back to an ordinary one. `sample_test` is never offered. Manual mode and the
+  Settings preview list may show every real theme.
+- `frontend/public/landpage/` is copied verbatim into `dist`: it holds theme folders only. No archives, sources
+  or developer pages.
+- A page with a day/night toggle (`normal_angel`, `normal_mouse`) switches in place: no reload, the label
+  changes at once, and the scene swaps as soon as its images are ready (immediately when already loaded). The
+  old scene's jQuery loops are stopped with `.stop(true)` and their inline positions cleared; the new scene's
+  loops start; the slider is untouched. A small "Auto" chip inside the control appears only while a manual
+  choice is active and returns to time-based mode; a normal click is never delayed. `themePreference` and
+  `themeAutoMode` keep their meaning.
+- A scene loads only its own images: scene `<img>` elements carry `data-src` and get `src` when the scene is
+  first shown (or when the pointer or focus reaches the toggle). Header backgrounds are CSS and load with the
+  theme class.

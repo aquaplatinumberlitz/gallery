@@ -441,6 +441,57 @@ describe("LibraryDetailPage", () => {
     expect(wrapper.text()).toContain("App updated, please reload");
   });
 
+  it("shows metadata with some ready assets as amber Ready with issues, not red Failed", () => {
+    mockStatusData = {
+      status: {
+        ...baseMockStatus,
+        summary_state: "ready_with_issues",
+        metadata: {
+          ...baseMockStatus.metadata,
+          state: "failed",
+          total_assets: 333,
+          ready_assets: 331,
+          not_ready_assets: 2,
+          failed_assets: 2,
+          progress_percent: 99.4,
+        },
+        issue_count: 2,
+        issues: { availability: 0, scan: 0, metadata: 2 },
+      },
+      contract_version: 1,
+    };
+    const wrapper = mountSubject();
+    const tile = wrapper.findAll("p").find((node) => node.text() === "Ready with issues");
+    expect(tile).not.toBeUndefined();
+    expect(tile!.classes()).toContain("text-warning");
+    expect(wrapper.text()).toContain("331 ready · 2 can't be read");
+    expect(wrapper.text()).not.toContain("331/333 assets");
+    expect(wrapper.findAll("p").some((node) => node.text() === "Failed")).toBe(false);
+  });
+
+  it("keeps red Failed when a failed metadata stage has no ready assets", () => {
+    mockStatusData = {
+      status: {
+        ...baseMockStatus,
+        summary_state: "error",
+        metadata: {
+          ...baseMockStatus.metadata,
+          state: "failed",
+          total_assets: 2,
+          ready_assets: 0,
+          not_ready_assets: 2,
+          failed_assets: 2,
+          progress_percent: 0,
+        },
+      },
+      contract_version: 1,
+    };
+    const wrapper = mountSubject();
+    const tile = wrapper.findAll("p").find((node) => node.text() === "Failed");
+    expect(tile).not.toBeUndefined();
+    expect(tile!.classes()).toContain("text-destructive");
+  });
+
   it("displays latest issue details after review", async () => {
     mockStatusData = {
       status: {

@@ -333,6 +333,22 @@ test.describe("Tablet layout on a short landscape phone (844x390)", () => {
       .poll(() => panel.evaluate((el) => Math.round(el.getBoundingClientRect().top)))
       .toBeGreaterThanOrEqual(Math.floor(390 * 0.5) - 1);
   });
+
+  test("shows at least 120px of lightbox metadata below the header without scrolling", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    await page.getByTestId("photo-card").first().click();
+    await page.getByRole("button", { name: "View image info" }).click();
+    await expect(page.locator(".tablet-panel .tablet-header")).toBeVisible();
+
+    const visibleMetadata = await page.locator(".tablet-panel").evaluate((panel) => {
+      const header = panel.querySelector(".tablet-header");
+      if (!header) throw new Error("Missing tablet lightbox header");
+      return panel.getBoundingClientRect().bottom - header.getBoundingClientRect().bottom;
+    });
+    expect(visibleMetadata).toBeGreaterThanOrEqual(120);
+  });
 });
 
 test.describe("Mobile search touch interactions", () => {
@@ -400,6 +416,29 @@ test.describe("Desktop layout (1200px+)", () => {
     await expectHaloFocusRing(page, settings);
     await expectHaloFocusRing(page, sort);
     await expectHaloFocusRing(page, density);
+  });
+
+  test("shows the full View density label next to Sort without clipping", async ({ page }) => {
+    await installStubbedGallery(page);
+    await openStubbedGallery(page);
+
+    const expandedHeader = page.locator(".expanded-header:not([inert])");
+    const sort = expandedHeader.locator(".sort-trigger");
+    const density = expandedHeader.locator(".gallery-density-trigger");
+    const label = density.locator("span").first();
+    await expect(label).toHaveText("View");
+
+    const metrics = await label.evaluate((element) => ({
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+    }));
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+
+    const [sortWidth, densityWidth] = await Promise.all([
+      sort.evaluate((element) => element.getBoundingClientRect().width),
+      density.evaluate((element) => element.getBoundingClientRect().width),
+    ]);
+    expect(densityWidth).toBeCloseTo(sortWidth, 0);
   });
 
   test("desktop layout shows folder tree or sidebar", async ({ page }) => {

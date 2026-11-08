@@ -62,6 +62,24 @@ describe("LibrarySummaryPanel", () => {
     expect(wrapper.text()).toContain("187 / 209 metadata ready");
   });
 
+  it("says unreadable assets can't be read when some metadata is ready", () => {
+    const wrapper = mount(LibrarySummaryPanel, {
+      props: {
+        status: makeStatus({
+          state: "failed",
+          total_assets: 333,
+          ready_assets: 331,
+          not_ready_assets: 2,
+          failed_assets: 2,
+          progress_percent: 99.4,
+        }),
+      },
+    });
+
+    expect(wrapper.text()).toContain("331 / 333 metadata ready · 2 can't be read");
+    expect(wrapper.text()).not.toContain("2 failed");
+  });
+
   it("uses folder-scan wording during catalog updates", () => {
     const wrapper = mount(LibrarySummaryPanel, {
       props: {

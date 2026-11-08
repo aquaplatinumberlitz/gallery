@@ -37,7 +37,12 @@ import { useGeneratedImagesMutations } from "@/composables/admin/useGeneratedIma
 import { useGalleryStore } from "@/stores/gallery";
 import { formatAssetCount, formatLibraryTimestamp } from "@/utils/libraryStatus";
 import { formatBytes, formatPercent } from "@/utils/format";
-import { getCatalogStatusPresentation } from "@/lib/catalog/labels";
+import {
+  METADATA_READY_WITH_ISSUES_LABEL,
+  formatMetadataUnreadableDetail,
+  getCatalogStatusPresentation,
+  isMetadataReadyWithIssues,
+} from "@/lib/catalog/labels";
 import { STATUS_CONTRACT_ERROR_MESSAGE } from "@/lib/catalog/contractGuard";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MetadataState, ScanState, UnifiedStatus } from "@/lib/catalog/status";
@@ -136,18 +141,28 @@ const metadataStateLabel = computed(() => {
   return metadataStateLabels[state];
 });
 
+const metadataHasIssues = computed(() => {
+  const metadata = status.value?.metadata;
+  return metadata ? isMetadataReadyWithIssues(metadata) : false;
+});
+
 const metadataDisplayStateLabel = computed(() =>
   status.value?.scan.state === "never"
     ? "Not measured"
     : status.value?.metadata.state === "complete"
       ? "Ready"
-      : metadataStateLabel.value,
+      : metadataHasIssues.value
+        ? METADATA_READY_WITH_ISSUES_LABEL
+        : metadataStateLabel.value,
 );
 
 const metadataDetailLabel = computed(() => {
   if (status.value?.scan.state === "never") return "Run update to discover assets";
   const metadata = status.value?.metadata;
   if (!metadata || metadata.total_assets === null) return metadataStateLabel.value;
+  if (metadataHasIssues.value) {
+    return formatMetadataUnreadableDetail(metadata.ready_assets ?? 0, metadata.failed_assets ?? 0);
+  }
   return `${formatAssetCount(metadata.ready_assets ?? 0)}/${formatAssetCount(metadata.total_assets)} assets`;
 });
 
@@ -236,7 +251,7 @@ const statusTiles = computed<
         ? "healthy"
         : "warning";
   const metadataTone: StatusTileTone =
-    !currentStatus || currentStatus.metadata.state === "failed"
+    !currentStatus || (currentStatus.metadata.state === "failed" && !metadataHasIssues.value)
       ? "error"
       : currentStatus.scan.state === "never" || currentStatus.metadata.state !== "complete"
         ? "warning"

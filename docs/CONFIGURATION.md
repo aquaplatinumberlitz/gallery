@@ -25,6 +25,7 @@ Production topology (`frontend/gallery-nginx-prod.conf`), used for real users:
 | ----------- | -------------- | ------- | ---------------- |
 | `/api` | Proxy to `http://127.0.0.1:4701` | Backend | FastAPI/uvicorn API server for `backend.main:app`. |
 | `/assets/` | Static files from `frontend/dist/assets/`, `Cache-Control: public, max-age=31536000, immutable` | Built SPA | Content-hashed JS, CSS and font files. |
+| `/landpage/` | Static `frontend/dist/landpage/`, `Cache-Control: public, max-age=86400` | Built SPA | Intro landing pages. File names are not hashed, so they are cacheable for a day and then revalidated with ETag; never `immutable`. |
 | `/` | Static `frontend/dist/`, SPA fallback to `index.html`, `Cache-Control: no-cache` | Built SPA | Revalidated entry document, so a new build is picked up on the next visit. |
 
 The production template also enables HTTP/2 (`listen 443 ssl http2`) and gzip
@@ -61,9 +62,24 @@ changes the VPS):
    `curl -sI -H 'Accept-Encoding: br' -u USER https://150.230.56.153/assets/<file>.js`
    must show `Content-Encoding: br` and `Vary: Accept-Encoding`.
 
+**Landing-page cache (`/landpage/`).** The intro iframe loads about 20 files from
+`/landpage/<theme>/`. They keep their original names (no content hash), so the template gives them
+their own `location /landpage/` with `Cache-Control: public, max-age=86400`; after a day the browser
+revalidates and nginx answers `304` from the ETag and `Last-Modified` it already sends. `immutable`
+is deliberately not used: a changed page would stay stale for a year. Before this block the `/` location
+applied `no-cache` to the landing pages, so every revalidation re-requested all of them. The day/night
+toggle in `normal_angel` and `normal_mouse` now switches in place and no longer reloads the iframe.
+The live VPS site file is not replaced by the template: add the block to
+`/etc/nginx/sites-enabled/gallery` in place, next to `location /assets/` (back up first, then
+`sudo nginx -t && sudo systemctl reload nginx`), and check with
+`curl -sIk -u USER https://150.230.56.153/landpage/normal_angel/assets/css/style.css`, which must show
+`Cache-Control: public, max-age=86400` and an `ETag`.
+
 The web-vitals lab servers (`scripts/perf/web_vitals/serve_dist.cjs --mode tuned` and
 `serve_dist_h2.cjs`) serve the same files the same way: `.br` when the client accepts
-`br`, else `.gz`, else dynamic gzip; `--no-brotli` mimics a server without the module.
+`br`, else `.gz`, else dynamic gzip; `--no-brotli` mimics a server without the module. Both send
+`public, max-age=86400` under `/landpage/` and, like nginx, an ETag with `304` answers for unchanged
+files; `--no-landpage-cache` restores the old template (`no-cache`) to measure the before.
 
 The development template (`frontend/gallery-nginx-dev.conf`) proxies `/` to
 the Vite dev server on `127.0.0.1:4702` instead. Use it only while editing the

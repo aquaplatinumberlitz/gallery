@@ -449,6 +449,25 @@ identity). `/api/thumbnail` and `/api/preview` accept an optional `v`. When `v` 
 `Cache-Control: public, max-age=31536000, immutable`; with the same ETag, an absent, malformed or
 stale `v` keeps `public, max-age=0, must-revalidate`.
 
+**Browse covers (MD-01, UX-3).** A folder in `/api/browse` carries up to 3 `cover_images` with aligned
+`cover_versions`, ranked `mtime_ns DESC, path ASC` and read by `_browse_folder_counts_batch_conn` (one
+aggregated direct-child query plus, for the folder listing only, one ranged descendant query per batch of up
+to 300 folders; no per-folder queries).
+
+- A cover is a readable image. An asset is skipped when `assets.metadata_state = 'failed'`, when a `failed`
+  `metadata_index_jobs` row exists for its current `mtime_ns`/`size` (the outcome of `fail_metadata_job` for an
+  undecodable file), or when a `thumbnail` derivative of the current identity ended `failed` with the terminal
+  `invalid_source` result code. Retryable failures (`attempts_exhausted`, `internal_error`) do not hide a
+  cover; a changed file has a new identity and is judged again. The failed sets are read once per query
+  (`cover_unreadable` CTE), so the check costs the same on a large subtree. A fresh scan has no failure signal
+  yet: a corrupt file can be a cover until its metadata job has run.
+- A folder whose direct images are all unreadable has no covers (the placeholder is shown). `image_count`
+  still counts every direct image.
+- A folder with no direct images (only subfolders) takes its covers from its descendants (any depth), under
+  the same readability rule and ordering. The range is `path >= '<folder>/' AND path < '<folder>0'` on
+  `assets(library_id, path)`, so the cost is bounded by the subtree size of the folders on the page. The
+  virtual root (import roots) and search albums do not use descendant covers, so their latency is unchanged.
+
 **Serving fast path (B4).** `backend/derivative_fastpath.py` holds a bounded in-process LRU
 (`GALLERY_DERIVATIVE_FASTPATH_ENTRIES`, default 4096) from (metadata database, requested path or
 asset id, kind, variant) to (source path, source identity, asset id, derivative id, cache file,
@@ -786,6 +805,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_store/metadata_persist.py` | Metadata persistence helpers                              |
 | `metadata_store/search_store.py`     | FTS5 search queries                                       |
 | `metadata_store/ranked_search.py`    | Tiered search candidates and opaque keyset cursors        |
+| `metadata_store/cjk_index.py`        | CJK bigram prompt index maintenance and short-query plan  |
 | `metadata_store/search_index_store.py` | Derived-index states, fenced jobs, keyset asset batches, and extraction fingerprints |
 | `metadata_store/inspector_store.py`  | Library Inspector data access                             |
 | `metadata_store/_asset_store.py`     | Shared asset upsert helper                                |
@@ -821,7 +841,7 @@ Backend modules are mostly flat, with selected domain packages.
 | `GET /api/facets`                         | DB-derived model/tool/sampler/etc. aggregation counts                 | `facets.py`         |
 | `POST /api/open-folder`                   | Open a folder in the OS file explorer when enabled                    | `folders.py`        |
 | `GET /api/health`                         | Return service health and commit metadata                             | `health.py`         |
-| `GET /api/landing-pages`                  | List intro page HTML templates from `frontend/public/landpage/`       | `static_files.py`   |
+| `GET /api/landing-pages`                  | List intro page HTML templates from `frontend/public/landpage/` (theme folders only; no archives or `sample_test`) | `static_files.py`   |
 | `GET /api/maintenance/runtime`            | Return global runtime diagnostics and metadata lifecycle counters     | `maintenance.py`    |
 | `GET /api/libraries`                      | List libraries with ordered import paths and exclusions               | `libraries.py`      |
 | `GET /api/libraries/status`               | Return admin batch status for all libraries                           | `libraries.py`      |
@@ -867,6 +887,15 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
+- Catalog schema version 13 adds the CJK bigram prompt index: `image_metadata_cjk`
+  (one row per prompt or negative prompt that contains CJK text, holding the
+  space-joined overlapping bigrams of each CJK run plus a one-character run-end
+  token) and its external-content `unicode61` FTS5 table `image_metadata_fts_cjk`,
+  kept in step by insert/update/delete triggers; an `image_metadata` delete
+  trigger removes the row. Its `.v12.bak` migration backfills from stored prompt
+  text only (no media decoding) with `cjk_index.rebuild_cjk_index`. Prompt writes
+  in `metadata_persist.py` call `cjk_index.sync_cjk_path`; any code that writes
+  `image_metadata.prompt` with raw SQL must call `rebuild_cjk_index` afterwards.
 - Catalog schema version 12 rebuilds `asset_visual_hash_bands` and
   `asset_search_extractions` as `WITHOUT ROWID` tables through a rollback-safe
   `.v11.bak` migration, reducing the storage cost of their composite primary
@@ -1247,9 +1276,16 @@ Header search or AdvancedSearchDrawer
   only for compatibility rows that lack IDs; legacy arrays are consumed only
   when canonical `media` is absent.
 - Ranked search unions filename token-prefix candidates with trigger-maintained
-  trigram filename/metadata substring candidates. Short or mixed-length tokens
-  stay on Unicode FTS token/prefix semantics; full-table LIKE is reserved for
-  the FTS-unavailable degraded path. Metadata trigram queries retain AND-token
+  trigram filename/metadata substring candidates. Queries in which every token
+  has three or more characters use trigram substring matching. Any query with a
+  shorter token uses short-token semantics instead: Latin terms prefix-match
+  prompt tokens (`ch` matches `cherry`), and CJK runs match through the CJK bigram
+  index (a 1-character CJK term is a prefix on bigrams and run-end tokens, a longer
+  CJK run is a bigram phrase, so `少女` matches inside `桜の下の少女`). All terms are
+  ANDed; a mixed Latin and CJK query matches the Latin terms on the Unicode table
+  and constrains rows with `rowid IN` the CJK table. Tiers, bounded preselection
+  and keyset cursors are unchanged. Hangul is space-delimited and uses Unicode token
+  prefixes. Full-table LIKE is reserved for the FTS-unavailable degraded path. Metadata trigram queries retain AND-token
   semantics, and unscoped FTS plus structured-filter-only sources use bounded,
   cursor-aware preselection before strict catalog authorization. The candidate union also includes
   positive-prompt phrase tiers, negative prompts, and structured-filter-only rows. It

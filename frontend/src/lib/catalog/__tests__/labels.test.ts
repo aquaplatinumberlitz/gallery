@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG_STATUS_LABELS, getCatalogStatusLabel, getCatalogStatusPresentation } from "../labels";
+import {
+  CATALOG_STATUS_LABELS,
+  formatMetadataUnreadableDetail,
+  getCatalogStatusLabel,
+  getCatalogStatusPresentation,
+  isMetadataReadyWithIssues,
+} from "../labels";
 import type { SummaryState } from "../status";
 
 const EXPECTED_LABELS: Record<SummaryState, string> = {
@@ -54,6 +60,26 @@ describe("getCatalogStatusPresentation", () => {
 describe("CATALOG_STATUS_LABELS", () => {
   it("matches the plan label table for every state", () => {
     expect(CATALOG_STATUS_LABELS).toEqual(EXPECTED_LABELS);
+  });
+});
+
+describe("metadata stage partial readiness", () => {
+  it("treats a failed stage with some ready assets as ready with issues", () => {
+    expect(isMetadataReadyWithIssues({ state: "failed", ready_assets: 331 })).toBe(true);
+  });
+
+  it("keeps a failed stage with no ready assets as failed", () => {
+    expect(isMetadataReadyWithIssues({ state: "failed", ready_assets: 0 })).toBe(false);
+    expect(isMetadataReadyWithIssues({ state: "failed", ready_assets: null })).toBe(false);
+  });
+
+  it("does not apply to non-failed stage states", () => {
+    expect(isMetadataReadyWithIssues({ state: "complete", ready_assets: 331 })).toBe(false);
+    expect(isMetadataReadyWithIssues({ state: "indexing", ready_assets: 331 })).toBe(false);
+  });
+
+  it("formats the unreadable detail as N ready and M can't be read", () => {
+    expect(formatMetadataUnreadableDetail(331, 2)).toBe("331 ready · 2 can't be read");
   });
 });
 

@@ -475,7 +475,7 @@ function handleClearAll() {
             v-model="gallerySortValue"
             aria-label="Sort gallery"
             trigger-label="Sort"
-            trigger-class="sort-trigger h-8 w-[74px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
+            trigger-class="sort-trigger h-8 w-[78px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
           />
 
           <DropdownMenu>
@@ -483,10 +483,10 @@ function handleClearAll() {
               <Button
                 variant="outline"
                 type="button"
-                class="gallery-density-trigger h-8 w-[74px] justify-between gap-1.5 px-2 text-xs font-normal text-foreground shadow-none"
+                class="gallery-density-trigger h-8 w-[78px] justify-between gap-1.5 px-2 text-xs font-normal text-foreground shadow-none"
                 aria-label="View density"
               >
-                <span class="truncate">View</span>
+                <span class="whitespace-nowrap">View</span>
                 <ChevronDown data-icon="inline-end" class="opacity-50" />
               </Button>
             </DropdownMenuTrigger>
@@ -625,7 +625,7 @@ function handleClearAll() {
             v-model="gallerySortValue"
             aria-label="Sort gallery"
             trigger-label="Sort"
-            trigger-class="sort-trigger h-8 w-[74px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
+            trigger-class="sort-trigger h-8 w-[78px] gap-1.5 px-2 py-0 text-xs font-normal shadow-none"
           />
 
           <DropdownMenu>
@@ -633,10 +633,10 @@ function handleClearAll() {
               <Button
                 variant="outline"
                 type="button"
-                class="gallery-density-trigger h-8 w-[74px] justify-between gap-1.5 px-2 text-xs font-normal text-foreground shadow-none"
+                class="gallery-density-trigger h-8 w-[78px] justify-between gap-1.5 px-2 text-xs font-normal text-foreground shadow-none"
                 aria-label="View density"
               >
-                <span class="truncate">View</span>
+                <span class="whitespace-nowrap">View</span>
                 <ChevronDown data-icon="inline-end" class="opacity-50" />
               </Button>
             </DropdownMenuTrigger>
