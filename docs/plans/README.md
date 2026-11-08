@@ -2,13 +2,15 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-11-03
+Last reviewed: 2026-11-08
 
 Active plans:
 
 | Plan | Status | Created |
 |------|--------|---------|
 | None | — | — |
+
+Deferred work no plan owns yet is tracked in [Backlog](BACKLOG.md).
 
 Completed plans:
 
