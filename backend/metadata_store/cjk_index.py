@@ -135,7 +135,7 @@ def rebuild_cjk_index(conn: sqlite3.Connection, *, batch_size: int = 2000) -> in
             sync_cjk_row(conn, metadata_id, prompt, negative_prompt)
         pending.clear()
 
-    for row in conn.execute("SELECT id, prompt, negative_prompt FROM image_metadata").fetchall():
+    for row in conn.execute("SELECT id, prompt, negative_prompt FROM image_metadata"):
         metadata_id = int(row[0])
         prompt_doc = cjk_bigram_document(row[1])
         negative_doc = cjk_bigram_document(row[2])
