@@ -6,6 +6,9 @@ including the root endpoint, landing-page listing, and catch-all asset serving.
 Guarantees:
 * read_root returns the development API marker JSON when PRODUCTION=False and
   FileResponse for index.html when PRODUCTION=True.
+* the real frontend/public/landpage folder (copied verbatim into dist) ships only real themes: no
+  developer sample page and no archive or other non-page file, and the API lists exactly its
+  `<theme>/index.html` pages.
 * get_landing_pages returns a sorted list of public URL paths for nested .html
   files and returns [] when the landpage directory is missing.
 * catch_all in development returns 404 in all cases.
@@ -117,6 +120,26 @@ class TestGetLandingPages:
         pages = sf.get_landing_pages()
         assert len(pages) == 1
         assert pages[0].endswith(".html")
+
+    def test_shipped_landpage_folder_has_only_real_themes(self):
+        """`frontend/public` is copied verbatim into `dist`, so whatever is here is served publicly."""
+        import backend.static_files as sf
+
+        landpage_dir = Path(sf.__file__).resolve().parent.parent / "frontend" / "public" / "landpage"
+        assert landpage_dir.is_dir()
+
+        entries = sorted(p.name for p in landpage_dir.iterdir())
+        assert not [n for n in entries if n.lower().endswith(".zip")], entries
+        assert "sample_test" not in entries
+        # Every entry is a theme folder with its own index page; stray files would ship in dist.
+        for entry in landpage_dir.iterdir():
+            assert entry.is_dir(), f"stray file in landpage/: {entry.name}"
+            assert (entry / "index.html").is_file(), f"theme without index.html: {entry.name}"
+        assert not [p for p in landpage_dir.rglob("*") if p.suffix.lower() in {".zip", ".rar", ".7z", ".psd"}]
+
+        pages = sf.get_landing_pages()
+        assert sorted(pages) == sorted(f"/landpage/{n}/index.html" for n in entries)
+        assert not [p for p in pages if "sample" in p.lower()]
 
 
 # ---------------------------------------------------------------------------
