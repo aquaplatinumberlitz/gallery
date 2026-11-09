@@ -1,6 +1,6 @@
 # UX Review Fix Plan
 
-Status: Active
+Status: Completed (deployed 2026-11-08: `main` @ `f27f610` on the VPS, schema v13, nginx `/landpage/` cache block)
 
 Created: 2026-11-08
 
