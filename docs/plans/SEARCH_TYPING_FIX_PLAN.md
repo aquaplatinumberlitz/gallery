@@ -79,5 +79,13 @@ The owner asked whether these fixes also apply to Advanced Search. They gave Opu
 
 | Track | Status | Evidence |
 |-------|--------|----------|
-| E | Pending | |
-| F | Pending | |
+| E | Merged after Opus review | Opus logs on the production build:
+- Typing "night" at 1.2 s gaps: no browse, hint or skeleton between keys, and the header holds "298+". The flash to "60" was traced to vue-query's `hasNextPage` lagging behind `data` and fixed.
+- Enter sends the query about 21 ms after the key, with no empty count request.
+- IME, desktop and mobile: no request for uncommitted kana. The candidate Enter keeps focus and commits 桜少女.
+- Drawer: filters come first, and the footer fits at 768 and 1440. |
+| F | Merged after Opus review | 47 new tests: 36 failed before the fix. Prefix-first tiers. `fold_text` (NFKC, casefold, marks, đ, kana) is applied to free-text and fielded filters.
+- Schema v14: a real v13 copy migrated cleanly (`.v13.bak`, 331 metadata and 344 file fold rows).
+- 100k benchmark: all workloads at or under 300 ms p95. `prompt:ca` dropped from 649 to 71 ms.
+- DB size +8.7% on the 100k fixture; the migration takes 14 s.
+- Full backend suite: 1791 passed in both modes. |
