@@ -22,12 +22,27 @@ item below, including the optional normalization work.
 | SE-03 | Medium | Matching changes at 3 characters: 1-2 characters match the start of a word, 3 or more match a substring anywhere. Typing more can therefore give more results, and the top results jump. | API: `o` 323, `or` 0, `ort` 286. `mi` matches only words starting with "mi", while `mik` also matches "ka**mik**aze". `ranked_search.py:91-96` (`_can_use_trigram_candidates`) and `_short_match_params`. | Word-prefix matching is the first relevance tier at every length, for prompts, filenames and model/sampler. Substring (trigram) matches, at 3 or more characters, rank below every prefix match. For a Latin query q and its extension q+c, the prefix-tier results of q+c are a subset of those of q, and the top results stay stable from `mi` to `mika`. CJK keeps its substring semantics, which are already monotonic. AND semantics, keyset paging and the count stay consistent with the page results. |
 | SE-04 | Medium | Accent-insensitive search is inconsistent and fails for Vietnamese. `ca` and `caf` match "café", but `cafe` returns 0. `noi` does not find "Hà Nội", and `pho` does not find "Phố". | SQLite probe: the `trigram` tokenizer keeps diacritics by default, and `unicode61` (default `remove_diacritics 1`) does not fold characters with two marks (ộ, ố). `đ` is a separate letter. Tokenizers are in `_schema_ddl.py` and `_schema_ensure.py`. | Queries and indexed text are folded the same way: case, all combining marks (including Vietnamese stacked marks), `đ/Đ` to `d`, NFKC (full-width and half-width forms), and katakana to hiragana. `cafe`/`café`, `noi`/`Nội`, `pho`/`Phố`, `ﾈｵﾝ`/`ネオン`/`ねおん` each match both ways. Display text (names, prompts, snippets) is unchanged. |
 
+## Advanced Search additions (2026-11-09)
+
+The owner asked whether these fixes also apply to Advanced Search. They gave Opus full authority to decide.
+
+- **Fielded "contains" filters** (`prompt:`, `negative:`, `name:`, `sampler:`, `model:`; `fielded_search_parser.py`) use `LIKE '%value%'`. That folds only ASCII case. Probe: `cafe`, `CAFÉ`, `noi` and `ねおん` each return 0 against "café", "Nội" and "ネオン".
+  - Track F applies the same normalization to these filters.
+  - They keep "contains" semantics, which are already consistent at every length.
+- **IME and debounce in the drawer.** Track E covers drawer inputs, the jump field's Enter and the match-preview request.
+
+| ID | Sev | Problem | Acceptance | Track |
+|----|-----|---------|------------|-------|
+| AV-01 | Medium | At 768 px the drawer is about 322 px wide (`min(640px, 42vw)`). Its footer overlaps ("Revert e[Clear]all"), and Cancel is not visible. | All footer actions are fully visible from 390 to 1440 px. No overlap, clipping or horizontal overflow. Touch targets are at least 44 px. | E |
+| AV-02 | Low | At 1440 px the status "Unsaved changes" is truncated to "Unsaved …". | Shown in full or wrapped. | E |
+| AV-03 | UX (layout change, owner approved) | When the drawer opens, Recent searches and the 9-group Indexed facets table push the filters below the fold: about 1 screen on desktop and about 3 on mobile. | Filters come first. Recent searches (open when it has entries) and Indexed facets (collapsed, with a count) follow as accordions. Facet chips still apply filters. `#advanced-search-prompt` is visible on open at 390x844 and 1440x900. | E |
+
 ## Tracks
 
 | Track | Model | Branch | Items |
 |-------|-------|--------|-------|
-| E | Haiku | `fix/search-typing-frontend` | SE-01, SE-02, SE-05, CJ-01, CJ-02 |
-| F | Sonnet | `fix/search-typing-backend` | SE-03, SE-04 (with NFKC and kana folding) |
+| E | Haiku | `fix/search-typing-frontend` | SE-01, SE-02, SE-05, CJ-01, CJ-02, AV-01, AV-02, AV-03 |
+| F | Sonnet | `fix/search-typing-backend` | SE-03, SE-04 (with NFKC and kana folding, also for fielded filters) |
 
 ## Track F constraints
 - **Schema.** This is schema v14 with the usual pre-migration backup (`.v13.bak`). Backfill comes from stored text only, with no media decoding. The backfill must stream rows, never load them all at once.
