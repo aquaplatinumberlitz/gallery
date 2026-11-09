@@ -1211,6 +1211,13 @@ Header search or AdvancedSearchDrawer
 -> SearchResultsPanel renders first-page Album suggestions and an appended Media stream
 ```
 
+- The typed query settles on one 250 ms debounce (`GALLERY_SEARCH_DEBOUNCE_MS`,
+  shared with the drawer match preview). Enter settles the submitted text at once.
+  `useUnifiedSearchQuery()` keeps the last settled pages as placeholder data while
+  newer text settles, so results stay on screen between keystrokes; it sends no
+  request for empty text, and `/api/search/count` runs only for settled, non-empty
+  text. Composition text is not part of the query: `components/ui/Input.vue`
+  and the header/mobile inputs apply the committed text on `compositionend`.
 - Canonical scopes are `folder` (one authorized folder recursively), `library`
   (one registered library across all import paths), and `all`. Legacy GET
   `current` resolves through the same folder context and responses report the
