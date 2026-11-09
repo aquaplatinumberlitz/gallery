@@ -62,10 +62,7 @@ function clearHistory() {
 
 <template>
   <!-- embedded: the drawer's accordion trigger already names the section, so the title row is not repeated. -->
-  <section
-    class="recent-searches"
-    :aria-labelledby="props.embedded ? undefined : 'recent-searches-title'"
-  >
+  <section class="recent-searches" :aria-labelledby="props.embedded ? undefined : 'recent-searches-title'">
     <div class="recent-header">
       <div class="min-w-0">
         <p v-if="!props.embedded" id="recent-searches-title" class="recent-title">

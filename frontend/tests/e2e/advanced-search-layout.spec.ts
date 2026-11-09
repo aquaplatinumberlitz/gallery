@@ -79,9 +79,15 @@ for (const config of widths) {
       }
       expectNoOverlap(boxes);
 
-      const footerMetrics = await footer.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
+      const footerMetrics = await footer.evaluate((el) => ({
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+      }));
       expect(footerMetrics.scrollWidth).toBeLessThanOrEqual(footerMetrics.clientWidth);
-      const sheetMetrics = await drawer.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
+      const sheetMetrics = await drawer.evaluate((el) => ({
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+      }));
       expect(sheetMetrics.scrollWidth).toBeLessThanOrEqual(sheetMetrics.clientWidth);
     });
 

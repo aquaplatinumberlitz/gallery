@@ -131,7 +131,12 @@ test.describe("IME composition (CJ-01, CJ-02)", () => {
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.imeSetComposition", { text: "しょうじょ", selectionStart: 5, selectionEnd: 5 });
     const enterAt = await page.evaluate(() => Date.now());
-    await cdp.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    await cdp.send("Input.dispatchKeyEvent", {
+      type: "rawKeyDown",
+      key: "Enter",
+      code: "Enter",
+      windowsVirtualKeyCode: 13,
+    });
     await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
     await page.waitForTimeout(600);
 
@@ -143,7 +148,9 @@ test.describe("IME composition (CJ-01, CJ-02)", () => {
 test.describe("IME composition on the mobile header (CJ-01, CJ-02)", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
-  test("mobile: composing text is not searched and the candidate Enter keeps focus (CJ-01, CJ-02)", async ({ page }) => {
+  test("mobile: composing text is not searched and the candidate Enter keeps focus (CJ-01, CJ-02)", async ({
+    page,
+  }) => {
     const stub = await installSearchStub(page);
     await openGallery(page);
     await page.locator('button[aria-label*="earch" i]').first().click();
@@ -156,7 +163,12 @@ test.describe("IME composition on the mobile header (CJ-01, CJ-02)", () => {
       await cdp.send("Input.imeSetComposition", { text, selectionStart: text.length, selectionEnd: text.length });
       await page.waitForTimeout(400);
     }
-    await cdp.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    await cdp.send("Input.dispatchKeyEvent", {
+      type: "rawKeyDown",
+      key: "Enter",
+      code: "Enter",
+      windowsVirtualKeyCode: 13,
+    });
     await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
     await page.waitForTimeout(300);
     expect(await box.evaluate((el) => document.activeElement === el)).toBe(true);
@@ -189,7 +201,12 @@ test.describe("IME composition in the Advanced Search drawer (CJ-01, CJ-02)", ()
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.imeSetComposition", { text: "se", selectionStart: 2, selectionEnd: 2 });
     await page.waitForTimeout(200);
-    await cdp.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    await cdp.send("Input.dispatchKeyEvent", {
+      type: "rawKeyDown",
+      key: "Enter",
+      code: "Enter",
+      windowsVirtualKeyCode: 13,
+    });
     await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
     await page.waitForTimeout(300);
     await expect(drawer).toBeVisible();

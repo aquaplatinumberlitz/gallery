@@ -157,7 +157,15 @@ export async function installSearchStub(page: Page): Promise<SearchStub> {
         supported_scopes: ["folder", "library", "all"],
         field_limits: {},
         workflow_registry: { version: 1, nodes: {} },
-        raw_search: { enabled: false, query_min_chars: 3, query_max_chars: 128, limit_max: 50, deadline_ms: 250, max_document_bytes: 1_048_576, index_budget_bytes: 536_870_912 },
+        raw_search: {
+          enabled: false,
+          query_min_chars: 3,
+          query_max_chars: 128,
+          limit_max: 50,
+          deadline_ms: 250,
+          max_document_bytes: 1_048_576,
+          index_budget_bytes: 536_870_912,
+        },
         index_requirements: {},
         indexes: [],
       });
@@ -182,4 +190,3 @@ export async function openGallery(page: Page) {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 15_000 });
 }
-

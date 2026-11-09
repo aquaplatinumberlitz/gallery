@@ -453,7 +453,8 @@ describe("GalleryGrid", () => {
       stubs: {
         SearchResultsPanel: {
           props: ["mediaTotal", "settling"],
-          template: "<div class='search-panel-stub' :data-total='JSON.stringify(mediaTotal)' :data-settling='String(settling)' />",
+          template:
+            "<div class='search-panel-stub' :data-total='JSON.stringify(mediaTotal)' :data-settling='String(settling)' />",
         },
       },
     });
