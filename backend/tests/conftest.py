@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -193,7 +194,7 @@ def isolated_metadata_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
 
 
 @pytest.fixture
-def isolated_thumbnail_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def isolated_thumbnail_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Temporary thumbnail cache directory."""
     cache_dir = tmp_path / "thumbnail_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -204,15 +205,16 @@ def isolated_thumbnail_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(config_module, "THUMBNAIL_CACHE_DIR", cache_dir)
     # Re-create disk cache and file dir under the isolated path
-    from diskcache import Cache
+    from backend.disk_cache import ThreadClosingCache
 
-    isolated_cache = Cache(str(cache_dir), size_limit=2 * 1024 * 1024 * 1024)
+    isolated_cache = ThreadClosingCache(str(cache_dir), size_limit=2 * 1024 * 1024 * 1024)
     isolated_file_dir = cache_dir / "files"
     isolated_file_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(tn, "_thumbnail_disk_cache", isolated_cache)
     monkeypatch.setattr(tn, "_thumbnail_file_dir", isolated_file_dir)
 
-    return cache_dir
+    yield cache_dir
+    isolated_cache.close()
 
 
 @pytest.fixture(autouse=True)

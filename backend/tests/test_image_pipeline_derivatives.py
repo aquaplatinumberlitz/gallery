@@ -42,6 +42,7 @@ import backend.thumbnails as thumbnails
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler, derivative_variant
 from backend.metadata_store import index_file
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 from tests.worker_contention_support import seed_library
 
@@ -83,7 +84,7 @@ def _queue_all_variants(scheduler: DerivativeScheduler, asset_id: int, *, reques
 
 
 def _derivatives(db_path: Path) -> dict[str, dict[str, Any]]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             """
@@ -223,7 +224,7 @@ def test_siblings_of_other_assets_or_identities_are_not_claimed(catalog) -> None
     assert job is not None and job["asset_id"] == asset_id
     assert scheduler._claim_siblings(job) == []
 
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         states = conn.execute(
             "SELECT d.asset_id, j.state FROM derivative_jobs j JOIN asset_derivatives d ON d.id = j.derivative_id"
         ).fetchall()
@@ -242,7 +243,7 @@ def test_a_sibling_claim_lost_to_recovery_is_not_completed_by_the_stale_worker(
     def validate_and_lose_one_claim(job, source):  # noqa: ANN001
         if not tampered.is_set():
             tampered.set()
-            with sqlite3.connect(db_path) as conn:
+            with open_connection(db_path) as conn:
                 conn.execute(
                     "UPDATE derivative_jobs SET state = 'queued', claim_token = NULL, claimed_by = NULL, "
                     "lease_expires_at = NULL WHERE derivative_id = (SELECT id FROM asset_derivatives "
@@ -311,7 +312,7 @@ def test_an_invalid_source_fails_every_claimed_variant_permanently(catalog) -> N
     import os
 
     os.utime(image, ns=(stat.st_atime_ns, stat.st_mtime_ns))
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute("UPDATE assets SET size = ? WHERE id = ?", (len(garbage), asset_id))
         conn.execute("UPDATE asset_derivatives SET source_size = ? WHERE asset_id = ?", (len(garbage), asset_id))
 
@@ -333,7 +334,7 @@ def _write_truncated_png(path: Path, size: tuple[int, int] = (800, 600)) -> None
 
 
 def _job_rows(db_path: Path, asset_path: str | None = None) -> list[dict[str, Any]]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             """
@@ -356,7 +357,7 @@ def test_a_truncated_source_fails_every_claimed_variant_without_retry(catalog) -
     _write_truncated_png(image)
     truncated_size = image.stat().st_size
     os.utime(image, ns=(stat.st_atime_ns, stat.st_mtime_ns))
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute("UPDATE assets SET size = ? WHERE id = ?", (truncated_size, asset_id))
         conn.execute("UPDATE asset_derivatives SET source_size = ? WHERE asset_id = ?", (truncated_size, asset_id))
 
@@ -415,7 +416,7 @@ def test_the_group_heartbeat_renews_the_lease_of_every_open_claim(catalog, monke
     assert job is not None
     scheduler._run_job(job)
 
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         all_jobs = {row[0] for row in conn.execute("SELECT id FROM derivative_jobs")}
     assert renewed == all_jobs, "every claim of the batch must be kept alive while the cascade runs"
 
@@ -466,12 +467,12 @@ def test_source_dimensions_are_written_only_when_the_catalog_does_not_hold_them(
     assert after_first <= 1
     assert len(calls) == after_first, "an unchanged catalog row must not cost a writer op per render"
 
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute("UPDATE assets SET width = 1, height = 1 WHERE id = ?", (asset_id,))
     thumbnails._render_derivative_impl(image, max_long_edge=128, quality=78, format="webp", no_upscale=True)
 
     assert len(calls) == after_first + 1, "dimensions that differ from the catalog must still be written"
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         assert conn.execute("SELECT width, height FROM assets WHERE id = ?", (asset_id,)).fetchone() == (1800, 1200)
 
 

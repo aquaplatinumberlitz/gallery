@@ -31,6 +31,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.metadata_store._db import open_connection
 from backend.metadata_store._schema import CATALOG_SCHEMA_VERSION
 from tests.worker_contention_support import (
     VARIANTS,
@@ -75,7 +76,7 @@ def _capture_runtime_statement(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 def _run_counts(db_path: Path, statement: str, *, deadline: float | None = None) -> dict[str, int]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         if deadline is not None:
             limit = time.perf_counter() + deadline
             conn.set_progress_handler(lambda: 1 if time.perf_counter() > limit else 0, 10_000)
@@ -98,7 +99,7 @@ def seeded_library(isolated_metadata_db: Path, isolated_gallery_root: Path) -> t
 
 
 def test_fresh_database_has_derivative_jobs_derivative_id_index(isolated_metadata_db: Path) -> None:
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         row = conn.execute(
             "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
             (INDEX_NAME,),
@@ -112,14 +113,14 @@ def test_existing_database_gains_index_through_additive_ensure(
 ) -> None:
     import backend.metadata_store as ms
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
     monkeypatch.setattr(ms._db, "_DB_INITIALIZED", False)
     monkeypatch.setattr(ms._db, "_DB_INITIALIZED_PATH", None)
 
     ms.initialize_database()
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (INDEX_NAME,)).fetchone() is not None
         assert conn.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION
 
@@ -173,7 +174,7 @@ def test_runtime_derivative_counts_identical_with_and_without_index(
     statement = _capture_runtime_statement(monkeypatch)
     assets = seed_assets(db_path, library_id, root, 120)
     _total, expected = seed_derivative_corpus(db_path, assets, jobs_per_derivative=4)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
         # One superseded identity and one inactive asset must stay out of the counts.
         conn.execute("UPDATE assets SET mtime_ns = mtime_ns + 1 WHERE id = ?", (assets[0][0],))
@@ -190,7 +191,7 @@ def test_runtime_derivative_counts_identical_with_and_without_index(
     expected = {state: count for state, count in expected.items() if count}
 
     without_index = _run_counts(db_path, statement)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute(f"CREATE INDEX {INDEX_NAME} ON derivative_jobs(derivative_id, id)")
     with_index = _run_counts(db_path, statement)
 
@@ -284,7 +285,7 @@ def test_global_runtime_reads_one_snapshot_even_when_a_writer_commits_mid_build(
     before = build_global_runtime()
     assert before["derivative_queue_depth"] == 0
 
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         target = int(conn.execute("SELECT min(id) FROM asset_derivatives").fetchone()[0])
     fired = threading.Event()
 
@@ -402,7 +403,7 @@ def seed_status_golden_state(db_path: Path, root: Path) -> int:
 
     library_id = seed_library(root, name="Golden")
     assets = seed_assets(db_path, library_id, root, 8)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         for index, (_asset_id, path, mtime_ns, size) in enumerate(assets):
             name = Path(path).name
             if index < 3:

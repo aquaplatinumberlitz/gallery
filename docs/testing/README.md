@@ -25,6 +25,7 @@ documented in [DEBUG_TOOLS.md](DEBUG_TOOLS.md).
   measured per-area line ratchets documented in
   [TESTING_STRATEGY.md](TESTING_STRATEGY.md#coverage-baselines).
 - Nightly and WebKit jobs are not currently configured.
+- Backend tests must close every SQLite connection they open (`with open_connection(...)` or `contextlib.closing`, never a bare `with sqlite3.connect(...)`, which does not close). `pyproject.toml` turns `ResourceWarning: unclosed database` (and the matching pytest unraisable-exception warning for `sqlite3.Connection`) into an error, so a leaked connection fails the test that leaks it; other ResourceWarnings are not affected. `backend/tests/test_connection_lifecycle.py` guards the file-descriptor count. Contention tests must not assert wall-clock thresholds: use events, barriers or a manual clock (see the writer-yield test in `test_worker_contention_phase2_catalog.py`).
 
 ## Test Categories
 

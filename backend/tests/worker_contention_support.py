@@ -20,6 +20,8 @@ from typing import Any
 
 import pytest
 
+from backend.metadata_store._db import open_connection
+
 VARIANTS: tuple[tuple[str, str, int, int], ...] = (
     ("thumbnail", "thumb_128", 128, 82),
     ("thumbnail", "thumb_512", 512, 85),
@@ -46,7 +48,7 @@ def seed_assets(
 ) -> list[tuple[int, str, int, int]]:
     """Insert ``count`` active image assets and return ``(id, path, mtime_ns, size)``."""
     rows: list[tuple[int, str, int, int]] = []
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         for index in range(start, start + count):
             path = str(root / f"seed_{index:05d}.png")
             mtime_ns = SEED_MTIME_BASE_NS + index * 1_000_000
@@ -81,7 +83,7 @@ def seed_derivative_corpus(
     """
     expected_latest: dict[str, int] = {}
     total_jobs = 0
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         counter = 0
         for asset_id, _path, mtime_ns, size in assets:
             for kind, variant, max_edge, quality in VARIANTS:
@@ -160,7 +162,7 @@ def count_direct_transactions(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 def query_plan(db_path: Path, statement: str) -> str:
     """Return the joined ``EXPLAIN QUERY PLAN`` detail text for ``statement``."""
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         return "\n".join(str(row[3]) for row in conn.execute(f"EXPLAIN QUERY PLAN {statement}"))
 
 
@@ -306,7 +308,7 @@ def seed_queued_metadata_jobs(root: Path, count: int, *, library_name: str = "Co
 
 def metadata_job_row(db_path: Path, path: Path | str) -> dict[str, Any]:
     """Return the ``metadata_index_jobs`` row for ``path`` as a plain dict."""
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM metadata_index_jobs WHERE path = ?", (str(path),)).fetchone()
     assert row is not None, f"no metadata_index_jobs row for {path}"
@@ -316,7 +318,7 @@ def metadata_job_row(db_path: Path, path: Path | str) -> dict[str, Any]:
 def set_metadata_job(db_path: Path, path: Path | str, **columns: Any) -> None:
     """Overwrite columns of one ``metadata_index_jobs`` row (test seeding only)."""
     assignments = ", ".join(f"{name} = ?" for name in columns)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute(f"UPDATE metadata_index_jobs SET {assignments} WHERE path = ?", (*columns.values(), str(path)))
 
 

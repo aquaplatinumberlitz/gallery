@@ -39,7 +39,7 @@ from backend.generation_signatures import (
 )
 from backend.metadata_extract import ExtractedMetadata
 from backend.metadata_store import register_library
-from backend.metadata_store._db import _connect
+from backend.metadata_store._db import _connect, open_connection
 from backend.metadata_store.metadata_persist import upsert_extracted_metadata
 from backend.metadata_store.search_index_store import (
     create_search_index_job,
@@ -269,7 +269,7 @@ def test_v10_migration_failure_rolls_back_and_keeps_backup(
     monkeypatch.setattr(migrations_module, "_execute_v10_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
         migrations_module._migrate_v8_to_v10(conn)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
         assert (
             conn.execute(

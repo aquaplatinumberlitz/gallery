@@ -47,6 +47,7 @@ from backend.metadata_store import (
     renew_catalog_job_lease,
     update_job_state,
 )
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 from tests.test_db_writer import Blocker
 from tests.worker_contention_support import (
@@ -119,7 +120,7 @@ def mode(request: pytest.FixtureRequest) -> str:
 
 
 def _job(db_path: Path, job_id: int) -> dict[str, Any]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM library_jobs WHERE id = ?", (job_id,)).fetchone()
     assert row is not None
@@ -127,7 +128,7 @@ def _job(db_path: Path, job_id: int) -> dict[str, Any]:
 
 
 def _count(db_path: Path, table: str) -> int:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         return int(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
 
 
@@ -246,7 +247,7 @@ def test_claim_transitions_renewals_and_abandoned_claims_are_priority_ops_and_sc
     )
     lanes_of("activation", lambda: activate_rebuild_staging(rebuild_id, library_id, None, rebuild_token, 60))
     lanes_of("delete_staging", lambda: delete_rebuild_staging(rebuild_id, claim_token=rebuild_token))
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute("UPDATE library_jobs SET lease_expires_at = 1.0 WHERE id = ?", (rebuild_id,))
     recovered = lanes_of("recover", lambda: recover_stale_jobs(reason="test recovery", live_worker_ids=set()))
     assert [item["id"] for item in recovered if item["id"] == rebuild_id]
@@ -368,7 +369,7 @@ def test_a_stale_catalog_claim_writes_zero_rows_and_its_ops_raise_inside_the_op(
     old = claim_next_catalog_job(worker_id="w-old", lease_seconds=60)
     assert old is not None
     old_id, old_token = int(old["id"]), str(old["claim_token"])
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute("UPDATE library_jobs SET lease_expires_at = 1.0 WHERE id = ?", (old_id,))
     assert [job["id"] for job in recover_stale_jobs(reason="lost", live_worker_ids=set())] == [old_id]
     scan_worker.queue_scan(library_id, trigger="manual")
@@ -463,12 +464,12 @@ def test_a_heartbeat_landing_between_the_recovery_read_and_its_write_wins(
     scan_worker.queue_scan(library_id, trigger="manual")
     job = claim_next_catalog_job(worker_id="live-worker", lease_seconds=60)
     assert job is not None
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 1, job["id"]))
     real_run_write = job_store.run_write
 
     def racing_run_write(op, **kwargs):
-        with sqlite3.connect(db_path) as raw:  # the heartbeat renews after the candidates were read
+        with open_connection(db_path) as raw:  # the heartbeat renews after the candidates were read
             raw.execute("UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?", (time.time() + 60, job["id"]))
         return real_run_write(op, **kwargs)
 
@@ -569,66 +570,115 @@ def test_a_directory_scan_writes_through_one_shared_writer_connection(
 # ---------------------------------------------------------------------------
 
 
-def _longest_blocked_span(tmp_path: Path, yield_ms: float) -> float:
-    """Saturate a private writer with 4 ms ops and return the longest continuous blocked span of a 5 ms probe."""
+class _ManualClock:
+    """A clock the test advances by hand: elapsed "time" is whatever the ops and the test make it."""
+
+    def __init__(self) -> None:
+        self.now = 1_000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _run_saturated_writer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, yield_ms: int, ops: int, batch_ms: int, op_ms: int
+) -> tuple[list[tuple[float, float]], list[int]]:
+    """Saturate a private writer with ``ops`` back-to-back one-op batches on a manual clock.
+
+    Each op "works" for ``op_ms`` by advancing the manual clock (no sleeping). When the writer pauses to yield
+    the write lock, the test acquires the lock with a second connection (the "other writer"), then advances the
+    clock past the pause. Returns each op's ``(start, end)`` clock times and the stretch boundaries (the number
+    of ops done when the lock was released and another connection took it).
+    """
     from backend.metadata_store.db_writer import DatabaseWriter
 
+    clock = _ManualClock()
+    monkeypatch.setattr(DatabaseWriter, "_clock_monotonic", staticmethod(clock))  # the yield/streak clock
     db_file = tmp_path / f"yield_{int(yield_ms)}.db"
-    with sqlite3.connect(db_file) as conn:
+    with open_connection(db_file) as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)")
 
-    def connect() -> sqlite3.Connection:
-        return sqlite3.connect(db_file, timeout=5, isolation_level=None)
+    writer = DatabaseWriter(
+        connect=lambda: open_connection(db_file, isolation_level=None),
+        path_provider=lambda: db_file,
+        batch_max=1,  # one op per batch, so the batch (and the streak) boundaries do not depend on timing
+        batch_ms=batch_ms,
+        yield_ms=yield_ms,
+        clock=clock,
+    )
+    spans: list[tuple[float, float]] = []
+    handovers: list[int] = []
 
-    writer = DatabaseWriter(connect=connect, path_provider=lambda: db_file, batch_ms=30, yield_ms=yield_ms)
-    writer.start()
-    spans: list[float] = []
-    stop = threading.Event()
-
-    def probe() -> None:
-        conn = sqlite3.connect(db_file, timeout=0, isolation_level=None)
-        blocked_since: float | None = None
-        while not stop.is_set():
-            now = time.monotonic()
-            try:
-                conn.execute("BEGIN IMMEDIATE")
-                conn.execute("ROLLBACK")
-                if blocked_since is not None:
-                    spans.append(now - blocked_since)
-                    blocked_since = None
-            except sqlite3.OperationalError:
-                blocked_since = blocked_since or now
-            time.sleep(0.005)
-        if blocked_since is not None:
-            spans.append(time.monotonic() - blocked_since)
-
-    def slow_op(conn: sqlite3.Connection) -> None:
+    def op(conn: sqlite3.Connection) -> None:
+        start = clock.now
         conn.execute("INSERT INTO t DEFAULT VALUES")
-        time.sleep(0.004)
+        clock.now += op_ms / 1000.0
+        spans.append((start, clock.now))
 
-    thread = threading.Thread(target=probe, daemon=True)
-    thread.start()
+    def another_writer_takes_the_lock() -> None:
+        other = sqlite3.connect(db_file, timeout=0, isolation_level=None)  # timeout=0: fail at once if locked
+        try:
+            other.execute("BEGIN IMMEDIATE")  # raises "database is locked" if the writer still holds the lock
+            other.execute("ROLLBACK")
+        finally:
+            other.close()
+
+    writer.start()
     try:
-        futures = [writer.submit(slow_op) for _ in range(250)]
-        for future in futures:
-            future.result(timeout=60)
+        futures = [writer.submit(op) for _ in range(ops)]
+        per_stretch = -(-batch_ms // op_ms)  # ops per stretch: the first op end at or past batch_ms
+        done = 0
+        while done < ops:
+            # No yield: every op runs without any help from the test. With a yield the writer pauses after each
+            # stretch, so the future that closes the stretch is the last one that can complete before we move on.
+            done = ops if yield_ms <= 0 else min(done + per_stretch, ops)
+            futures[done - 1].result(timeout=60)
+            if yield_ms > 0 and done < ops:
+                assert len(spans) == done, "the writer must not start the next batch while it yields"
+                another_writer_takes_the_lock()
+                handovers.append(done)
+                clock.now += yield_ms / 1000.0 + 0.001  # the pause is over
     finally:
-        stop.set()
-        thread.join(5)
-        writer.stop(timeout=5)
-    return max(spans, default=0.0)
+        writer.stop(timeout=10)
+    return spans, handovers
 
 
 def test_a_saturated_writer_yields_the_write_lock_after_each_stretch_of_back_to_back_batches(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Without the yield a busy writer holds SQLite's write lock continuously; with it, about one batch."""
-    control = _longest_blocked_span(tmp_path, yield_ms=0)
-    yielding = _longest_blocked_span(tmp_path, yield_ms=60)
+    """Without the yield a busy writer never pauses; with it, it releases the lock once per ``batch_ms`` stretch.
 
-    assert control > 0.4, f"control: a saturated writer without the yield holds the lock continuously ({control:.3f}s)"
-    assert yielding < 0.2, f"the yield must cut continuous holds to about one batch ({yielding:.3f}s)"
+    Deterministic replacement for a wall-clock measurement of the longest span a probe was blocked: the writer's
+    clock is manual and each op advances it by 4 ms of fake work, so a 30 ms stretch is exactly 8 ops. With a
+    60 ms yield the writer must stop after op 8, 16, ... without starting the next op until the clock has moved
+    past the pause, and another connection must be able to take the write lock in that gap. Without the yield
+    all ops run back to back with no pause at all (the control).
+    """
+    ops, batch_ms, op_ms = 24, 30, 4
+    control_spans, control_handovers = _run_saturated_writer(
+        tmp_path, monkeypatch, yield_ms=0, ops=ops, batch_ms=batch_ms, op_ms=op_ms
+    )
+    assert len(control_spans) == ops and control_handovers == []
+    assert all(later[0] == earlier[1] for earlier, later in zip(control_spans, control_spans[1:], strict=False)), (
+        "control: a saturated writer without the yield starts every batch the instant the last one ended"
+    )
+
+    yield_ms = 60
+    spans, handovers = _run_saturated_writer(
+        tmp_path, monkeypatch, yield_ms=yield_ms, ops=ops, batch_ms=batch_ms, op_ms=op_ms
+    )
+    assert handovers == [8, 16], "the lock is released after each 30 ms (8-op) stretch of back-to-back batches"
+    assert len(spans) == ops
+    for boundary in handovers:
+        before, after = spans[boundary - 1], spans[boundary]
+        assert after[0] - before[1] >= yield_ms / 1000.0, "the writer paused for the whole yield before the next batch"
+    inside_a_stretch = [
+        (earlier, later)
+        for index, (earlier, later) in enumerate(zip(spans, spans[1:], strict=False), start=1)
+        if index not in handovers
+    ]
+    assert all(later[0] == earlier[1] for earlier, later in inside_a_stretch), "no pause inside a stretch"
 
 
 # ---------------------------------------------------------------------------
@@ -724,7 +774,7 @@ def _catalog_fingerprint(db_path: Path) -> dict[str, list[tuple[Any, ...]]]:
         "JOIN assets a ON a.id = d.asset_id ORDER BY a.path, d.kind, d.variant",
     }
     result: dict[str, list[tuple[Any, ...]]] = {}
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         for name, sql in queries.items():
             result[name] = [tuple(row) for row in conn.execute(sql)]
     return result

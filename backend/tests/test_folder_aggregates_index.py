@@ -182,7 +182,7 @@ def test_v14_database_migrates_to_v15_with_backup_and_index(
     initialize_database()
     after = _aggregates(library_id, list(folders.values()))
     assert after == before
-    with sqlite3.connect(isolated_metadata_db) as raw:
+    with closing(sqlite3.connect(isolated_metadata_db)) as raw:
         assert raw.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION == 15
         index_sql = raw.execute("SELECT sql FROM sqlite_master WHERE name = ?", (FOLDER_IMAGE_INDEX_NAME,)).fetchone()
     assert index_sql is not None

@@ -37,6 +37,7 @@ from backend.metadata_store import (
     initialize_database,
     upsert_metadata_batch,
 )
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_image, create_test_png
 
 # ---------------------------------------------------------------------------
@@ -1005,7 +1006,7 @@ def test_legacy_v1_db_migration_adds_all_columns(
     initialize_database()
 
     # Verify the critical additive columns exist by querying each table
-    with sqlite3.connect(str(isolated_metadata_db)) as check:
+    with open_connection(str(isolated_metadata_db)) as check:
         check.row_factory = sqlite3.Row
 
         # metadata_index_jobs additive columns

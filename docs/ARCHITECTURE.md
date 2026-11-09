@@ -322,6 +322,30 @@ one entry point:
   and raw-workflow queries that need TEMP tables). From inside an op, code that must see
   the op's own uncommitted rows reads through `writer_connection()`.
 
+**Connection lifecycle rule (BL-14).** Every SQLite connection is closed
+deterministically by the code that opens it; nothing is left to garbage collection.
+`with sqlite3.connect(...) as conn:` only commits or rolls back and never closes, so it
+is not used. Instead:
+
+* Every connection opened through `_db.py` (`_connect`, `_connect_read`,
+  `_connect_readonly`, `open_connection`) is a `ClosingConnection`: `with` commits (or
+  rolls back on error) and then closes it. A failure while configuring a new connection
+  closes it before the error escapes. Do not use `with conn:` on a connection you mean to
+  keep using.
+* Long-lived connections are closed explicitly and never used as context managers: the
+  writer thread's connection (`DatabaseWriter._drop_connection` on stop, abort, a path
+  change or a failed rollback) and the direct write path's per-op connection
+  (`run_direct`, closed in `finally`).
+* One-off files (the `*.bak` migration backups) use `contextlib.closing`.
+* The thumbnail `diskcache` index opens one connection per thread and its own `close()`
+  only closes the caller's; `backend/disk_cache.py` (`ThreadClosingCache`) closes each
+  thread's connection when that thread ends, and at interpreter exit for the main thread.
+* Tests follow the same rule. `backend/tests/test_connection_lifecycle.py` repeats the
+  migration backups, read helpers, search, browse and status stores, derivative and
+  metadata-job paths and the writer start/stop cycle, and asserts zero open connections
+  and a stable `/proc/self/fd` count. The pytest config turns
+  `ResourceWarning: unclosed database` into an error (see `docs/testing/README.md`).
+
 There is no process-wide Python lock around SQLite: `_DB_LOCK`, `_DatabaseLock`,
 `WriterThreadLockError`, `DatabaseWriterDeadlock` and the `GALLERY_DB_WRITER_ENABLED` flag
 were removed in Phase 3. Guarantees that the lock used to give beyond serializing writes
@@ -788,7 +812,7 @@ Backend modules are mostly flat, with selected domain packages.
 | Package / Module                     | Purpose                                                   |
 | ------------------------------------ | --------------------------------------------------------- |
 | `metadata_store/`                    | SQLite data access layer: schema, search, CRUD, job queue |
-| `metadata_store/_db.py`              | SQLite connection, init flags, shared constants           |
+| `metadata_store/_db.py`              | SQLite connections (`ClosingConnection`, `open_connection`), init flags, shared constants |
 | `metadata_store/_schema.py`          | `initialize_database` entry point and `CATALOG_SCHEMA_VERSION`; orchestrates fresh creation and upgrades |
 | `metadata_store/_schema_ddl.py`      | Fresh-database DDL (`FRESH_DATABASE_DDL`)                 |
 | `metadata_store/_schema_ensure.py`   | Additive post-v1 columns, indexes, and feature-table ensure helpers |

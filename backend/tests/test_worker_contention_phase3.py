@@ -39,6 +39,7 @@ import pytest
 
 from backend.integrity_checker import IntegrityChecker
 from backend.metadata_store import _connect, create_library, initialize_database
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 from tests.worker_contention_support import (
     WRITER_THREAD_NAME,
@@ -551,5 +552,5 @@ def test_a_fresh_interpreter_can_initialize_the_database_and_write_like_a_cli_sc
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "cli-renamed" in result.stdout
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         assert conn.execute("SELECT name FROM libraries").fetchone()[0] == "cli-renamed"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from . import _db as _db
@@ -42,7 +43,7 @@ def _backup_v1_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v1.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -134,7 +135,7 @@ def _backup_v2_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v2.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -184,7 +185,7 @@ def _backup_v3_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v3.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -232,7 +233,7 @@ def _backup_v4_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v4.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -267,7 +268,7 @@ def _backup_v5_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v5.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -302,7 +303,7 @@ def _backup_v6_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v6.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -337,7 +338,7 @@ def _backup_v7_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v7.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -382,7 +383,7 @@ def _backup_v8_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v8.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -421,7 +422,7 @@ def _backup_v10_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v10.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -456,7 +457,7 @@ def _backup_v11_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v11.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -535,7 +536,7 @@ def _backup_v12_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v12.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -571,7 +572,7 @@ def _backup_v13_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v13.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -605,7 +606,7 @@ def _backup_v14_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v14.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 

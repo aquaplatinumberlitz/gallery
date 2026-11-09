@@ -44,11 +44,12 @@ from backend.metadata_store import (
     reconcile_library_assets,
     register_library,
 )
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
+    conn = open_connection(db_path)  # a ClosingConnection: ``with _connect(...)`` commits and closes
     conn.row_factory = sqlite3.Row
     return conn
 

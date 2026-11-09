@@ -36,6 +36,7 @@ from backend.metadata_store import (
     search_index_fielded,
     upsert_metadata_result,
 )
+from backend.metadata_store._db import open_connection
 from backend.metadata_store._schema import CATALOG_SCHEMA_VERSION
 
 from .conftest import create_test_png
@@ -334,7 +335,7 @@ def test_v13_database_migrates_to_v14_with_backup_and_backfill(
     _db._DB_INITIALIZED = False
     assert _ids("noi") == {asset}
     assert _ids("cafe") == {asset}
-    with sqlite3.connect(isolated_metadata_db) as raw:
+    with open_connection(isolated_metadata_db) as raw:
         assert raw.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION
     assert isolated_metadata_db.with_suffix(f"{isolated_metadata_db.suffix}.v13.bak").exists()
 

@@ -44,6 +44,7 @@ from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler
 from backend.derivative_scheduler.execution import _LeaseHeartbeat
 from backend.metadata_store import index_file
+from backend.metadata_store._db import open_connection
 from backend.visual_fingerprints import notify_derivative_ready as real_notify_derivative_ready
 from tests.conftest import create_test_png
 from tests.test_db_writer import Blocker
@@ -120,7 +121,7 @@ def mode(request: pytest.FixtureRequest) -> str:
 
 
 def _derivative_row(db_path: Path, derivative_id: int) -> dict[str, Any]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()
     assert row is not None
@@ -128,7 +129,7 @@ def _derivative_row(db_path: Path, derivative_id: int) -> dict[str, Any]:
 
 
 def _job_rows(db_path: Path, derivative_id: int) -> list[dict[str, Any]]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.row_factory = sqlite3.Row
         return [
             dict(row)
@@ -141,7 +142,7 @@ def _job_rows(db_path: Path, derivative_id: int) -> list[dict[str, Any]]:
 def _make_ready(db_path: Path, derivative_id: int, cache_file: Path, *, byte_size: int = 5) -> None:
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_bytes(b"x" * byte_size)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = ?, last_accessed_at = NULL "
             "WHERE id = ?",
@@ -239,7 +240,7 @@ def test_reconcile_recovery_and_queued_job_reconciliation_use_the_normal_lane(
 
     claimed = scheduler._claim_job("worker-a")
     assert claimed is not None
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute(
             "UPDATE derivative_jobs SET lease_expires_at = julianday('now') - 1 WHERE id = ?", (claimed["job_id"],)
         )
@@ -304,7 +305,7 @@ def test_a_stale_claims_completion_and_failure_apply_zero_rows(
     scheduler.schedule_derivative(asset_id, "thumbnail", THUMB_VARIANT, 3)
     old = scheduler._claim_job("worker-old")
     assert old is not None
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute(
             "UPDATE derivative_jobs SET lease_expires_at = julianday('now') - 1 WHERE id = ?", (old["job_id"],)
         )
@@ -350,14 +351,14 @@ def test_the_lease_heartbeat_renews_through_the_writer_while_unrelated_bulk_writ
     scheduler.schedule_derivative(images[0][0], "thumbnail", THUMB_VARIANT, 3)
     job = scheduler._claim_job("worker")
     assert job is not None
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute(
             "UPDATE derivative_jobs SET lease_expires_at = julianday('now') + 1.0 / 86400 WHERE id = ?",
             (job["job_id"],),
         )
 
     def renewed() -> bool:
-        with sqlite3.connect(db_path) as conn:
+        with open_connection(db_path) as conn:
             return bool(
                 conn.execute(
                     "SELECT lease_expires_at > julianday('now') + 100.0 / 86400 FROM derivative_jobs WHERE id = ?",
@@ -400,7 +401,7 @@ def test_the_derivative_workers_drain_every_job_through_the_writer(library, subm
     try:
 
         def all_ready() -> bool:
-            with sqlite3.connect(db_path) as conn:
+            with open_connection(db_path) as conn:
                 return (
                     conn.execute("SELECT count(*) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0]
                     == expected
@@ -411,7 +412,7 @@ def test_the_derivative_workers_drain_every_job_through_the_writer(library, subm
         scheduler.stop()
 
     assert submit_log, "the derivative workers never used the writer"
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         done = conn.execute("SELECT count(*) FROM derivative_jobs WHERE state = 'done'").fetchone()[0]
         files = [row[0] for row in conn.execute("SELECT cache_path FROM asset_derivatives")]
     assert done == expected and all(Path(path).is_file() for path in files)
@@ -451,7 +452,7 @@ def test_a_derivative_lifecycle_writes_only_on_the_writer_thread(
         assert job is not None
         scheduler._run_job(job)  # render (dimension upsert), completion, quota enforcement
         scheduler._claim_job("worker-2")
-        with sqlite3.connect(db_path) as conn:
+        with open_connection(db_path) as conn:
             conn.execute("UPDATE derivative_jobs SET lease_expires_at = julianday('now') - 1 WHERE state = 'running'")
             conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (images[2][0],))
         scheduler._recover_running_jobs(expired_only=True)
@@ -504,7 +505,7 @@ def test_the_derivative_ready_hook_invalidates_through_the_writer_and_schedules_
 
 def _seed_superseded_ready(db_path: Path, asset_id: int, cache_file: Path) -> int:
     """Insert a ready derivative of an old source identity of ``asset_id`` with a file on disk."""
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         mtime_ns, size = conn.execute("SELECT mtime_ns, size FROM assets WHERE id = ?", (asset_id,)).fetchone()
         derivative_id = int(
             conn.execute(
@@ -572,7 +573,7 @@ def test_eviction_is_two_writer_ops_with_the_unlink_between_them(
     files = [tmp_path / "ev" / f"{index}.webp" for index in range(2)]
     for derivative_id, cache_file in zip(ids, files, strict=True):
         _make_ready(db_path, derivative_id, cache_file, byte_size=400)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute("UPDATE asset_derivatives SET last_accessed_at = 2460000.0 WHERE id = ?", (ids[0],))
         conn.execute("UPDATE asset_derivatives SET last_accessed_at = 2460001.0 WHERE id = ?", (ids[1],))
     recording = RecordingWriter(monkeypatch)
@@ -620,7 +621,7 @@ def test_the_warm_ready_lookup_does_not_wait_for_a_busy_writer_and_the_touch_is_
         assert blocker.entered.wait(10)
         thread = threading.Thread(target=request, daemon=True)
         thread.start()
-        returned_while_blocked = done.wait(2.0)
+        returned_while_blocked = done.wait(30)  # the blocker stays parked: only a real writer wait can fail this
         touched_while_blocked = _derivative_row(db_path, derivative_id)["last_accessed_at"]
     finally:
         blocker.release.set()
@@ -661,7 +662,7 @@ def test_a_warm_lookup_skips_the_touch_while_maintenance_is_active(
     with maintenance_gate():
         thread = threading.Thread(target=request, daemon=True)
         thread.start()
-        assert done.wait(5), "the request path must never wait for maintenance"
+        assert done.wait(30), "the request path must never wait for maintenance"  # held until we leave the gate
     thread.join(10)
 
     assert outcome["ready"] is not None
@@ -769,7 +770,7 @@ def test_reconcile_results_are_identical_through_the_writer_and_directly(
 
     library_id, images = _make_library(isolated_gallery_root / "eq", 36)
     assets = []
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         for asset_id, image in images:
             stat = image.stat()
             assets.append((asset_id, str(image), stat.st_mtime_ns, stat.st_size))

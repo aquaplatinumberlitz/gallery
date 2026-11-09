@@ -49,6 +49,7 @@ from backend.metadata_store import file_index as file_index_module
 from backend.metadata_store import job_store as job_store_module
 from backend.metadata_store import metadata_queue as metadata_queue_module
 from backend.metadata_store import rebuild_store as rebuild_store_module
+from backend.metadata_store._db import open_connection
 
 from .conftest import create_test_png
 from .worker_contention_support import count_direct_transactions
@@ -316,7 +317,7 @@ def test_recovery_update_allows_concurrent_heartbeat_to_win(
         nonlocal calls
         calls += 1
         if calls == 1:
-            with sqlite3.connect(isolated_metadata_db) as raw:
+            with open_connection(isolated_metadata_db) as raw:
                 raw.execute(
                     "UPDATE library_jobs SET lease_expires_at = ? WHERE id = ?",
                     (time.time() + 60, job["id"]),
@@ -816,7 +817,7 @@ def test_live_claim_survives_other_workers_long_activation(
 
 
 def _database_dump(path: Path) -> str:
-    with sqlite3.connect(path) as conn:
+    with open_connection(path) as conn:
         return "\n".join(conn.iterdump())
 
 
@@ -824,7 +825,7 @@ def test_v3_migration_failure_rolls_back_and_keeps_v2_backup(
     isolated_metadata_db: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.executescript(
             """
             DROP TABLE IF EXISTS library_jobs;
@@ -853,7 +854,7 @@ def test_v3_migration_failure_rolls_back_and_keeps_v2_backup(
         original(conn, statement)
 
     monkeypatch.setattr(migrations_module, "_execute_v3_migration_statement", fail_second)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.row_factory = sqlite3.Row
         with pytest.raises(RuntimeError, match="v3 injected failure"):
             migrations_module._migrate_v2_to_v3(conn)

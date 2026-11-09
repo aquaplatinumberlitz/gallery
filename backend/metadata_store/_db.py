@@ -63,22 +63,75 @@ def _gallery_metadata_db_path() -> Path:
     return GALLERY_METADATA_DB
 
 
-def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
-    db_path = _gallery_metadata_db_path()
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
-    if set_journal_mode:
-        conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.execute("PRAGMA foreign_keys=ON")
+class ClosingConnection(sqlite3.Connection):
+    """A ``sqlite3.Connection`` whose ``with`` block always closes it.
+
+    The stdlib ``with conn:`` only commits or rolls back and leaves the connection open until it is
+    garbage collected (a ``ResourceWarning`` at best, an exhausted descriptor table at worst when a
+    traceback or cycle keeps it alive). Every connection this package opens is a ``ClosingConnection``,
+    so ``with _connect_read() as conn:`` commits (or rolls back) and then closes it. Long-lived
+    connections (the database writer, the direct write path) are closed explicitly and never used as a
+    context manager. Do not use ``with conn:`` on a connection you intend to keep using.
+    """
+
+    def __exit__(self, exc_type, exc_value, traceback):  # noqa: ANN001, ANN204
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+
+
+def open_connection(
+    target: str | Path,
+    *,
+    timeout: float = 30.0,
+    isolation_level: str | None = "",
+    uri: bool = False,
+) -> ClosingConnection:
+    """Open a ``ClosingConnection`` and close it again if the caller never receives it.
+
+    Every production ``sqlite3.connect`` goes through here (or ``contextlib.closing`` for one-off
+    backup files) so that a failure while configuring the connection cannot leak a descriptor.
+    """
+    kwargs: dict = {"timeout": timeout, "uri": uri, "factory": ClosingConnection}
+    if isolation_level != "":
+        kwargs["isolation_level"] = isolation_level
+    return sqlite3.connect(target, **kwargs)
+
+
+def _configure_or_close(conn: sqlite3.Connection, configure) -> sqlite3.Connection:  # noqa: ANN001
+    """Run ``configure(conn)``; on any failure close ``conn`` before re-raising."""
+    try:
+        configure(conn)
+    except BaseException:
+        conn.close()
+        raise
     return conn
 
 
+def _connect(*, set_journal_mode: bool = False) -> sqlite3.Connection:
+    """Open the read-write connection (default isolation). The caller owns it and must close it.
+
+    Use it as ``with _connect() as conn:`` for a one-shot transaction (commit or rollback, then close) or
+    close it explicitly when it is long-lived.
+    """
+    db_path = _gallery_metadata_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def configure(conn: sqlite3.Connection) -> None:
+        conn.row_factory = sqlite3.Row
+        conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
+        if set_journal_mode:
+            conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA foreign_keys=ON")
+
+    return _configure_or_close(open_connection(db_path, timeout=30), configure)
+
+
 def _connect_read() -> sqlite3.Connection:
-    """Open a read-only connection for status snapshots.
+    """Open a read-only connection for status snapshots. The caller owns it: ``with`` closes it.
 
     The connection takes no Python lock and refuses writes (``query_only``), so a
     status read cannot queue behind, or block, any worker. Transactions are explicit
@@ -86,12 +139,14 @@ def _connect_read() -> sqlite3.Connection:
     """
     db_path = _gallery_metadata_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path, timeout=30, isolation_level=None)
-    conn.row_factory = sqlite3.Row
-    conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.execute("PRAGMA query_only=ON")
-    return conn
+
+    def configure(conn: sqlite3.Connection) -> None:
+        conn.row_factory = sqlite3.Row
+        conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA query_only=ON")
+
+    return _configure_or_close(open_connection(db_path, timeout=30, isolation_level=None), configure)
 
 
 def _connect_readonly(*, timeout: float = 30.0) -> sqlite3.Connection:
@@ -102,11 +157,14 @@ def _connect_readonly(*, timeout: float = 30.0) -> sqlite3.Connection:
     temp store, which ``PRAGMA query_only`` would forbid.
     """
     db_path = _gallery_metadata_db_path()
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=timeout, isolation_level=None)
-    conn.row_factory = sqlite3.Row
-    conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
-    conn.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
-    return conn
+
+    def configure(conn: sqlite3.Connection) -> None:
+        conn.row_factory = sqlite3.Row
+        conn.create_collation("GALLERY_NATURAL", _compare_natural_sql)
+        conn.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
+
+    conn = open_connection(f"file:{db_path}?mode=ro", timeout=timeout, isolation_level=None, uri=True)
+    return _configure_or_close(conn, configure)
 
 
 @contextmanager

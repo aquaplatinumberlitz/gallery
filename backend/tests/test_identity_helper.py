@@ -16,9 +16,9 @@ match assets, image metadata, and metadata jobs.
 from __future__ import annotations
 
 import ntpath
-import sqlite3
 
 from backend.metadata_store import identity, path_utils
+from backend.metadata_store._db import open_connection
 from backend.metadata_store.identity import (
     _NANOS_PER_SEC,
     MTIME_NS_TOLERANCE,
@@ -39,7 +39,7 @@ def test_constants_are_exported() -> None:
 def test_windows_canonical_path_rejects_mixed_separator_traversal(monkeypatch) -> None:
     monkeypatch.setattr(identity.os, "sep", "\\")
     predicate = identity.catalog_path_is_canonical_sql(path_sql=":path")
-    with sqlite3.connect(":memory:") as conn:
+    with open_connection(":memory:") as conn:
         valid = conn.execute(f"SELECT {predicate}", {"path": r"C:\root\safe\image.png"}).fetchone()[0]
         traversal = conn.execute(
             f"SELECT {predicate}",
@@ -56,7 +56,7 @@ def test_windows_drive_and_unc_roots_are_canonical_and_own_children(monkeypatch)
     direct = identity.catalog_direct_child_sql(parent_path_sql=":parent", path_sql=":path")
     ownership = identity.catalog_import_path_owns_sql(library_id_sql=":library_id", path_sql=":path")
 
-    with sqlite3.connect(":memory:") as conn:
+    with open_connection(":memory:") as conn:
         conn.execute("CREATE TABLE library_import_paths(library_id INTEGER, path TEXT)")
         for root, child in (
             ("C:\\", "C:\\image.png"),
@@ -93,7 +93,7 @@ def test_posix_canonical_paths_require_absolute_roots() -> None:
     canonical = identity.catalog_path_is_canonical_sql(path_sql=":path")
     ownership = identity.catalog_import_path_owns_sql(library_id_sql=":library_id", path_sql=":path")
 
-    with sqlite3.connect(":memory:") as conn:
+    with open_connection(":memory:") as conn:
         conn.execute("CREATE TABLE library_import_paths(library_id INTEGER, path TEXT)")
         conn.execute("INSERT INTO library_import_paths VALUES (1, 'relative/root')")
 
