@@ -46,11 +46,5 @@ search-typing work on 2026-11-09, with schema v14 on `main` @ `02edf78`.
 
 | Track | Status | Evidence |
 |-------|--------|----------|
-| G | Merged after Opus review | Tier-ordered page plan, a capped count (`4096+`), a field-only ordered probe, and the v15 folder-image index (+4.65% DB size, 4.8 s migration).
-- 100k p95, base to quiet host: `a` 1940 to 77 ms, `m` 505 to 75 ms, `prompt:c` 759 to 15 ms, counts 2.2-4.2 s to 49-100 ms, `ass` 3326 to 236 ms.
-- Result order is pinned by sha256 and an old-plan oracle.
-- Opus ran `./test.sh perf` 3 times on the merged branch. The densest keyset chains sit near the budget (`c` chain 283-320 ms, the dense 3-char chain up to 328 ms). The pre-existing `fielded` class and lightbox visual-ready also flake near their budgets (309 ms, 1012-1049 ms). One of the 3 runs passed every check. The remaining margin is tracked as BL-15. |
-| H | Merged after Opus review | `ClosingConnection` / `open_connection` replace about 130 leaking production sites and 12 backup sites. `ThreadClosingCache` covers the diskcache per-thread connections.
-- fd growth over 20 rounds: +1400 before, at most 2 after. Unclosed-database warnings: 13187 before, 0 after, and now enforced as an error.
-- Contention tests are deterministic (manual clock, mutation-checked).
-- `./test.sh fast` passed twice in a row, and again on the merged branch. |
+| G | Merged after Opus review | Tier-ordered page plan, a capped count (`4096+`), a field-only ordered probe, and the v15 folder-image index (+4.65% DB size, 4.8 s migration). 100k p95, base to quiet host: `a` 1940 to 77 ms, `m` 505 to 75 ms, `prompt:c` 759 to 15 ms, counts 2.2-4.2 s to 49-100 ms, `ass` 3326 to 236 ms. Result order is pinned by sha256 and an old-plan oracle. Opus ran `./test.sh perf` 3 times on the merged branch. The densest keyset chains sit near the budget (`c` chain 283-320 ms, the dense 3-char chain up to 328 ms). The pre-existing `fielded` class and lightbox visual-ready also flake near their budgets (309 ms, 1012-1049 ms). One of the 3 runs passed every check. The remaining margin is tracked as BL-15. |
+| H | Merged after Opus review | `ClosingConnection` / `open_connection` replace about 130 leaking production sites and 12 backup sites. `ThreadClosingCache` covers the diskcache per-thread connections. fd growth over 20 rounds: +1400 before, at most 2 after. Unclosed-database warnings: 13187 before, 0 after, and now enforced as an error. Contention tests are deterministic (manual clock, mutation-checked). `./test.sh fast` passed twice in a row, and again on the merged branch. |
