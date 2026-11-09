@@ -60,6 +60,7 @@ function setup(
   scope: SearchScope,
   path: string,
   filters: SearchFiltersV1 = { prompt_groups: [], workflow_groups: [] },
+  submittedQuery = ref(""),
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const queryRef = ref(query);
@@ -93,13 +94,13 @@ function setup(
   const wrapper = mount(
     defineComponent({
       setup() {
-        result = useUnifiedSearchQuery(requestRef);
+        result = useUnifiedSearchQuery(requestRef, { submittedQuery });
         return () => h("div");
       },
     }),
     { global: { plugins: [[VueQueryPlugin, { queryClient }]] } },
   );
-  return { result, queryClient, wrapper, queryRef, scopeRef, pathRef };
+  return { result, queryClient, wrapper, queryRef, scopeRef, pathRef, submittedQuery };
 }
 
 beforeEach(() => {
@@ -194,22 +195,66 @@ describe("useUnifiedSearchQuery", () => {
     );
   });
 
-  it("clears previous results for a new query while the next fetch is pending", async () => {
+  // SE-01: once results are showing, typing more keeps them visible until the next page arrives.
+  // This replaces the old "clears previous results" expectation, which caused the browse fallback between keys.
+  it("keeps previous results visible while a new query settles (SE-01)", async () => {
     vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
     const { result, queryRef } = setup("cat", "all", "");
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
     await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
 
-    // Keep second fetch pending so we can observe the new-key loading state.
+    // Keep the second fetch pending so the new-key state is observable.
     vi.mocked(unifiedSearchV2).mockReturnValue(new Promise(() => {}));
     queryRef.value = "dog";
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS - 1);
-
-    expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [], media: [] });
+    expect(result.results.value.media).toEqual([makeSearchResult("1.png")]);
 
     await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
+    expect(result.results.value.media).toEqual([makeSearchResult("1.png")]);
+    expect(result.isPlaceholderData.value).toBe(true);
+  });
+
+  it("returns no results once the query is cleared, even while previous data exists", async () => {
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
+    const { result, queryRef } = setup("cat", "all", "");
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
+    await vi.waitFor(() => expect(result.results.value.media).toEqual([makeSearchResult("1.png")]));
+
+    queryRef.value = "";
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(result.results.value).toEqual({ albums: [], photos: [], videos: [], prompt: [], media: [] });
+  });
+
+  // SE-02: Enter flushes the debounce, so the request leaves at once.
+  it("sends a query submitted with Enter without waiting for the debounce (SE-02)", async () => {
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
+    const submitted = ref("");
+    const { queryRef } = setup("ca", "all", "", undefined, submitted);
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS);
+    vi.mocked(unifiedSearchV2).mockClear();
+
+    queryRef.value = "cat";
+    submitted.value = "cat";
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(unifiedSearchV2).toHaveBeenCalledWith(expect.objectContaining({ text: "cat" }), expect.any(AbortSignal));
+  });
+
+  it("never requests empty text for typed input that is still settling", async () => {
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
+    const { queryRef } = setup("", "all", "");
+    queryRef.value = "cat";
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS - 1);
+    expect(unifiedSearchV2).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    await vi.waitFor(() => expect(unifiedSearchV2).toHaveBeenCalled());
+    expect(vi.mocked(unifiedSearchV2).mock.calls.map(([payload]) => payload.text)).toEqual(["cat"]);
+  });
+
+  it("uses a 250 ms debounce shared with the match preview (SE-02)", () => {
+    expect(GALLERY_SEARCH_DEBOUNCE_MS).toBe(250);
   });
 
   it("uses scope current to scope search within path", async () => {

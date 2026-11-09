@@ -3,6 +3,7 @@ import { ref, nextTick, onBeforeUnmount, watch, computed } from "vue";
 import { Menu, Search, X, ArrowLeft, Library, Loader2, SlidersHorizontal } from "lucide-vue-next";
 import { RouterLink } from "vue-router";
 import Breadcrumb from "./Breadcrumb.vue";
+import { isImeComposingEvent } from "@/lib/imeComposition";
 import SearchScopeSelect from "./SearchScopeSelect.vue";
 import { useGalleryStore } from "../stores/gallery";
 import { useFieldedSearch } from "@/composables/useFieldedSearch";
@@ -84,6 +85,8 @@ function handleOverlayClick() {
 }
 
 function onInputKeydown(e: KeyboardEvent) {
+  // CJ-02: keys pressed while an IME is composing (including the Enter that confirms a candidate) belong to the IME.
+  if (isImeComposingEvent(e)) return;
   if (e.key === "Escape") {
     e.preventDefault();
     closeSearch();
@@ -94,7 +97,7 @@ function onInputKeydown(e: KeyboardEvent) {
 }
 
 function handleGlobalKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape" && isSearchActive.value) {
+  if (e.key === "Escape" && isSearchActive.value && !isImeComposingEvent(e)) {
     e.preventDefault();
     closeSearch();
   }
@@ -112,9 +115,19 @@ watch(isSearchActive, (active) => {
   }
 });
 
+// CJ-01: uncommitted IME text is not emitted; the committed text is emitted on compositionend.
+const isComposing = ref(false);
 function onSearchInput(e: Event) {
+  if (isComposing.value || (e as InputEvent).isComposing) return;
   const target = e.target as HTMLInputElement;
   emit("update:searchQuery", target.value);
+}
+function onSearchCompositionStart() {
+  isComposing.value = true;
+}
+function onSearchCompositionEnd(e: CompositionEvent) {
+  isComposing.value = false;
+  emit("update:searchQuery", (e.target as HTMLInputElement).value);
 }
 
 function openAdvancedSearch() {
@@ -186,8 +199,10 @@ function openAdvancedSearch() {
           id="tablet-gallery-search"
           name="gallery-search"
           ref="searchInputRef"
-          :value="searchQuery"
+          :value="isComposing && searchInputRef ? searchInputRef.value : searchQuery"
           @input="onSearchInput"
+          @compositionstart="onSearchCompositionStart"
+          @compositionend="onSearchCompositionEnd"
           @keydown="onInputKeydown"
           type="search"
           placeholder="Search gallery"

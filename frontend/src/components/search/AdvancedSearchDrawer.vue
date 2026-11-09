@@ -11,11 +11,13 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useFacetsQuery } from "@/composables/useFacetsQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
 import { useSearchMatchPreview } from "@/composables/useSearchMatchPreview";
+import { useRecentSearches } from "@/composables/useRecentSearches";
 import { useGalleryStore } from "@/stores/gallery";
 import { filterToDisplayString } from "@/utils/serializeAdvancedSearchToQuery";
 import { replaceManagedFilters } from "@/utils/searchQueryGrammar";
 import { buildSearchScopeV1 } from "@/utils/searchRequest";
 import { useSearchCapabilitiesQuery } from "@/composables/useSearchCapabilitiesQuery";
+import { isEnterCommit, isImeComposingEvent } from "@/lib/imeComposition";
 import type {
   FacetEntry,
   FieldFilter,
@@ -236,6 +238,17 @@ const fieldLabels: Partial<Record<FormFieldName, string>> = {
 
 const jumpQuery = shallowRef("");
 
+// CJ-02: the Enter that confirms an IME candidate in the jump field neither jumps nor submits the form.
+function onJumpKeydown(event: KeyboardEvent) {
+  if (event.key === "Enter" && isImeComposingEvent(event)) {
+    event.preventDefault(); // keep the form's implicit submit out of the IME Enter
+    return;
+  }
+  if (!isEnterCommit(event)) return;
+  event.preventDefault();
+  void handleJumpToField();
+}
+
 async function handleJumpToField() {
   const query = jumpQuery.value.trim().toLowerCase();
   if (!query) return;
@@ -273,6 +286,11 @@ const indexedFacetGroups = computed(() => [
   ...additionalFacetGroups.value,
 ]);
 const facetsLoading = computed(() => facetsQuery.isLoading.value);
+// AV-03: reference sections below the filters. Recent searches opens when it has entries; facets starts collapsed.
+const recentSearches = useRecentSearches();
+const recentSearchCount = computed(() => recentSearches.recent.value.length);
+const indexedGroupCount = computed(() => indexedFacetGroups.value.filter((group) => group.entries.length > 0).length);
+const referenceSections = shallowRef<string[]>(recentSearchCount.value ? ["recent-searches"] : []);
 const facetsFailed = computed(() => facetsQuery.isError?.value ?? false);
 
 const previewRequest = computed<PersistableSearchRequestV1 | null>(() => {
@@ -393,7 +411,7 @@ watch(
   <Sheet :open="isOpen" @update:open="handleOpenChange">
     <SheetContent
       side="right"
-      class="advanced-search-drawer w-full max-w-none gap-0 p-0 sm:w-[min(640px,42vw)] sm:max-w-[640px]"
+      class="advanced-search-drawer w-full max-w-none gap-0 p-0 sm:w-[min(640px,90vw)] sm:max-w-[640px] xl:w-[min(640px,42vw)]"
       data-testid="advanced-search-drawer"
       @interact-outside="handleInteractOutside"
     >
@@ -449,10 +467,6 @@ watch(
             </ul>
           </div>
 
-          <RecentSearchesPanel class="mb-4" @apply="applyCanonicalRequest" @keydown.stop />
-
-          <IndexedFacetSummary class="mb-4" :groups="indexedFacetGroups" @apply="handleFacetApply" />
-
           <Accordion
             type="multiple"
             :model-value="activeAccordionSections"
@@ -472,7 +486,7 @@ watch(
                 v-model="jumpQuery"
                 class="advanced-search-jump-input"
                 placeholder="Jump to a field (e.g. seed, steps, model)…"
-                @keydown.enter.prevent="handleJumpToField"
+                @keydown="onJumpKeydown"
               />
             </div>
 
@@ -977,13 +991,60 @@ watch(
               </AccordionContent>
             </AccordionItem>
           </Accordion>
+
+          <!-- AV-03: reference sections sit below the filters. Recent searches opens when it has entries; the facets
+               table is long, so it starts collapsed with its group count in the trigger. -->
+          <Accordion
+            type="multiple"
+            :model-value="referenceSections"
+            @update:model-value="referenceSections = $event as string[]"
+            class="mt-4 min-w-0 max-w-full"
+            data-testid="advanced-search-reference-sections"
+          >
+            <AccordionItem value="recent-searches">
+              <AccordionTrigger class="advanced-search-section-trigger text-left no-underline hover:no-underline">
+                <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
+                  <span>Recent searches</span>
+                  <span
+                    v-if="recentSearchCount"
+                    class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums"
+                    data-testid="advanced-search-recent-count"
+                  >
+                    {{ recentSearchCount }}
+                  </span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-1">
+                <RecentSearchesPanel embedded @apply="applyCanonicalRequest" @keydown.stop />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="indexed-facets">
+              <AccordionTrigger class="advanced-search-section-trigger text-left no-underline hover:no-underline">
+                <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
+                  <span>
+                    Indexed facets
+                    <span
+                      v-if="indexedGroupCount"
+                      class="font-normal text-muted-foreground"
+                      data-testid="advanced-search-facets-count"
+                    >
+                      · {{ indexedGroupCount }} {{ indexedGroupCount === 1 ? "group" : "groups" }}
+                    </span>
+                  </span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-1">
+                <IndexedFacetSummary embedded :groups="indexedFacetGroups" @apply="handleFacetApply" />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
 
         <footer
           class="advanced-search-footer flex shrink-0 flex-col gap-3 border-t bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4"
           data-testid="advanced-search-footer"
         >
-          <div class="flex min-w-0 items-center justify-between gap-3 sm:justify-start">
+          <div class="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:justify-start">
             <Button
               type="button"
               variant="outline"
@@ -1007,14 +1068,14 @@ watch(
             </Button>
             <span
               v-if="validationErrorCount"
-              class="min-w-0 truncate text-xs font-medium text-destructive"
+              class="whitespace-nowrap text-xs font-medium text-destructive"
               role="alert"
             >
               {{ validationErrorCount }} field{{ validationErrorCount === 1 ? "" : "s" }} need attention
             </span>
-            <span v-else-if="isDirty" class="min-w-0 truncate text-xs text-muted-foreground">Unsaved changes</span>
+            <span v-else-if="isDirty" class="whitespace-nowrap text-xs text-muted-foreground">Unsaved changes</span>
           </div>
-          <div class="flex items-center justify-end gap-2 sm:gap-3">
+          <div class="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
             <Button type="button" variant="ghost" size="sm" class="advanced-search-action" @click="handleCancel">
               Cancel
             </Button>
@@ -1061,6 +1122,12 @@ watch(
   top: 0;
   z-index: 2;
   background: var(--background);
+}
+
+/* AV-01: footer actions keep their label and never squeeze; the status wraps onto the actions' row instead. */
+.advanced-search-footer button {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .advanced-search-jump-field {

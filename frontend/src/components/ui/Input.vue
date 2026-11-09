@@ -43,6 +43,25 @@ const emit = defineEmits<{
 const inputClasses = computed(() => cn(inputVariants({ variant: props.variant }), props.class));
 const inputRef = ref<HTMLInputElement | null>(null);
 
+// CJ-01: while an IME is composing, the uncommitted text must not reach the model. The value is emitted once on
+// compositionend with the committed text. While composing, the bound value follows the live DOM value, so a re-render
+// does not overwrite the composition.
+const composing = ref(false);
+
+function onInput(event: Event) {
+  if (composing.value || (event as InputEvent).isComposing) return;
+  emit("update:modelValue", (event.target as HTMLInputElement).value);
+}
+
+function onCompositionStart() {
+  composing.value = true;
+}
+
+function onCompositionEnd(event: CompositionEvent) {
+  composing.value = false;
+  emit("update:modelValue", (event.target as HTMLInputElement).value);
+}
+
 defineExpose({
   blur: () => inputRef.value?.blur(),
   focus: () => inputRef.value?.focus(),
@@ -53,8 +72,10 @@ defineExpose({
   <input
     ref="inputRef"
     :type="type"
-    :value="modelValue"
+    :value="composing && inputRef ? inputRef.value : modelValue"
     :class="inputClasses"
-    @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+    @input="onInput"
+    @compositionstart="onCompositionStart"
+    @compositionend="onCompositionEnd"
   />
 </template>

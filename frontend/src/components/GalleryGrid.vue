@@ -4,11 +4,13 @@ import {
   inject,
   onBeforeUnmount,
   ref,
+  shallowRef,
   useTemplateRef,
   watch,
   type ComponentPublicInstance,
   type CSSProperties,
 } from "vue";
+import type { SearchMediaTotal } from "@/utils/searchResultCount";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import { useRelatedAssetsStore } from "../stores/relatedAssets";
@@ -180,7 +182,9 @@ const hasStructuredSearch = computed(
     Boolean(canonicalSearchRequest.value?.filters.prompt_groups.length) ||
     Boolean(canonicalSearchRequest.value?.filters.workflow_groups.length),
 );
-const unifiedSearchQuery = useUnifiedSearchQuery(canonicalSearchRequest);
+const unifiedSearchQuery = useUnifiedSearchQuery(canonicalSearchRequest, {
+  submittedQuery: computed(() => galleryStore.submittedSearchQuery),
+});
 watch(
   [() => unifiedSearchQuery.error.value, () => unifiedSearchQuery.isSuccess.value],
   ([error, isSuccess]) => {
@@ -193,24 +197,50 @@ watch(
   { immediate: true },
 );
 const settledSearchQuery = computed(() => unifiedSearchQuery.debouncedQuery.value);
+// SE-01: a search that is showing stays in search mode while a newer query settles (settled text non-empty).
 const hasSearchQuery = computed(
   () =>
     hasStructuredSearch.value ||
     isSubmittedSearchQuery.value ||
-    (settledSearchQuery.value.length > 0 && settledSearchQuery.value === effectiveSearchQuery.value),
+    (settledSearchQuery.value.length > 0 && effectiveSearchQuery.value.length > 0),
 );
-// Same `search-count` query (and cache entry) as the Advanced Search drawer; the request is already settled here.
+// SE-05: the `search-count` request (same query and cache entry as the Advanced Search drawer) is sent only for
+// settled, non-empty text that matches the typed text. Enter never sends an empty or stale count.
 const searchCountPreview = useSearchMatchPreview(
   () =>
-    hasSearchQuery.value && canonicalSearchRequest.value
+    settledSearchQuery.value.length > 0 &&
+    settledSearchQuery.value === effectiveSearchQuery.value &&
+    canonicalSearchRequest.value
       ? persistableSearchRequest({ ...canonicalSearchRequest.value, text: settledSearchQuery.value })
       : null,
   { debounceMs: 0 },
 );
-const searchMediaTotal = computed(() => {
-  const state = searchCountPreview.state.value;
-  return state.status === "done" ? { total: state.total, hasMore: state.hasMore } : null;
+// While a newer query settles, the header keeps the total of the results still on screen (they are dimmed), instead of
+// flickering to the loaded count and back. The held total is dropped when the search leaves search mode.
+const lastSearchMediaTotal = shallowRef<SearchMediaTotal | null>(null);
+watch(
+  () => searchCountPreview.state.value,
+  (state) => {
+    if (state.status === "done") lastSearchMediaTotal.value = { total: state.total, hasMore: state.hasMore };
+  },
+  { immediate: true },
+);
+watch(hasSearchQuery, (active) => {
+  if (!active) lastSearchMediaTotal.value = null;
 });
+const searchMediaTotal = computed<SearchMediaTotal | null>(() => {
+  const state = searchCountPreview.state.value;
+  if (state.status === "done") return { total: state.total, hasMore: state.hasMore };
+  // Keep the last total while the new text settles or its count is pending (idle for one tick, or loading), so the
+  // header does not flicker to the loaded count. A failed count falls back to the loaded count.
+  if (state.status === "error") return null;
+  return hasSearchQuery.value ? lastSearchMediaTotal.value : null;
+});
+// True while the header shows a held total (the count for the new text is pending). The held total is formatted on its
+// own: the query's hasNextPage is briefly false while a new first page lands, which would otherwise show the loaded count.
+const searchCountPending = computed(
+  () => searchCountPreview.state.value.status !== "done" && searchMediaTotal.value !== null,
+);
 const showSearchWarmupHint = computed(() => trimmedSearchQuery.value.length > 0 && !hasSearchQuery.value);
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
@@ -911,6 +941,8 @@ useInfiniteLoadSentinel({
       :fetching-next-page="isSearchFetchingNextPage"
       :show-all-indexed-hint="showAllIndexedHint"
       :media-total="searchMediaTotal"
+      :settling="isSearchSettling"
+      :count-pending="searchCountPending"
       @open-folder="handleOpenFolder"
       @open-media="handleOpenMedia(searchResultToFileNode($event))"
       @find-related="handleFindRelated(searchResultToFileNode($event))"

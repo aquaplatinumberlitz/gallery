@@ -583,6 +583,9 @@ for (const viewport of [
     await initializeGallery(page);
     const drawer = await openAdvancedSearch(page, viewport.compact);
 
+    // AV-03: Recent searches is a collapsible section, collapsed when it has no entries. Expand it to read its copy.
+    const recentTrigger = drawer.getByRole("button", { name: /Recent searches/ });
+    if ((await recentTrigger.getAttribute("aria-expanded")) === "false") await recentTrigger.click();
     await expect(drawer.getByRole("region", { name: "Recent searches" })).toBeVisible();
     await expect(drawer.getByText("Successful searches are kept only in this browser.")).toBeVisible();
     for (const name of [/Prompt discovery/, /Workflow properties/, /Raw workflow/, /Index status/]) {

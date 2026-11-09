@@ -306,10 +306,11 @@ test("fielded search prompt:mika sends correct query and shows results", async (
   const searchRequests = requestsFor(requests, "/api/search/query");
   expect(searchRequests.some((r) => r.q === "prompt:mika")).toBe(true);
 
-  // Result cards should be visible
+  // Result cards should be visible. Enter now sends the request at once (SE-02), so the results render a moment after
+  // the request is seen: wait for the first card rather than counting once.
   const resultCards = page.getByTestId("photo-card");
-  const resultCount = await resultCards.count();
-  expect(resultCount).toBeGreaterThanOrEqual(1);
+  await expect(resultCards.first()).toBeVisible({ timeout: 10_000 });
+  expect(await resultCards.count()).toBeGreaterThanOrEqual(1);
 });
 
 test("seed query sends correct query string and shows results", async ({ page }) => {
