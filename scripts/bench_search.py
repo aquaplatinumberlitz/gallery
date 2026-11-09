@@ -77,6 +77,18 @@ SEARCH_QUERY_CLASSES = (
     ("short_cjk_mixed", "forest 東京", 1, 50),
     ("short_latin_prefix", "bl", 1, 50),
     ("short_cjk_keyset_pages", "東京", 3, 150),
+    # SE-03: the m -> mi -> mik -> mika ladder keeps prefix matches first; substring tier from 3 characters.
+    ("prefix_stability_2", "mi", 1, 50),
+    ("prefix_stability_3", "mik", 1, 50),
+    ("prefix_stability_4", "mika", 1, 50),
+    ("prefix_stability_keyset_pages", "mik", 3, 150),
+    # SE-04: accent, width and kana folding for free text and fielded contains filters.
+    ("accent_folded_latin", "cafe", 1, 50),
+    ("accent_folded_vietnamese", "noi", 1, 50),
+    ("accent_folded_kana", "ﾈｵﾝ", 1, 50),
+    ("accent_folded_fielded_prompt", "prompt:cafe", 1, 50),
+    ("accent_folded_fielded_two_char", "prompt:ca", 1, 50),
+    ("accent_folded_fielded_one_char", "prompt:z", 1, 50),
     ("repeated_keyset_pages", "search_asset_00", 3, 150),
 )
 

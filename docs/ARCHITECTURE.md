@@ -806,6 +806,8 @@ Backend modules are mostly flat, with selected domain packages.
 | `metadata_store/search_store.py`     | FTS5 search queries                                       |
 | `metadata_store/ranked_search.py`    | Tiered search candidates and opaque keyset cursors        |
 | `metadata_store/cjk_index.py`        | CJK bigram prompt index maintenance and short-query plan  |
+| `text_fold.py`                       | `fold_text`: the one query/index normalization function   |
+| `metadata_store/search_text_index.py`| Folded prompt/model/sampler/file-name index sync and rebuild |
 | `metadata_store/search_index_store.py` | Derived-index states, fenced jobs, keyset asset batches, and extraction fingerprints |
 | `metadata_store/inspector_store.py`  | Library Inspector data access                             |
 | `metadata_store/_asset_store.py`     | Shared asset upsert helper                                |
@@ -887,6 +889,30 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
+- Catalog schema version 14 adds the folded search text index (SE-03/SE-04 of the
+  search-typing plan). `text_fold.fold_text` is the single
+  normalization function for indexed text and queries: NFKC (full-width and
+  half-width forms), `casefold`, removal of every Combining Diacritical Mark
+  (including Vietnamese stacked marks; kana voicing marks are kept), `đ`/`Đ` to `d`,
+  and katakana to hiragana. It is pure Python, so behaviour does not depend on the
+  SQLite version (the trigram tokenizer only gained `remove_diacritics` in 3.45).
+  `image_metadata_fold` (folded prompt, negative prompt, model, sampler; one row per
+  metadata row with any folded text) and `file_index_fold` (folded file name keyed
+  by the `file_index` rowid) are compact content tables for external-content FTS5
+  tables: `image_metadata_fold_fts` / `file_index_fold_fts` (`unicode61`, word
+  prefix) and `image_metadata_fold_fts_trigram` / `file_index_fold_fts_trigram`
+  (substring). FTS follows the content tables through triggers and the parents'
+  delete triggers (`image_metadata_fold_cleanup`, `file_index_fold_cleanup`) remove
+  rows, so reused ids never inherit stale text. Writers call
+  `search_text_index.sync_search_text_path` (prompt/model/sampler, which also syncs the
+  CJK rows) and `sync_file_name_fold` (file names) in the same transaction; code that
+  writes those columns with raw SQL (perf fixtures, tests) must call
+  `rebuild_search_text_index`. The `.v13.bak` migration streams keyset batches over
+  stored text only (no media decoding, no `fetchall` over all rows), rebuilds the CJK
+  bigram rows from folded text, runs `foreign_key_check` and sets `user_version`
+  last. The older `image_metadata_fts*` and `file_index_fts*` tables stay for the
+  legacy readers (`related_ranking`, the legacy `search_store` queries).
+  Display text (names, prompts, snippets) is never folded.
 - Catalog schema version 13 adds the CJK bigram prompt index: `image_metadata_cjk`
   (one row per prompt or negative prompt that contains CJK text, holding the
   space-joined overlapping bigrams of each CJK run plus a one-character run-end
@@ -1275,11 +1301,17 @@ Header search or AdvancedSearchDrawer
   deduplicate by `(library_id, asset_id)` and use the exact case-preserved path
   only for compatibility rows that lack IDs; legacy arrays are consumed only
   when canonical `media` is absent.
-- Ranked search unions filename token-prefix candidates with trigger-maintained
-  trigram filename/metadata substring candidates. Queries in which every token
-  has three or more characters use trigram substring matching. Any query with a
-  shorter token uses short-token semantics instead: Latin terms prefix-match
-  prompt tokens (`ch` matches `cherry`), and CJK runs match through the CJK bigram
+- Ranked search folds the query with `fold_text` and reads only the folded FTS tables.
+  Word-prefix matching is the primary relevance tier at every query length: filename
+  exact 100, filename prefix 90, filename word prefix 70, prompt phrase 80, prompt word
+  prefix 65, model/sampler word prefix 65, negative prompt word prefix 40. Latin queries
+  whose tokens all have three or more characters add a secondary substring (trigram)
+  tier that ranks below every prefix match (prompt phrase 39, filename 38, prompt 37,
+  model/sampler 36, negative prompt 35), so for a Latin query q and q+c the prefix-tier
+  results of q+c are a subset of those of q (typing `mi`, `mik`, `mika` keeps `mika` and
+  `mikan` ahead of `kamikaze`). Queries with CJK text keep substring semantics as the
+  primary tier. Any query with a token shorter than three characters uses the prefix
+  tier only: Latin terms prefix-match tokens (`ch` matches `cherry`), and CJK runs match through the CJK bigram
   index (a 1-character CJK term is a prefix on bigrams and run-end tokens, a longer
   CJK run is a bigram phrase, so `少女` matches inside `桜の下の少女`). All terms are
   ANDed; a mixed Latin and CJK query matches the Latin terms on the Unicode table
