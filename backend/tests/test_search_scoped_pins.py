@@ -606,3 +606,150 @@ def test_scoped_results_are_pinned(corpus: tuple[Path, dict[int, int]]) -> None:
     assert not mismatches, "\n".join(
         f"{key}: got {actual!r} expected {expected!r}" for key, actual, expected in mismatches
     )
+
+
+def _exact_page(conn: sqlite3.Connection, query: str, scope_args: tuple, limit: int, cursor: dict | None):
+    """One page of the pre-SC-01 scoped plan: the unbounded single UNION ALL statement (the oracle)."""
+    from backend.fielded_search_parser import parse_fielded_query
+    from backend.metadata_store import ranked_search as rs
+
+    kind, folder, library_id = scope_args
+    scope_sql, scope_params = rs._scope_clause(kind, folder, library_id)
+    parsed = parse_fielded_query(query)
+    field_where, field_params = ("", {})
+    residual = query.strip()
+    if parsed.fields:
+        field_where, field_params = rs._field_conditions(parsed, None, None)
+        residual = parsed.residual_text.strip()
+    params = {"page_limit": limit + 1, **rs._text_match_params(residual), **scope_params, **field_params}
+    if cursor is not None:
+        params.update(
+            cursor_tier=cursor["tier"],
+            cursor_rank=cursor["rank"],
+            cursor_mtime_ns=cursor["mtime_ns"],
+            cursor_asset_id=cursor["asset_id"],
+        )
+    selects = rs._candidate_selects(
+        residual,
+        scope_sql,
+        include_fts=True,
+        field_where=field_where,
+        include_videos=not parsed.fields,
+        has_cursor=cursor is not None,
+    )
+    sql = rs.build_candidate_page_query(selects, has_cursor=cursor is not None, legacy_offset=False)
+    return list(conn.execute(sql, params))
+
+
+ORACLE_QUERIES = ("a", "m", "c", "lph", "a model:m", "c sampler:e", "mi name:r")
+ORACLE_SCOPES = ("library1", "root1", "a1111", "nested", "a11112", "a1111_x", "shared_lib2", "a1111_nolib")
+
+
+def _row_identity(row: sqlite3.Row) -> tuple:
+    return (row["asset_id"], row["relevance_tier"], row["rank"], row["mtime_ns"])
+
+
+@pytest.mark.parametrize("tight", (False, True), ids=("default-bound", "tiny-bound-forces-fallbacks"))
+def test_planned_pages_equal_the_exact_statement_page_by_page(
+    corpus: tuple[Path, dict[int, int]], monkeypatch: pytest.MonkeyPatch, tight: bool
+) -> None:
+    """Every keyset page of the scoped plan equals the exact statement's page, also with a bound too small."""
+    from backend.fielded_search_parser import parse_fielded_query
+    from backend.metadata_store import _connect_read
+    from backend.metadata_store import ranked_search as rs
+
+    root, library_ids = corpus
+    if tight:
+        monkeypatch.setattr(rs, "FTS_CANDIDATE_FLOOR", 8)
+        monkeypatch.setattr(rs, "FILE_SOURCE_SMALL_LIMIT", 3)
+    limit = 5 if tight else 30
+    with closing(_connect_read()) as conn:
+        for scope_name in ORACLE_SCOPES:
+            scope_args = _scope_arguments(root, library_ids, scope_name)
+            for query in ORACLE_QUERIES:
+                parsed = parse_fielded_query(query)
+                fingerprint = rs.request_fingerprint(
+                    query, scope_args[0], scope_args[1], fielded=bool(parsed.fields), library_id=scope_args[2]
+                )
+                cursor = None
+                for page_number in range(80):
+                    oracle = _exact_page(conn, query, scope_args, limit, cursor)
+                    encoded = (
+                        None
+                        if cursor is None
+                        else rs.encode_search_cursor(
+                            {
+                                "asset_id": cursor["asset_id"],
+                                "mtime_ns": cursor["mtime_ns"],
+                                "rank": cursor["rank"],
+                                "relevance_tier": cursor["tier"],
+                            },  # type: ignore[arg-type]
+                            fingerprint,
+                        )
+                    )
+                    planned, _more, _fp = rs.search_ranked_media_page(
+                        conn,
+                        query,
+                        scope_args[0],
+                        scope_args[1],
+                        limit,
+                        encoded,
+                        parsed=parsed if parsed.fields else None,
+                        library_id=scope_args[2],
+                    )
+                    context = (scope_name, query, page_number, tight)
+                    assert [_row_identity(r) for r in planned] == [_row_identity(r) for r in oracle[:limit]], context
+                    if len(oracle) <= limit:
+                        break
+                    last = oracle[limit - 1]
+                    cursor = {
+                        "tier": int(last["relevance_tier"]),
+                        "rank": float(last["rank"]),
+                        "mtime_ns": int(last["mtime_ns"]),
+                        "asset_id": int(last["asset_id"]),
+                    }
+
+
+def test_scope_filter_matches_whole_path_components_only() -> None:
+    from backend.metadata_store.ranked_search import _scope_filter
+
+    scope = _scope_filter("folder", "/g/lib1/a1111", 1)
+    assert scope is not None
+    sql = scope.sql("p", "l")
+    with closing(sqlite3.connect(":memory:")) as conn:
+        for path, library, expected in (
+            ("/g/lib1/a1111", 1, True),
+            ("/g/lib1/a1111/x.png", 1, True),
+            ("/g/lib1/a1111/nested/y.png", 1, True),
+            ("/g/lib1/a11112/x.png", 1, False),
+            ("/g/lib1/a1111_x/x.png", 1, False),
+            ("/g/lib1/A1111/x.png", 1, False),
+            ("/g/lib1/a1111/x.png", 2, False),
+        ):
+            query = f"SELECT 1 FROM (SELECT :path AS p, :lib AS l) WHERE 1 = 1 {sql}"
+            found = conn.execute(query, {**scope.params, "path": path, "lib": library}).fetchone()
+            assert (found is not None) is expected, (path, library)
+
+
+def test_page_plan_serves_scoped_queries_without_the_exact_fallback(
+    corpus: tuple[Path, dict[int, int]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.metadata_store import ranked_search as rs
+
+    root, library_ids = corpus
+    fallbacks: list[int] = []
+    original = rs._run_page_plan
+
+    def recording(*args: object, **kwargs: object):
+        result = original(*args, **kwargs)  # type: ignore[arg-type]
+        if result is None:
+            fallbacks.append(1)
+        return result
+
+    monkeypatch.setattr(rs, "_run_page_plan", recording)
+    for query in ("a", "m", "c", "a model:m"):
+        # Clean folders: the anomalous rows (size-mismatched, unowned) live in a1111 and the library scopes, where a
+        # cut-short preselect that loses rows to the strict joins correctly falls back to the exact statement.
+        _walk(root, library_ids, "nested", query)
+        _walk(root, library_ids, "a11112", query)
+    assert not fallbacks

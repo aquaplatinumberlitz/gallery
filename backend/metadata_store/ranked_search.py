@@ -6,8 +6,11 @@ import base64
 import hashlib
 import json
 import math
+import os
 import re
 import sqlite3
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +19,7 @@ from ..text_fold import fold_text
 from ..workflow_discovery import build_workflow_group_conditions
 from .cjk_index import CJK_FTS_TABLE, plan_short_query
 from .identity import asset_owns_file_index_sql, catalog_import_path_owns_sql, file_index_matches_image_metadata_sql
-from .path_utils import canonicalize_catalog_path, named_path_scope_sql
+from .path_utils import canonicalize_catalog_path
 from .search_text_index import META_FOLD_TABLE
 
 SEARCH_CURSOR_VERSION = 1
@@ -27,6 +30,8 @@ COUNT_CAP = 4096
 # A filename source with at most this many FTS matches is read whole (exact cross-source dedup); a larger one is
 # read through bounded, cursor pre-filtered hi/lo variants.
 FILE_SOURCE_SMALL_LIMIT = 2048
+# Rows each bounded preselect keeps (floor; a page of ``limit`` keeps ``(limit + 1) * 4`` when that is more).
+FTS_CANDIDATE_FLOOR = 256
 # Rows an ordered field-only probe may examine, per candidate it is asked for, before the sorting plan takes over.
 FIELD_PROBE_ROWS_PER_CANDIDATE = 8
 # Metadata rows a field-only count may probe row by row before it falls back to the set-driven plan.
@@ -107,6 +112,12 @@ _FILE_ASSET_ID_SQL = (
 )
 
 
+# Where a bounded source's preselect goes inside its statement (the page plan can run the preselect on its own).
+_PRESELECT_SLOT = "/*PRESELECT*/"
+# The rows of a preselect the page plan hands back to the statement as JSON (`[[id, tier-or-rank-bin], ...]`).
+_PRESELECT_ROWS_PARAM = "pre_rows"
+
+
 class _Source(str):
     """One candidate SELECT of the ranked page plan, plus what the planner needs to know about it.
 
@@ -117,6 +128,12 @@ class _Source(str):
 
     A file source also carries ``probe`` (its FTS table and MATCH parameter) and ``dense``: bounded hi/lo
     SELECTs that replace it when its FTS match set is larger than ``FILE_SOURCE_SMALL_LIMIT``.
+
+    A bounded source built for the exact (scoped or fielded) page plan also carries ``pre_sql`` (its preselect
+    on its own, ``fts_candidate_limit`` rows) and ``rows_sql`` (the same statement reading those rows from the
+    ``:pre_rows`` JSON parameter): the plan then knows whether the preselect was cut short and whether the
+    strict ownership joins dropped any of its rows. ``retry`` is the same source with its preselect also joining
+    the active asset (offline and deleted matches never take a slot), read when the first attempt lost rows.
     """
 
     kind: str
@@ -125,6 +142,9 @@ class _Source(str):
     dense: tuple[_Source, ...]
     probe: tuple[str, str] | None
     file_type: str | None
+    pre_sql: str | None
+    rows_sql: str | None
+    retry: _Source | None
 
     def __new__(
         cls,
@@ -136,6 +156,8 @@ class _Source(str):
         dense: tuple[_Source, ...] = (),
         probe: tuple[str, str] | None = None,
         file_type: str | None = None,
+        pre_sql: str | None = None,
+        rows_sql: str | None = None,
     ) -> _Source:
         self = super().__new__(cls, sql)
         self.kind = kind
@@ -144,7 +166,18 @@ class _Source(str):
         self.dense = dense
         self.probe = probe
         self.file_type = file_type
+        self.pre_sql = pre_sql
+        self.rows_sql = rows_sql
+        self.retry = None
         return self
+
+
+def _preselect_rows_subquery(columns: tuple[str, ...]) -> str:
+    """The JSON-backed stand-in of a preselect: one column per entry of ``columns`` (all integers)."""
+    selected = ", ".join(
+        f"CAST(json_extract(value, '$[{index}]') AS INTEGER) AS {column}" for index, column in enumerate(columns)
+    )
+    return f"SELECT {selected} FROM json_each(:{_PRESELECT_ROWS_PARAM})"
 
 
 def _escape_fts_token(token: str) -> str:
@@ -361,6 +394,7 @@ def _filename_candidate_select(
     field_where: str,
     substring_tier: int = TIER_SUBSTRING_FILENAME,
     count_only: bool = False,
+    extra_where: str = "",
 ) -> str:
     type_sql = "fi.type IN ('image', 'photo')" if file_type == "image" else "fi.type = 'video'"
     metadata_join = ""
@@ -389,6 +423,7 @@ def _filename_candidate_select(
           WHERE {fts_table} MATCH :{match_param}
             AND {type_sql}
             {scope_sql}
+            {extra_where}
             {metadata_where}
         """
         rank_sql = f"round(bm25({fts_table}), 6)"
@@ -401,6 +436,7 @@ def _filename_candidate_select(
           WHERE fi.name LIKE :filename_like ESCAPE '\\'
             AND {type_sql}
             {scope_sql}
+            {extra_where}
             {metadata_where}
         """
         rank_sql = "0.0"
@@ -435,7 +471,12 @@ def _filename_candidate_select(
     """
 
 
-def _metadata_candidate_select(
+def _metadata_candidate_select(**kwargs: Any) -> str:
+    """One metadata/prompt candidate SELECT (see ``_metadata_candidate_parts`` for the arguments)."""
+    return _metadata_candidate_parts(**kwargs)[0]
+
+
+def _metadata_candidate_parts(
     *,
     source_kind: str,
     scope_sql: str,
@@ -448,7 +489,20 @@ def _metadata_candidate_select(
     secondary: bool = False,
     count_only: bool = False,
     preselected_ids: bool = False,
-) -> str:
+    scope: _ScopeFilter | None = None,
+    extra_where: str = "",
+    preselect_assets: bool = False,
+) -> tuple[str, str | None, str | None]:
+    """A metadata/prompt candidate SELECT, plus its preselect and its ``:pre_rows`` form when it is bounded.
+
+    A bounded FTS source preselects the best ``fts_candidate_limit`` matches before the strict ownership joins.
+    A scoped or field-filtered one applies the scope and the field conditions inside that preselect (the
+    metadata row is aliased ``m``, its file row ``fi`` and its asset ``catalog_asset`` there, so the same
+    predicates read in both places): the bound then keeps the best rows *inside* the scope and filters, and is
+    equal to the old unbounded statement's top rows. ``preselect_assets`` also requires an active asset in the
+    preselect, so offline and deleted matches never use up a slot.
+    """
+    preselect: str | None = None
     field_clause = f"AND {field_where}" if field_where else ""
     if source_kind == "positive_phrase":
         source = f"""
@@ -530,6 +584,10 @@ def _metadata_candidate_select(
             "metadata_trigram": "metadata_substring_match",
         }[source_kind]
         phrase_hit = "{alias}.prompt LIKE :fold_like ESCAPE '\\'"
+        if bounded_fts and scope_sql and scope is None:
+            raise ValueError("a scoped bounded source needs its scope filter")
+        filtered = bounded_fts and bool(scope_sql or field_where)
+        pm = "m" if filtered else "pre_m"
         if source_kind in {"positive_fts", "positive_trigram"}:
             hit, miss = (
                 (TIER_SUBSTRING_PROMPT_PHRASE, TIER_SUBSTRING_PROMPT)
@@ -540,7 +598,7 @@ def _metadata_candidate_select(
             match_type_sql = f"CASE WHEN {phrase_hit.format(alias='f')} THEN 'prompt_phrase' ELSE 'prompt' END"
             snippet = "m.prompt"
             pre_tier = f"CASE WHEN {phrase_hit.format(alias='pre_f')} THEN {hit} ELSE {miss} END"
-            pre_fold_join = f"LEFT JOIN {META_FOLD_TABLE} AS pre_f ON pre_f.metadata_id = pre_m.id"
+            pre_fold_join = f"LEFT JOIN {META_FOLD_TABLE} AS pre_f ON pre_f.metadata_id = {pm}.id"
         elif source_kind in {"negative_fts", "negative_trigram"}:
             tier = TIER_SUBSTRING_NEGATIVE if secondary else TIER_NEGATIVE
             match_type_sql = "'negative_prompt'"
@@ -561,14 +619,30 @@ def _metadata_candidate_select(
             if cjk_match_param
             else ""
         )
-        pre_cjk_filter = f"AND pre_m.id {cjk_subquery}" if cjk_subquery else ""
+        pre_cjk_filter = f"AND {pm}.id {cjk_subquery}" if cjk_subquery else ""
         cjk_filter = f"AND m.id {cjk_subquery}" if cjk_subquery else ""
         if bounded_fts:
             # bm25 as an integer in millionths (the page rank is that value / 1e6, i.e. ``round(bm25, 6)``):
             # sorting an integer key is much cheaper than ``round(rank, 6)`` on every match, and the key is
             # computed once per row, then shared by the cursor test and the sort.
             rank_bin = f"CAST({fts_table}.rank * 1000000.0 - 0.5 AS INTEGER)"
-            pre_mtime = _METADATA_MTIME_SQL.format(alias="pre_m")
+            pre_mtime = _METADATA_MTIME_SQL.format(alias=pm)
+            pre_join = "JOIN" if not filtered else "CROSS JOIN"
+            pre_extra_joins = ""
+            pre_filters = ""
+            if filtered:
+                needs_assets = preselect_assets or "catalog_asset" in field_where
+                has_fi = needs_assets or (scope is not None and scope.needs_file_index())
+                if has_fi:
+                    pre_extra_joins += "CROSS JOIN file_index AS fi ON fi.path = m.path "
+                if needs_assets:
+                    pre_extra_joins += _simple_active_asset_join_sql(
+                        fi_alias="fi", asset_alias="catalog_asset"
+                    ).replace("JOIN assets", "CROSS JOIN assets", 1)
+                if scope is not None:
+                    pre_filters += scope.sql("m.path", "fi.library_id" if has_fi else None, preselect=True)
+                if field_where:
+                    pre_filters += f" AND {field_where}"
             if has_cursor:
                 # The unpaged plan's key (the metadata row's own mtime, equal to the asset's for every row that
                 # survives the strict ownership join).
@@ -581,12 +655,13 @@ def _metadata_candidate_select(
                 preselect = f"""
                 SELECT metadata_id, pre_tier, pre_rank_bin FROM (
                   SELECT {fts_table}.rowid AS metadata_id, {pre_tier} AS pre_tier, {rank_bin} AS pre_rank_bin,
-                         {pre_mtime} AS pre_mtime, pre_m.id AS pre_id
+                         {pre_mtime} AS pre_mtime, {pm}.id AS pre_id
                   FROM {fts_table}
-                  JOIN image_metadata AS pre_m ON pre_m.id = {fts_table}.rowid
+                  {pre_join} image_metadata AS {pm} ON {pm}.id = {fts_table}.rowid
+                  {pre_extra_joins}
                   {pre_fold_join}
                   WHERE {fts_table} MATCH :{match_param}
-                    {pre_cjk_filter}
+                    {pre_cjk_filter} {pre_filters}
                   LIMIT -1
                 )
                 WHERE 1 = 1
@@ -598,21 +673,24 @@ def _metadata_candidate_select(
                 preselect = f"""
                 SELECT {fts_table}.rowid AS metadata_id, {pre_tier} AS pre_tier, {rank_bin} AS pre_rank_bin
                 FROM {fts_table}
-                JOIN image_metadata AS pre_m ON pre_m.id = {fts_table}.rowid
+                {pre_join} image_metadata AS {pm} ON {pm}.id = {fts_table}.rowid
+                {pre_extra_joins}
                 {pre_fold_join}
                 WHERE {fts_table} MATCH :{match_param}
-                  {pre_cjk_filter}
-                ORDER BY pre_tier DESC, pre_rank_bin ASC, {pre_mtime} DESC, pre_m.id ASC
+                  {pre_cjk_filter} {pre_filters}
+                ORDER BY pre_tier DESC, pre_rank_bin ASC, {pre_mtime} DESC, {pm}.id ASC
                 LIMIT :fts_candidate_limit
                 """
             source = f"""
-              FROM ({preselect}) AS bounded_fts_rows
+              FROM ({_PRESELECT_SLOT}) AS bounded_fts_rows
               CROSS JOIN image_metadata m ON m.id = bounded_fts_rows.metadata_id
               {fold_join}
               CROSS JOIN file_index fi ON fi.path = m.path
               {_active_asset_join_sql()}
-              WHERE {_CURRENT_METADATA_IDENTITY_SQL}
+              WHERE {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql}
             """
+            # The preselect already applied the field conditions: repeating them here would rebuild their
+            # set subqueries (an FTS scan each) for a handful of rows.
             rank = "(bounded_fts_rows.pre_rank_bin / 1000000.0)"
         else:
             source = f"""
@@ -623,12 +701,12 @@ def _metadata_candidate_select(
               {_active_asset_join_sql()}
               WHERE {fts_table} MATCH :{match_param}
                 {cjk_filter}
-                AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {field_clause}
+                AND {_CURRENT_METADATA_IDENTITY_SQL} {scope_sql} {extra_where} {field_clause}
             """
             rank = f"round(bm25({fts_table}), 6)"
     if count_only:
-        return f"SELECT catalog_asset.id AS asset_id {source}"
-    return f"""
+        return f"SELECT catalog_asset.id AS asset_id {source}", None, None
+    template = f"""
       SELECT m.path, m.name, fi.type, fi.parent_path, m.mtime,
              catalog_asset.mtime_ns, catalog_asset.size AS asset_size, m.width, m.height,
              NULL AS duration_ms, NULL AS mime_type,
@@ -644,6 +722,14 @@ def _metadata_candidate_select(
              coalesce(m.seed, '') AS seed
       {source}
     """
+    if preselect is None:
+        return template, None, None
+    rows_subquery = _preselect_rows_subquery(("metadata_id", "pre_tier", "pre_rank_bin"))
+    return (
+        template.replace(_PRESELECT_SLOT, preselect),
+        preselect,
+        template.replace(_PRESELECT_SLOT, rows_subquery),
+    )
 
 
 def _filename_dense_selects(
@@ -653,6 +739,10 @@ def _filename_dense_selects(
     match_param: str,
     lo_tier: int,
     has_cursor: bool,
+    scope_sql: str = "",
+    scope: _ScopeFilter | None = None,
+    field_where: str = "",
+    preselect_assets: bool = False,
 ) -> tuple[_Source, ...]:
     """Bounded hi/lo replacements of a filename source whose FTS match set is large.
 
@@ -661,12 +751,44 @@ def _filename_dense_selects(
     ranked by bm25. Both keep only the best ``fts_candidate_limit`` rows after the cursor, ordered like the page
     (tier, rank, mtime, id), before the strict ownership joins run on that handful. The ``mtime_ns`` of the
     ``file_index`` row stands in for the asset's (equal for every row that survives the strict join).
+
+    A scoped or field-filtered source applies the scope (on the preselect's ``pre_fi``) and the field conditions
+    (on the file's metadata row, aliased ``m`` as in the strict statement) inside the preselect, so the bound
+    keeps the best rows inside the scope and filters.
     """
+    if scope_sql and scope is None:
+        raise ValueError("a scoped dense source needs its scope filter")
     type_sql = "fi.type IN ('image', 'photo')" if file_type == "image" else "fi.type = 'video'"
     pre_type_sql = type_sql.replace("fi.", "pre_fi.")
     exact = "{alias}.name = :fold_query"
     prefix = "{alias}.name LIKE :fold_filename_prefix ESCAPE '\\'"
     mtime_sql = "pre_fi.mtime_ns"
+    # Scope and field filters of the preselect, evaluated right after `pre_fi` (before the other lookups).
+    pre_joins = ""
+    pre_filters = ""
+    if scope is not None:
+        pre_filters += scope.sql("pre_fi.path", "pre_fi.library_id", preselect=True)
+    if field_where:
+        pre_joins += (
+            "CROSS JOIN image_metadata AS m ON m.path = pre_fi.path AND "
+            + file_index_matches_image_metadata_sql(fi_alias="pre_fi", im_alias="m")
+            + " "
+        )
+        pre_filters += f" AND {field_where}"
+    if preselect_assets or "catalog_asset" in field_where:
+        pre_joins += (
+            _simple_active_asset_join_sql(fi_alias="pre_fi", asset_alias="catalog_asset").replace(
+                "JOIN assets", "CROSS JOIN assets", 1
+            )
+            + " "
+        )
+    metadata_join = ""
+    metadata_values = "'' AS model, '' AS sampler, '' AS seed"
+    if field_where:
+        metadata_join = f"CROSS JOIN image_metadata m ON m.path = fi.path AND {_CURRENT_METADATA_IDENTITY_SQL}"
+        metadata_values = (
+            "coalesce(m.model, '') AS model, coalesce(m.sampler, '') AS sampler, coalesce(m.seed, '') AS seed"
+        )
 
     def outer(tier_sql: str, rank_sql: str, match_sql: str) -> str:
         return f"""
@@ -680,11 +802,12 @@ def _filename_dense_selects(
              {rank_sql} AS rank,
              {match_sql} AS match_type,
              '' AS prompt_snippet,
-             '' AS model, '' AS sampler, '' AS seed
+             {metadata_values}
       FROM (INNER_SELECT) AS bounded_file_rows
       CROSS JOIN file_index fi ON fi.rowid = bounded_file_rows.file_rowid
       {_active_asset_join_sql()}
-      WHERE {type_sql}
+      {metadata_join}
+      WHERE {type_sql} {scope_sql}
     """
 
     hi_tier = f"CASE WHEN {exact.format(alias='ff')} THEN 100 ELSE 90 END"
@@ -702,17 +825,20 @@ def _filename_dense_selects(
         SELECT ff.file_rowid AS file_rowid, {hi_tier} AS pre_tier
         FROM file_index_fold AS ff
         CROSS JOIN file_index AS pre_fi ON pre_fi.rowid = ff.file_rowid
+        {pre_joins}
         WHERE ({exact.format(alias="ff")} OR {prefix.format(alias="ff")}) AND {pre_type_sql}
           AND +ff.file_rowid IN (SELECT rowid FROM {fts_table} WHERE {fts_table} MATCH :{match_param})
+          {pre_filters}
           {hi_cursor}
         ORDER BY pre_tier DESC, {mtime_sql} DESC, pre_fi.rowid ASC
         LIMIT :fts_candidate_limit
     """
-    hi = outer(
+    hi_template = outer(
         "bounded_file_rows.pre_tier",
         "0.0",
         "CASE WHEN bounded_file_rows.pre_tier = 100 THEN 'filename_exact' ELSE 'filename_prefix' END",
-    ).replace("INNER_SELECT", hi_inner)
+    )
+    hi_rows = _preselect_rows_subquery(("file_rowid", "pre_tier"))
 
     lo_rank_bin = f"CAST({fts_table}.rank * 1000000.0 - 0.5 AS INTEGER)"
     if has_cursor:
@@ -727,8 +853,10 @@ def _filename_dense_selects(
           SELECT {fts_table}.rowid AS file_rowid, {lo_rank_bin} AS pre_rank_bin, {mtime_sql} AS pre_mtime
           FROM {fts_table}
           CROSS JOIN file_index AS pre_fi ON pre_fi.rowid = {fts_table}.rowid
+          {pre_joins}
           CROSS JOIN file_index_fold AS pre_ff ON pre_ff.file_rowid = pre_fi.rowid
           WHERE {fts_table} MATCH :{match_param} AND {pre_type_sql}
+            {pre_filters}
             AND NOT ({exact.format(alias="pre_ff")} OR {prefix.format(alias="pre_ff")})
           LIMIT -1
         )
@@ -742,18 +870,35 @@ def _filename_dense_selects(
         SELECT {fts_table}.rowid AS file_rowid, {lo_rank_bin} AS pre_rank_bin
         FROM {fts_table}
         CROSS JOIN file_index AS pre_fi ON pre_fi.rowid = {fts_table}.rowid
+        {pre_joins}
         CROSS JOIN file_index_fold AS pre_ff ON pre_ff.file_rowid = pre_fi.rowid
         WHERE {fts_table} MATCH :{match_param} AND {pre_type_sql}
+          {pre_filters}
           AND NOT ({exact.format(alias="pre_ff")} OR {prefix.format(alias="pre_ff")})
         ORDER BY pre_rank_bin ASC, {mtime_sql} DESC, pre_fi.rowid ASC
         LIMIT :fts_candidate_limit
         """
-    lo = outer(str(lo_tier), "(bounded_file_rows.pre_rank_bin / 1000000.0)", "'filename'").replace(
-        "INNER_SELECT", lo_inner
-    )
+    lo_template = outer(str(lo_tier), "(bounded_file_rows.pre_rank_bin / 1000000.0)", "'filename'")
+    lo_rows = _preselect_rows_subquery(("file_rowid", "pre_rank_bin"))
     return (
-        _Source(hi, kind="file", min_tier=90, max_tier=100, file_type=file_type),
-        _Source(lo, kind="file", min_tier=lo_tier, max_tier=lo_tier, file_type=file_type),
+        _Source(
+            hi_template.replace("INNER_SELECT", hi_inner),
+            kind="file",
+            min_tier=90,
+            max_tier=100,
+            file_type=file_type,
+            pre_sql=hi_inner,
+            rows_sql=hi_template.replace("INNER_SELECT", hi_rows),
+        ),
+        _Source(
+            lo_template.replace("INNER_SELECT", lo_inner),
+            kind="file",
+            min_tier=lo_tier,
+            max_tier=lo_tier,
+            file_type=file_type,
+            pre_sql=lo_inner,
+            rows_sql=lo_template.replace("INNER_SELECT", lo_rows),
+        ),
     )
 
 
@@ -768,11 +913,19 @@ def _candidate_selects(
     bounded_candidates: bool = False,
     has_cursor: bool = False,
     count_only: bool = False,
+    scope: _ScopeFilter | None = None,
+    extra_where: str = "",
+    preselect_assets: bool = False,
+    retry_preselect: bool = False,
 ) -> list[str]:
     """Candidate SELECTs of one query, each a ``_Source`` that knows its tier range and source kind.
 
     With ``count_only`` every SELECT yields just ``asset_id`` and skips tier, rank and the bounded preselects,
-    which is all the capped distinct count needs.
+    which is all the capped distinct count needs. A scoped query (``scope_sql``) is bounded only when it also
+    passes its ``scope`` filter, which the preselects evaluate before they cut to the best rows.
+    ``extra_where`` adds an ``AND ...`` condition over ``fi`` to the unbounded FTS sources (the page plan's
+    shadow check). ``retry_preselect`` attaches to every bounded source its ``retry`` (the preselect also joining
+    the active asset).
     """
     if field_only:
         return [
@@ -852,8 +1005,8 @@ def _candidate_selects(
         else:
             prompt_table = CJK_FTS_TABLE
     trigram_table = "image_metadata_fold_fts_trigram"
-    bounded_metadata_fts = bounded_candidates and not scope_sql and not field_where and not count_only
-    dense_files = bounded_candidates and not scope_sql and not field_where and not count_only
+    bounded_metadata_fts = bounded_candidates and not count_only and (not scope_sql or scope is not None)
+    dense_files = bounded_metadata_fts
 
     def metadata_selects(kind: str, table: str, *, secondary: bool, cjk_param: str | None = None) -> _Source:
         if kind.startswith("positive"):
@@ -866,8 +1019,9 @@ def _candidate_selects(
             low = high = TIER_SUBSTRING_NEGATIVE if secondary else TIER_NEGATIVE
         else:
             low = high = TIER_SUBSTRING_METADATA if secondary else TIER_PROMPT
-        return _Source(
-            _metadata_candidate_select(
+
+        def build(with_assets: bool) -> _Source:
+            sql, pre_sql, rows_sql = _metadata_candidate_parts(
                 source_kind=kind,
                 scope_sql=scope_sql,
                 field_where=field_where,
@@ -877,24 +1031,40 @@ def _candidate_selects(
                 cjk_match_param=cjk_param,
                 secondary=secondary,
                 count_only=count_only,
-            ),
-            kind="meta",
-            min_tier=low,
-            max_tier=high,
-        )
+                scope=scope,
+                extra_where=extra_where,
+                preselect_assets=with_assets,
+            )
+            return _Source(sql, kind="meta", min_tier=low, max_tier=high, pre_sql=pre_sql, rows_sql=rows_sql)
+
+        source = build(preselect_assets)
+        if retry_preselect and source.pre_sql is not None:
+            source.retry = build(True)
+        return source
 
     def file_source(file_type: str, query_kind: str, *, lo_tier: int, field_where_for_type: str) -> _Source:
         fts_table = "file_index_fold_fts_trigram" if query_kind == "trigram" else "file_index_fold_fts"
         match_param = "filename_substring_match" if query_kind == "trigram" else "filename_match"
         dense: tuple[_Source, ...] = ()
         if dense_files:
-            dense = _filename_dense_selects(
-                file_type=file_type,
-                fts_table=fts_table,
-                match_param=match_param,
-                lo_tier=lo_tier,
-                has_cursor=has_cursor,
-            )
+
+            def build_dense(with_assets: bool) -> tuple[_Source, ...]:
+                return _filename_dense_selects(
+                    file_type=file_type,
+                    fts_table=fts_table,
+                    match_param=match_param,
+                    lo_tier=lo_tier,
+                    has_cursor=has_cursor,
+                    scope_sql=scope_sql,
+                    scope=scope,
+                    field_where=field_where_for_type,
+                    preselect_assets=with_assets,
+                )
+
+            dense = build_dense(preselect_assets)
+            if retry_preselect:
+                for source, retry in zip(dense, build_dense(True), strict=True):
+                    source.retry = retry
         return _Source(
             _filename_candidate_select(
                 file_type=file_type,
@@ -903,6 +1073,7 @@ def _candidate_selects(
                 field_where=field_where_for_type,
                 substring_tier=lo_tier,
                 count_only=count_only,
+                extra_where=extra_where,
             ),
             kind="file",
             min_tier=lo_tier,
@@ -1014,19 +1185,81 @@ def build_candidate_page_query(
     """
 
 
+@dataclass(frozen=True)
+class _ScopeFilter:
+    """A search scope as sargable predicates, renderable against any aliases of a candidate source.
+
+    ``root`` selects the paths of a folder (the folder itself or anything under it, matched as the range
+    ``[root + sep, root + sep')`` so only whole path components match: ``a1111`` never matches ``a11112``);
+    ``library`` selects one library by id (an unknown id, ``None``, matches nothing). ``library_elided`` drops the
+    library predicate where it would be a tautology (every file row belongs to that library); it is only ever
+    set for the bounded preselects, whose strict outer statement still applies the full predicate.
+    """
+
+    root: str | None = None
+    lo: str = ""
+    hi: str = ""
+    library: bool = False
+    library_id: int | None = None
+    library_elided: bool = False
+
+    @property
+    def params(self) -> dict[str, Any]:
+        params: dict[str, Any] = {}
+        if self.root is not None:
+            params.update(scope_root=self.root, scope_lo=self.lo, scope_hi=self.hi)
+        if self.library:
+            params["scope_library_id"] = self.library_id
+        return params
+
+    def sql(self, path_column: str, library_column: str | None, *, preselect: bool = False) -> str:
+        """The ``AND ...`` predicate over the given columns; ``preselect`` honours ``library_elided``."""
+        parts: list[str] = []
+        if self.root is not None:
+            parts.append(
+                f" AND ({path_column} = :scope_root OR ({path_column} >= :scope_lo AND {path_column} < :scope_hi))"
+            )
+        if self.library and library_column is not None and not (preselect and self.library_elided):
+            parts.append(f" AND {library_column} = :scope_library_id")
+        return "".join(parts)
+
+    def needs_file_index(self) -> bool:
+        """Whether a preselect has to join ``file_index`` to evaluate the scope (the library id lives there)."""
+        return self.library and not self.library_elided
+
+
+def _scope_filter(scope: str, root_path: str | Path | None, library_id: int | None) -> _ScopeFilter | None:
+    """The scope predicates of a request, or None for an unscoped (all libraries) search."""
+    if scope in {"current", "folder"} and root_path is not None:
+        resolved = canonicalize_catalog_path(root_path)
+        prefix = resolved if resolved.endswith(os.sep) else resolved + os.sep
+        lo, hi = prefix, prefix[:-1] + chr(ord(prefix[-1]) + 1)
+        library = scope == "folder" and library_id is not None
+        return _ScopeFilter(root=resolved, lo=lo, hi=hi, library=library, library_id=library_id if library else None)
+    if scope == "library":
+        return _ScopeFilter(library=True, library_id=library_id)
+    return None
+
+
 def _scope_clause(scope: str, root_path: str | Path | None, library_id: int | None) -> tuple[str, dict[str, Any]]:
-    scope_sql, scope_params = ("", {})
-    if scope == "current" and root_path is not None:
-        scope_sql, scope_params = named_path_scope_sql(root_path, column="fi.path", leading_and=True)
-    elif scope == "folder" and root_path is not None:
-        scope_sql, scope_params = named_path_scope_sql(root_path, column="fi.path", leading_and=True)
-        if library_id is not None:
-            scope_sql += " AND fi.library_id = :scope_library_id"
-            scope_params["scope_library_id"] = library_id
-    elif scope == "library":
-        scope_sql = " AND fi.library_id = :scope_library_id"
-        scope_params = {"scope_library_id": library_id}
-    return scope_sql, scope_params
+    """The strict ``AND ...`` scope predicate over ``fi`` (the file row) and its named parameters."""
+    scope_filter = _scope_filter(scope, root_path, library_id)
+    if scope_filter is None:
+        return "", {}
+    return scope_filter.sql("fi.path", "fi.library_id"), scope_filter.params
+
+
+def _library_covers_every_file(conn: sqlite3.Connection, library_id: int | None) -> bool:
+    """Whether no file row belongs to another library (three index probes on ``library_id``)."""
+    if library_id is None:
+        return False
+    row = conn.execute(
+        "SELECT NOT (EXISTS (SELECT 1 FROM file_index WHERE library_id < :library_id) "
+        "OR EXISTS (SELECT 1 FROM file_index WHERE library_id > :library_id) "
+        "OR EXISTS (SELECT 1 FROM file_index WHERE library_id IS NULL))",
+        {"library_id": library_id},
+    ).fetchone()
+    return bool(row[0])
 
 
 def _field_conditions(
@@ -1081,13 +1314,19 @@ def _file_source_is_small(conn: sqlite3.Connection, source: _Source, params: dic
     return int(row[0]) <= FILE_SOURCE_SMALL_LIMIT
 
 
-def _plan_sources(conn: sqlite3.Connection, selects: list[_Source], params: dict[str, Any]) -> list[_Source]:
-    """Resolve each filename source into itself (small match set) or its bounded hi/lo variants (large one)."""
+def _plan_sources(
+    conn: sqlite3.Connection, selects: list[_Source], params: dict[str, Any]
+) -> list[tuple[int, _Source]]:
+    """Resolve each filename source into itself (small match set) or its bounded hi/lo variants (large one).
+
+    Each entry carries the position of the source in ``selects``, so the exact plan can pair it with the
+    unbounded statement of the same source.
+    """
     has_videos: bool | None = None
-    planned: list[_Source] = []
-    for source in selects:
+    planned: list[tuple[int, _Source]] = []
+    for position, source in enumerate(selects):
         if source.kind != "file":
-            planned.append(source)
+            planned.append((position, source))
             continue
         if source.file_type == "video":
             if has_videos is None:
@@ -1097,10 +1336,48 @@ def _plan_sources(conn: sqlite3.Connection, selects: list[_Source], params: dict
             if not has_videos:
                 continue
         if source.dense and not _file_source_is_small(conn, source, params):
-            planned.extend(source.dense)
+            planned.extend((position, dense) for dense in source.dense)
         else:
-            planned.append(source)
+            planned.append((position, source))
     return planned
+
+
+# The condition the exact plan's shadow check adds to a source: only the candidate assets (by path).
+SHADOW_PATHS_WHERE = " AND fi.path IN (SELECT value FROM json_each(:shadow_paths))"
+
+
+def _read_preselected(
+    conn: sqlite3.Connection,
+    source: _Source,
+    params: dict[str, Any],
+    cursor_position: dict[str, int | float] | None,
+    covers: list[tuple[int, float, int, int]],
+) -> list[sqlite3.Row] | None:
+    """Rows of a bounded source after the cursor, or None when the bound may have dropped valid rows.
+
+    The preselect runs on its own (the best ``fts_candidate_limit`` rows inside the scope and filters), then the
+    strict ownership statement reads exactly those rows. A preselect that was cut short (it returned the limit)
+    and lost rows to the strict joins (offline, mismatched or unowned assets) may have hidden valid rows beyond
+    the limit; that is None. A cut-short preselect with no losses records its ``cover``: the key up to which
+    the source is known to be complete.
+    """
+    assert source.pre_sql is not None and source.rows_sql is not None
+    if cursor_position is not None and source.min_tier > int(cursor_position["tier"]):
+        return []  # every row ranks before the cursor
+    pre_rows = conn.execute(source.pre_sql, params).fetchall()
+    if not pre_rows:
+        return []
+    survivors = conn.execute(
+        source.rows_sql, {**params, _PRESELECT_ROWS_PARAM: json.dumps([list(row) for row in pre_rows])}
+    ).fetchall()
+    rows = (
+        survivors if cursor_position is None else [row for row in survivors if _is_after_cursor(row, cursor_position)]
+    )
+    if len(pre_rows) >= int(params["fts_candidate_limit"]):
+        if len(survivors) < len(pre_rows) or not rows:
+            return None
+        covers.append(max(_row_key(row) for row in rows))
+    return rows
 
 
 def _run_page_plan(
@@ -1111,7 +1388,8 @@ def _run_page_plan(
     page_limit: int,
     row_limit: int,
     cursor_position: dict[str, int | float] | None,
-) -> list[sqlite3.Row]:
+    shadow_selects: Callable[[], list[_Source]] | None = None,
+) -> list[sqlite3.Row] | None:
     """Return one page by reading the candidate sources from the highest tier down.
 
     Every source is a complete SELECT of the old single-statement plan; the planner only decides which ones
@@ -1120,30 +1398,90 @@ def _run_page_plan(
     row of the same asset must not cost the page a slot. A source whose rows all rank below a full page is
     never run, so ``a``/``m``/``c`` are served from the prompt-phrase tier without ranking every filename and
     model match.
+
+    ``shadow_selects`` switches on the exact plan (scoped and field-filtered queries, whose pre-plan answer was
+    the exact single statement). The page then equals that statement's page:
+
+    * on a keyset page, an asset that also has a row at or before the cursor in a source whose bounded rows were
+      pre-filtered by the cursor is dropped (the single statement dedups before it applies the cursor), found by
+      reading only the candidate assets' paths out of the unbounded statements of the sources that can hold
+      such a row (their ``max_tier`` reaches the cursor's tier);
+    * a bounded source that was cut short is read through ``_read_preselected``, and the page must lie inside
+      the range every cut-short source covers, else the plan gives up (None) and the caller runs the exact
+      statement. A page never silently drops, or repeats, a match.
     """
-    planned = sorted(_plan_sources(conn, selects, params), key=lambda source: -source.max_tier)
+    exact = shadow_selects is not None
+    placed = sorted(_plan_sources(conn, selects, params), key=lambda item: -item[1].max_tier)
     has_cursor = cursor_position is not None
     best: dict[int, sqlite3.Row] = {}
+    origin: dict[int, set[int]] = {}  # asset id -> positions of the sources that returned a row for it
+    whole: set[int] = set()  # positions read whole: their rows were never cursor-filtered
+    covers: list[tuple[int, float, int, int]] = []
+    excluded: set[int] = set()
+    checked: set[int] = set()
+    shadow_sources: list[_Source] | None = None
+
+    def shadowed(pending: list[sqlite3.Row]) -> set[int]:
+        nonlocal shadow_sources
+        assert cursor_position is not None and shadow_selects is not None
+        if shadow_sources is None:
+            shadow_sources = shadow_selects()
+        cursor_tier = int(cursor_position["tier"])
+        before_cursor = _candidate_cursor_sql(
+            tier_sql="relevance_tier", rank_sql="rank", mtime_sql="mtime_ns", asset_id_sql="asset_id"
+        )
+        found: set[int] = set()
+        for position, source in enumerate(shadow_sources):
+            if position in whole or source.max_tier < cursor_tier:
+                continue
+            paths = [str(row["path"]) for row in pending if origin[int(row["asset_id"])] - {position}]
+            if not paths:
+                continue
+            rows = conn.execute(
+                f"SELECT DISTINCT asset_id FROM ({source}) WHERE NOT (1 = 1 {before_cursor})",
+                {**params, "shadow_paths": json.dumps(paths)},
+            ).fetchall()
+            found.update(int(row[0]) for row in rows)
+        checked.update(int(row["asset_id"]) for row in pending)
+        return found
 
     def page_rows() -> list[sqlite3.Row]:
-        rows = best.values()
+        rows = [row for asset_id, row in best.items() if asset_id not in excluded]
         if cursor_position is not None:
             rows = [row for row in rows if _is_after_cursor(row, cursor_position)]
         return sorted(rows, key=_row_key)[:page_limit]
 
+    def settled_page() -> list[sqlite3.Row]:
+        while True:
+            page = page_rows()
+            if not (exact and has_cursor):
+                return page
+            pending = [row for row in page if int(row["asset_id"]) not in checked]
+            if not pending:
+                return page
+            excluded.update(shadowed(pending))
+
     index = 0
     page: list[sqlite3.Row] = []
-    while index < len(planned):
-        tier = planned[index].max_tier
-        group: list[_Source] = []
-        while index < len(planned) and planned[index].max_tier == tier:
-            group.append(planned[index])
+    while index < len(placed):
+        tier = placed[index][1].max_tier
+        group: list[tuple[int, _Source]] = []
+        while index < len(placed) and placed[index][1].max_tier == tier:
+            group.append(placed[index])
             index += 1
-        for source in group:
+        for position, source in group:
             if source.probe is not None:
                 # A filename source read whole (small match set): its rows reach the dedup unfiltered, so they
                 # shadow lower-tier rows of the same asset even before the cursor, as the old statement let them.
                 rows = conn.execute(str(source), params).fetchall()
+                whole.add(position)
+            elif exact and source.pre_sql is not None:
+                read = _read_preselected(conn, source, params, cursor_position, covers)
+                if read is None and source.retry is not None:
+                    read = _read_preselected(conn, source.retry, params, cursor_position, covers)
+                if read is None:
+                    return None
+                rows = read
             else:
                 if cursor_position is not None and source.min_tier > int(cursor_position["tier"]):
                     continue  # every row ranks before the cursor
@@ -1152,14 +1490,19 @@ def _run_page_plan(
                     {**params, "page_limit": row_limit},
                 ).fetchall()
             for row in rows:
-                held = best.get(int(row["asset_id"]))
+                asset_id = int(row["asset_id"])
+                origin.setdefault(asset_id, set()).add(position)
+                held = best.get(asset_id)
                 if held is None or _row_key(row) < _row_key(held):
-                    best[int(row["asset_id"])] = row
-        page = page_rows()
-        if index >= len(planned):
+                    best[asset_id] = row
+        page = settled_page()
+        if index >= len(placed):
             break
-        if len(page) == page_limit and int(page[-1]["relevance_tier"]) > planned[index].max_tier:
+        if len(page) == page_limit and int(page[-1]["relevance_tier"]) > placed[index][1].max_tier:
             break
+    # Every cut-short source holds all of its valid rows up to its cover: the page must end inside all of them.
+    if exact and covers and (len(page) < page_limit or any(_row_key(page[-1]) > cover for cover in covers)):
+        return None
     return page
 
 
@@ -1377,9 +1720,10 @@ def search_ranked_media_page(
     field_only = parsed is not None and not residual
     include_videos = parsed is None
     bounded_candidates = legacy_offset is None
-    candidate_limit = max(256, (limit + 1) * 4)
+    candidate_limit = max(FTS_CANDIDATE_FLOOR, (limit + 1) * 4)
     params["fts_candidate_limit"] = candidate_limit
     params["field_candidate_limit"] = candidate_limit
+    exact_plan = bool(scope_sql or field_where)
     try:
         if field_only and bounded_candidates:
             rows = _field_only_rows(
@@ -1392,17 +1736,26 @@ def search_ranked_media_page(
                 candidate_limit=candidate_limit,
             )
         else:
-            selects = _candidate_selects(
-                residual,
-                scope_sql,
-                include_fts=not field_only,
-                field_where=field_where,
-                include_videos=include_videos,
-                field_only=field_only,
-                bounded_candidates=bounded_candidates,
-                has_cursor=cursor_position is not None,
-            )
-            if bounded_candidates and not scope_sql and not field_where and not field_only:
+            rows = None
+            if bounded_candidates and not field_only:
+                scope_filter = _scope_filter(scope, root_path, library_id)
+                if (
+                    scope_filter is not None
+                    and scope_filter.library
+                    and _library_covers_every_file(conn, scope_filter.library_id)
+                ):
+                    scope_filter = replace(scope_filter, library_elided=True)
+                selects = _candidate_selects(
+                    residual,
+                    scope_sql,
+                    include_fts=True,
+                    field_where=field_where,
+                    include_videos=include_videos,
+                    bounded_candidates=True,
+                    has_cursor=cursor_position is not None,
+                    scope=scope_filter,
+                    retry_preselect=exact_plan,
+                )
                 rows = _run_page_plan(
                     conn,
                     selects,  # type: ignore[arg-type]
@@ -1410,8 +1763,33 @@ def search_ranked_media_page(
                     page_limit=limit + 1,
                     row_limit=candidate_limit,
                     cursor_position=cursor_position,
+                    shadow_selects=(
+                        lambda: _candidate_selects(  # type: ignore[return-value]
+                            residual,
+                            scope_sql,
+                            include_fts=True,
+                            field_where=field_where,
+                            include_videos=include_videos,
+                            has_cursor=cursor_position is not None,
+                            extra_where=SHADOW_PATHS_WHERE,
+                        )
+                    )
+                    if exact_plan
+                    else None,
                 )
-            else:
+            if rows is None:
+                # Legacy offsets, field-only queries, and any scoped or field-filtered page the bounded plan
+                # could not guarantee: the exact single statement over every source.
+                selects = _candidate_selects(
+                    residual,
+                    scope_sql,
+                    include_fts=not field_only,
+                    field_where=field_where,
+                    include_videos=include_videos,
+                    field_only=field_only,
+                    bounded_candidates=bounded_candidates and field_only,
+                    has_cursor=cursor_position is not None,
+                )
                 rows = list(
                     conn.execute(
                         build_candidate_page_query(

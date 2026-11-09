@@ -1390,10 +1390,28 @@ Header search or AdvancedSearchDrawer
   than the preselect holds. Structured-filter-only queries (`prompt:c`) probe
   `image_metadata` newest first through `idx_image_metadata_inspector_date` and stop at the
   candidate limit; a filter too sparse for the probe's row budget uses the sorting plan.
-  Scoped (`folder`, `library`) and filtered-with-text queries, legacy offset cursors and the
-  LIKE fallback keep the single-statement plan. `GET /api/search` and the v2 endpoints resolve
-  `scope=all` without listing libraries (the listing counts every asset and is not needed).
-  Known behaviour: a row that matches in two sources of different tiers can be returned once
+  Legacy offset cursors and the LIKE fallback keep the single-statement plan. `GET /api/search`
+  and the v2 endpoints resolve `scope=all` without listing libraries (the listing counts every
+  asset and is not needed); library and folder scopes list them without the asset count.
+  Scoped (`folder`, `library`) and field-filtered text queries (SC-01) run the same tier-ordered
+  plan in its exact mode. The scope (`ranked_search._ScopeFilter`: a sargable path range
+  `[root/, root0)` that only matches whole path components, plus the library id) and the field
+  conditions are applied *inside* each bounded preselect, before it cuts to the best
+  `fts_candidate_limit` rows, so the bound keeps the best rows inside the scope and equals the
+  unbounded statement's top rows. A library predicate that every file row satisfies is dropped from
+  the preselect (the strict statement still applies it). Each bounded source runs as two statements
+  (preselect, then the strict ownership joins on exactly those rows), so the plan knows when a
+  preselect was cut short and the joins dropped rows (offline, mismatched or unowned assets): it
+  retries that source with an active-asset join in the preselect, and if rows are still lost, or a
+  cut-short source does not cover the whole page, it runs the exact single statement. On keyset
+  pages an asset that also has a row at or before the cursor in another source is dropped (the
+  unbounded statements of the sources that can hold such a row are read for the candidate paths
+  only). A scoped or fielded page therefore equals the exact statement's page, with none of the
+  cross-source repeats described below. Album suggestions read folders by type (`INDEXED BY
+  idx_file_index_type`) under a scope, and the scoped count keeps the capped distinct streaming
+  statements with the sargable scope. `backend/tests/test_search_scoped_pins.py` pins and
+  cross-checks all of it.
+  Known behaviour of the unscoped, unfiltered plan only: a row that matches in two sources of different tiers can be returned once
   per source across keyset pages (the per-source cursor pre-filter runs before the
   cross-source dedup; this predates the plan). The bounded filename variants of a large match
   set pre-filter by the cursor too, so on pages after the first an asset whose filename match

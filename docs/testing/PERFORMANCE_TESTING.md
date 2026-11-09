@@ -464,6 +464,16 @@ GALLERY_PERF_SEARCH_PROFILE=scheduled ./test.sh perf
 `bench_search.py` runs after the managed backend health check and reports broad
 filename, prompt-heavy, album-heavy, combined fielded, model-only,
 sampler-only, mixed-short-token, CJK, and repeated opaque-keyset page classes.
+Since SC-01 it also runs the dense, fielded, keyset-page and count classes under
+four scopes sent as the UI sends them (`POST /api/search/query` and
+`/api/search/count`): `library`, `folder_root`, `folder_nested`
+(`GALLERY_PERF_ALBUM_NAME`, default `a1111`) and `folder_album`
+(`GALLERY_PERF_SCOPE_ALBUM_NAME`, default `search_album_000`, a selective scope),
+reported as `scoped_<scope>_<class>` (`a`, `m`, `c`, `as`, `ass`, the fielded
+query, 3-page chains of `a`, `c`, `ass`, and counts) against the same 300 ms p95
+budget. Scopes are discovered from the backend; an unresolved scope fails its
+contract. For local runs, `GALLERY_PERF_BENCH_SEARCH_SUITE=scoped|unscoped` and
+`GALLERY_PERF_BENCH_SEARCH_CLASS_FILTER=<substring>` narrow the classes.
 Since BL-13 it also reports the dense short-query classes of the 100k fixture,
 where every row matches the prefix or the substring:
 
