@@ -39,12 +39,15 @@ interface Props {
   mediaTotal?: SearchMediaTotal | null;
   /** SE-01: the shown results belong to the previous text while a newer query settles; they are dimmed. */
   settling?: boolean;
+  /** `mediaTotal` is held from the previous text while the new count is pending; format it without `hasNextPage`. */
+  countPending?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   errorMessage: "Unable to load search results.",
   mediaTotal: null,
   settling: false,
+  countPending: false,
 });
 const emit = defineEmits<{
   openFolder: [path: string];
@@ -165,7 +168,11 @@ const rows = computed<SearchRow[]>(() => {
       id: "header-media",
       kind: "header",
       section: "media",
-      count: formatSearchMediaCount(props.media.length, props.mediaTotal, props.hasNextPage),
+      count: formatSearchMediaCount(
+        props.media.length,
+        props.mediaTotal,
+        props.countPending ? true : props.hasNextPage,
+      ),
     });
     chunkItems(props.media, props.columnCount).forEach((items, index) => {
       result.push({ id: `media-${props.columnCount}-${index}`, kind: "media", items });

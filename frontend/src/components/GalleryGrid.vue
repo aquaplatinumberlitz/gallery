@@ -231,8 +231,16 @@ watch(hasSearchQuery, (active) => {
 const searchMediaTotal = computed<SearchMediaTotal | null>(() => {
   const state = searchCountPreview.state.value;
   if (state.status === "done") return { total: state.total, hasMore: state.hasMore };
-  return isSearchSettling.value ? lastSearchMediaTotal.value : null;
+  // Keep the last total while the new text settles or its count is pending (idle for one tick, or loading), so the
+  // header does not flicker to the loaded count. A failed count falls back to the loaded count.
+  if (state.status === "error") return null;
+  return hasSearchQuery.value ? lastSearchMediaTotal.value : null;
 });
+// True while the header shows a held total (the count for the new text is pending). The held total is formatted on its
+// own: the query's hasNextPage is briefly false while a new first page lands, which would otherwise show the loaded count.
+const searchCountPending = computed(
+  () => searchCountPreview.state.value.status !== "done" && searchMediaTotal.value !== null,
+);
 const showSearchWarmupHint = computed(() => trimmedSearchQuery.value.length > 0 && !hasSearchQuery.value);
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
@@ -934,6 +942,7 @@ useInfiniteLoadSentinel({
       :show-all-indexed-hint="showAllIndexedHint"
       :media-total="searchMediaTotal"
       :settling="isSearchSettling"
+      :count-pending="searchCountPending"
       @open-folder="handleOpenFolder"
       @open-media="handleOpenMedia(searchResultToFileNode($event))"
       @find-related="handleFindRelated(searchResultToFileNode($event))"
