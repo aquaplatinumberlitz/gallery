@@ -8,7 +8,8 @@ Active plans:
 
 | Plan | Status | Created |
 |------|--------|---------|
-| [Backlog BL-13 / BL-14 Fix](BACKLOG_13_14_FIX_PLAN.md) | Active | 2026-11-09 |
+| [Backlog BL-13 / BL-14 Fix](BACKLOG_13_14_FIX_PLAN.md) | Merged (PR #19), deploy pending | 2026-11-09 |
+| [Scoped Search Perf and Lightbox Metric](SCOPED_SEARCH_LIGHTBOX_METRIC_PLAN.md) | Active | 2026-11-09 |
 
 Deferred work no plan owns yet is tracked in [Backlog](BACKLOG.md).
 
