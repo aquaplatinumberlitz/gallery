@@ -621,9 +621,7 @@ _FIELD_HANDLERS: dict[str, FieldHandler] = {
 }
 
 
-def build_fielded_conditions(
-    parsed: ParsedQuery, *, probe_friendly: bool = False
-) -> tuple[list[str], dict[str, Any]]:
+def build_fielded_conditions(parsed: ParsedQuery, *, probe_friendly: bool = False) -> tuple[list[str], dict[str, Any]]:
     """Build WHERE conditions and params from a parsed field-handler table.
 
     ``probe_friendly`` renders short ``prompt:``/``name:`` contains values as per-row folded probes instead of a
