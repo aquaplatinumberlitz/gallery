@@ -180,7 +180,9 @@ const hasStructuredSearch = computed(
     Boolean(canonicalSearchRequest.value?.filters.prompt_groups.length) ||
     Boolean(canonicalSearchRequest.value?.filters.workflow_groups.length),
 );
-const unifiedSearchQuery = useUnifiedSearchQuery(canonicalSearchRequest);
+const unifiedSearchQuery = useUnifiedSearchQuery(canonicalSearchRequest, {
+  submittedQuery: computed(() => galleryStore.submittedSearchQuery),
+});
 watch(
   [() => unifiedSearchQuery.error.value, () => unifiedSearchQuery.isSuccess.value],
   ([error, isSuccess]) => {
@@ -193,21 +195,28 @@ watch(
   { immediate: true },
 );
 const settledSearchQuery = computed(() => unifiedSearchQuery.debouncedQuery.value);
+// SE-01: a search that is showing stays in search mode while a newer query settles (settled text non-empty).
 const hasSearchQuery = computed(
   () =>
     hasStructuredSearch.value ||
     isSubmittedSearchQuery.value ||
-    (settledSearchQuery.value.length > 0 && settledSearchQuery.value === effectiveSearchQuery.value),
+    (settledSearchQuery.value.length > 0 && effectiveSearchQuery.value.length > 0),
 );
-// Same `search-count` query (and cache entry) as the Advanced Search drawer; the request is already settled here.
+// SE-05: the `search-count` request (same query and cache entry as the Advanced Search drawer) is sent only for
+// settled, non-empty text that matches the typed text. Enter never sends an empty or stale count.
 const searchCountPreview = useSearchMatchPreview(
   () =>
-    hasSearchQuery.value && canonicalSearchRequest.value
+    settledSearchQuery.value.length > 0 &&
+    settledSearchQuery.value === effectiveSearchQuery.value &&
+    canonicalSearchRequest.value
       ? persistableSearchRequest({ ...canonicalSearchRequest.value, text: settledSearchQuery.value })
       : null,
   { debounceMs: 0 },
 );
+// While a newer query settles, the header shows the loaded count of the results still on screen (dimmed), not the
+// total of the old text.
 const searchMediaTotal = computed(() => {
+  if (isSearchSettling.value) return null;
   const state = searchCountPreview.state.value;
   return state.status === "done" ? { total: state.total, hasMore: state.hasMore } : null;
 });
@@ -911,6 +920,7 @@ useInfiniteLoadSentinel({
       :fetching-next-page="isSearchFetchingNextPage"
       :show-all-indexed-hint="showAllIndexedHint"
       :media-total="searchMediaTotal"
+      :settling="isSearchSettling"
       @open-folder="handleOpenFolder"
       @open-media="handleOpenMedia(searchResultToFileNode($event))"
       @find-related="handleFindRelated(searchResultToFileNode($event))"

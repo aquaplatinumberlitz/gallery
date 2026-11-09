@@ -37,11 +37,14 @@ interface Props {
   showAllIndexedHint: boolean;
   /** Total from the `search-count` query; `null` while pending or unavailable. */
   mediaTotal?: SearchMediaTotal | null;
+  /** SE-01: the shown results belong to the previous text while a newer query settles; they are dimmed. */
+  settling?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   errorMessage: "Unable to load search results.",
   mediaTotal: null,
+  settling: false,
 });
 const emit = defineEmits<{
   openFolder: [path: string];
@@ -228,7 +231,13 @@ const displayFolder = (result: UnifiedSearchResult) => {
     @clear="emit('clear')"
   />
 
-  <div v-else :ref="setScrollContainer" class="search-results-panel">
+  <div
+    v-else
+    :ref="setScrollContainer"
+    class="search-results-panel"
+    :class="{ 'is-settling': settling }"
+    :aria-busy="settling ? 'true' : undefined"
+  >
     <SearchFeedback v-if="staleError" state="stale-warning" :message="errorMessage" @retry="emit('retry')" />
 
     <div class="search-sort-context" aria-label="Search results sorted by relevance">Sorted by Relevance</div>
@@ -334,6 +343,11 @@ const displayFolder = (result: UnifiedSearchResult) => {
   overflow-x: hidden;
   overflow-y: auto;
   padding: 0 14px 0 10px;
+  transition: opacity 0.15s ease;
+}
+
+.search-results-panel.is-settling {
+  opacity: 0.55;
 }
 
 .search-sort-context {

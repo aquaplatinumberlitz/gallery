@@ -33,6 +33,7 @@ let mockHasActivePage = ref(true);
 const mockRefetch = vi.fn();
 const mockFetchNextPage = vi.fn();
 const mockUseUnifiedSearchQuery = vi.hoisted(() => vi.fn());
+const mockUseSearchMatchPreview = vi.hoisted(() => vi.fn());
 const mockRouterPush = vi.hoisted(() => vi.fn());
 const mockBrowseOptions = vi.hoisted(() => ({ current: undefined as undefined | Record<string, any> }));
 
@@ -79,6 +80,15 @@ mockUseUnifiedSearchQuery.mockImplementation(() => ({
   videos: { value: [] },
   prompt: { value: [] },
   media: { value: [] },
+}));
+
+vi.mock("@/composables/useSearchMatchPreview", () => ({
+  useSearchMatchPreview: mockUseSearchMatchPreview,
+}));
+
+mockUseSearchMatchPreview.mockImplementation(() => ({
+  state: ref({ status: "idle", total: 0, hasMore: false }),
+  isFetching: ref(false),
 }));
 
 vi.mock("@/composables/useColumnResize", () => ({
@@ -377,6 +387,46 @@ describe("GalleryGrid", () => {
     expect(mockUseUnifiedSearchQuery.mock.calls[0][0].value?.text).toBe("mi");
     expect(fuzzySearchFileNodes).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain("Keep typing to search, or press Enter.");
+  });
+
+  // SE-01: a shown search stays shown while the next query settles (no browse fallback or "Keep typing" hint).
+  it("keeps the search panel while a shown search settles to a longer query (SE-01)", async () => {
+    mockUseUnifiedSearchQuery.mockImplementation(() => ({
+      isLoading: { value: false },
+      isFetching: { value: true },
+      isFetchingNextPage: { value: false },
+      isError: { value: false },
+      isRefetchError: { value: false },
+      isFetchNextPageError: { value: false },
+      error: mockError,
+      isPending: { value: false },
+      isPlaceholderData: { value: true },
+      isSuccess: mockIsSuccess,
+      hasNextPage: { value: false },
+      fetchNextPage: vi.fn(),
+      debouncedQuery: { value: "ni" },
+      albums: { value: [] },
+      photos: { value: [] },
+      videos: { value: [] },
+      prompt: { value: [] },
+      media: { value: [{ name: "night.png", path: "/photos/night.png", type: "image", mtime: 1 }] },
+    }));
+    const wrapper = await mountSubject({
+      store: { searchQuery: "nig", submittedSearchQuery: "" },
+      stubs: { SearchResultsPanel: { props: ["media"], template: "<div class='search-panel-stub' />" } },
+    });
+
+    expect(wrapper.find(".search-panel-stub").exists()).toBe(true);
+    expect(wrapper.find(".search-warmup-hint").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("Keep typing to search, or press Enter.");
+  });
+
+  // SE-05: the count request is only sent for settled, non-empty text (never the Enter-time empty text).
+  it("sends no search-count request for empty or unsettled text (SE-05)", async () => {
+    await mountSubject({ store: { searchQuery: "nig", submittedSearchQuery: "nig" } });
+    const request = mockUseSearchMatchPreview.mock.calls.at(-1)?.[0];
+    const value = typeof request === "function" ? request() : request;
+    expect(value).toBeNull();
   });
 
   it("allows a one-character query after explicit submit", async () => {

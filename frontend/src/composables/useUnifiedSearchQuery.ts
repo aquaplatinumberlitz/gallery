@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from "@tanstack/vue-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/vue-query";
 import { computed, type Ref, watch } from "vue";
 import { refDebounced } from "@vueuse/core";
 import { queryKeys } from "../query/keys";
@@ -8,6 +8,11 @@ import { GALLERY_SEARCH_DEBOUNCE_MS } from "../constants";
 import { recordRecentSearch } from "./useRecentSearches";
 
 export const SEARCH_PAGE_SIZE = 60;
+
+export interface UseUnifiedSearchQueryOptions {
+  /** The text the user submitted with Enter (`galleryStore.submittedSearchQuery`). */
+  submittedQuery?: Ref<string>;
+}
 
 const EMPTY_SEARCH_RESULTS: UnifiedSearchResults = {
   albums: [],
@@ -32,13 +37,22 @@ const dedupeCanonicalResults = (results: UnifiedSearchResult[]) => {
   });
 };
 
-export function useUnifiedSearchQuery(request: Ref<SearchQueryRequestV1 | null>) {
+export function useUnifiedSearchQuery(
+  request: Ref<SearchQueryRequestV1 | null>,
+  options: UseUnifiedSearchQueryOptions = {},
+) {
   const trimmedQuery = computed(() => request.value?.text.trim() ?? "");
   const trimmedDebounced = refDebounced(trimmedQuery, GALLERY_SEARCH_DEBOUNCE_MS);
-  const debouncedQuery = computed(() => (trimmedQuery.value ? trimmedDebounced.value : ""));
+  // SE-02: Enter submits the typed text, so that text settles at once instead of after the debounce.
+  const submittedNow = computed(
+    () => Boolean(trimmedQuery.value) && (options.submittedQuery?.value.trim() ?? "") === trimmedQuery.value,
+  );
+  const settledText = computed(() => (submittedNow.value ? trimmedQuery.value : trimmedDebounced.value));
+  const debouncedQuery = computed(() => (trimmedQuery.value ? settledText.value : ""));
+  // SE-01: while the newer text is still settling, the request (and so the shown results) stays on the last settled
+  // text. Only a cleared request (null) has no results.
   const debouncedRequest = computed<SearchQueryRequestV1 | null>(() => {
     if (!request.value) return null;
-    if (trimmedQuery.value && debouncedQuery.value !== trimmedQuery.value) return null;
     return { ...request.value, text: debouncedQuery.value };
   });
 
@@ -63,12 +77,16 @@ export function useUnifiedSearchQuery(request: Ref<SearchQueryRequestV1 | null>)
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage: UnifiedSearchResponse) => lastPage.next_cursor ?? undefined,
     enabled: computed(() => debouncedRequest.value !== null),
+    // SE-01: keep the previous settled pages while the next text's first page is pending. A cleared request keeps
+    // nothing, so stale results cannot reappear when the user types again.
+    placeholderData: (previousData) => (debouncedRequest.value ? keepPreviousData(previousData) : undefined),
   });
 
   watch(
     () => searchQuery.data.value?.pages[0],
     (firstPage) => {
-      if (firstPage && firstPage.returned > 0 && debouncedRequest.value) {
+      // Placeholder pages belong to the previous text, so they are not recorded for the current request.
+      if (firstPage && firstPage.returned > 0 && debouncedRequest.value && !searchQuery.isPlaceholderData.value) {
         recordRecentSearch(debouncedRequest.value);
       }
     },
@@ -76,11 +94,7 @@ export function useUnifiedSearchQuery(request: Ref<SearchQueryRequestV1 | null>)
 
   const pages = computed(() => searchQuery.data.value?.pages ?? []);
   const results = computed<UnifiedSearchResults>(() => {
-    if (
-      !debouncedRequest.value ||
-      (trimmedQuery.value && trimmedQuery.value !== debouncedQuery.value) ||
-      !pages.value.length
-    ) {
+    if (!debouncedRequest.value || !pages.value.length) {
       return EMPTY_SEARCH_RESULTS;
     }
     const [firstPage] = pages.value;
