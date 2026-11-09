@@ -1403,7 +1403,9 @@ Header search or AdvancedSearchDrawer
   (preselect, then the strict ownership joins on exactly those rows), so the plan knows when a
   preselect was cut short and the joins dropped rows (offline, mismatched or unowned assets): it
   retries that source with an active-asset join in the preselect, and if rows are still lost, or a
-  cut-short source does not cover the whole page, it runs the exact single statement. On keyset
+  cut-short source does not cover the whole page, it runs the exact single statement. A cut-short
+  source covers only the rows strictly before the (tier, rank, mtime) of its last row: the preselect
+  breaks ties by its own row id, not the page's asset id, so the boundary tie group is never trusted. On keyset
   pages an asset that also has a row at or before the cursor in another source is dropped (the
   unbounded statements of the sources that can hold such a row are read for the candidate paths
   only). A scoped or fielded page therefore equals the exact statement's page, with none of the
