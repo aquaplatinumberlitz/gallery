@@ -146,6 +146,13 @@ FTS5 unicode and trigram tables index `name`, `prompt`, `negative_prompt`, `mode
 `sampler`, and `raw_metadata_text`. A separate CJK bigram FTS table
 (`image_metadata_fts_cjk`, schema version 13) indexes the overlapping bigrams of CJK runs in
 `prompt` and `negative_prompt` so one- and two-character CJK words are searchable.
+Schema version 14 adds folded copies of `prompt`, `negative_prompt`, `model`, `sampler` and
+file names (`image_metadata_fold`, `file_index_fold`, see `docs/ARCHITECTURE.md`): NFKC, case
+folding, combining-mark removal, `đ` to `d` and katakana to hiragana (`text_fold.fold_text`).
+Ranked search and the fielded `prompt:`/`negative:`/`name:`/`model:`/`sampler:` contains filters
+read the folded text, so `cafe`/`café`, `noi`/`Nội`, `pho`/`Phố` and `ﾈｵﾝ`/`ネオン`/`ねおん`
+match each other. Stored and displayed text is unchanged; the CJK bigram rows are built from
+folded text.
 
 Parsed LoRA/resource data is also normalized into `image_resources` with `path`, `kind`,
 `name`, `hash`, `resource_hash`, `weight`, `strength`, `raw_json`, and `updated_at`.

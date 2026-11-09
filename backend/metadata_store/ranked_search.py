@@ -12,15 +12,29 @@ from pathlib import Path
 from typing import Any
 
 from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
+from ..text_fold import fold_text
 from ..workflow_discovery import build_workflow_group_conditions
 from .cjk_index import CJK_FTS_TABLE, plan_short_query
 from .identity import asset_owns_file_index_sql, catalog_import_path_owns_sql, file_index_matches_image_metadata_sql
 from .path_utils import canonicalize_catalog_path, named_path_scope_sql
+from .search_text_index import META_FOLD_TABLE
 
 SEARCH_CURSOR_VERSION = 1
 SQLITE_INT_MIN = -(2**63)
 SQLITE_INT_MAX = 2**63 - 1
 _CURRENT_METADATA_IDENTITY_SQL = file_index_matches_image_metadata_sql(fi_alias="fi", im_alias="m")
+
+# Relevance tiers. Word-prefix matches (and CJK substring matches, which have no word boundary) are the
+# primary tiers, all >= 40. Latin substring (trigram) matches are secondary tiers, all < 40, so every prefix
+# match of the same query ranks above every substring match.
+TIER_PROMPT_PHRASE = 80
+TIER_PROMPT = 65
+TIER_NEGATIVE = 40
+TIER_SUBSTRING_PROMPT_PHRASE = 39
+TIER_SUBSTRING_FILENAME = 38
+TIER_SUBSTRING_PROMPT = 37
+TIER_SUBSTRING_METADATA = 36
+TIER_SUBSTRING_NEGATIVE = 35
 
 
 def _active_asset_join_sql(*, fi_alias: str = "fi", asset_alias: str = "catalog_asset") -> str:
@@ -116,6 +130,36 @@ def _short_match_params(query: str) -> dict[str, str]:
             params[f"{param}_match"] = f"{column} : ({plan.latin_match})"
         else:
             params[f"{param}_match"] = params[f"{param}_cjk_match"]
+    return params
+
+
+def _text_match_params(residual: str) -> dict[str, Any]:
+    """MATCH/LIKE parameters for a query: folded for the folded indexes, original for the LIKE fallbacks.
+
+    Every ``*_match`` is a word-prefix expression for the unicode61 tables; ``*_substring_match`` feeds the
+    trigram tables (used from three characters). ``fold_*`` values compare against folded stored text.
+    """
+    folded = fold_text(residual)
+    prefix_all = _unicode_prefix_match_query(folded)
+    substring = _trigram_token_match_query(folded)
+    params: dict[str, Any] = {
+        "filename_like": _like_pattern(residual),
+        "filename_match": prefix_all,
+        "filename_substring_match": _trigram_match_query(folded),
+        "filename_prefix": f"{_like_escape(residual)}%",
+        "fold_filename_prefix": f"{_like_escape(folded)}%",
+        "fold_like": _like_pattern(folded),
+        "fold_query": folded,
+        "negative_match": f"negative_prompt : ({prefix_all})",
+        "negative_substring_match": f"negative_prompt : ({substring})",
+        "metadata_match": f"(model : ({prefix_all})) OR (sampler : ({prefix_all}))",
+        "metadata_substring_match": f"(model : ({substring})) OR (sampler : ({substring}))",
+        "positive_match": f"prompt : ({prefix_all})",
+        "positive_substring_match": f"prompt : ({substring})",
+        "query": residual,
+        "text_like": _like_pattern(residual),
+    }
+    params.update(_short_match_params(folded))
     return params
 
 
@@ -240,6 +284,7 @@ def _filename_candidate_select(
     query_kind: str,
     scope_sql: str,
     field_where: str,
+    substring_tier: int = TIER_SUBSTRING_FILENAME,
 ) -> str:
     type_sql = "fi.type IN ('image', 'photo')" if file_type == "image" else "fi.type = 'video'"
     metadata_join = ""
@@ -251,12 +296,18 @@ def _filename_candidate_select(
         metadata_values = (
             "coalesce(m.model, '') AS model, coalesce(m.sampler, '') AS sampler, coalesce(m.seed, '') AS seed"
         )
+    exact_sql = "fi.name = :query COLLATE NOCASE"
+    prefix_sql = "fi.name LIKE :filename_prefix ESCAPE '\\' COLLATE NOCASE"
     if query_kind in {"fts", "trigram"}:
-        fts_table = "file_index_fts_trigram" if query_kind == "trigram" else "file_index_fts"
+        # Folded names: word-prefix (unicode61) and substring (trigram) tables keyed by file_index.rowid.
+        fts_table = "file_index_fold_fts_trigram" if query_kind == "trigram" else "file_index_fold_fts"
         match_param = "filename_substring_match" if query_kind == "trigram" else "filename_match"
+        exact_sql = "ff.name = :fold_query"
+        prefix_sql = "ff.name LIKE :fold_filename_prefix ESCAPE '\\'"
         source = f"""
           FROM {fts_table}
           CROSS JOIN file_index fi ON fi.rowid = {fts_table}.rowid
+          JOIN file_index_fold ff ON ff.file_rowid = fi.rowid
           {_active_asset_join_sql()}
           {metadata_join}
           WHERE {fts_table} MATCH :{match_param}
@@ -265,7 +316,7 @@ def _filename_candidate_select(
             {metadata_where}
         """
         rank_sql = f"round(bm25({fts_table}), 6)"
-        fallback_tier = 50 if query_kind == "trigram" else 70
+        fallback_tier = substring_tier if query_kind == "trigram" else 70
     else:
         source = f"""
           FROM file_index fi
@@ -286,18 +337,18 @@ def _filename_candidate_select(
              catalog_asset.library_id AS library_id,
              catalog_library.name AS library_name,
              CASE
-               WHEN fi.name = :query COLLATE NOCASE THEN 100
-               WHEN fi.name LIKE :filename_prefix ESCAPE '\\' COLLATE NOCASE THEN 90
+               WHEN {exact_sql} THEN 100
+               WHEN {prefix_sql} THEN 90
                ELSE {fallback_tier}
              END AS relevance_tier,
              CASE
-               WHEN fi.name = :query COLLATE NOCASE THEN 0.0
-               WHEN fi.name LIKE :filename_prefix ESCAPE '\\' COLLATE NOCASE THEN 0.0
+               WHEN {exact_sql} THEN 0.0
+               WHEN {prefix_sql} THEN 0.0
                ELSE {rank_sql}
              END AS rank,
              CASE
-               WHEN fi.name = :query COLLATE NOCASE THEN 'filename_exact'
-               WHEN fi.name LIKE :filename_prefix ESCAPE '\\' COLLATE NOCASE THEN 'filename_prefix'
+               WHEN {exact_sql} THEN 'filename_exact'
+               WHEN {prefix_sql} THEN 'filename_prefix'
                ELSE 'filename'
              END AS match_type,
              '' AS prompt_snippet,
@@ -316,6 +367,7 @@ def _metadata_candidate_select(
     bounded_field_only: bool = False,
     has_cursor: bool = False,
     cjk_match_param: str | None = None,
+    secondary: bool = False,
 ) -> str:
     field_clause = f"AND {field_where}" if field_where else ""
     if source_kind == "positive_phrase":
@@ -389,21 +441,33 @@ def _metadata_candidate_select(
             "negative_trigram": "negative_substring_match",
             "metadata_trigram": "metadata_substring_match",
         }[source_kind]
+        phrase_hit = "{alias}.prompt LIKE :fold_like ESCAPE '\\'"
         if source_kind in {"positive_fts", "positive_trigram"}:
-            tier = "CASE WHEN m.prompt LIKE :text_like ESCAPE '\\' THEN 80 ELSE 65 END"
-            match_type_sql = "CASE WHEN m.prompt LIKE :text_like ESCAPE '\\' THEN 'prompt_phrase' ELSE 'prompt' END"
+            hit, miss = (
+                (TIER_SUBSTRING_PROMPT_PHRASE, TIER_SUBSTRING_PROMPT)
+                if secondary
+                else (TIER_PROMPT_PHRASE, TIER_PROMPT)
+            )
+            tier = f"CASE WHEN {phrase_hit.format(alias='f')} THEN {hit} ELSE {miss} END"
+            match_type_sql = f"CASE WHEN {phrase_hit.format(alias='f')} THEN 'prompt_phrase' ELSE 'prompt' END"
             snippet = "m.prompt"
-            pre_tier = "CASE WHEN pre_m.prompt LIKE :text_like ESCAPE '\\' THEN 80 ELSE 65 END"
+            pre_tier = f"CASE WHEN {phrase_hit.format(alias='pre_f')} THEN {hit} ELSE {miss} END"
+            pre_fold_join = f"LEFT JOIN {META_FOLD_TABLE} AS pre_f ON pre_f.metadata_id = pre_m.id"
         elif source_kind in {"negative_fts", "negative_trigram"}:
-            tier = 40
+            tier = TIER_SUBSTRING_NEGATIVE if secondary else TIER_NEGATIVE
             match_type_sql = "'negative_prompt'"
             snippet = "m.negative_prompt"
-            pre_tier = "40"
+            pre_tier = str(tier)
+            pre_fold_join = ""
         else:
-            tier = 65
+            tier = TIER_SUBSTRING_METADATA if secondary else TIER_PROMPT
             match_type_sql = "'metadata'"
             snippet = "coalesce(m.model, m.sampler, '')"
-            pre_tier = "65"
+            pre_tier = str(tier)
+            pre_fold_join = ""
+        fold_join = (
+            f"LEFT JOIN {META_FOLD_TABLE} AS f ON f.metadata_id = m.id" if source_kind.startswith("positive") else ""
+        )
         cjk_subquery = (
             f"IN (SELECT rowid FROM {CJK_FTS_TABLE} WHERE {CJK_FTS_TABLE} MATCH :{cjk_match_param})"
             if cjk_match_param
@@ -433,6 +497,7 @@ def _metadata_candidate_select(
                 SELECT {fts_table}.rowid AS metadata_id, {pre_tier} AS pre_tier, {pre_rank} AS pre_rank
                 FROM {fts_table}
                 JOIN image_metadata AS pre_m ON pre_m.id = {fts_table}.rowid
+                {pre_fold_join}
                 {pre_joins}
                 WHERE {fts_table} MATCH :{match_param} {pre_cursor}
                   {pre_cjk_filter}
@@ -440,6 +505,7 @@ def _metadata_candidate_select(
                 LIMIT :fts_candidate_limit
               ) AS bounded_fts_rows
               CROSS JOIN image_metadata m ON m.id = bounded_fts_rows.metadata_id
+              {fold_join}
               CROSS JOIN file_index fi ON fi.path = m.path
               {_active_asset_join_sql()}
               WHERE {_CURRENT_METADATA_IDENTITY_SQL}
@@ -449,6 +515,7 @@ def _metadata_candidate_select(
             source = f"""
               FROM {fts_table}
               CROSS JOIN image_metadata m ON m.id = {fts_table}.rowid
+              {fold_join}
               CROSS JOIN file_index fi ON fi.path = m.path
               {_active_asset_join_sql()}
               WHERE {fts_table} MATCH :{match_param}
@@ -535,10 +602,15 @@ def _candidate_selects(
             )
         return selects
 
-    use_trigram = _can_use_trigram_candidates(query)
-    short_plan = None if use_trigram else plan_short_query(query)
-    metadata_table = "image_metadata_fts_trigram" if use_trigram else "image_metadata_fts"
-    prompt_table = metadata_table
+    folded_query = fold_text(query)
+    use_trigram = _can_use_trigram_candidates(folded_query)
+    plan = plan_short_query(folded_query)
+    has_cjk_terms = plan is not None and bool(plan.cjk_terms)
+    # Latin queries of three or more characters add a lower substring tier below the word-prefix tier.
+    # Queries with CJK text keep substring semantics as the primary tier (CJK has no word boundaries).
+    substring_secondary = use_trigram and not has_cjk_terms
+    short_plan = None if use_trigram else plan
+    prompt_table = "image_metadata_fold_fts"
     prompt_cjk_param: str | None = None
     negative_cjk_param: str | None = None
     if short_plan is not None and short_plan.cjk_terms:
@@ -546,10 +618,21 @@ def _candidate_selects(
             prompt_cjk_param, negative_cjk_param = "positive_cjk_match", "negative_cjk_match"
         else:
             prompt_table = CJK_FTS_TABLE
-    positive_kind = "positive_trigram" if use_trigram else "positive_fts"
-    negative_kind = "negative_trigram" if use_trigram else "negative_fts"
-    metadata_kind = "metadata_trigram" if use_trigram else "metadata_fts"
+    trigram_table = "image_metadata_fold_fts_trigram"
     bounded_metadata_fts = bounded_candidates and not scope_sql and not field_where
+
+    def metadata_selects(kind: str, table: str, *, secondary: bool, cjk_param: str | None = None) -> str:
+        return _metadata_candidate_select(
+            source_kind=kind,
+            scope_sql=scope_sql,
+            field_where=field_where,
+            fts_table=table,
+            bounded_fts=bounded_metadata_fts,
+            has_cursor=has_cursor,
+            cjk_match_param=cjk_param,
+            secondary=secondary,
+        )
+
     selects = [
         _filename_candidate_select(
             file_type="image",
@@ -557,33 +640,26 @@ def _candidate_selects(
             scope_sql=scope_sql,
             field_where=field_where,
         ),
-        _metadata_candidate_select(
-            source_kind=positive_kind,
-            scope_sql=scope_sql,
-            field_where=field_where,
-            fts_table=prompt_table,
-            bounded_fts=bounded_metadata_fts,
-            has_cursor=has_cursor,
-            cjk_match_param=prompt_cjk_param,
-        ),
-        _metadata_candidate_select(
-            source_kind=negative_kind,
-            scope_sql=scope_sql,
-            field_where=field_where,
-            fts_table=prompt_table,
-            bounded_fts=bounded_metadata_fts,
-            has_cursor=has_cursor,
-            cjk_match_param=negative_cjk_param,
-        ),
-        _metadata_candidate_select(
-            source_kind=metadata_kind,
-            scope_sql=scope_sql,
-            field_where=field_where,
-            fts_table=metadata_table,
-            bounded_fts=bounded_metadata_fts,
-            has_cursor=has_cursor,
-        ),
     ]
+    if use_trigram and not substring_secondary:
+        # CJK-bearing query: the trigram table is the primary (substring) source.
+        selects += [
+            metadata_selects("positive_trigram", trigram_table, secondary=False),
+            metadata_selects("negative_trigram", trigram_table, secondary=False),
+            metadata_selects("metadata_trigram", trigram_table, secondary=False),
+        ]
+    else:
+        selects += [
+            metadata_selects("positive_fts", prompt_table, secondary=False, cjk_param=prompt_cjk_param),
+            metadata_selects("negative_fts", prompt_table, secondary=False, cjk_param=negative_cjk_param),
+            metadata_selects("metadata_fts", "image_metadata_fold_fts", secondary=False),
+        ]
+        if substring_secondary:
+            selects += [
+                metadata_selects("positive_trigram", trigram_table, secondary=True),
+                metadata_selects("negative_trigram", trigram_table, secondary=True),
+                metadata_selects("metadata_trigram", trigram_table, secondary=True),
+            ]
     if include_videos:
         selects.append(
             _filename_candidate_select(
@@ -594,12 +670,14 @@ def _candidate_selects(
             )
         )
     if use_trigram:
+        trigram_filename_tier = TIER_SUBSTRING_FILENAME if substring_secondary else 50
         selects.append(
             _filename_candidate_select(
                 file_type="image",
                 query_kind="trigram",
                 scope_sql=scope_sql,
                 field_where=field_where,
+                substring_tier=trigram_filename_tier,
             )
         )
         if include_videos:
@@ -609,6 +687,7 @@ def _candidate_selects(
                     query_kind="trigram",
                     scope_sql=scope_sql,
                     field_where="",
+                    substring_tier=trigram_filename_tier,
                 )
             )
     return selects
@@ -753,31 +832,12 @@ def search_ranked_media_page(
         field_where = " AND ".join(conditions) if conditions else "1=1"
         field_where, field_params = _prefix_sql_params(field_where, raw_params, "field_")
 
-    trigram = _can_use_trigram_candidates(residual)
-    metadata_substring_query = _trigram_token_match_query(residual) if trigram else _unicode_match_query(residual)
     params: dict[str, Any] = {
-        "filename_like": _like_pattern(residual),
-        "filename_match": _unicode_prefix_match_query(residual),
-        "filename_substring_match": _trigram_match_query(residual),
-        "filename_prefix": f"{_like_escape(residual)}%",
-        "negative_match": _column_fts_query("negative_prompt", residual, trigram=False),
-        "negative_substring_match": f"negative_prompt : ({metadata_substring_query})",
-        "metadata_match": (
-            f"({_column_fts_query('model', residual, trigram=False)}) OR "
-            f"({_column_fts_query('sampler', residual, trigram=False)})"
-        ),
-        "metadata_substring_match": (
-            f"(model : ({metadata_substring_query})) OR (sampler : ({metadata_substring_query}))"
-        ),
         "page_limit": limit + 1,
-        "positive_match": _column_fts_query("prompt", residual, trigram=False),
-        "positive_substring_match": f"prompt : ({metadata_substring_query})",
-        "query": residual,
-        "text_like": _like_pattern(residual),
+        **_text_match_params(residual),
         **scope_params,
         **field_params,
     }
-    params.update(_short_match_params(residual))
     if cursor_position is not None:
         params.update(
             {
@@ -886,30 +946,11 @@ def search_ranked_media_count(
         field_where = " AND ".join(conditions) if conditions else "1=1"
         field_where, field_params = _prefix_sql_params(field_where, raw_params, "field_")
 
-    trigram = _can_use_trigram_candidates(residual)
-    metadata_substring_query = _trigram_token_match_query(residual) if trigram else _unicode_match_query(residual)
     params: dict[str, Any] = {
-        "filename_like": _like_pattern(residual),
-        "filename_match": _unicode_prefix_match_query(residual),
-        "filename_substring_match": _trigram_match_query(residual),
-        "filename_prefix": f"{_like_escape(residual)}%",
-        "negative_match": _column_fts_query("negative_prompt", residual, trigram=False),
-        "negative_substring_match": f"negative_prompt : ({metadata_substring_query})",
-        "metadata_match": (
-            f"({_column_fts_query('model', residual, trigram=False)}) OR "
-            f"({_column_fts_query('sampler', residual, trigram=False)})"
-        ),
-        "metadata_substring_match": (
-            f"(model : ({metadata_substring_query})) OR (sampler : ({metadata_substring_query}))"
-        ),
-        "positive_match": _column_fts_query("prompt", residual, trigram=False),
-        "positive_substring_match": f"prompt : ({metadata_substring_query})",
-        "query": residual,
-        "text_like": _like_pattern(residual),
+        **_text_match_params(residual),
         **scope_params,
         **field_params,
     }
-    params.update(_short_match_params(residual))
 
     field_only = parsed is not None and not residual
     include_videos = parsed is None

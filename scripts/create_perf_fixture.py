@@ -40,6 +40,24 @@ SEARCH_BENCHMARK_COHORT_ROWS = 5_000
 _UNSPACED_CJK = ", 夜の東京の少女と猫"
 
 
+def _folding_suffix(index: int) -> str:
+    """Deterministic accent, kana and prefix-ladder words for the SE-03/SE-04 search workloads."""
+    words: list[str] = []
+    if index % 50 == 7:
+        words.append("Phố cổ Hà Nội, café au lait")
+    if index % 41 == 5:
+        words.append("mikan orange")
+    if index % 43 == 9:
+        words.append("kamikaze pilot")
+    if index % 47 == 13:
+        words.append("midnight sun")
+    if index % 53 == 17:
+        words.append("mika portrait")
+    if index % 61 == 3:
+        words.append("ネオン city")
+    return "".join(f", {word}" for word in words)
+
+
 def _synthetic_search_values(
     index: int,
     *,
@@ -59,6 +77,8 @@ def _synthetic_search_values(
     else:
         cjk = " 星空 猫 風景" if index % 10 == 0 else ""
         prompt = f"blue forest prompt heavy constellation {index}{cjk}{_UNSPACED_CJK if index % 7 == 3 else ''}"
+    if index > 300:
+        prompt += _folding_suffix(index)
     model = "related-perf-model" if index <= 300 else f"perf-model-{index % 8}"
     sampler = "Euler a" if index <= 60 else "DPM++ 2M" if index <= 100 else ("Euler a", "DPM++ 2M", "UniPC")[index % 3]
     seed = "424242" if index <= 20 else str(200_000 + index)
@@ -278,11 +298,16 @@ def _seed_synthetic_search_rows(
             metadata_rows,
         )
         try:
-            from backend.metadata_store.cjk_index import rebuild_cjk_index
-        except ImportError:  # pre-v13 checkout: no CJK bigram index to populate
-            pass
+            from backend.metadata_store.search_text_index import rebuild_search_text_index
+        except ImportError:  # pre-v14 checkout: no folded search index; v13 only has the CJK bigram index
+            try:
+                from backend.metadata_store.cjk_index import rebuild_cjk_index
+            except ImportError:  # pre-v13 checkout: no CJK bigram index to populate
+                pass
+            else:
+                rebuild_cjk_index(connection)
         else:
-            rebuild_cjk_index(connection)
+            rebuild_search_text_index(connection)
         connection.commit()
     finally:
         connection.close()

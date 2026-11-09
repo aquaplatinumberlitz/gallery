@@ -1,4 +1,4 @@
-"""Versioned catalog schema migrations (v1 through v13) and their pre-migration backups."""
+"""Versioned catalog schema migrations (v1 through v14) and their pre-migration backups."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from . import _db as _db
 from ._db import _gallery_metadata_db_path
 from ._schema_ensure import (
     _ensure_cjk_search_schema,
+    _ensure_fold_search_schema,
     _ensure_generation_signature_schema,
     _ensure_post_v1_additive_columns,
     _ensure_prompt_discovery_schema,
@@ -18,6 +19,7 @@ from ._schema_ensure import (
     _ensure_workflow_property_schema,
 )
 from .cjk_index import rebuild_cjk_index
+from .search_text_index import rebuild_search_text_index
 
 
 def _gallery_metadata_db() -> Path:
@@ -552,6 +554,45 @@ def _migrate_v12_to_v13(conn: sqlite3.Connection) -> None:
         if violations:
             raise RuntimeError(f"v13 migration foreign key check failed: {len(violations)} violation(s)")
         conn.execute("PRAGMA user_version = 13")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def _execute_v14_migration_statement(conn: sqlite3.Connection, statement: str) -> None:
+    """Execute one v13-to-v14 migration statement (test injection seam)."""
+    conn.execute(statement)
+
+
+def _backup_v13_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v14 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v13.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(backup) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v13_to_v14(conn: sqlite3.Connection) -> None:
+    """Add the folded prompt/model/sampler/file-name indexes and backfill them from stored text.
+
+    The CJK bigram rows are rebuilt too: they are now derived from folded text (katakana -> hiragana).
+    """
+    conn.commit()
+    _backup_v13_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _ensure_fold_search_schema(
+            conn,
+            execute_statement=lambda statement: _execute_v14_migration_statement(conn, statement),
+        )
+        rebuild_search_text_index(conn)
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v14 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 14")
         conn.commit()
     except Exception:
         conn.rollback()
