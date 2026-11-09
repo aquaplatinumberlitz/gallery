@@ -310,6 +310,8 @@ def _folded_contains(builder: _ConditionBuilder, column: str, value: str) -> str
             "JOIN file_index_fold AS fold_ff ON fold_ff.file_rowid = fold_fi.rowid "
             f"WHERE fold_fi.path = m.path AND fold_ff.name LIKE {like} ESCAPE '\\')"
         )
+        if not use_trigram and builder.probe_friendly:
+            return exact
         if not use_trigram:
             return (
                 "m.path IN (SELECT scan_fi.path FROM file_index_fold AS scan_ff "
@@ -327,6 +329,9 @@ def _folded_contains(builder: _ConditionBuilder, column: str, value: str) -> str
         "EXISTS (SELECT 1 FROM image_metadata_fold AS fold_f WHERE fold_f.metadata_id = m.id "
         f"AND fold_f.{column} LIKE {like} ESCAPE '\\')"
     )
+    if not use_trigram and builder.probe_friendly:
+        # Ordered probes test a handful of rows, so a per-row probe of the compact folded row beats a set.
+        return exact
     if not use_trigram:
         # Short or wildcard values: scan the compact folded table instead of the wide metadata rows.
         return (
@@ -393,6 +398,7 @@ class _ConditionBuilder:
     conditions: list[str] = field(default_factory=list)
     params: dict[str, Any] = field(default_factory=dict)
     param_idx: int = 0
+    probe_friendly: bool = False
 
     def next_param(self, value: Any) -> str:
         name = f"p{self.param_idx}"
@@ -615,9 +621,17 @@ _FIELD_HANDLERS: dict[str, FieldHandler] = {
 }
 
 
-def build_fielded_conditions(parsed: ParsedQuery) -> tuple[list[str], dict[str, Any]]:
-    """Build WHERE conditions and params from a parsed field-handler table."""
+def build_fielded_conditions(
+    parsed: ParsedQuery, *, probe_friendly: bool = False
+) -> tuple[list[str], dict[str, Any]]:
+    """Build WHERE conditions and params from a parsed field-handler table.
+
+    ``probe_friendly`` renders short ``prompt:``/``name:`` contains values as per-row folded probes instead of a
+    set built from a scan of the whole folded table: right for an ordered probe that stops after a few rows,
+    wrong for a full scan.
+    """
     builder = _ConditionBuilder()
+    builder.probe_friendly = probe_friendly
     if parsed.residual_text:
         _append_residual_condition(builder, parsed.residual_text)
     for token in parsed.fields:

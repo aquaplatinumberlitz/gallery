@@ -27,6 +27,7 @@ import hashlib
 import json
 import random
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -80,7 +81,7 @@ def _build_corpus(root: Path) -> None:
     rng = random.Random(20260509)
     folders = [resolved / name for name in _FOLDER_NAMES]
     now = 1_760_000_000.0
-    with _connect() as conn:
+    with closing(_connect()) as conn:
         for folder in folders:
             conn.execute(
                 "INSERT INTO file_index (path, name, parent_path, type, mtime, mtime_ns, size, indexed_at, library_id) "
@@ -375,13 +376,236 @@ def test_count_is_capped_for_dense_queries(corpus: Path, monkeypatch: pytest.Mon
     assert search_index_count("c", "all") == 100
     assert search_index_count("prompt:c", "all") == 100
     # A selective query stays exact under the cap.
-    exact = len(_walk("mi")[0])
-    assert exact < 100
-    assert search_index_count("mi", "all") == exact
+    selective = {row["asset_id"] for row in _walk("alph")[0]}
+    assert 0 < len(selective) < 100
+    assert search_index_count("alph", "all") == len(selective)
 
 
 def test_connection_state_is_readable_after_search(corpus: Path) -> None:
     _search("c")
-    with _connect() as conn:
+    with closing(_connect()) as conn:
         assert isinstance(conn, sqlite3.Connection)
         assert conn.execute("PRAGMA user_version").fetchone()[0] >= 14
+
+
+def test_all_scope_resolution_does_not_list_libraries(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`scope=all` searches every library, so resolving it must not pay the per-library asset count."""
+    from backend import search_scope
+    from backend.models import SearchAllScopeV1
+
+    def forbidden(*_args: object, **_kwargs: object) -> list:
+        raise AssertionError("list_libraries must not run for the all scope")
+
+    monkeypatch.setattr(search_scope, "list_libraries", forbidden)
+    assert search_scope.resolve_search_scope("all", library_id=None, path=None).kind == "all"
+    assert search_scope.resolve_search_v2_scope(SearchAllScopeV1(kind="all")).kind == "all"
+
+
+def _first_appearance_order(rows: list[dict]) -> list[int]:
+    seen: set[int] = set()
+    ordered: list[int] = []
+    for row in rows:
+        if row["asset_id"] not in seen:
+            seen.add(row["asset_id"])
+            ordered.append(row["asset_id"])
+    return ordered
+
+
+@pytest.mark.parametrize("query", ("a", "m", "c", "s", "i", "ca", "mi"))
+def test_dense_filename_variants_match_the_whole_read_filename_sources(
+    corpus: Path, monkeypatch: pytest.MonkeyPatch, query: str
+) -> None:
+    """Large filename match sets are read through bounded hi/lo variants; the result must not change."""
+    from backend.metadata_store import ranked_search
+
+    whole_rows, whole_first = _walk(query)
+    monkeypatch.setattr(ranked_search, "FILE_SOURCE_SMALL_LIMIT", 3)
+    dense_rows, dense_first = _walk(query)
+    assert [row["asset_id"] for row in dense_first["media"]] == [row["asset_id"] for row in whole_first["media"]]
+    assert dense_first["albums"] == whole_first["albums"]
+    assert _first_appearance_order(dense_rows) == _first_appearance_order(whole_rows)
+
+
+def test_page_plan_skips_sources_that_rank_below_a_full_page(corpus: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from backend.metadata_store import ranked_search
+
+    executed: list[int] = []
+    original = ranked_search.build_candidate_page_query
+
+    def recording(selects: list, **kwargs: object) -> str:
+        executed.extend(getattr(select, "max_tier", -1) for select in selects)
+        return original(selects, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ranked_search, "build_candidate_page_query", recording)
+    page = _search("m", None, 100)
+    assert len(page["media"]) == 100
+    assert page["media"][-1]["match_type"] == "prompt_phrase"
+    # The prompt-phrase tier (80) fills the page: the metadata (65) and negative-prompt (40) sources never run.
+    assert executed
+    assert min(executed) >= 80
+
+
+@pytest.mark.parametrize("query", ("prompt:c", "prompt:ca", "name:i", "name:a", "negative:c", "model:m", "sampler:e"))
+def test_field_only_probe_and_sorting_plan_return_the_same_pages(
+    corpus: Path, monkeypatch: pytest.MonkeyPatch, query: str
+) -> None:
+    from backend.metadata_store import ranked_search
+
+    probed_rows, _ = _walk(query)
+    monkeypatch.setattr(ranked_search, "_probe_field_only_ids", lambda *_args, **_kwargs: None)
+    sorted_rows, _ = _walk(query)
+    assert [row["asset_id"] for row in sorted_rows] == [row["asset_id"] for row in probed_rows]
+
+
+@pytest.mark.parametrize("query", ("prompt:c", "name:a", "negative:c", "model:m", "name:i", "sampler:e"))
+def test_field_only_count_probe_and_set_plan_agree(corpus: Path, monkeypatch: pytest.MonkeyPatch, query: str) -> None:
+    from backend.metadata_store import ranked_search
+
+    probed = search_index_count(query, "all")
+    monkeypatch.setattr(ranked_search, "COUNT_PROBE_ROWS", 30)  # far fewer rows than matches: the set plan answers
+    assert search_index_count(query, "all") == probed
+
+
+def _build_tie_corpus(root: Path, rows: int) -> None:
+    """`rows` images that tie on tier, rank and mtime for the query `z`: only the asset id orders them."""
+    library_id = int(register_library(root, name="Ties")["id"])
+    folder = root.resolve() / "ties"
+    now = 1_760_000_000.0
+    with closing(_connect()) as conn:
+        for index in range(rows):
+            name = f"item_{index:04d}.png"
+            path = str(folder / name)
+            conn.execute(
+                "INSERT INTO assets (library_id, path, parent_path, name, type, mtime_ns, size, width, height, "
+                "indexed_at, metadata_state, offline) VALUES (?, ?, ?, ?, 'image', ?, 4096, 64, 64, ?, 'ready', 0)",
+                (library_id, path, str(folder), name, BASE_MTIME_NS, now),
+            )
+            conn.execute(
+                "INSERT INTO file_index (path, name, parent_path, type, mtime, mtime_ns, size, width, height, "
+                "indexed_at, library_id) VALUES (?, ?, ?, 'image', ?, ?, 4096, 64, 64, ?, ?)",
+                (path, name, str(folder), BASE_MTIME_NS / 1e9, BASE_MTIME_NS, now, library_id),
+            )
+            conn.execute(
+                "INSERT INTO file_index_fts (name, path, type, parent_path) VALUES (?, ?, 'image', ?)",
+                (name, path, str(folder)),
+            )
+            conn.execute(
+                "INSERT INTO image_metadata (path, name, mtime, mtime_ns, size, width, height, format, mode, "
+                "has_alpha, prompt, negative_prompt, model, sampler, seed, steps, cfg_scale, raw_metadata_text, "
+                "metadata_json, updated_at, indexed_at) VALUES (?, ?, ?, ?, 4096, 64, 64, 'PNG', 'RGB', 0, "
+                "'zeta portrait', '', '', '', ?, 20, 7.0, '', '', ?, ?)",
+                (path, name, BASE_MTIME_NS / 1e9, BASE_MTIME_NS, str(index), now, now),
+            )
+        rebuild_search_text_index(conn)
+        conn.commit()
+
+
+@pytest.mark.parametrize("limit", (50, 64, 200))
+def test_keyset_paging_walks_through_more_tied_rows_than_the_preselect_holds(
+    isolated_gallery_root: Path, limit: int
+) -> None:
+    rows = 700
+    _build_tie_corpus(isolated_gallery_root, rows)
+    page = search_index("z", "all", None, limit, None)
+    ids = [row["asset_id"] for row in page["media"]]
+    while page["next_cursor"]:
+        page = search_index("z", "all", None, limit, page["next_cursor"])
+        ids.extend(row["asset_id"] for row in page["media"])
+    assert len(ids) == len(set(ids)) == rows
+    assert ids == sorted(ids)  # equal tier, rank and mtime: ascending asset id
+    assert search_index_count("z", "all") == rows
+
+
+def _single_statement_page(conn: sqlite3.Connection, query: str, limit: int, cursor: dict | None) -> list[sqlite3.Row]:
+    """One page of the original plan: every source in one UNION ALL statement (the planner's oracle)."""
+    from backend.metadata_store import ranked_search as rs
+
+    params = {
+        "page_limit": limit + 1,
+        **rs._text_match_params(query),
+        "fts_candidate_limit": max(256, (limit + 1) * 4),
+        "field_candidate_limit": max(256, (limit + 1) * 4),
+    }
+    if cursor is not None:
+        params.update(
+            cursor_tier=cursor["tier"],
+            cursor_rank=cursor["rank"],
+            cursor_rank_bin=round(cursor["rank"] * 1_000_000),
+            cursor_mtime_ns=cursor["mtime_ns"],
+            cursor_asset_id=cursor["asset_id"],
+        )
+    selects = rs._candidate_selects(
+        query, "", include_fts=True, include_videos=True, bounded_candidates=True, has_cursor=cursor is not None
+    )
+    return list(
+        conn.execute(rs.build_candidate_page_query(selects, has_cursor=cursor is not None, legacy_offset=False), params)
+    )
+
+
+def _encode_cursor(cursor: dict, query: str) -> str:
+    from backend.metadata_store import ranked_search as rs
+
+    row = {
+        "asset_id": cursor["asset_id"],
+        "mtime_ns": cursor["mtime_ns"],
+        "rank": cursor["rank"],
+        "relevance_tier": cursor["tier"],
+    }
+    return rs.encode_search_cursor(row, rs.request_fingerprint(query, "all", None, fielded=False))  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("query", ("a", "m", "c", "s", "i", "ca", "mi", "alph", "mang", "cedar river"))
+@pytest.mark.parametrize("dense_files", (False, True))
+def test_page_plan_returns_the_pages_of_the_single_statement_plan(
+    corpus: Path, monkeypatch: pytest.MonkeyPatch, query: str, dense_files: bool
+) -> None:
+    from backend.metadata_store import _connect_read
+    from backend.metadata_store import ranked_search as rs
+
+    if dense_files:
+        monkeypatch.setattr(rs, "FILE_SOURCE_SMALL_LIMIT", 3)
+    limit = 30
+    with closing(_connect_read()) as conn:
+        cursor = None
+        for page_number in range(40):
+            oracle = _single_statement_page(conn, query, limit, cursor)
+            planned, _more, _fingerprint = rs.search_ranked_media_page(
+                conn, query, "all", None, limit, None if cursor is None else _encode_cursor(cursor, query)
+            )
+            expected = [(r["asset_id"], r["relevance_tier"], r["rank"], r["mtime_ns"]) for r in oracle[:limit]]
+            assert [(r["asset_id"], r["relevance_tier"], r["rank"], r["mtime_ns"]) for r in planned] == expected, (
+                query,
+                page_number,
+            )
+            if len(oracle) <= limit or dense_files:
+                # Bounded filename variants pre-filter by the cursor (see ARCHITECTURE.md, Search planning): their
+                # rows before the cursor no longer shadow later rows of the same asset, so only page 1 is exact.
+                break
+            last = oracle[limit - 1]
+            cursor = {
+                "tier": int(last["relevance_tier"]),
+                "rank": float(last["rank"]),
+                "mtime_ns": int(last["mtime_ns"]),
+                "asset_id": int(last["asset_id"]),
+            }
+
+
+@pytest.mark.parametrize(
+    ("query", "scan_marker", "probe_marker"),
+    (
+        ("prompt:c", "m.id IN (SELECT scan_f.metadata_id", "EXISTS (SELECT 1 FROM image_metadata_fold AS fold_f"),
+        ("name:i", "m.path IN (SELECT scan_fi.path", "EXISTS (SELECT 1 FROM file_index AS fold_fi"),
+    ),
+)
+def test_probe_friendly_short_filters_render_per_row_probes_not_scan_sets(
+    query: str, scan_marker: str, probe_marker: str
+) -> None:
+    from backend.fielded_search_parser import build_fielded_conditions, parse_fielded_query
+
+    parsed = parse_fielded_query(query)
+    scan_conditions, scan_params = build_fielded_conditions(parsed)
+    probe_conditions, probe_params = build_fielded_conditions(parsed, probe_friendly=True)
+    assert scan_marker in " ".join(scan_conditions)
+    assert probe_marker in " ".join(probe_conditions)
+    assert scan_marker not in " ".join(probe_conditions)
+    assert scan_params == probe_params  # the same named parameters serve both renderings
