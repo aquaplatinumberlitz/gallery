@@ -241,6 +241,18 @@ describe("useUnifiedSearchQuery", () => {
     expect(unifiedSearchV2).toHaveBeenCalledWith(expect.objectContaining({ text: "cat" }), expect.any(AbortSignal));
   });
 
+  it("never requests empty text for typed input that is still settling", async () => {
+    vi.mocked(unifiedSearchV2).mockResolvedValue(makeMockResults());
+    const { queryRef } = setup("", "all", "");
+    queryRef.value = "cat";
+    await vi.advanceTimersByTimeAsync(GALLERY_SEARCH_DEBOUNCE_MS - 1);
+    expect(unifiedSearchV2).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    await vi.waitFor(() => expect(unifiedSearchV2).toHaveBeenCalled());
+    expect(vi.mocked(unifiedSearchV2).mock.calls.map(([payload]) => payload.text)).toEqual(["cat"]);
+  });
+
   it("uses a 250 ms debounce shared with the match preview (SE-02)", () => {
     expect(GALLERY_SEARCH_DEBOUNCE_MS).toBe(250);
   });

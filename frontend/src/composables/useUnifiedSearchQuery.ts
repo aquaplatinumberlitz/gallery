@@ -50,9 +50,11 @@ export function useUnifiedSearchQuery(
   const settledText = computed(() => (submittedNow.value ? trimmedQuery.value : trimmedDebounced.value));
   const debouncedQuery = computed(() => (trimmedQuery.value ? settledText.value : ""));
   // SE-01: while the newer text is still settling, the request (and so the shown results) stays on the last settled
-  // text. Only a cleared request (null) has no results.
+  // text. Only a cleared request (null) has no results. Text that has not settled yet and has no settled
+  // predecessor (empty) sends nothing: a request for "" must never leave for typed text.
   const debouncedRequest = computed<SearchQueryRequestV1 | null>(() => {
     if (!request.value) return null;
+    if (trimmedQuery.value && !debouncedQuery.value) return null;
     return { ...request.value, text: debouncedQuery.value };
   });
 

@@ -421,6 +421,48 @@ describe("GalleryGrid", () => {
     expect(wrapper.text()).not.toContain("Keep typing to search, or press Enter.");
   });
 
+  // SE-01: while a newer query settles, the header keeps the total of the results still on screen (no flicker to the
+  // loaded count and back).
+  it("keeps the last search total in the header while a newer query settles (SE-01)", async () => {
+    mockUseSearchMatchPreview.mockImplementationOnce(() => ({
+      state: ref({ status: "done", total: 298, hasMore: true }),
+      isFetching: ref(false),
+    }));
+    mockUseUnifiedSearchQuery.mockImplementation(() => ({
+      isLoading: { value: false },
+      isFetching: { value: true },
+      isFetchingNextPage: { value: false },
+      isError: { value: false },
+      isRefetchError: { value: false },
+      isFetchNextPageError: { value: false },
+      error: mockError,
+      isPending: { value: false },
+      isPlaceholderData: { value: true },
+      isSuccess: mockIsSuccess,
+      hasNextPage: { value: true },
+      fetchNextPage: vi.fn(),
+      debouncedQuery: { value: "ni" },
+      albums: { value: [] },
+      photos: { value: [] },
+      videos: { value: [] },
+      prompt: { value: [] },
+      media: { value: [{ name: "night.png", path: "/photos/night.png", type: "image", mtime: 1 }] },
+    }));
+    const wrapper = await mountSubject({
+      store: { searchQuery: "nig", submittedSearchQuery: "" },
+      stubs: {
+        SearchResultsPanel: {
+          props: ["mediaTotal", "settling"],
+          template: "<div class='search-panel-stub' :data-total='JSON.stringify(mediaTotal)' :data-settling='String(settling)' />",
+        },
+      },
+    });
+
+    const panel = wrapper.get(".search-panel-stub");
+    expect(panel.attributes("data-settling")).toBe("true");
+    expect(JSON.parse(panel.attributes("data-total") ?? "null")).toEqual({ total: 298, hasMore: true });
+  });
+
   // SE-05: the count request is only sent for settled, non-empty text (never the Enter-time empty text).
   it("sends no search-count request for empty or unsettled text (SE-05)", async () => {
     await mountSubject({ store: { searchQuery: "nig", submittedSearchQuery: "nig" } });

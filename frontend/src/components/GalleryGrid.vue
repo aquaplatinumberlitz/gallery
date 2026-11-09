@@ -4,11 +4,13 @@ import {
   inject,
   onBeforeUnmount,
   ref,
+  shallowRef,
   useTemplateRef,
   watch,
   type ComponentPublicInstance,
   type CSSProperties,
 } from "vue";
+import type { SearchMediaTotal } from "@/utils/searchResultCount";
 import { useGalleryStore } from "../stores/gallery";
 import { useLightboxStore } from "../stores/lightbox";
 import { useRelatedAssetsStore } from "../stores/relatedAssets";
@@ -213,12 +215,23 @@ const searchCountPreview = useSearchMatchPreview(
       : null,
   { debounceMs: 0 },
 );
-// While a newer query settles, the header shows the loaded count of the results still on screen (dimmed), not the
-// total of the old text.
-const searchMediaTotal = computed(() => {
-  if (isSearchSettling.value) return null;
+// While a newer query settles, the header keeps the total of the results still on screen (they are dimmed), instead of
+// flickering to the loaded count and back. The held total is dropped when the search leaves search mode.
+const lastSearchMediaTotal = shallowRef<SearchMediaTotal | null>(null);
+watch(
+  () => searchCountPreview.state.value,
+  (state) => {
+    if (state.status === "done") lastSearchMediaTotal.value = { total: state.total, hasMore: state.hasMore };
+  },
+  { immediate: true },
+);
+watch(hasSearchQuery, (active) => {
+  if (!active) lastSearchMediaTotal.value = null;
+});
+const searchMediaTotal = computed<SearchMediaTotal | null>(() => {
   const state = searchCountPreview.state.value;
-  return state.status === "done" ? { total: state.total, hasMore: state.hasMore } : null;
+  if (state.status === "done") return { total: state.total, hasMore: state.hasMore };
+  return isSearchSettling.value ? lastSearchMediaTotal.value : null;
 });
 const showSearchWarmupHint = computed(() => trimmedSearchQuery.value.length > 0 && !hasSearchQuery.value);
 const sortField = computed(() => galleryStore.sortField);
