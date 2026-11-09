@@ -16,6 +16,7 @@ import { filterToDisplayString } from "@/utils/serializeAdvancedSearchToQuery";
 import { replaceManagedFilters } from "@/utils/searchQueryGrammar";
 import { buildSearchScopeV1 } from "@/utils/searchRequest";
 import { useSearchCapabilitiesQuery } from "@/composables/useSearchCapabilitiesQuery";
+import { isEnterCommit, isImeComposingEvent } from "@/lib/imeComposition";
 import type {
   FacetEntry,
   FieldFilter,
@@ -235,6 +236,17 @@ const fieldLabels: Partial<Record<FormFieldName, string>> = {
 };
 
 const jumpQuery = shallowRef("");
+
+// CJ-02: the Enter that confirms an IME candidate in the jump field neither jumps nor submits the form.
+function onJumpKeydown(event: KeyboardEvent) {
+  if (event.key === "Enter" && isImeComposingEvent(event)) {
+    event.preventDefault(); // keep the form's implicit submit out of the IME Enter
+    return;
+  }
+  if (!isEnterCommit(event)) return;
+  event.preventDefault();
+  void handleJumpToField();
+}
 
 async function handleJumpToField() {
   const query = jumpQuery.value.trim().toLowerCase();
@@ -472,7 +484,7 @@ watch(
                 v-model="jumpQuery"
                 class="advanced-search-jump-input"
                 placeholder="Jump to a field (e.g. seed, steps, model)…"
-                @keydown.enter.prevent="handleJumpToField"
+                @keydown="onJumpKeydown"
               />
             </div>
 
