@@ -1380,6 +1380,21 @@ def _read_preselected(
     return rows
 
 
+def _exact_or_prefix_paths(conn: sqlite3.Connection, paths: list[str], params: dict[str, Any]) -> list[str]:
+    """The paths whose folded file name equals the query or starts with it (the filename tiers 100 and 90)."""
+    rows = conn.execute(
+        "SELECT fi.path FROM file_index AS fi JOIN file_index_fold AS ff ON ff.file_rowid = fi.rowid "
+        "WHERE fi.path IN (SELECT value FROM json_each(:shadow_paths)) "
+        "AND (ff.name = :fold_query OR ff.name LIKE :fold_filename_prefix ESCAPE '\\')",
+        {
+            "shadow_paths": json.dumps(paths),
+            "fold_query": params["fold_query"],
+            "fold_filename_prefix": params["fold_filename_prefix"],
+        },
+    ).fetchall()
+    return [str(row[0]) for row in rows]
+
+
 def _run_page_plan(
     conn: sqlite3.Connection,
     selects: list[_Source],
@@ -1412,6 +1427,7 @@ def _run_page_plan(
     """
     exact = shadow_selects is not None
     placed = sorted(_plan_sources(conn, selects, params), key=lambda item: -item[1].max_tier)
+    absent = set(range(len(selects))) - {position for position, _source in placed}  # e.g. videos of a library without
     has_cursor = cursor_position is not None
     best: dict[int, sqlite3.Row] = {}
     origin: dict[int, set[int]] = {}  # asset id -> positions of the sources that returned a row for it
@@ -1432,9 +1448,13 @@ def _run_page_plan(
         )
         found: set[int] = set()
         for position, source in enumerate(shadow_sources):
-            if position in whole or source.max_tier < cursor_tier:
+            if position in whole or position in absent or source.max_tier < cursor_tier:
                 continue
             paths = [str(row["path"]) for row in pending if origin[int(row["asset_id"])] - {position}]
+            if paths and source.probe is not None and cursor_tier > source.min_tier:
+                # A filename source ranks a file at its exact (100) or prefix (90) tier, else at `min_tier`, below
+                # the cursor: only files whose folded name is an exact or prefix match can sit before it.
+                paths = _exact_or_prefix_paths(conn, paths, params)
             if not paths:
                 continue
             rows = conn.execute(
