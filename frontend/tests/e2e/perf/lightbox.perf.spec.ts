@@ -7,6 +7,11 @@
  * * full original image fetches are surfaced when they affect normal open performance
  * * multi-sample (5 iterations) with p95 reporting instead of single measurement
  * * uses performance.now() (monotonic, sub-ms) for all timing — never Date.now()
+ * * visual ready (open and next-slide) is timed in the page by an observer armed before the
+ *   interaction; it stamps the first animation frame where the active slide's preview image is
+ *   complete, decoded and visible, so Playwright's polling does not add to it. The older harness
+ *   figure is kept as `harnessObservedReadyMs` / `harnessObservedTransitionMs` (diagnostic only,
+ *   not gated) for one release. See docs/testing/PERFORMANCE_TESTING.md.
  *
  * Run when:
  * * changing lightbox source loading, PhotoSwipe transitions, or preview endpoint behavior
@@ -91,7 +96,10 @@ type OpenIteration = {
   networkResponseMs: number;
   browserResourceLoadMs: number;
   browserDecodeVisualReadyMs: number;
+  /** In-page visual ready: click mark to the first frame the active preview is complete, decoded and visible. Gated. */
   visualReadyAfterEventMs: number;
+  /** Diagnostic only (not gated): the pre-LB-01 harness figure, read after Playwright's polling. */
+  harnessObservedReadyMs: number;
   previewRequestDurationMs: number;
   metadataDurationMs: number;
   usedPreviewEndpoint: boolean;
@@ -107,13 +115,168 @@ type OpenIteration = {
   networkContractViolations: string[];
 };
 
-type BrowserVisualTiming = {
+type VisualReadyTiming = {
+  /** Interaction mark to the readiness frame, in ms. */
   visualReadyAfterInteractionMs: number;
   resourceLoadMs: number;
-  responseToDecodedMs: number;
+  /** Response end to the readiness frame, in ms. */
+  responseToReadyMs: number;
 };
 
-async function waitForPreviewDecoded(lightboxImg: Locator, interactionMark: string): Promise<BrowserVisualTiming> {
+const ACTIVE_LIGHTBOX_PREVIEW_SELECTOR =
+  '[data-testid="lightbox"] .pswp__item[aria-hidden="false"] .pswp__img:not(.pswp__img--placeholder)';
+
+/**
+ * Arms an in-page visual-ready probe. Runs inside the page before the interaction (click or ArrowRight).
+ * It stamps performance.now() in the first animation frame where the active slide's preview <img>:
+ * is connected, has src containing /api/preview (and is not `excludeSrc`, the slide that was active
+ * before the interaction), is complete with naturalWidth/naturalHeight > 0, has finished img.decode(),
+ * and is visible. The stamp is taken in the frame, not when the decode promise resolves. A
+ * MutationObserver wakes the frame loop on DOM changes; rAF runs the check.
+ */
+function armVisualReadyProbe(options: { selector: string; excludeSrc: string | null; timeoutMs: number }): void {
+  type ProbeResult = { readyAt: number; src: string; resourceLoadMs: number; responseToReadyMs: number };
+  type Probe = { result: ProbeResult | null; error: string | null; stop: () => void };
+  const host = window as unknown as { __galleryVisualReadyProbe?: Probe };
+  host.__galleryVisualReadyProbe?.stop();
+
+  let frameId = 0;
+  let timeoutId = 0;
+  let observer: MutationObserver | null = null;
+  let decodedSrc: string | null = null;
+  let decodingSrc: string | null = null;
+  let finished = false;
+
+  const probe: Probe = {
+    result: null,
+    error: null,
+    stop: () => {
+      finished = true;
+      if (frameId) cancelAnimationFrame(frameId);
+      frameId = 0;
+      window.clearTimeout(timeoutId);
+      observer?.disconnect();
+    },
+  };
+  host.__galleryVisualReadyProbe = probe;
+
+  const isVisible = (img: HTMLImageElement): boolean => {
+    const style = getComputedStyle(img);
+    const rect = img.getBoundingClientRect();
+    return (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      Number(style.opacity) >= 0.99 &&
+      rect.width > 0 &&
+      rect.height > 0
+    );
+  };
+
+  const frame = () => {
+    frameId = 0;
+    if (finished) return;
+    const img = document.querySelector<HTMLImageElement>(options.selector);
+    if (
+      img &&
+      img.src.includes("/api/preview") &&
+      img.src !== options.excludeSrc &&
+      img.complete &&
+      img.naturalWidth > 0 &&
+      img.naturalHeight > 0
+    ) {
+      const src = img.src;
+      if (decodedSrc !== src && decodingSrc !== src) {
+        decodingSrc = src;
+        img.decode().then(
+          () => {
+            decodedSrc = src;
+          },
+          () => {
+            // Retried on a later frame; the timeout bounds a persistent failure.
+            if (decodingSrc === src) decodingSrc = null;
+          },
+        );
+      }
+      if (decodedSrc === src && isVisible(img)) {
+        // Stamp in this frame, not in the decode promise continuation.
+        const readyAt = performance.now();
+        const resource = performance.getEntriesByName(img.currentSrc || src, "resource").at(-1) as
+          | PerformanceResourceTiming
+          | undefined;
+        probe.result = {
+          readyAt,
+          src,
+          resourceLoadMs: resource ? resource.responseEnd - resource.startTime : 0,
+          responseToReadyMs: resource ? Math.max(0, readyAt - resource.responseEnd) : 0,
+        };
+        probe.stop();
+        return;
+      }
+    }
+    frameId = window.requestAnimationFrame(frame);
+  };
+
+  observer = new MutationObserver(() => {
+    if (!frameId && !finished) frameId = window.requestAnimationFrame(frame);
+  });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["src", "class", "style", "aria-hidden"],
+  });
+  timeoutId = window.setTimeout(() => {
+    if (!probe.result) probe.error = `visual ready probe timed out after ${options.timeoutMs} ms: ${options.selector}`;
+    probe.stop();
+  }, options.timeoutMs);
+  frameId = window.requestAnimationFrame(frame);
+}
+
+/** Waits for the armed probe to stamp, then reports it against the named interaction mark. */
+async function readVisualReadyProbe(page: Page, interactionMark: string): Promise<VisualReadyTiming> {
+  const readState = () =>
+    page.evaluate((markName) => {
+      const host = window as unknown as {
+        __galleryVisualReadyProbe?: {
+          result: { readyAt: number; src: string; resourceLoadMs: number; responseToReadyMs: number } | null;
+          error: string | null;
+        };
+      };
+      const probe = host.__galleryVisualReadyProbe;
+      return {
+        result: probe?.result ?? null,
+        error: probe?.error ?? null,
+        markStart: performance.getEntriesByName(markName, "mark").at(-1)?.startTime ?? null,
+      };
+    }, interactionMark);
+
+  let state = await readState();
+  await expect
+    .poll(
+      async () => {
+        state = await readState();
+        return state.result !== null || state.error !== null;
+      },
+      { timeout: 15000, message: `wait for in-page visual ready probe after ${interactionMark}` },
+    )
+    .toBe(true);
+  if (state.error) throw new Error(state.error);
+  if (!state.result || state.markStart === null) {
+    throw new Error(`Visual ready probe has no result or missing interaction mark ${interactionMark}`);
+  }
+  return {
+    visualReadyAfterInteractionMs: state.result.readyAt - state.markStart,
+    resourceLoadMs: state.result.resourceLoadMs,
+    responseToReadyMs: state.result.responseToReadyMs,
+  };
+}
+
+/**
+ * Harness wait kept for the image-quality checks and as the diagnostic `harnessObservedReadyMs`.
+ * It starts only after Playwright's visibility and polling steps, so it overstates the ready time
+ * (LB-01). Gated numbers come from `armVisualReadyProbe`.
+ */
+async function waitForPreviewDecoded(lightboxImg: Locator, interactionMark: string): Promise<number> {
   return lightboxImg.evaluate(async (img: HTMLImageElement, markName) => {
     const isPreviewReady = () =>
       img.src.includes("/api/preview") && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
@@ -160,14 +323,7 @@ async function waitForPreviewDecoded(lightboxImg: Locator, interactionMark: stri
     if (interactionStart === undefined) {
       throw new Error(`Missing browser performance mark ${markName}`);
     }
-    const resource = performance.getEntriesByName(img.currentSrc || img.src, "resource").at(-1) as
-      | PerformanceResourceTiming
-      | undefined;
-    return {
-      visualReadyAfterInteractionMs: readyAt - interactionStart,
-      resourceLoadMs: resource ? resource.responseEnd - resource.startTime : 0,
-      responseToDecodedMs: resource ? Math.max(0, readyAt - resource.responseEnd) : 0,
-    };
+    return readyAt - interactionStart;
   }, interactionMark);
 }
 
@@ -214,6 +370,11 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
   tracker.clear();
   clickTime.value = nowMs();
   await armClickPerformanceMark(firstPhoto, LIGHTBOX_PERF_MARKS.openStart);
+  await page.evaluate(armVisualReadyProbe, {
+    selector: ACTIVE_LIGHTBOX_PREVIEW_SELECTOR,
+    excludeSrc: null,
+    timeoutMs: 15000,
+  });
 
   await firstPhoto.click();
 
@@ -230,7 +391,8 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
   );
 
   const lightboxImg = activeLightboxImage(lightbox);
-  const visualTiming = await waitForPreviewDecoded(lightboxImg, LIGHTBOX_PERF_MARKS.openStart);
+  const harnessObservedReadyMs = await waitForPreviewDecoded(lightboxImg, LIGHTBOX_PERF_MARKS.openStart);
+  const visualTiming = await readVisualReadyProbe(page, LIGHTBOX_PERF_MARKS.openStart);
 
   const actualSrc = await lightboxImg.evaluate((img: HTMLImageElement) => img.src);
   await expect
@@ -280,8 +442,9 @@ async function runOpenIteration(page: Page): Promise<OpenIteration> {
       ),
     ),
     browserResourceLoadMs: Math.round(visualTiming.resourceLoadMs),
-    browserDecodeVisualReadyMs: Math.round(visualTiming.responseToDecodedMs),
+    browserDecodeVisualReadyMs: Math.round(visualTiming.responseToReadyMs),
     visualReadyAfterEventMs: Math.round(visualTiming.visualReadyAfterInteractionMs),
+    harnessObservedReadyMs: Math.round(harnessObservedReadyMs),
     previewRequestDurationMs: Math.round(firstPreviewSample?.durationMs ?? 0),
     metadataDurationMs: metadataSamples.length
       ? Math.round(Math.min(...metadataSamples.map((s) => s.durationMs ?? 0)))
@@ -318,12 +481,14 @@ test("lightbox opens first photo within budget", async ({ page }) => {
   const warmPreviewRequestDurations = iterations.slice(1).map((r) => r.previewRequestDurationMs);
   const visualReadyDurations = iterations.map((r) => r.visualReadyAfterEventMs);
   const browserDecodeDurations = iterations.map((r) => r.browserDecodeVisualReadyMs);
+  const harnessObservedReadyDurations = iterations.map((r) => r.harnessObservedReadyMs);
 
   const visibleP95 = Math.round(compactStats(visibleDurations).p95);
   const previewRequestP95 = Math.round(compactStats(previewRequestDurations).p95);
   const warmPreviewRequestP95 = Math.round(compactStats(warmPreviewRequestDurations).p95);
   const visualReadyP95 = Math.round(compactStats(visualReadyDurations).p95);
   const browserDecodeP95 = Math.round(compactStats(browserDecodeDurations).p95);
+  const harnessObservedReadyP95 = Math.round(compactStats(harnessObservedReadyDurations).p95);
   const contractViolations = iterations.flatMap((iteration, index) =>
     iteration.networkContractViolations.map((violation) => `iteration ${index + 1}: ${violation}`),
   );
@@ -348,7 +513,10 @@ test("lightbox opens first photo within budget", async ({ page }) => {
       warmPreviewRequestP95Ms: warmPreviewRequestP95,
       initialPreviewRequestMs: iterations[0].previewRequestDurationMs,
       visualReadyP95Ms: visualReadyP95,
+      visualReadySource: "in-page-probe (LB-01): first frame where the active preview is complete, decoded and visible",
       browserDecodeVisualReadyP95Ms: browserDecodeP95,
+      // Diagnostic only, not gated: the pre-LB-01 harness figure, kept for one release.
+      harnessObservedReadyP95Ms: harnessObservedReadyP95,
       networkContractViolations: contractViolations,
     },
     budgets: budgets.lightbox,
@@ -392,7 +560,10 @@ test("lightbox opens first photo within budget", async ({ page }) => {
 
 type TransitionIteration = {
   nextVisibleAfterActionMs: number;
+  /** In-page visual ready: ArrowRight keydown mark to the next active slide's decoded, visible preview. Gated. */
   transitionPreviewLoadedAfterActionMs: number;
+  /** Diagnostic only (not gated): the pre-LB-01 harness figure, kept for one release. */
+  harnessObservedTransitionMs: number;
   previewRequestCount: number;
   originalRequestCount: number;
   naturalWidth: number;
@@ -432,6 +603,7 @@ async function runTransitionIteration(page: Page): Promise<TransitionIteration> 
   await waitForPreviewDecoded(lightboxImg, LIGHTBOX_PERF_MARKS.openStart);
 
   const beforeSrc = await lightboxImg.getAttribute("src");
+  const beforeAbsoluteSrc = await lightboxImg.evaluate((img: HTMLImageElement) => img.src);
 
   await page.evaluate(() => {
     localStorage.removeItem("gallery-lightbox-always-load-original");
@@ -439,6 +611,14 @@ async function runTransitionIteration(page: Page): Promise<TransitionIteration> 
 
   tracker.clear();
   clickTime.value = nowMs();
+
+  // Armed before the keypress so the first frame where the next slide is ready is caught.
+  // The slide that was active before ArrowRight is excluded.
+  await page.evaluate(armVisualReadyProbe, {
+    selector: ACTIVE_LIGHTBOX_PREVIEW_SELECTOR,
+    excludeSrc: beforeAbsoluteSrc,
+    timeoutMs: 20000,
+  });
 
   await page.keyboard.press("ArrowRight");
 
@@ -459,7 +639,10 @@ async function runTransitionIteration(page: Page): Promise<TransitionIteration> 
     )
     .toBe(true);
   const currentImg = activeLightboxImage(lightbox);
-  const transitionVisualTiming = await waitForPreviewDecoded(currentImg, LIGHTBOX_PERF_MARKS.transitionStart);
+  const harnessObservedTransitionMs = Math.round(
+    await waitForPreviewDecoded(currentImg, LIGHTBOX_PERF_MARKS.transitionStart),
+  );
+  const transitionVisualTiming = await readVisualReadyProbe(page, LIGHTBOX_PERF_MARKS.transitionStart);
   const transitionPreviewLoadedAfterActionMs = Math.round(transitionVisualTiming.visualReadyAfterInteractionMs);
   const currentSrc = await currentImg.evaluate((img: HTMLImageElement) => img.src);
   await waitForNetworkQuiet(page, 250, 3000);
@@ -488,6 +671,7 @@ async function runTransitionIteration(page: Page): Promise<TransitionIteration> 
   return {
     nextVisibleAfterActionMs,
     transitionPreviewLoadedAfterActionMs,
+    harnessObservedTransitionMs,
     previewRequestCount: tracker.previewSamples().length,
     originalRequestCount: tracker.imageSamples().length,
     naturalWidth: dims.naturalW,
@@ -517,6 +701,9 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
 
   const transitionDurations = iterations.map((r) => r.transitionPreviewLoadedAfterActionMs);
   const transitionP95 = Math.round(compactStats(transitionDurations).p95);
+  const harnessObservedTransitionP95 = Math.round(
+    compactStats(iterations.map((r) => r.harnessObservedTransitionMs)).p95,
+  );
   const contractViolations = iterations.flatMap((iteration, index) =>
     iteration.networkContractViolations.map((violation) => `iteration ${index + 1}: ${violation}`),
   );
@@ -531,6 +718,10 @@ test("lightbox transitions to next image within budget", async ({ page }) => {
     iterations,
     aggregate: {
       transitionPreviewLoadedP95Ms: transitionP95,
+      transitionSource:
+        "in-page-probe (LB-01): first frame where the next active preview is complete, decoded and visible",
+      // Diagnostic only, not gated: the pre-LB-01 harness figure, kept for one release.
+      harnessObservedTransitionP95Ms: harnessObservedTransitionP95,
       originalRequestCount,
       networkContractViolations: contractViolations,
     },
