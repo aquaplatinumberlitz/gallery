@@ -405,7 +405,7 @@ watch(
   <Sheet :open="isOpen" @update:open="handleOpenChange">
     <SheetContent
       side="right"
-      class="advanced-search-drawer w-full max-w-none gap-0 p-0 sm:w-[min(640px,42vw)] sm:max-w-[640px]"
+      class="advanced-search-drawer w-full max-w-none gap-0 p-0 sm:w-[min(640px,90vw)] sm:max-w-[640px] xl:w-[min(640px,42vw)]"
       data-testid="advanced-search-drawer"
       @interact-outside="handleInteractOutside"
     >
@@ -995,7 +995,7 @@ watch(
           class="advanced-search-footer flex shrink-0 flex-col gap-3 border-t bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4"
           data-testid="advanced-search-footer"
         >
-          <div class="flex min-w-0 items-center justify-between gap-3 sm:justify-start">
+          <div class="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:justify-start">
             <Button
               type="button"
               variant="outline"
@@ -1019,14 +1019,14 @@ watch(
             </Button>
             <span
               v-if="validationErrorCount"
-              class="min-w-0 truncate text-xs font-medium text-destructive"
+              class="whitespace-nowrap text-xs font-medium text-destructive"
               role="alert"
             >
               {{ validationErrorCount }} field{{ validationErrorCount === 1 ? "" : "s" }} need attention
             </span>
-            <span v-else-if="isDirty" class="min-w-0 truncate text-xs text-muted-foreground">Unsaved changes</span>
+            <span v-else-if="isDirty" class="whitespace-nowrap text-xs text-muted-foreground">Unsaved changes</span>
           </div>
-          <div class="flex items-center justify-end gap-2 sm:gap-3">
+          <div class="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
             <Button type="button" variant="ghost" size="sm" class="advanced-search-action" @click="handleCancel">
               Cancel
             </Button>
@@ -1073,6 +1073,12 @@ watch(
   top: 0;
   z-index: 2;
   background: var(--background);
+}
+
+/* AV-01: footer actions keep their label and never squeeze; the status wraps onto the actions' row instead. */
+.advanced-search-footer button {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .advanced-search-jump-field {
