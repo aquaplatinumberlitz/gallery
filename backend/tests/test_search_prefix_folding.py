@@ -12,7 +12,7 @@ Guarantees:
 * filenames, model and sampler fold too; display text (names, snippets) keeps the original characters
 * fielded contains filters (prompt:, negative:, name:, model:, sampler:) fold the same way
 * the incremental folded index equals a full rebuild after writes, rewrites and deletes
-* the v13-to-v14 migration backs up, backfills from stored text and sets user_version 14
+* the v13-to-v14 migration backs up, backfills from stored text and reaches the current schema version
 
 Run when:
 * changing ranked search, `backend/text_fold.py`, `search_text_index`, the v14 migration or prompt/filename writers
@@ -37,6 +37,7 @@ from backend.metadata_store import (
     upsert_metadata_result,
 )
 from backend.metadata_store._db import open_connection
+from backend.metadata_store._schema import CATALOG_SCHEMA_VERSION
 
 from .conftest import create_test_png
 
@@ -335,7 +336,7 @@ def test_v13_database_migrates_to_v14_with_backup_and_backfill(
     assert _ids("noi") == {asset}
     assert _ids("cafe") == {asset}
     with open_connection(isolated_metadata_db) as raw:
-        assert raw.execute("PRAGMA user_version").fetchone()[0] == 14
+        assert raw.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION
     assert isolated_metadata_db.with_suffix(f"{isolated_metadata_db.suffix}.v13.bak").exists()
 
 

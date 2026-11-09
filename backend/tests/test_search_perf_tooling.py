@@ -19,7 +19,7 @@ import json
 from pathlib import Path
 
 from scripts import bench_search
-from scripts.bench_search import SEARCH_QUERY_CLASSES
+from scripts.bench_search import SEARCH_COUNT_CLASSES, SEARCH_QUERY_CLASSES
 from scripts.perf_manifest import expected_reports, load_perf_manifest
 from scripts.summarize_perf_reports import summarize
 from scripts.validate_perf_reports import validate_reports
@@ -51,6 +51,23 @@ def test_search_benchmark_covers_required_query_classes() -> None:
         "accent_folded_fielded_prompt",
         "accent_folded_fielded_two_char",
         "accent_folded_fielded_one_char",
+        # BL-13: dense one-, two- and three-character queries and their keyset pages.
+        "short_free_a",
+        "short_free_m",
+        "short_free_c",
+        "short_free_a_keyset_pages",
+        "short_free_m_keyset_pages",
+        "short_free_c_keyset_pages",
+        "short_fielded_prompt_c",
+        "short_fielded_prompt_c_keyset_pages",
+        "short_fielded_name_i",
+        "short_fielded_name_a",
+        "short_fielded_name_a_keyset_pages",
+        "dense_two_char_filename",
+        "dense_three_char_filename",
+        "dense_three_char_model",
+        "dense_three_char_prompt",
+        "dense_three_char_keyset_pages",
     }
     cases = {name: (query, pages, min_matches) for name, query, pages, min_matches in SEARCH_QUERY_CLASSES}
     assert cases["short_cjk_two_char"] == ("少女", 1, 50)
@@ -61,6 +78,30 @@ def test_search_benchmark_covers_required_query_classes() -> None:
     assert cases["fielded_model_only"] == ("model:perf-model-3", 1, 50)
     assert cases["fielded_sampler_only"] == ('sampler:"Euler a"', 1, 50)
     assert cases["mixed_short_token"] == ("Euler a", 1, 50)
+    for name in ("short_free_a", "short_free_m", "short_free_c", "short_fielded_prompt_c", "short_fielded_name_a"):
+        assert cases[name][1:] == (1, 50), name
+    for name in (
+        "short_free_a_keyset_pages",
+        "short_free_m_keyset_pages",
+        "short_free_c_keyset_pages",
+        "short_fielded_prompt_c_keyset_pages",
+        "short_fielded_name_a_keyset_pages",
+        "dense_three_char_keyset_pages",
+    ):
+        assert cases[name][1:] == (3, 150), name
+
+
+def test_search_benchmark_covers_the_count_endpoint_for_dense_queries() -> None:
+    assert {name for name, _query, _minimum in SEARCH_COUNT_CLASSES} == {
+        "count_short_free_a",
+        "count_short_free_m",
+        "count_short_free_c",
+        "count_short_fielded_prompt_c",
+        "count_short_fielded_name_i",
+        "count_short_fielded_name_a",
+        "count_dense_three_char",
+    }
+    assert {query for _name, query, _minimum in SEARCH_COUNT_CLASSES} >= {"a", "m", "c", "prompt:c", "name:a"}
 
 
 def test_ci_perf_manifest_declares_every_blocking_report() -> None:
@@ -218,3 +259,24 @@ def test_perf_summary_checks_related_assets_budgets(tmp_path: Path) -> None:
     checks = summary["reports"][0]["checks"]
     assert next(check for check in checks if check["label"] == "visual candidate p95")["status"] == "fail"
     assert next(check for check in checks if check["label"] == "fixture rows")["status"] == "pass"
+
+
+def test_count_workload_posts_the_canonical_request_and_rejects_low_totals(monkeypatch) -> None:
+    posted: list[tuple[str, dict]] = []
+
+    def fake_post(_base_url: str, path: str, body: dict) -> tuple[float, dict]:
+        posted.append((path, body))
+        return 2.0, {"total": 3, "has_more": True}
+
+    monkeypatch.setattr(bench_search, "_post_json", fake_post)
+
+    low = bench_search.bench_search_count_case("http://example.test", "count_short_free_a", "a", 2, 50)
+    zero_ok = bench_search.bench_search_count_case("http://example.test", "count_short_fielded_name_i", "name:i", 2, 0)
+
+    assert low["contract_ok"] is False
+    assert zero_ok["contract_ok"] is True
+    assert low["endpoint"] == "/api/search/count"
+    assert posted[0][0] == "/api/search/count"
+    assert posted[0][1]["text"] == "a"
+    assert posted[0][1]["scope"] == {"kind": "all"}
+    assert len(posted) == 4

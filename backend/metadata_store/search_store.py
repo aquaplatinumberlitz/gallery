@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import sqlite3
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -81,7 +82,9 @@ def _like_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+@lru_cache(maxsize=4096)
 def _folder_relative_path(parent_path: str, root: Path) -> str:
+    """Relative folder path of a result under the search root (pure and lexical, so memoized: a page repeats parents)."""
     try:
         relative = Path(canonicalize_catalog_path(parent_path)).relative_to(canonicalize_catalog_path(root))
     except ValueError:

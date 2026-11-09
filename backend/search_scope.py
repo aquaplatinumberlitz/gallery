@@ -97,10 +97,11 @@ def resolve_search_scope(
 ) -> SearchScopeContext:
     """Resolve legacy/current input into an authorized canonical scope."""
     kind: CanonicalSearchScope = "folder" if scope == "current" else scope
-    libraries = list_libraries()
-
     if kind == "all":
+        # Every library is searched: listing them (a count over all assets) would only be discarded.
+        initialize_database()
         return SearchScopeContext(kind="all")
+    libraries = list_libraries()
 
     if kind == "library":
         if library_id is None:
@@ -164,9 +165,10 @@ def resolve_search_scope(
 
 def resolve_search_v2_scope(scope: SearchScopeV1) -> SearchScopeContext:
     """Resolve a canonical ID-based request into an authorized catalog scope."""
-    libraries = list_libraries()
     if isinstance(scope, SearchAllScopeV1):
+        initialize_database()
         return SearchScopeContext(kind="all")
+    libraries = list_libraries()
 
     library = _library_by_id(libraries, scope.library_id)
     if isinstance(scope, SearchLibraryScopeV1):
