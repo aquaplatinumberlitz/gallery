@@ -464,6 +464,16 @@ GALLERY_PERF_SEARCH_PROFILE=scheduled ./test.sh perf
 `bench_search.py` runs after the managed backend health check and reports broad
 filename, prompt-heavy, album-heavy, combined fielded, model-only,
 sampler-only, mixed-short-token, CJK, and repeated opaque-keyset page classes.
+Since SC-01 it also runs the dense, fielded, keyset-page and count classes under
+four scopes sent as the UI sends them (`POST /api/search/query` and
+`/api/search/count`): `library`, `folder_root`, `folder_nested`
+(`GALLERY_PERF_ALBUM_NAME`, default `a1111`) and `folder_album`
+(`GALLERY_PERF_SCOPE_ALBUM_NAME`, default `search_album_000`, a selective scope),
+reported as `scoped_<scope>_<class>` (`a`, `m`, `c`, `as`, `ass`, the fielded
+query, 3-page chains of `a`, `c`, `ass`, and counts) against the same 300 ms p95
+budget. Scopes are discovered from the backend; an unresolved scope fails its
+contract. For local runs, `GALLERY_PERF_BENCH_SEARCH_SUITE=scoped|unscoped` and
+`GALLERY_PERF_BENCH_SEARCH_CLASS_FILTER=<substring>` narrow the classes.
 Since BL-13 it also reports the dense short-query classes of the 100k fixture,
 where every row matches the prefix or the substring:
 
@@ -779,8 +789,8 @@ corepack pnpm run perf:lightbox
 | Field             | Default | Env Var Override                               | Contract and published basis                                                                                  |
 | ----------------- | ------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `open_ms`         | `200`   | `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS`         | Browser click → first overlay paint. Controlled-lab proxy for Google's good-INP target of ≤200ms at p75.      |
-| `visual_ready_ms` | `1000`  | `GALLERY_PERF_LIGHTBOX_VISUAL_READY_BUDGET_MS` | Browser click → decoded preview. Custom metric using the upper bound of Google's 100–1000ms RAIL view window. |
-| `transition_ms`   | `200`   | `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS`   | Actual ArrowRight keydown → decoded next preview; a stricter lab proxy aligned with the interaction target.   |
+| `visual_ready_ms` | `1000`  | `GALLERY_PERF_LIGHTBOX_VISUAL_READY_BUDGET_MS` | Browser click → decoded, visible preview, timed in the page (see "What visual ready measures"). Custom metric using the upper bound of Google's 100–1000ms RAIL view window. |
+| `transition_ms`   | `200`   | `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS`   | Actual ArrowRight keydown → decoded, visible next preview (in-page); a stricter lab proxy aligned with the interaction target. |
 
 Sources: [Google INP](https://web.dev/articles/inp) and
 [Google RAIL](https://web.dev/articles/rail). `visual_ready_ms` is explicitly a
@@ -788,6 +798,42 @@ project SLO derived from RAIL, not a Core Web Vital. Production responsiveness
 would need representative RUM to make an official INP p75 claim; this private
 project intentionally makes no such claim. The lab p95 gates are regression
 checks derived from the published targets.
+
+#### What visual ready measures (LB-01)
+
+Until LB-01 the spec read its timestamp after Playwright's own waits (`toBeVisible`
+and an `expect.poll` at 100/250 ms), so the gated p95 showed when the harness
+looked, not when the preview was ready (about 880–960 ms, against about 530 ms
+in a per-frame trace). The gated figures now come from an in-page probe:
+
+- `lightbox.perf.spec.ts` arms `armVisualReadyProbe` before the click (open) or
+  before the `ArrowRight` keypress (next slide). It watches the active slide's
+  `.pswp__img:not(.pswp__img--placeholder)` with a MutationObserver and a
+  `requestAnimationFrame` check.
+- The probe stamps `performance.now()` in the first frame where that `<img>` has
+  a `/api/preview` src (for next slide, not the slide that was active before the
+  keypress), is complete with natural size, has finished `img.decode()`, and is
+  visible (display, visibility, opacity ≥ 0.99, non-zero rect). The stamp is taken
+  in the frame, not in the decode continuation.
+- `visualReadyAfterEventMs` (open) and `transitionPreviewLoadedAfterActionMs`
+  (next slide) are that stamp minus the click or keydown mark
+  (`gallery:lightbox-open-start` or `gallery:lightbox-transition-start`).
+  `browserDecodeVisualReadyMs` is the same stamp minus the image's
+  `responseEnd`. The aggregates `visualReadyP95Ms` and
+  `transitionPreviewLoadedP95Ms` are gated; the budgets did not change.
+- The old harness figure is kept for one release as a diagnostic, not gated:
+  per iteration `harnessObservedReadyMs` (open) and `harnessObservedTransitionMs`
+  (next slide), and aggregates `harnessObservedReadyP95Ms` and
+  `harnessObservedTransitionP95Ms`. Remove them once the new figure has been the
+  gate for a release.
+
+Because the probe reports when the preview is visible, not when the network
+finished, a preview slowdown is hidden while it lands before PhotoSwipe's 333 ms
+zoom-in and the content append that follows (readiness floor about 450–500 ms
+here). A throwaway 800 ms preview delay raised the open figure from about
+490 ms to about 880 ms, and a 300 ms delay did not move warm iterations. The
+gate catches slowdowns that reach the visible image, not ones hidden under the
+animation.
 
 ### Frontend critical-path refactor
 
@@ -851,7 +897,7 @@ the published-standard-derived limits.
 | `GALLERY_PERF_BENCH_PREVIEW_COLD_P95_MS`        | `[preview].cold_p95_ms` (`1500`)                        | Cold preview p95 budget                                                       |
 | `GALLERY_PERF_BENCH_PREVIEW_WARM_P95_MS`        | `[preview].warm_p95_ms` (`100`)                         | Warm preview p95 budget                                                       |
 | `GALLERY_PERF_LIGHTBOX_OPEN_BUDGET_MS`          | `[lightbox].open_ms` (`200`)                            | Max browser-native click-to-overlay-paint p95                                 |
-| `GALLERY_PERF_LIGHTBOX_VISUAL_READY_BUDGET_MS`  | `[lightbox].visual_ready_ms` (`1000`)                   | Max browser-native click-to-decoded-preview p95                               |
+| `GALLERY_PERF_LIGHTBOX_VISUAL_READY_BUDGET_MS`  | `[lightbox].visual_ready_ms` (`1000`)                   | Max in-page click-to-decoded-visible-preview p95 (LB-01 probe, not the harness) |
 | `GALLERY_PERF_LIGHTBOX_TRANSITION_BUDGET_MS`    | `[lightbox].transition_ms` (`200`)                      | Max actual-keydown-to-decoded-prefetched-preview p95                          |
 | `GALLERY_PERF_WORKER_CONTENTION`                | unset                                                   | `1` adds the worker contention bench to `./test.sh perf`                      |
 | `GALLERY_PERF_WORKER_STATUS_P95_BUDGET_MS`      | `[worker_contention].status_p95_ms` (`500`)             | Max worst-endpoint status p95 over ≥ 36,000 `derivative_jobs` rows            |

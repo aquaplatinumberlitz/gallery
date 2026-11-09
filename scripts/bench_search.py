@@ -10,6 +10,8 @@ drawer: `/api/search` (album/photo/prompt sections) and
 Guarantees:
 * broad filename, prompt-heavy, album-heavy, fielded, CJK, keyset-page, dense
   one-character (free text and fielded) and `/api/search/count` requests produce min/p50/p95/max JSON output
+* SC-01: the same dense, fielded, keyset-page and count workloads also run under the library, folder-root,
+  nested-folder and one-album scopes (the UI default is "This folder"), resolved from the running backend
 * p95 budgets fail the process when exceeded
 * budgets are read from `scripts/perf_budgets.toml` sections `[search]` and
   `[inspector_metadata]` — env vars override only
@@ -123,10 +125,45 @@ SEARCH_COUNT_CLASSES = (
     ("count_dense_three_char", "prom", 50),
 )
 
+# The fixture's albums each hold one model and one sampler (index modulo the album count), so the scoped fielded
+# query filters on `perf-model-0` / `Euler a`, which the first album (`search_album_000`) holds.
+SCOPED_FIELDED_QUERY = 'constellation model:perf-model-0 sampler:"Euler a"'
+
+# SC-01: scoped variants of the dense workloads. Each class runs once per scope in `SCOPED_SEARCH_SCOPES` through
+# `POST /api/search/query` (what the UI sends) and is reported as `scoped_<scope>_<class>`.
+SCOPED_SEARCH_CLASSES = (
+    ("short_free_a", "a", 1, 50),
+    ("short_free_m", "m", 1, 50),
+    ("short_free_c", "c", 1, 50),
+    ("dense_two_char_filename", "as", 1, 50),
+    ("dense_three_char_filename", "ass", 1, 50),
+    ("fielded", SCOPED_FIELDED_QUERY, 1, 1),
+    ("short_free_a_keyset_pages", "a", 3, 150),
+    ("short_free_c_keyset_pages", "c", 3, 150),
+    ("dense_three_char_keyset_pages", "ass", 3, 150),
+)
+SCOPED_COUNT_CLASSES = (
+    ("count_short_free_a", "a", 50),
+    ("count_short_free_c", "c", 50),
+    ("count_dense_three_char_filename", "ass", 50),
+    ("count_fielded", SCOPED_FIELDED_QUERY, 1),
+)
+# Library: every asset of the library. Folder root: the import path itself. Nested folder: the first-level album
+# `GALLERY_PERF_ALBUM_NAME` (default `a1111`). Album: the `search_album_*` folder named by
+# `GALLERY_PERF_SCOPE_ALBUM_NAME` (default `search_album_000`), a selective scope.
+SCOPED_SEARCH_SCOPES = ("library", "folder_root", "folder_nested", "folder_album")
+
 SEARCH_RESULT_CONTRACTS: dict[str, dict[str, str]] = {
     "fielded_model_only": {"model": "perf-model-3"},
     "fielded_sampler_only": {"sampler": "Euler a"},
 }
+
+
+def _scoped_query_body(query: str, scope: dict, cursor: str = "") -> dict:
+    body: dict = {"schema_version": 1, "mode": "lexical", "text": query, "scope": scope, "limit": 50}
+    if cursor:
+        body["cursor"] = cursor
+    return body
 
 
 def bench_search_case(
@@ -136,8 +173,13 @@ def bench_search_case(
     iterations: int,
     pages: int = 1,
     min_matches_per_iteration: int = 1,
+    scope: dict | None = None,
 ) -> dict:
-    """Benchmark one representative search class, including keyset pages."""
+    """Benchmark one representative search class, including keyset pages.
+
+    Without ``scope`` the request is the legacy ``GET /api/search?scope=all``; with a canonical Search V2 scope it
+    is the ``POST /api/search/query`` the UI sends.
+    """
     durations: list[float] = []
     last_payload: dict = {}
     completed_page_chains = 0
@@ -150,10 +192,15 @@ def bench_search_case(
         requested_pages = max(1, pages)
         completed_pages = 0
         for page_index in range(requested_pages):
-            params = {"q": query, "scope": "all", "limit": "50"}
-            if cursor:
-                params["cursor"] = cursor
-            duration, last_payload = _get_json(base_url, "/api/search", params)
+            if scope is None:
+                params = {"q": query, "scope": "all", "limit": "50"}
+                if cursor:
+                    params["cursor"] = cursor
+                duration, last_payload = _get_json(base_url, "/api/search", params)
+            else:
+                duration, last_payload = _post_json(
+                    base_url, "/api/search/query", _scoped_query_body(query, scope, cursor)
+                )
             durations.append(duration)
             media = last_payload.get("media", []) if isinstance(last_payload, dict) else []
             for row in media if isinstance(media, list) else []:
@@ -182,7 +229,8 @@ def bench_search_case(
     observed_matches = minimum_observed_matches or 0
     return {
         "class": name,
-        "endpoint": "/api/search",
+        "endpoint": "/api/search" if scope is None else "/api/search/query",
+        "scope": "all" if scope is None else str(scope.get("kind")),
         "query": query,
         "requests": int(stats["count"]),
         "expected_requests": expected_requests,
@@ -222,11 +270,19 @@ def _post_json(base_url: str, path: str, body: dict) -> tuple[float, dict]:
     return (time.perf_counter() - started) * 1000, data
 
 
-def bench_search_count_case(base_url: str, name: str, query: str, iterations: int, min_total: int = 1) -> dict:
-    """Benchmark one `/api/search/count` class (`POST`, all-libraries scope)."""
+def bench_search_count_case(
+    base_url: str, name: str, query: str, iterations: int, min_total: int = 1, scope: dict | None = None
+) -> dict:
+    """Benchmark one `/api/search/count` class (`POST`, all-libraries scope unless ``scope`` is given)."""
     durations: list[float] = []
     minimum_total: int | None = None
-    body = {"schema_version": 1, "mode": "lexical", "text": query, "scope": {"kind": "all"}, "limit": 50}
+    body = {
+        "schema_version": 1,
+        "mode": "lexical",
+        "text": query,
+        "scope": {"kind": "all"} if scope is None else scope,
+        "limit": 50,
+    }
     for _ in range(max(1, iterations)):
         duration, payload = _post_json(base_url, "/api/search/count", body)
         durations.append(duration)
@@ -237,6 +293,7 @@ def bench_search_count_case(base_url: str, name: str, query: str, iterations: in
     return {
         "class": name,
         "endpoint": "/api/search/count",
+        "scope": "all" if scope is None else str(scope.get("kind")),
         "query": query,
         "requests": int(stats["count"]),
         "expected_requests": max(1, iterations),
@@ -256,6 +313,115 @@ def bench_search_count_case(base_url: str, name: str, query: str, iterations: in
         "photos": 0,
         "prompt": 0,
     }
+
+
+def resolve_perf_scopes(base_url: str) -> dict[str, dict]:
+    """Discover the canonical scopes of `SCOPED_SEARCH_SCOPES` from the running backend (ids, never raw paths).
+
+    A scope that cannot be resolved is left out; its classes then fail their workload contract instead of
+    silently measuring nothing.
+    """
+    scopes: dict[str, dict] = {}
+    try:
+        _, libraries = _get_json(base_url, "/api/libraries", {})
+    except Exception:  # noqa: BLE001
+        return scopes
+    library = (
+        next((item for item in libraries if item.get("import_paths")), None) if isinstance(libraries, list) else None
+    )
+    if library is None:
+        return scopes
+    library_id = int(library["id"])
+    import_path = library["import_paths"][0]
+    import_path_id = int(import_path["id"])
+    import_root = Path(str(import_path["path"]))
+    scopes["library"] = {"kind": "library", "library_id": library_id}
+
+    def folder(relative_path: str) -> dict:
+        return {
+            "kind": "folder",
+            "library_id": library_id,
+            "import_path_id": import_path_id,
+            "relative_path": relative_path,
+        }
+
+    scopes["folder_root"] = folder("")
+    nested = os.getenv("GALLERY_PERF_ALBUM_NAME", "a1111").strip()
+    if nested:
+        scopes["folder_nested"] = folder(nested)
+    album_name = os.getenv("GALLERY_PERF_SCOPE_ALBUM_NAME", "search_album_000").strip()
+    try:
+        _, payload = _get_json(base_url, "/api/search", {"q": album_name, "scope": "all", "limit": "1"})
+        albums = payload.get("albums") if isinstance(payload, dict) else None
+        album = next((item for item in albums or [] if item.get("name") == album_name), None)
+        if album is not None:
+            relative = Path(str(album["path"])).relative_to(import_root).as_posix()
+            scopes["folder_album"] = folder(relative)
+    except Exception:  # noqa: BLE001
+        pass
+    return scopes
+
+
+def unresolved_scope_result(name: str, scope_name: str, endpoint: str, query: str) -> dict:
+    """A failing report row for a scoped class whose scope could not be resolved."""
+    return {
+        "class": name,
+        "endpoint": endpoint,
+        "scope": scope_name,
+        "query": query,
+        "requests": 0,
+        "expected_requests": 1,
+        "pages_per_iteration": 1,
+        "completed_page_chains": 0,
+        "expected_page_chains": 1,
+        "minimum_observed_matches": 0,
+        "minimum_required_matches": 1,
+        "expected_result_fields": {},
+        "unexpected_matches": 0,
+        "contract_ok": False,
+        "min_ms": 0.0,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "max_ms": 0.0,
+        "albums": 0,
+        "photos": 0,
+        "prompt": 0,
+    }
+
+
+def _class_selected(class_name: str) -> bool:
+    """`GALLERY_PERF_BENCH_SEARCH_CLASS_FILTER` (a substring) narrows a local run to the matching classes."""
+    needle = os.getenv("GALLERY_PERF_BENCH_SEARCH_CLASS_FILTER", "").strip()
+    return not needle or needle in class_name
+
+
+def bench_scoped_search_classes(base_url: str, iterations: int) -> list[dict]:
+    """SC-01: every scoped class under every scope, named ``scoped_<scope>_<class>``."""
+    scopes = resolve_perf_scopes(base_url)
+    results: list[dict] = []
+    for scope_name in SCOPED_SEARCH_SCOPES:
+        scope = scopes.get(scope_name)
+        for name, query, pages, min_matches in SCOPED_SEARCH_CLASSES:
+            class_name = f"scoped_{scope_name}_{name}"
+            if not _class_selected(class_name):
+                continue
+            if scope is None:
+                results.append(unresolved_scope_result(class_name, scope_name, "/api/search/query", query))
+                continue
+            result = bench_search_case(base_url, class_name, query, iterations, pages, min_matches, scope=scope)
+            result["scope"] = scope_name
+            results.append(result)
+        for name, query, min_total in SCOPED_COUNT_CLASSES:
+            class_name = f"scoped_{scope_name}_{name}"
+            if not _class_selected(class_name):
+                continue
+            if scope is None:
+                results.append(unresolved_scope_result(class_name, scope_name, "/api/search/count", query))
+                continue
+            result = bench_search_count_case(base_url, class_name, query, iterations, min_total, scope=scope)
+            result["scope"] = scope_name
+            results.append(result)
+    return results
 
 
 def bench_search(base_url: str, query: str, iterations: int) -> dict:
@@ -305,14 +471,22 @@ def main() -> int:
         )
     )
 
-    search_classes = [
-        bench_search_case(base_url, name, query_text, iterations, pages, min_matches)
-        for name, query_text, pages, min_matches in SEARCH_QUERY_CLASSES
-    ]
-    search_classes.extend(
-        bench_search_count_case(base_url, name, query_text, iterations, min_total)
-        for name, query_text, min_total in SEARCH_COUNT_CLASSES
-    )
+    # `GALLERY_PERF_BENCH_SEARCH_SUITE` narrows a local run to `unscoped` or `scoped` classes (default: both).
+    suite = os.getenv("GALLERY_PERF_BENCH_SEARCH_SUITE", "all").strip().lower()
+    search_classes: list[dict] = []
+    if suite in {"all", "unscoped"}:
+        search_classes.extend(
+            bench_search_case(base_url, name, query_text, iterations, pages, min_matches)
+            for name, query_text, pages, min_matches in SEARCH_QUERY_CLASSES
+            if _class_selected(name)
+        )
+        search_classes.extend(
+            bench_search_count_case(base_url, name, query_text, iterations, min_total)
+            for name, query_text, min_total in SEARCH_COUNT_CLASSES
+            if _class_selected(name)
+        )
+    if suite in {"all", "scoped"}:
+        search_classes.extend(bench_scoped_search_classes(base_url, iterations))
     if query != SEARCH_QUERY_CLASSES[0][1]:
         search_classes.append(bench_search(base_url, query, iterations))
     slowest_search = max(search_classes, key=lambda result: float(result["p95_ms"]))
