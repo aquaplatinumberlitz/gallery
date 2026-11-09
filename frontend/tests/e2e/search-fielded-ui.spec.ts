@@ -281,10 +281,9 @@ test("plain search finds results and shows them in UI", async ({ page }) => {
   expect(searchRequests.length).toBeGreaterThanOrEqual(1);
   expect(searchRequests.some((r) => r.q.includes("rain"))).toBe(true);
 
-  // Result images should be visible (photo-card or search result cards)
-  const resultCards = page.getByTestId("photo-card");
-  const resultCount = await resultCards.count();
-  expect(resultCount).toBeGreaterThanOrEqual(1);
+  // Result images should be visible (photo-card or search result cards). Enter sends the query at once (SE-02),
+  // so the results arrive a moment after the request: wait for them instead of counting once.
+  await expect(page.getByTestId("photo-card").first()).toBeVisible({ timeout: 10_000 });
 });
 
 test("fielded search prompt:mika sends correct query and shows results", async ({ page }) => {

@@ -112,6 +112,28 @@ async function installStubbedGallery(page: Page) {
       return;
     }
 
+    if (url.pathname === "/api/search/query") {
+      // Enter sends the query at once (SE-02), so the search request now leaves before the test closes search.
+      const body = route.request().postDataJSON() as { text?: string; scope?: { kind?: string } } | null;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          query: body?.text ?? "",
+          scope: body?.scope?.kind ?? "all",
+          albums: [],
+          photos: [],
+          media: [],
+          prompt: [],
+          videos: [],
+          next_cursor: null,
+          has_more: false,
+          returned: 0,
+          limit: 60,
+        }),
+      });
+      return;
+    }
+
     if (url.pathname === "/api/search/count") {
       // The results header reads the total from the count query (SR-02).
       await route.fulfill({
