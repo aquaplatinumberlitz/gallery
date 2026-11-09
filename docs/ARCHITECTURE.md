@@ -1413,6 +1413,13 @@ Header search or AdvancedSearchDrawer
   idx_file_index_type`) under a scope, and the scoped count keeps the capped distinct streaming
   statements with the sargable scope. `backend/tests/test_search_scoped_pins.py` pins and
   cross-checks all of it.
+  The unscoped plan has the same cover rule without the two-statement split (BL-16): a bounded source is read in
+  one statement, and when it returns a full `fts_candidate_limit` rows it may have been cut short, so its cover is the
+  (tier, rank, mtime) of its last row. The page must end strictly before every cover, otherwise the plan gives up and
+  the caller runs the exact statement. This costs no extra query. Known limit: a cut-short preselect that loses rows
+  to the strict ownership joins (offline or deleted assets) returns fewer than the bound and is not seen as cut
+  short; the unscoped plan has never retried those, and detecting them would need the preselect row count (a second
+  statement per source), so it is documented rather than paid for.
   Known behaviour of the unscoped, unfiltered plan only: a row that matches in two sources of different tiers can be returned once
   per source across keyset pages (the per-source cursor pre-filter runs before the
   cross-source dedup; this predates the plan). The bounded filename variants of a large match

@@ -1511,6 +1511,10 @@ def _run_page_plan(
                     build_candidate_page_query([source], has_cursor=has_cursor, legacy_offset=False),
                     {**params, "page_limit": row_limit},
                 ).fetchall()
+                if not exact and len(rows) >= row_limit:
+                    # A bounded source that returned a full bound may have been cut short (BL-16): it is complete only
+                    # strictly before the (tier, rank, mtime) of its last row, as in `_read_preselected`.
+                    covers.append(max(_row_key(row) for row in rows)[:3])
             for row in rows:
                 asset_id = int(row["asset_id"])
                 origin.setdefault(asset_id, set()).add(position)
@@ -1523,7 +1527,7 @@ def _run_page_plan(
         if len(page) == page_limit and int(page[-1]["relevance_tier"]) > placed[index][1].max_tier:
             break
     # Every cut-short source holds all of its valid rows strictly before its cover: the page must end there.
-    if exact and covers and (len(page) < page_limit or any(_row_key(page[-1])[:3] >= cover for cover in covers)):
+    if covers and (len(page) < page_limit or any(_row_key(page[-1])[:3] >= cover for cover in covers)):
         return None
     return page
 
