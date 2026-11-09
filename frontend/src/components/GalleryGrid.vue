@@ -236,11 +236,14 @@ const searchMediaTotal = computed<SearchMediaTotal | null>(() => {
   if (state.status === "error") return null;
   return hasSearchQuery.value ? lastSearchMediaTotal.value : null;
 });
-// True while the header shows a held total (the count for the new text is pending). The held total is formatted on its
-// own: the query's hasNextPage is briefly false while a new first page lands, which would otherwise show the loaded count.
-const searchCountPending = computed(
-  () => searchCountPreview.state.value.status !== "done" && searchMediaTotal.value !== null,
-);
+// The header formats the total with "more pages" taken from the last page's cursor (the same value getNextPageParam
+// reads). vue-query's hasNextPage lags behind `data` for a frame when a new first page lands; that lag must not read as
+// "all pages loaded", which would show the loaded count (60) instead of the total (298+).
+const searchCountHasNextPage = computed(() => {
+  const pages = unifiedSearchQuery.data?.value?.pages;
+  if (pages?.length) return Boolean(pages[pages.length - 1]?.next_cursor);
+  return Boolean(unifiedSearchQuery.hasNextPage?.value);
+});
 const showSearchWarmupHint = computed(() => trimmedSearchQuery.value.length > 0 && !hasSearchQuery.value);
 const sortField = computed(() => galleryStore.sortField);
 const sortOrder = computed(() => galleryStore.sortOrder);
@@ -942,7 +945,7 @@ useInfiniteLoadSentinel({
       :show-all-indexed-hint="showAllIndexedHint"
       :media-total="searchMediaTotal"
       :settling="isSearchSettling"
-      :count-pending="searchCountPending"
+      :count-has-next-page="searchCountHasNextPage"
       @open-folder="handleOpenFolder"
       @open-media="handleOpenMedia(searchResultToFileNode($event))"
       @find-related="handleFindRelated(searchResultToFileNode($event))"

@@ -472,6 +472,51 @@ describe("GalleryGrid", () => {
     expect(value).toBeNull();
   });
 
+  // Regression: vue-query's hasNextPage lags behind data for a frame when a new first page lands. The header must not
+  // read that lag as "no more pages" (it showed the loaded count, 60, for one frame before the fresh total, 298+).
+  it("tells the header that more pages exist while the query's hasNextPage lags behind the page cursor", async () => {
+    mockUseSearchMatchPreview.mockImplementationOnce(() => ({
+      state: ref({ status: "done", total: 298, hasMore: true }),
+      isFetching: ref(false),
+    }));
+    const page = {
+      media: [{ name: "night.png", path: "/photos/night.png", type: "image", mtime: 1 }],
+      next_cursor: "c1",
+    };
+    mockUseUnifiedSearchQuery.mockImplementation(() => ({
+      isLoading: { value: false },
+      isFetching: { value: false },
+      isFetchingNextPage: { value: false },
+      isError: { value: false },
+      isRefetchError: { value: false },
+      isFetchNextPageError: { value: false },
+      error: mockError,
+      isPending: { value: false },
+      isPlaceholderData: { value: false },
+      isSuccess: mockIsSuccess,
+      hasNextPage: { value: false },
+      data: { value: { pages: [page] } },
+      fetchNextPage: vi.fn(),
+      debouncedQuery: { value: "nig" },
+      albums: { value: [] },
+      photos: { value: [] },
+      videos: { value: [] },
+      prompt: { value: [] },
+      media: { value: page.media },
+    }));
+    const wrapper = await mountSubject({
+      store: { searchQuery: "nig", submittedSearchQuery: "" },
+      stubs: {
+        SearchResultsPanel: {
+          props: ["mediaTotal", "countHasNextPage"],
+          template: "<div class='search-panel-stub' :data-count-has-next='String(countHasNextPage)' />",
+        },
+      },
+    });
+
+    expect(wrapper.get(".search-panel-stub").attributes("data-count-has-next")).toBe("true");
+  });
+
   it("allows a one-character query after explicit submit", async () => {
     mockFolders = ref([{ name: "Mika", path: "/photos/mika", type: "folder", has_children: false }]);
     mockMedia = ref([{ name: "mika.png", path: "/photos/mika.png", type: "image", mtime: 1 }]);
