@@ -1351,15 +1351,17 @@ def _read_preselected(
     source: _Source,
     params: dict[str, Any],
     cursor_position: dict[str, int | float] | None,
-    covers: list[tuple[int, float, int, int]],
+    covers: list[tuple[int, float, int]],
 ) -> list[sqlite3.Row] | None:
     """Rows of a bounded source after the cursor, or None when the bound may have dropped valid rows.
 
     The preselect runs on its own (the best ``fts_candidate_limit`` rows inside the scope and filters), then the
     strict ownership statement reads exactly those rows. A preselect that was cut short (it returned the limit)
     and lost rows to the strict joins (offline, mismatched or unowned assets) may have hidden valid rows beyond
-    the limit; that is None. A cut-short preselect with no losses records its ``cover``: the key up to which
-    the source is known to be complete.
+    the limit; that is None. A cut-short preselect with no losses records its ``cover``: the (tier, rank, mtime)
+    prefix of its last row. The source is known complete only strictly before that prefix: the preselect breaks
+    ties by its own row id (metadata or file rowid), not the page's asset id, so rows that tie the last one on
+    tier, rank and mtime may have been cut while sorting before rows that were kept.
     """
     assert source.pre_sql is not None and source.rows_sql is not None
     if cursor_position is not None and source.min_tier > int(cursor_position["tier"]):
@@ -1376,7 +1378,7 @@ def _read_preselected(
     if len(pre_rows) >= int(params["fts_candidate_limit"]):
         if len(survivors) < len(pre_rows) or not rows:
             return None
-        covers.append(max(_row_key(row) for row in rows))
+        covers.append(max(_row_key(row) for row in rows)[:3])
     return rows
 
 
@@ -1432,7 +1434,7 @@ def _run_page_plan(
     best: dict[int, sqlite3.Row] = {}
     origin: dict[int, set[int]] = {}  # asset id -> positions of the sources that returned a row for it
     whole: set[int] = set()  # positions read whole: their rows were never cursor-filtered
-    covers: list[tuple[int, float, int, int]] = []
+    covers: list[tuple[int, float, int]] = []
     excluded: set[int] = set()
     checked: set[int] = set()
     shadow_sources: list[_Source] | None = None
@@ -1520,8 +1522,8 @@ def _run_page_plan(
             break
         if len(page) == page_limit and int(page[-1]["relevance_tier"]) > placed[index][1].max_tier:
             break
-    # Every cut-short source holds all of its valid rows up to its cover: the page must end inside all of them.
-    if exact and covers and (len(page) < page_limit or any(_row_key(page[-1]) > cover for cover in covers)):
+    # Every cut-short source holds all of its valid rows strictly before its cover: the page must end there.
+    if exact and covers and (len(page) < page_limit or any(_row_key(page[-1])[:3] >= cover for cover in covers)):
         return None
     return page
 

@@ -753,3 +753,102 @@ def test_page_plan_serves_scoped_queries_without_the_exact_fallback(
         _walk(root, library_ids, "nested", query)
         _walk(root, library_ids, "a11112", query)
     assert not fallbacks
+
+
+@pytest.mark.parametrize("query", ("cat", "c", "ca", "cat model:m"))
+def test_cut_short_preselect_keeps_page_order_when_rows_tie_on_rank_and_mtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, query: str
+) -> None:
+    """Rows tied on tier, rank and mtime past the bound: the plan still equals the exact statement page by page.
+
+    A preselect breaks such ties by its own row id (metadata id or file rowid) while the page orders them by asset
+    id. Here the metadata rows are written in the reverse order of the assets, so the two orders disagree and a
+    cut-short preselect keeps a different subset of the tie group than the page needs: the plan must not treat
+    that tie group as covered.
+    """
+    from backend.fielded_search_parser import parse_fielded_query
+    from backend.metadata_store import _connect_read
+    from backend.metadata_store import ranked_search as rs
+
+    root = tmp_path.resolve()
+    (root / "lib").mkdir()
+    library_id = int(register_library(root / "lib", name="Ties")["id"])
+    folder = root / "lib" / "batch"
+    paths = [str(folder / f"img_{index:03d}.png") for index in range(60)]
+    with closing(_connect()) as conn:
+        conn.execute(
+            "INSERT INTO file_index (path, name, parent_path, type, mtime, mtime_ns, size, indexed_at, library_id) "
+            "VALUES (?, 'batch', ?, 'folder', ?, ?, NULL, ?, ?)",
+            (str(folder), str(folder.parent), NOW, BASE_MTIME_NS, NOW, library_id),
+        )
+        for path in paths:
+            name = Path(path).name
+            conn.execute(
+                "INSERT INTO assets (library_id, path, parent_path, name, type, mtime_ns, size, width, height, "
+                "indexed_at, metadata_state, offline, deleted_at) "
+                "VALUES (?, ?, ?, ?, 'image', ?, 100, 64, 64, ?, 'ready', 0, NULL)",
+                (library_id, path, str(folder), name, BASE_MTIME_NS, NOW),
+            )
+            conn.execute(
+                "INSERT INTO file_index (path, name, parent_path, type, mtime, mtime_ns, size, width, height, "
+                "indexed_at, library_id) VALUES (?, ?, ?, 'image', ?, ?, 100, 64, 64, ?, ?)",
+                (path, name, str(folder), BASE_MTIME_NS / 1e9, BASE_MTIME_NS, NOW, library_id),
+            )
+            conn.execute(
+                "INSERT INTO file_index_fts (name, path, type, parent_path) VALUES (?, ?, 'image', ?)",
+                (name, path, str(folder)),
+            )
+        for path in reversed(paths):  # metadata ids run against asset ids
+            conn.execute(
+                "INSERT INTO image_metadata (path, name, mtime, mtime_ns, size, width, height, format, mode, "
+                "has_alpha, prompt, negative_prompt, model, sampler, seed, steps, cfg_scale, raw_metadata_text, "
+                "metadata_json, updated_at, indexed_at) VALUES (?, ?, ?, ?, 100, 64, 64, 'PNG', 'RGB', 0, "
+                "'cat castle', '', 'model-a', 'euler a', '1', 20, 7.0, '', '', ?, ?)",
+                (path, Path(path).name, BASE_MTIME_NS / 1e9, BASE_MTIME_NS, NOW, NOW),
+            )
+        rebuild_search_text_index(conn)
+        conn.commit()
+    monkeypatch.setattr(rs, "FTS_CANDIDATE_FLOOR", 8)  # with limit 5 the bound is 24 rows: the tie group is cut
+    limit = 5
+    scope_args = ("folder", str(folder), library_id)
+    parsed = parse_fielded_query(query)
+    fingerprint = rs.request_fingerprint(
+        query, "folder", str(folder), fielded=bool(parsed.fields), library_id=library_id
+    )
+    with closing(_connect_read()) as conn:
+        cursor = None
+        for page_number in range(20):
+            oracle = _exact_page(conn, query, scope_args, limit, cursor)
+            encoded = (
+                None
+                if cursor is None
+                else rs.encode_search_cursor(
+                    {
+                        "asset_id": cursor["asset_id"],
+                        "mtime_ns": cursor["mtime_ns"],
+                        "rank": cursor["rank"],
+                        "relevance_tier": cursor["tier"],
+                    },  # type: ignore[arg-type]
+                    fingerprint,
+                )
+            )
+            planned, _more, _fp = rs.search_ranked_media_page(
+                conn,
+                query,
+                "folder",
+                str(folder),
+                limit,
+                encoded,
+                parsed=parsed if parsed.fields else None,
+                library_id=library_id,
+            )
+            assert [_row_identity(r) for r in planned] == [_row_identity(r) for r in oracle[:limit]], page_number
+            if len(oracle) <= limit:
+                break
+            last = oracle[limit - 1]
+            cursor = {
+                "tier": int(last["relevance_tier"]),
+                "rank": float(last["rank"]),
+                "mtime_ns": int(last["mtime_ns"]),
+                "asset_id": int(last["asset_id"]),
+            }
