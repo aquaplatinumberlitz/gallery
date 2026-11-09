@@ -41,6 +41,16 @@ def test_search_benchmark_covers_required_query_classes() -> None:
         "short_latin_prefix",
         "short_cjk_keyset_pages",
         "repeated_keyset_pages",
+        "prefix_stability_2",
+        "prefix_stability_3",
+        "prefix_stability_4",
+        "prefix_stability_keyset_pages",
+        "accent_folded_latin",
+        "accent_folded_vietnamese",
+        "accent_folded_kana",
+        "accent_folded_fielded_prompt",
+        "accent_folded_fielded_two_char",
+        "accent_folded_fielded_one_char",
     }
     cases = {name: (query, pages, min_matches) for name, query, pages, min_matches in SEARCH_QUERY_CLASSES}
     assert cases["short_cjk_two_char"] == ("少女", 1, 50)

@@ -25,11 +25,13 @@ from ._migrations import (
     _migrate_v10_to_v11,
     _migrate_v11_to_v12,
     _migrate_v12_to_v13,
+    _migrate_v13_to_v14,
 )
 from ._schema_ddl import FRESH_DATABASE_DDL
 from ._schema_ensure import (
     _ensure_cjk_search_schema,
     _ensure_file_index_trigram_schema,
+    _ensure_fold_search_schema,
     _ensure_generation_signature_schema,
     _ensure_post_v1_additive_columns,
     _ensure_prompt_discovery_schema,
@@ -44,7 +46,7 @@ from .file_index import _cleanup_ignored_index_conn
 
 logger = logging.getLogger(__name__)
 
-CATALOG_SCHEMA_VERSION = 13
+CATALOG_SCHEMA_VERSION = 14
 
 
 # Serializes first-use schema initialization/migration of a database path (a dedicated lock: it guards
@@ -121,6 +123,10 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         current_version = 13
 
     if current_version == 13:
+        _migrate_v13_to_v14(conn)
+        current_version = 14
+
+    if current_version == 14:
         _cleanup_ignored_index_conn(conn)
         _ensure_post_v1_additive_columns(conn)
         _ensure_v3_schema(conn)
@@ -130,6 +136,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         _ensure_raw_workflow_schema(conn)
         _ensure_file_index_trigram_schema(conn)
         _ensure_cjk_search_schema(conn)
+        _ensure_fold_search_schema(conn)
         _ensure_generation_signature_schema(conn)
         _ensure_visual_fingerprint_schema(conn)
         _ensure_runtime_counters(conn)
@@ -139,7 +146,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
         raise RuntimeError("Catalog database has application tables but no schema version; delete it and start fresh")
 
     if current_version != 0:
-        raise RuntimeError(f"Catalog database must be fresh (v0-v13); found v{current_version}")
+        raise RuntimeError(f"Catalog database must be fresh (v0-v14); found v{current_version}")
 
     conn.executescript(FRESH_DATABASE_DDL)
     _ensure_post_v1_additive_columns(conn)
@@ -150,6 +157,7 @@ def _initialize_database_conn(conn: sqlite3.Connection) -> None:
     _ensure_raw_workflow_schema(conn)
     _ensure_file_index_trigram_schema(conn)
     _ensure_cjk_search_schema(conn)
+    _ensure_fold_search_schema(conn)
     _ensure_generation_signature_schema(conn)
     _ensure_visual_fingerprint_schema(conn)
     _ensure_runtime_counters(conn)

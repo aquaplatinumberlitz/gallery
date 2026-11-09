@@ -343,8 +343,10 @@ def test_normal_substring_queries_use_trigram_instead_of_full_like_scan() -> Non
             include_videos=True,
         )
     )
-    assert "file_index_fts_trigram MATCH :filename_substring_match" in sql
-    assert "image_metadata_fts_trigram MATCH :positive_substring_match" in sql
+    # Schema v14: ranked search reads the folded tables (word-prefix source plus secondary substring source).
+    assert "file_index_fold_fts_trigram MATCH :filename_substring_match" in sql
+    assert "image_metadata_fold_fts_trigram MATCH :positive_substring_match" in sql
+    assert "image_metadata_fold_fts MATCH :positive_match" in sql
     assert "fi.name LIKE :filename_like" not in sql
     assert "WHERE m.prompt LIKE :text_like" not in sql
 
@@ -359,8 +361,9 @@ def test_mixed_short_tokens_use_unicode_fts_without_full_like_scan() -> None:
             include_videos=True,
         )
     )
-    assert "image_metadata_fts MATCH :metadata_match" in sql
-    assert "file_index_fts_trigram" not in sql
+    assert "image_metadata_fold_fts MATCH :metadata_match" in sql
+    assert "file_index_fold_fts_trigram" not in sql
+    assert "image_metadata_fold_fts_trigram" not in sql
     assert "fi.name LIKE :filename_like" not in sql
     assert "WHERE m.prompt LIKE :text_like" not in sql
 
@@ -386,6 +389,9 @@ def test_ranked_candidate_plan_uses_fts_and_catalog_ownership_indexes(
         "filename_match": '"needle"',
         "filename_substring_match": '"needle"',
         "filename_prefix": "needle%",
+        "fold_filename_prefix": "needle%",
+        "fold_like": "%needle%",
+        "fold_query": "needle",
         "metadata_match": '(model : ("needle")) OR (sampler : ("needle"))',
         "metadata_substring_match": '(model : ("needle")) OR (sampler : ("needle"))',
         "negative_match": 'negative_prompt : ("needle")',

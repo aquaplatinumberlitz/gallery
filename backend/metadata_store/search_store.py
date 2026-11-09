@@ -11,6 +11,7 @@ from typing import Any
 from ..fielded_search_parser import ParsedQuery, build_fielded_conditions
 from ..files import content_version
 from ..metadata_extract import contains_cjk
+from ..text_fold import fold_text
 from ._db import _connect_read
 from ._schema import initialize_database
 from .browse_store import catalog_folder_aggregates_conn
@@ -195,8 +196,9 @@ def _search_file_index_fts(
     owner_join = _folder_owner_join_sql() if is_folder else _active_asset_join_sql()
     duration_sql = "NULL" if is_folder else "catalog_asset.duration_ms"
     mime_type_sql = "NULL" if is_folder else "catalog_asset.mime_type"
+    folded_query = fold_text(query)
     try:
-        match_query = _unicode_match_query(query)
+        match_query = _unicode_match_query(folded_query)
         rows = list(
             conn.execute(
                 f"""
@@ -204,11 +206,11 @@ def _search_file_index_fts(
                        catalog_library.name AS library_name,
                        {duration_sql} AS duration_ms,
                        {mime_type_sql} AS mime_type
-                FROM file_index_fts fts
-                JOIN file_index fi ON fi.path = fts.path
+                FROM file_index_fold_fts
+                JOIN file_index fi ON fi.rowid = file_index_fold_fts.rowid
                 {owner_join}
-                WHERE fts MATCH ? AND {type_sql} AND {catalog_sql} {scope_sql}
-                ORDER BY bm25(file_index_fts) ASC, fi.mtime DESC, fi.name ASC
+                WHERE file_index_fold_fts MATCH ? AND {type_sql} AND {catalog_sql} {scope_sql}
+                ORDER BY bm25(file_index_fold_fts) ASC, fi.mtime DESC, fi.name ASC
                 LIMIT ?
                 """,
                 [match_query, *type_params, *scope_params, limit],
@@ -220,7 +222,7 @@ def _search_file_index_fts(
     if rows:
         return rows, root
 
-    pattern = _like_pattern(query)
+    pattern = _like_pattern(folded_query)
     rows = list(
         conn.execute(
             f"""
@@ -230,7 +232,9 @@ def _search_file_index_fts(
                    {mime_type_sql} AS mime_type
             FROM file_index fi
             {owner_join}
-            WHERE fi.name LIKE ? ESCAPE '\\' AND {type_sql} AND {catalog_sql} {scope_sql}
+            WHERE EXISTS (SELECT 1 FROM file_index_fold AS name_fold
+                          WHERE name_fold.file_rowid = fi.rowid AND name_fold.name LIKE ? ESCAPE '\\')
+              AND {type_sql} AND {catalog_sql} {scope_sql}
             ORDER BY fi.mtime DESC, fi.name ASC
             LIMIT ?
             """,

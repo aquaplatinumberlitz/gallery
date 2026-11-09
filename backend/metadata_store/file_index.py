@@ -20,6 +20,7 @@ from .db_writer import LANE_NORMAL, SCAN_OP_ROWS, get_active_writer, run_write
 from .library_store import _find_library_for_path_conn, _library_exclusion_patterns_conn, get_library_for_path
 from .metadata_persist import index_images
 from .path_utils import path_scope_sql
+from .search_text_index import sync_file_name_fold
 
 logger = logging.getLogger(__name__)
 _INDEX_WRITE_BATCH_SIZE = 500
@@ -150,6 +151,7 @@ def upsert_catalog_records_conn(
         "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
         ((record[1], record[0], record[3], record[2]) for record in batch),
     )
+    sync_file_name_fold(conn, ((record[0], record[1]) for record in batch))
     if library_id is not None:
         conn.executemany(
             """INSERT INTO assets (
@@ -367,6 +369,7 @@ def index_file(
             "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, ?, ?)",
             (name, resolved_path, normalized_type, resolved_parent),
         )
+        sync_file_name_fold(conn, [(resolved_path, name)])
         return True
 
     return run_write(index, lane=LANE_NORMAL)

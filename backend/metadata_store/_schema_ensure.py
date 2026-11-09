@@ -264,6 +264,99 @@ def _ensure_cjk_search_schema(
         run(statement)
 
 
+def _fold_fts_statements(*, fts: str, trigram_fts: str, table: str, key: str, columns: tuple[str, ...]) -> list[str]:
+    """DDL for one folded content table with unicode61 and trigram external-content FTS tables."""
+    column_list = ", ".join(columns)
+    new_values = ", ".join(f"new.{column}" for column in columns)
+    old_values = ", ".join(f"old.{column}" for column in columns)
+    statements = [
+        f"""
+        CREATE VIRTUAL TABLE IF NOT EXISTS {fts} USING fts5(
+          {column_list},
+          content='{table}',
+          content_rowid='{key}',
+          tokenize='unicode61 remove_diacritics 0'
+        )
+        """,
+        f"""
+        CREATE VIRTUAL TABLE IF NOT EXISTS {trigram_fts} USING fts5(
+          {column_list},
+          content='{table}',
+          content_rowid='{key}',
+          tokenize='trigram'
+        )
+        """,
+    ]
+    for suffix, event in (("ai", "INSERT"), ("ad", "DELETE"), ("au", "UPDATE")):
+        deletes = "".join(
+            f"INSERT INTO {name}({name}, rowid, {column_list}) VALUES ('delete', old.{key}, {old_values});"
+            for name in (fts, trigram_fts)
+        )
+        inserts = "".join(
+            f"INSERT INTO {name}(rowid, {column_list}) VALUES (new.{key}, {new_values});" for name in (fts, trigram_fts)
+        )
+        body = {"ai": inserts, "ad": deletes, "au": deletes + inserts}[suffix]
+        statements.append(f"CREATE TRIGGER IF NOT EXISTS {table}_{suffix} AFTER {event} ON {table} BEGIN {body} END")
+    return statements
+
+
+def _ensure_fold_search_schema(
+    conn: sqlite3.Connection,
+    *,
+    execute_statement: Callable[[str], object] | None = None,
+) -> None:
+    """Create the folded search text tables, their FTS indexes and trigger chain (no backfill, schema v14).
+
+    ``image_metadata_fold`` holds one row per metadata row with non-empty folded prompt, negative prompt,
+    model or sampler; ``file_index_fold`` holds the folded name of every ``file_index`` row (keyed by its
+    rowid). Both are external content for a unicode61 (word prefix) and a trigram (substring) FTS table.
+    Writers keep them current through ``search_text_index``; deletes cascade through cleanup triggers.
+    """
+    run = execute_statement or conn.execute
+    for statement in (
+        """
+        CREATE TABLE IF NOT EXISTS image_metadata_fold (
+          metadata_id INTEGER PRIMARY KEY,
+          prompt TEXT NOT NULL DEFAULT '',
+          negative_prompt TEXT NOT NULL DEFAULT '',
+          model TEXT NOT NULL DEFAULT '',
+          sampler TEXT NOT NULL DEFAULT ''
+        )
+        """,
+        *_fold_fts_statements(
+            fts="image_metadata_fold_fts",
+            trigram_fts="image_metadata_fold_fts_trigram",
+            table="image_metadata_fold",
+            key="metadata_id",
+            columns=("prompt", "negative_prompt", "model", "sampler"),
+        ),
+        """
+        CREATE TRIGGER IF NOT EXISTS image_metadata_fold_cleanup AFTER DELETE ON image_metadata BEGIN
+          DELETE FROM image_metadata_fold WHERE metadata_id = old.id;
+        END
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS file_index_fold (
+          file_rowid INTEGER PRIMARY KEY,
+          name TEXT NOT NULL
+        )
+        """,
+        *_fold_fts_statements(
+            fts="file_index_fold_fts",
+            trigram_fts="file_index_fold_fts_trigram",
+            table="file_index_fold",
+            key="file_rowid",
+            columns=("name",),
+        ),
+        """
+        CREATE TRIGGER IF NOT EXISTS file_index_fold_cleanup AFTER DELETE ON file_index BEGIN
+          DELETE FROM file_index_fold WHERE file_rowid = old.rowid;
+        END
+        """,
+    ):
+        run(statement)
+
+
 def _ensure_workflow_property_schema(
     conn: sqlite3.Connection,
     *,
