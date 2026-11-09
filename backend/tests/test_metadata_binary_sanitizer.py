@@ -121,6 +121,7 @@ def test_metadata_indexing_sanitizes_pil_binary_info(
         "SELECT state, error FROM metadata_index_jobs WHERE path = ?",
         (str(image_path.resolve()),),
     ).fetchone()
+    conn.close()
 
     assert metadata_row is not None
     assert "a textual prompt" in metadata_row["prompt"]

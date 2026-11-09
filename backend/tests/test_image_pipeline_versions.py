@@ -20,7 +20,6 @@ cache headers of the derivative endpoints.
 from __future__ import annotations
 
 import os
-import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +27,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.metadata_store import index_directory_tree, index_file, list_libraries
+from backend.metadata_store._db import open_connection
 from backend.related_ranking import rank_related_metadata
 from backend.search_scope import SearchScopeContext
 from tests.conftest import create_test_png
@@ -43,7 +43,7 @@ def content_version(mtime_ns: int, size: int) -> str:
 
 
 def _assets_by_path(db_path: Path) -> dict[str, tuple[int, int]]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         return {
             path: (mtime_ns, size) for path, mtime_ns, size in conn.execute("SELECT path, mtime_ns, size FROM assets")
         }
@@ -127,7 +127,7 @@ def test_related_results_expose_content_version(isolated_gallery_root: Path, iso
     results = rank_related_metadata(ids["reference"], context, profile="related", limit=60)
 
     assert results
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         identities = {row[0]: (row[1], row[2]) for row in conn.execute("SELECT id, mtime_ns, size FROM assets")}
     for item in results:
         assert item.content_version == content_version(*identities[item.asset_id])
@@ -186,7 +186,7 @@ def test_asset_id_requests_honour_v_too(versioned: dict[str, Any], isolated_meta
     client: TestClient = versioned["client"]
     first = client.get("/api/thumbnail", params={"path": str(versioned["path"])})
     assert first.status_code == 200
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(versioned["path"]),)).fetchone()[0]
 
     response = client.get("/api/thumbnail", params={"asset_id": asset_id, "v": versioned["v"]})

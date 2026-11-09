@@ -24,6 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.metadata_store import create_library, index_directory_tree
+from backend.metadata_store._db import open_connection
 from backend.metadata_store.job_store import claim_next_catalog_job
 from backend.scan_worker import execute_rebuild_job, queue_rebuild
 from backend.tests.conftest import create_test_png
@@ -46,7 +47,7 @@ def _rebuild(library_id: int) -> None:
 
 
 def _rows(db: Path, sql: str) -> list[dict]:
-    with sqlite3.connect(db) as conn:
+    with open_connection(db) as conn:
         conn.row_factory = sqlite3.Row
         return [dict(row) for row in conn.execute(sql)]
 
@@ -60,7 +61,7 @@ def _make_video(path: Path) -> None:
 
 def _clear_catalog(db: Path) -> None:
     # What the admin "Rebuild" does first: empty the catalog tables.
-    with sqlite3.connect(db) as conn:
+    with open_connection(db) as conn:
         conn.execute("DELETE FROM assets")
         conn.execute("DELETE FROM file_index")
         conn.execute("DELETE FROM file_index_fts")

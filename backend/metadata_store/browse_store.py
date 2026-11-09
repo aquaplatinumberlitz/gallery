@@ -10,7 +10,13 @@ from typing import Any
 from ..files import content_version
 from ..models import FileNode, VideoFileNode
 from ._db import _active_asset_where, _connect_read
-from .identity import asset_matches_metadata_job_sql, catalog_direct_child_sql, catalog_import_path_owns_sql
+from ._schema_ensure import FOLDER_IMAGE_INDEX_NAME
+from .identity import (
+    asset_matches_metadata_job_sql,
+    catalog_direct_child_sql,
+    catalog_import_path_owns_sql,
+    catalog_path_is_canonical_sql,
+)
 from .library_store import _find_library_for_path_conn
 from .path_utils import canonicalize_catalog_path, catalog_path_contains
 from .types import CatalogBrowseScopeError
@@ -230,6 +236,93 @@ def _browse_folder_counts_conn(
     return bool(counts["children"]), int(counts["images"] or 0), covers
 
 
+def _owned_canonical_folders(conn: sqlite3.Connection, library_id: int, folder_paths: list[str]) -> set[str]:
+    """Return the folders that are canonical, are not the filesystem root and sit inside an import path.
+
+    For such a folder ``P`` the per-row direct-child and import-ownership predicates of its children reduce to
+    cheap prefix tests (see ``_direct_child_of_owned_folder_sql``), which is what makes the album aggregates of a
+    large search result cheap. Windows keeps the general predicates: its drive and UNC roots need them.
+    """
+    if os.sep != "/" or not folder_paths:
+        return set()
+    values = ", ".join("(?)" for _ in folder_paths)
+    canonical = catalog_path_is_canonical_sql(path_sql="owned_folders.p")
+    ownership = catalog_import_path_owns_sql(library_id_sql=str(int(library_id)), path_sql="owned_folders.p")
+    rows = conn.execute(
+        f"""
+        WITH owned_folders(p) AS (VALUES {values})
+        SELECT p FROM owned_folders WHERE p != '/' AND {canonical} AND {ownership}
+        """,
+        folder_paths,
+    ).fetchall()
+    return {str(row[0]) for row in rows}
+
+
+def _direct_child_of_owned_folder_sql(*, path_sql: str, parent_path_sql: str) -> str:
+    """Direct-child test for a path whose ``parent_path`` is an owned canonical folder.
+
+    Equivalent to ``catalog_direct_child_sql`` AND ``catalog_import_path_owns_sql`` for such a parent: the path
+    must be ``parent/name`` with one non-empty, non-traversal segment (a canonical path then follows from the
+    parent being canonical), and ownership is inherited from the parent's import path.
+    """
+    remainder = f"substr({path_sql}, length({parent_path_sql}) + 2)"
+    return (
+        f"(substr({path_sql}, 1, length({parent_path_sql}) + 1) = {parent_path_sql} || '/' "
+        f"AND instr({remainder}, '/') = 0 AND {remainder} NOT IN ('', '.', '..'))"
+    )
+
+
+_FOLDER_IMAGE_COVER_CHUNK = 100
+
+
+def _indexed_folder_aggregates(
+    conn: sqlite3.Connection,
+    library_id: int,
+    folder_paths: list[str],
+    owned_child_sql: str,
+) -> tuple[dict[str, int], list[sqlite3.Row]]:
+    """Visible image counts and covers of owned folders from the partial folder-image index (schema v15).
+
+    The count is an index-only scan of the folder's range; the three covers are the first readable rows of that
+    range, which the index keeps in cover order (newest first, then path). Both use the visible-image predicate
+    the index is built on, so they equal the general ``assets`` scans.
+    """
+    visible = "a.type IN ('image', 'photo') AND a.offline = 0 AND a.deleted_at IS NULL"
+    placeholders = ", ".join("?" for _ in folder_paths)
+    image_counts = {
+        str(row["parent_path"]): int(row["images"])
+        for row in conn.execute(
+            f"""
+            SELECT a.parent_path, count(*) AS images
+            FROM assets AS a INDEXED BY {FOLDER_IMAGE_INDEX_NAME}
+            WHERE a.library_id = ? AND a.parent_path IN ({placeholders}) AND {visible} AND {owned_child_sql}
+            GROUP BY a.parent_path
+            """,
+            (library_id, *folder_paths),
+        )
+    }
+    cover_rows: list[sqlite3.Row] = []
+    with_images = [path for path in folder_paths if image_counts.get(path)]
+    for start in range(0, len(with_images), _FOLDER_IMAGE_COVER_CHUNK):
+        chunk = with_images[start : start + _FOLDER_IMAGE_COVER_CHUNK]
+        branches = " UNION ALL ".join(
+            f"""SELECT * FROM (
+                  SELECT a.parent_path AS parent_path, a.path AS path, a.mtime_ns AS mtime_ns, a.size AS size
+                  FROM assets AS a INDEXED BY {FOLDER_IMAGE_INDEX_NAME}
+                  WHERE a.library_id = ? AND a.parent_path = ? AND {visible} AND {owned_child_sql}
+                    AND {_cover_readable_set_sql("a")}
+                  ORDER BY a.mtime_ns DESC, a.path ASC
+                  LIMIT {COVER_LIMIT}
+                )"""
+            for _ in chunk
+        )
+        params: list[Any] = []
+        for path in chunk:
+            params.extend((library_id, path))
+        cover_rows.extend(conn.execute(f"WITH {_cover_unreadable_cte(library_id)} {branches}", params).fetchall())
+    return image_counts, cover_rows
+
+
 def _browse_folder_counts_batch_conn(
     conn: sqlite3.Connection,
     library_id: int,
@@ -241,46 +334,82 @@ def _browse_folder_counts_batch_conn(
     if not folder_paths:
         return {}
     visibility_sql = _browse_visibility_sql("a", include_offline=include_offline)
-    direct_child_sql = catalog_direct_child_sql(parent_path_sql="a.parent_path", path_sql="a.path")
-    import_ownership_sql = catalog_import_path_owns_sql(library_id_sql="a.library_id", path_sql="a.path")
-    placeholders = ", ".join("?" for _ in folder_paths)
+    general_child_sql = (
+        f"{catalog_direct_child_sql(parent_path_sql='a.parent_path', path_sql='a.path')} "
+        f"AND {catalog_import_path_owns_sql(library_id_sql='a.library_id', path_sql='a.path')}"
+    )
+    owned_child_sql = _direct_child_of_owned_folder_sql(path_sql="a.path", parent_path_sql="a.parent_path")
+    owned_folders = _owned_canonical_folders(conn, library_id, folder_paths)
+    owned_paths = [path for path in folder_paths if path in owned_folders]
     counts = dict.fromkeys(folder_paths, (False, 0))
-    count_rows = conn.execute(
-        f"""
-        SELECT a.parent_path,
-               count(*) AS children,
-               sum(CASE WHEN a.type IN ('image', 'photo') THEN 1 ELSE 0 END) AS images
-        FROM assets AS a
-        WHERE a.library_id = ? AND a.parent_path IN ({placeholders})
-          AND {direct_child_sql} AND {import_ownership_sql} AND {visibility_sql}
-        GROUP BY a.parent_path
-        """,
-        (library_id, *folder_paths),
-    ).fetchall()
-    for row in count_rows:
-        counts[str(row["parent_path"])] = (bool(row["children"]), int(row["images"] or 0))
+    cover_rows: list[sqlite3.Row] = []
+    # Owned canonical folders read the partial folder-image index; a folder it reports no image for still
+    # needs the general count (its children may be videos or subfolders), as does any other folder.
+    general_paths = [path for path in folder_paths if path not in owned_folders]
+    indexed: tuple[dict[str, int], list[sqlite3.Row]] | None = None
+    if owned_paths and not include_offline:
+        try:
+            indexed = _indexed_folder_aggregates(conn, library_id, owned_paths, owned_child_sql)
+        except sqlite3.OperationalError:
+            indexed = None  # a database whose schema init has not built the index yet: use the general scans
+    if indexed is not None:
+        image_counts, indexed_covers = indexed
+        cover_rows.extend(indexed_covers)
+        for path, images in image_counts.items():
+            counts[path] = (True, images)
+        child_sql_by_paths = [
+            (owned_child_sql, [path for path in owned_paths if path not in image_counts]),
+            (general_child_sql, general_paths),
+        ]
+        cover_partitions: list[tuple[str, list[str]]] = [(general_child_sql, general_paths)]
+    else:
+        child_sql_by_paths = [(owned_child_sql, owned_paths), (general_child_sql, general_paths)]
+        cover_partitions = child_sql_by_paths
+    for child_sql, paths in child_sql_by_paths:
+        if not paths:
+            continue
+        placeholders = ", ".join("?" for _ in paths)
+        count_rows = conn.execute(
+            f"""
+            SELECT a.parent_path,
+                   count(*) AS children,
+                   sum(CASE WHEN a.type IN ('image', 'photo') THEN 1 ELSE 0 END) AS images
+            FROM assets AS a
+            WHERE a.library_id = ? AND a.parent_path IN ({placeholders})
+              AND {visibility_sql} AND {child_sql}
+            GROUP BY a.parent_path
+            """,
+            (library_id, *paths),
+        ).fetchall()
+        for row in count_rows:
+            counts[str(row["parent_path"])] = (bool(row["children"]), int(row["images"] or 0))
 
-    cover_rows = conn.execute(
-        f"""
-        WITH {_cover_unreadable_cte(library_id)}
-        SELECT parent_path, path, mtime_ns, size
-        FROM (
-          SELECT a.parent_path, a.path, a.mtime_ns, a.size,
-                 row_number() OVER (PARTITION BY a.parent_path ORDER BY a.mtime_ns DESC, a.path ASC) AS cover_rank
-          FROM assets AS a
-          WHERE a.library_id = ?
-            AND a.parent_path IN ({placeholders})
-            AND a.type IN ('image', 'photo')
-            AND {direct_child_sql}
-            AND {import_ownership_sql}
-            AND {visibility_sql}
-            AND {_cover_readable_set_sql("a")}
+    for child_sql, paths in cover_partitions:
+        if not paths:
+            continue
+        placeholders = ", ".join("?" for _ in paths)
+        cover_rows.extend(
+            conn.execute(
+                f"""
+                WITH {_cover_unreadable_cte(library_id)}
+                SELECT parent_path, path, mtime_ns, size
+                FROM (
+                  SELECT a.parent_path, a.path, a.mtime_ns, a.size,
+                         row_number() OVER (PARTITION BY a.parent_path ORDER BY a.mtime_ns DESC, a.path ASC) AS cover_rank
+                  FROM assets AS a
+                  WHERE a.library_id = ?
+                    AND a.parent_path IN ({placeholders})
+                    AND a.type IN ('image', 'photo')
+                    AND {visibility_sql}
+                    AND {child_sql}
+                    AND {_cover_readable_set_sql("a")}
+                )
+                WHERE cover_rank <= {COVER_LIMIT}
+                ORDER BY parent_path, cover_rank
+                """,
+                (library_id, *paths),
+            ).fetchall()
         )
-        WHERE cover_rank <= {COVER_LIMIT}
-        ORDER BY parent_path, cover_rank
-        """,
-        (library_id, *folder_paths),
-    ).fetchall()
     # A folder without direct images (only subfolders) borrows covers from its descendants. A folder whose
     # direct images are all unreadable keeps no covers: it still holds images, so it shows the placeholder.
     # Only folder listings ask for it: ranking a whole tree is a scan of the subtree, which the virtual root

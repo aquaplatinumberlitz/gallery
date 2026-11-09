@@ -52,6 +52,19 @@ def _check(label: str, value: Any, budget: Any = None, unit: str = "ms", *, lowe
     }
 
 
+def _lexical_regression_check(lexical: dict[str, Any], budgets: dict[str, Any]) -> dict:
+    """The backfill regression percentage, failing only when the absolute slowdown also reaches the floor."""
+    check = _check(
+        "lexical backfill regression", lexical.get("regression_pct"), budgets.get("backfill_regression_pct"), "%"
+    )
+    delta_ms = _number(lexical.get("regression_ms"))
+    floor_ms = _number(budgets.get("backfill_regression_floor_ms"))
+    if check["status"] == "fail" and delta_ms is not None and floor_ms is not None and delta_ms < floor_ms:
+        check["status"] = "pass"
+        check["note"] = f"+{delta_ms}ms is below the {floor_ms}ms floor"
+    return check
+
+
 def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
     checks: list[dict] = []
 
@@ -182,12 +195,7 @@ def _checks_for_report(name: str, data: dict[str, Any]) -> list[dict]:
                     data["lexical_backfill"].get("during_p95_ms"),
                     budgets.get("lexical_p95_ms"),
                 ),
-                _check(
-                    "lexical backfill regression",
-                    data["lexical_backfill"].get("regression_pct"),
-                    budgets.get("backfill_regression_pct"),
-                    "%",
-                ),
+                _lexical_regression_check(data["lexical_backfill"], budgets),
                 _check(
                     "visual worker RSS",
                     data.get("visual_worker_rss_delta_mib"),

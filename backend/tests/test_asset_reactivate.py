@@ -64,23 +64,23 @@ def test_metadata_upsert_does_not_reactivate_offline_asset(
 
     index_file(asset_path, asset_path.name, asset_path.parent, "photo", stat.st_mtime, stat.st_size, None, None)
 
-    conn = _connect()
-    conn.execute(
-        "UPDATE assets SET offline = 1, deleted_at = ? WHERE path = ?",
-        (time.time(), str(asset_path.resolve())),
-    )
-    conn.commit()
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE assets SET offline = 1, deleted_at = ? WHERE path = ?",
+            (time.time(), str(asset_path.resolve())),
+        )
+        conn.commit()
 
-    meta = _make_extracted_metadata(asset_path, asset_path.name)
-    upsert_extracted_metadata(meta)
+        meta = _make_extracted_metadata(asset_path, asset_path.name)
+        upsert_extracted_metadata(meta)
 
-    row = conn.execute(
-        "SELECT offline, deleted_at FROM assets WHERE path = ?",
-        (str(asset_path.resolve()),),
-    ).fetchone()
-    assert row is not None
-    assert row["offline"] == 1, "Asset should remain offline after metadata upsert"
-    assert row["deleted_at"] is not None, "Asset should remain deleted after metadata upsert"
+        row = conn.execute(
+            "SELECT offline, deleted_at FROM assets WHERE path = ?",
+            (str(asset_path.resolve()),),
+        ).fetchone()
+        assert row is not None
+        assert row["offline"] == 1, "Asset should remain offline after metadata upsert"
+        assert row["deleted_at"] is not None, "Asset should remain deleted after metadata upsert"
 
 
 def test_index_file_reactivates_active_asset(
@@ -93,26 +93,26 @@ def test_index_file_reactivates_active_asset(
     create_test_png(asset_path, size=(80, 60))
     stat = asset_path.stat()
 
-    conn = _connect()
-    conn.execute(
-        "INSERT INTO assets (library_id, path, parent_path, name, type, offline, deleted_at) "
-        "VALUES (?, ?, ?, ?, 'image', 1, ?)",
-        (
-            conn.execute("SELECT id FROM libraries ORDER BY id LIMIT 1").fetchone()[0],
-            str(asset_path.resolve()),
-            str(asset_path.parent.resolve()),
-            asset_path.name,
-            time.time(),
-        ),
-    )
-    conn.commit()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO assets (library_id, path, parent_path, name, type, offline, deleted_at) "
+            "VALUES (?, ?, ?, ?, 'image', 1, ?)",
+            (
+                conn.execute("SELECT id FROM libraries ORDER BY id LIMIT 1").fetchone()[0],
+                str(asset_path.resolve()),
+                str(asset_path.parent.resolve()),
+                asset_path.name,
+                time.time(),
+            ),
+        )
+        conn.commit()
 
-    index_file(asset_path, asset_path.name, asset_path.parent, "photo", stat.st_mtime, stat.st_size, None, None)
+        index_file(asset_path, asset_path.name, asset_path.parent, "photo", stat.st_mtime, stat.st_size, None, None)
 
-    row = conn.execute(
-        "SELECT offline, deleted_at FROM assets WHERE path = ?",
-        (str(asset_path.resolve()),),
-    ).fetchone()
-    assert row is not None
-    assert row["offline"] == 0
-    assert row["deleted_at"] is None
+        row = conn.execute(
+            "SELECT offline, deleted_at FROM assets WHERE path = ?",
+            (str(asset_path.resolve()),),
+        ).fetchone()
+        assert row is not None
+        assert row["offline"] == 0
+        assert row["deleted_at"] is None

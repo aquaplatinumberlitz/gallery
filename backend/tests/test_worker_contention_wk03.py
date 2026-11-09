@@ -33,6 +33,7 @@ import pytest
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler
 from backend.derivative_scheduler.models import DerivativeReconcileSummary
+from backend.metadata_store._db import open_connection
 from tests.worker_contention_support import VARIANTS, capture_sql, seed_assets, seed_library
 
 READY_BYTES = 1_000
@@ -88,7 +89,7 @@ def _seed_existing_state(
 ) -> None:
     """Seed one derivative identity per asset/variant according to ``STATE_PATTERN`` (or ``pattern_for``)."""
     cache_dir.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         for asset_index, (asset_id, _path, mtime_ns, size) in enumerate(assets):
             for variant_index, (kind, variant, max_edge, quality) in enumerate(VARIANTS):
                 if pattern_for is not None:
@@ -168,7 +169,7 @@ def _seed_existing_state(
 
 def _database_fingerprint(db_path: Path) -> dict[str, list[tuple[Any, ...]]]:
     """Return timestamp-free derivative rows keyed by identity, for exact outcome comparison."""
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         derivatives = conn.execute(
             """
             SELECT asset_id, kind, variant, source_mtime_ns, source_size, status, cache_path,
@@ -198,7 +199,7 @@ def _use_database(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> None:
 
 
 def _copy_database(source: Path, target: Path) -> Path:
-    with sqlite3.connect(source) as src, sqlite3.connect(target) as dst:
+    with open_connection(source) as src, open_connection(target) as dst:
         src.backup(dst)
     return target
 
@@ -359,7 +360,7 @@ def test_public_reconcile_runs_one_capacity_pair_per_batch(
     root = isolated_gallery_root / "photos"
     root.mkdir()
     library_id = seed_library(root)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         for index in range(75):
             image = root / f"real_{index:03d}.png"
             create_test_png(image, size=(8, 8))
@@ -393,7 +394,7 @@ def test_batch_ledger_matches_old_per_coalesce_outcomes_across_a_quota_sweep(
     retry_failed: bool,
 ) -> None:
     base_db, assets, _cache_dir = seeded_batch
-    with sqlite3.connect(base_db) as conn:
+    with open_connection(base_db) as conn:
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     variants = _variants()
     outcomes_seen: set[str] = set()
@@ -455,7 +456,7 @@ def test_batch_ledger_matches_old_outcomes_for_seeded_random_states(
         pattern_for=lambda a, v: patterns[(a, v)],
         size_for=lambda a, v: sizes[(a, v)],
     )
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     ready_bytes = sum(
         sizes[key] for key, pattern in patterns.items() if pattern in {"ready_with_file", "ready_missing_file"}

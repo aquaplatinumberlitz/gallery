@@ -812,6 +812,25 @@ def _ensure_v3_schema(conn: sqlite3.Connection) -> None:
     )
 
 
+FOLDER_IMAGE_INDEX_NAME = "idx_assets_folder_images"
+
+
+def _ensure_folder_image_index(conn: sqlite3.Connection) -> None:
+    """Create the partial index behind folder aggregates (schema v15).
+
+    It holds the visible image children of every folder, newest first: the image count of a folder is an
+    index-only scan and its covers (the three newest readable images) are the first rows of its index range.
+    Offline or deleted assets and non-images are not in it, so it follows the browse visibility rule.
+    """
+    conn.execute(
+        f"""
+        CREATE INDEX IF NOT EXISTS {FOLDER_IMAGE_INDEX_NAME}
+        ON assets(library_id, parent_path, mtime_ns DESC, path)
+        WHERE type IN ('image', 'photo') AND offline = 0 AND deleted_at IS NULL
+        """
+    )
+
+
 def _ensure_runtime_counters(conn: sqlite3.Connection) -> None:
     """Create the runtime counters table and triggers; backfill the values when they could be stale.
 

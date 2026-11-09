@@ -30,6 +30,7 @@ from backend import app as app_module
 from backend import metadata_store
 from backend.metadata_store import _connect, index_file, register_library
 from backend.metadata_store import _migrations as migrations_module
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 
 
@@ -195,12 +196,12 @@ def test_lifecycle_registry_cleans_partial_start_and_every_reverse_cleanup(
 
 
 def _database_dump(path: Path) -> str:
-    with sqlite3.connect(path) as conn:
+    with open_connection(path) as conn:
         return "\n".join(conn.iterdump())
 
 
 def _mark_nanosecond_columns_as_real(path: Path) -> None:
-    with sqlite3.connect(path) as conn:
+    with open_connection(path) as conn:
         conn.execute("PRAGMA writable_schema=ON")
         conn.execute(
             "UPDATE sqlite_master SET sql = replace(sql, 'mtime_ns INTEGER', 'mtime_ns REAL') "
@@ -234,7 +235,7 @@ def test_v2_migration_failure_restores_exact_schema_and_data(
         original_execute(conn, statement)
 
     monkeypatch.setattr(migrations_module, "_execute_v2_migration_statement", fail_after_rename)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.row_factory = sqlite3.Row
         with pytest.raises(RuntimeError, match="injected migration failure"):
             migrations_module._migrate_v1_to_v2(conn)

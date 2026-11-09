@@ -1,8 +1,9 @@
-"""Versioned catalog schema migrations (v1 through v14) and their pre-migration backups."""
+"""Versioned catalog schema migrations (v1 through v15) and their pre-migration backups."""
 
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from . import _db as _db
@@ -10,6 +11,7 @@ from ._db import _gallery_metadata_db_path
 from ._schema_ensure import (
     _ensure_cjk_search_schema,
     _ensure_fold_search_schema,
+    _ensure_folder_image_index,
     _ensure_generation_signature_schema,
     _ensure_post_v1_additive_columns,
     _ensure_prompt_discovery_schema,
@@ -41,7 +43,7 @@ def _backup_v1_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v1.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -133,7 +135,7 @@ def _backup_v2_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v2.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -183,7 +185,7 @@ def _backup_v3_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v3.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -231,7 +233,7 @@ def _backup_v4_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v4.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -266,7 +268,7 @@ def _backup_v5_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v5.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -301,7 +303,7 @@ def _backup_v6_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v6.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -336,7 +338,7 @@ def _backup_v7_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v7.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -381,7 +383,7 @@ def _backup_v8_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v8.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -420,7 +422,7 @@ def _backup_v10_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v10.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -455,7 +457,7 @@ def _backup_v11_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v11.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -534,7 +536,7 @@ def _backup_v12_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v12.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -570,7 +572,7 @@ def _backup_v13_database(conn: sqlite3.Connection) -> Path:
     source = _gallery_metadata_db()
     backup = source.with_suffix(f"{source.suffix}.v13.bak")
     backup.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(backup) as destination:
+    with closing(sqlite3.connect(backup)) as destination:
         conn.backup(destination)
     return backup
 
@@ -593,6 +595,37 @@ def _migrate_v13_to_v14(conn: sqlite3.Connection) -> None:
         if violations:
             raise RuntimeError(f"v14 migration foreign key check failed: {len(violations)} violation(s)")
         conn.execute("PRAGMA user_version = 14")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def _backup_v14_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v15 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v14.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(backup)) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v14_to_v15(conn: sqlite3.Connection) -> None:
+    """Add the partial folder-image index behind album and folder aggregates.
+
+    The index is derived from ``assets`` alone, so there is no data to backfill: building it is the backfill
+    (one pass over the visible images, inside the migration transaction, after the backup).
+    """
+    conn.commit()
+    _backup_v14_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _ensure_folder_image_index(conn)
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v15 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 15")
         conn.commit()
     except Exception:
         conn.rollback()

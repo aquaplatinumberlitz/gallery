@@ -25,6 +25,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -173,6 +174,23 @@ def bench_metadata_candidates(
 LEXICAL_MIN_SAMPLES = 40
 
 
+def lexical_regression_failure(lexical: dict[str, Any], budgets: dict[str, Any]) -> str | None:
+    """Fail only when the slowdown during backfill is large both relatively and absolutely.
+
+    A percentage alone over-reports when the lexical baseline is a few milliseconds; the absolute
+    ``lexical_p95_ms`` budget is checked separately.
+    """
+    pct = float(lexical["regression_pct"])
+    delta_ms = float(lexical.get("regression_ms", float("inf")))
+    floor_ms = float(budgets.get("backfill_regression_floor_ms", 0))
+    if pct >= float(budgets["backfill_regression_pct"]) and delta_ms >= floor_ms:
+        return (
+            f"lexical backfill regression {lexical['regression_pct']}% (+{delta_ms:.2f}ms) >= "
+            f"{budgets['backfill_regression_pct']}% and {floor_ms:g}ms"
+        )
+    return None
+
+
 def _lexical_sample_count(iterations: int) -> int:
     """Every lexical window takes at least LEXICAL_MIN_SAMPLES samples."""
     return max(LEXICAL_MIN_SAMPLES, int(iterations))
@@ -258,7 +276,8 @@ def bench_lexical_backfill(base_url: str, db_path: Path, *, iterations: int) -> 
     during = summarize_samples(during_samples)
     after = summarize_samples(after_samples)
     baseline_p95 = float(summarize_samples(baseline_samples)["p95_ms"])
-    regression_pct = max(0.0, (float(during["p95_ms"]) - baseline_p95) / max(baseline_p95, 0.01) * 100)
+    regression_ms = max(0.0, float(during["p95_ms"]) - baseline_p95)
+    regression_pct = regression_ms / max(baseline_p95, 0.01) * 100
     return {
         "before": before,
         "during": during,
@@ -267,6 +286,7 @@ def bench_lexical_backfill(base_url: str, db_path: Path, *, iterations: int) -> 
         "baseline_p95_ms": round(baseline_p95, 2),
         "during_p95_ms": during["p95_ms"],
         "regression_pct": round(regression_pct, 2),
+        "regression_ms": round(regression_ms, 2),
         "writer": writer_stats,
     }
 
@@ -464,10 +484,9 @@ def main() -> int:
     ):
         if float(value) > float(budgets[budget_key]):
             failures.append(f"{label} {value}ms > {budgets[budget_key]}ms")
-    if float(lexical["regression_pct"]) >= float(budgets["backfill_regression_pct"]):
-        failures.append(
-            f"lexical backfill regression {lexical['regression_pct']}% >= {budgets['backfill_regression_pct']}%"
-        )
+    regression_failure = lexical_regression_failure(lexical, budgets)
+    if regression_failure:
+        failures.append(regression_failure)
     if int(lexical["writer"].get("batches", 0)) == 0:
         failures.append("relation backfill writer performed no batches")
     if rss_mib >= float(budgets["visual_worker_rss_mib"]):

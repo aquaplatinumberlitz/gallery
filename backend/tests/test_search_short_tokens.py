@@ -19,12 +19,12 @@ Run when:
 from __future__ import annotations
 
 import os
-import sqlite3
 from pathlib import Path
 
 import pytest
 
 from backend.metadata_store import _connect, index_file, register_library, search_index, upsert_metadata_result
+from backend.metadata_store._db import open_connection
 from backend.metadata_store._schema import CATALOG_SCHEMA_VERSION
 from backend.metadata_store.cjk_index import cjk_bigram_document, rebuild_cjk_index
 
@@ -185,6 +185,6 @@ def test_v12_database_migrates_to_v13_with_backup_and_backfill(
 
     _db._DB_INITIALIZED = False
     assert _ids("少女") == {asset}
-    with sqlite3.connect(isolated_metadata_db) as raw:
+    with open_connection(isolated_metadata_db) as raw:
         assert raw.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION
     assert isolated_metadata_db.with_suffix(f"{isolated_metadata_db.suffix}.v12.bak").exists()

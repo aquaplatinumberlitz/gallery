@@ -89,6 +89,11 @@ WebP files live in the quota-counted `files/` directory under
 `GALLERY_THUMBNAIL_CACHE_DIR`; legacy byte-valued cache entries are cleared by
 the cache-version migration.
 
+The cache is a `ThreadClosingCache` (`backend/disk_cache.py`): diskcache opens one
+SQLite connection per thread and its `close()` only closes the caller's, so the
+subclass closes each thread's connection when that thread ends (and the main thread's
+at interpreter exit). Do not instantiate a plain `diskcache.Cache` for this index.
+
 Derivative cache keys include:
 
 - derivative kind (`thumbnail` or `preview`)

@@ -8,8 +8,8 @@ drawer: `/api/search` (album/photo/prompt sections) and
 `/api/library/inspector/metadata` (per-image metadata detail).
 
 Guarantees:
-* broad filename, prompt-heavy, album-heavy, fielded, CJK, and keyset-page
-  requests produce min/p50/p95/max JSON output
+* broad filename, prompt-heavy, album-heavy, fielded, CJK, keyset-page, dense
+  one-character (free text and fielded) and `/api/search/count` requests produce min/p50/p95/max JSON output
 * p95 budgets fail the process when exceeded
 * budgets are read from `scripts/perf_budgets.toml` sections `[search]` and
   `[inspector_metadata]` — env vars override only
@@ -90,6 +90,37 @@ SEARCH_QUERY_CLASSES = (
     ("accent_folded_fielded_two_char", "prompt:ca", 1, 50),
     ("accent_folded_fielded_one_char", "prompt:z", 1, 50),
     ("repeated_keyset_pages", "search_asset_00", 3, 150),
+    # BL-13: dense one-character queries (free text and fielded) and their keyset pages 2-3.
+    ("short_free_a", "a", 1, 50),
+    ("short_free_m", "m", 1, 50),
+    ("short_free_c", "c", 1, 50),
+    ("short_free_a_keyset_pages", "a", 3, 150),
+    ("short_free_m_keyset_pages", "m", 3, 150),
+    ("short_free_c_keyset_pages", "c", 3, 150),
+    ("short_fielded_prompt_c", "prompt:c", 1, 50),
+    ("short_fielded_prompt_c_keyset_pages", "prompt:c", 3, 150),
+    # `name:i` matches no fixture file name: the whole folded-name table has to be ruled out.
+    ("short_fielded_name_i", "name:i", 1, 0),
+    ("short_fielded_name_a", "name:a", 1, 50),
+    ("short_fielded_name_a_keyset_pages", "name:a", 3, 150),
+    # BL-13: dense two- and three-character queries (every fixture row matches the prefix or the substring).
+    ("dense_two_char_filename", "as", 1, 50),
+    ("dense_three_char_filename", "ass", 1, 50),
+    ("dense_three_char_model", "mod", 1, 50),
+    ("dense_three_char_prompt", "prom", 1, 50),
+    ("dense_three_char_keyset_pages", "prom", 3, 150),
+)
+
+# BL-13: `/api/search/count` classes: (class name, query, minimum count). The count is bounded, so a dense
+# query reports the bounded total (the `+` convention), never a full scan.
+SEARCH_COUNT_CLASSES = (
+    ("count_short_free_a", "a", 50),
+    ("count_short_free_m", "m", 50),
+    ("count_short_free_c", "c", 50),
+    ("count_short_fielded_prompt_c", "prompt:c", 50),
+    ("count_short_fielded_name_i", "name:i", 0),
+    ("count_short_fielded_name_a", "name:a", 50),
+    ("count_dense_three_char", "prom", 50),
 )
 
 SEARCH_RESULT_CONTRACTS: dict[str, dict[str, str]] = {
@@ -178,6 +209,55 @@ def bench_search_case(
     }
 
 
+def _post_json(base_url: str, path: str, body: dict) -> tuple[float, dict]:
+    request = Request(
+        f"{base_url.rstrip('/')}{path}",
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+        method="POST",
+    )
+    started = time.perf_counter()
+    with urlopen(request, timeout=30) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    return (time.perf_counter() - started) * 1000, data
+
+
+def bench_search_count_case(base_url: str, name: str, query: str, iterations: int, min_total: int = 1) -> dict:
+    """Benchmark one `/api/search/count` class (`POST`, all-libraries scope)."""
+    durations: list[float] = []
+    minimum_total: int | None = None
+    body = {"schema_version": 1, "mode": "lexical", "text": query, "scope": {"kind": "all"}, "limit": 50}
+    for _ in range(max(1, iterations)):
+        duration, payload = _post_json(base_url, "/api/search/count", body)
+        durations.append(duration)
+        total = int(payload.get("total") or 0)
+        minimum_total = total if minimum_total is None else min(minimum_total, total)
+    stats = summarize_samples(durations)
+    observed = minimum_total or 0
+    return {
+        "class": name,
+        "endpoint": "/api/search/count",
+        "query": query,
+        "requests": int(stats["count"]),
+        "expected_requests": max(1, iterations),
+        "pages_per_iteration": 1,
+        "completed_page_chains": max(1, iterations),
+        "expected_page_chains": max(1, iterations),
+        "minimum_observed_matches": observed,
+        "minimum_required_matches": min_total,
+        "expected_result_fields": {},
+        "unexpected_matches": 0,
+        "contract_ok": int(stats["count"]) == max(1, iterations) and observed >= min_total,
+        "min_ms": stats["min_ms"],
+        "p50_ms": stats["p50_ms"],
+        "p95_ms": stats["p95_ms"],
+        "max_ms": stats["max_ms"],
+        "albums": 0,
+        "photos": 0,
+        "prompt": 0,
+    }
+
+
 def bench_search(base_url: str, query: str, iterations: int) -> dict:
     """Backward-compatible single-query benchmark helper."""
     return bench_search_case(base_url, "custom", query, iterations)
@@ -229,6 +309,10 @@ def main() -> int:
         bench_search_case(base_url, name, query_text, iterations, pages, min_matches)
         for name, query_text, pages, min_matches in SEARCH_QUERY_CLASSES
     ]
+    search_classes.extend(
+        bench_search_count_case(base_url, name, query_text, iterations, min_total)
+        for name, query_text, min_total in SEARCH_COUNT_CLASSES
+    )
     if query != SEARCH_QUERY_CLASSES[0][1]:
         search_classes.append(bench_search(base_url, query, iterations))
     slowest_search = max(search_classes, key=lambda result: float(result["p95_ms"]))

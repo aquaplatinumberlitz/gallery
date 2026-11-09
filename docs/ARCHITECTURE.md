@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-11-02
+Last reviewed: 2026-11-09
 
 Historical Library Management V1 handoff context is retained in the
 [archived implementation status](archived/CODEX_LIBRARY_MANAGEMENT_IMPLEMENTATION_STATUS.md).
@@ -321,6 +321,30 @@ one entry point:
   `query_only` WAL connections (`_connect_readonly()` is a `mode=ro` one for the facet
   and raw-workflow queries that need TEMP tables). From inside an op, code that must see
   the op's own uncommitted rows reads through `writer_connection()`.
+
+**Connection lifecycle rule (BL-14).** Every SQLite connection is closed
+deterministically by the code that opens it; nothing is left to garbage collection.
+`with sqlite3.connect(...) as conn:` only commits or rolls back and never closes, so it
+is not used. Instead:
+
+* Every connection opened through `_db.py` (`_connect`, `_connect_read`,
+  `_connect_readonly`, `open_connection`) is a `ClosingConnection`: `with` commits (or
+  rolls back on error) and then closes it. A failure while configuring a new connection
+  closes it before the error escapes. Do not use `with conn:` on a connection you mean to
+  keep using.
+* Long-lived connections are closed explicitly and never used as context managers: the
+  writer thread's connection (`DatabaseWriter._drop_connection` on stop, abort, a path
+  change or a failed rollback) and the direct write path's per-op connection
+  (`run_direct`, closed in `finally`).
+* One-off files (the `*.bak` migration backups) use `contextlib.closing`.
+* The thumbnail `diskcache` index opens one connection per thread and its own `close()`
+  only closes the caller's; `backend/disk_cache.py` (`ThreadClosingCache`) closes each
+  thread's connection when that thread ends, and at interpreter exit for the main thread.
+* Tests follow the same rule. `backend/tests/test_connection_lifecycle.py` repeats the
+  migration backups, read helpers, search, browse and status stores, derivative and
+  metadata-job paths and the writer start/stop cycle, and asserts zero open connections
+  and a stable `/proc/self/fd` count. The pytest config turns
+  `ResourceWarning: unclosed database` into an error (see `docs/testing/README.md`).
 
 There is no process-wide Python lock around SQLite: `_DB_LOCK`, `_DatabaseLock`,
 `WriterThreadLockError`, `DatabaseWriterDeadlock` and the `GALLERY_DB_WRITER_ENABLED` flag
@@ -788,7 +812,7 @@ Backend modules are mostly flat, with selected domain packages.
 | Package / Module                     | Purpose                                                   |
 | ------------------------------------ | --------------------------------------------------------- |
 | `metadata_store/`                    | SQLite data access layer: schema, search, CRUD, job queue |
-| `metadata_store/_db.py`              | SQLite connection, init flags, shared constants           |
+| `metadata_store/_db.py`              | SQLite connections (`ClosingConnection`, `open_connection`), init flags, shared constants |
 | `metadata_store/_schema.py`          | `initialize_database` entry point and `CATALOG_SCHEMA_VERSION`; orchestrates fresh creation and upgrades |
 | `metadata_store/_schema_ddl.py`      | Fresh-database DDL (`FRESH_DATABASE_DDL`)                 |
 | `metadata_store/_schema_ensure.py`   | Additive post-v1 columns, indexes, and feature-table ensure helpers |
@@ -889,6 +913,18 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
+- Catalog schema version 15 adds one partial index, `idx_assets_folder_images` on
+  `assets(library_id, parent_path, mtime_ns DESC, path) WHERE type IN ('image', 'photo')
+  AND offline = 0 AND deleted_at IS NULL` (BL-13). It holds the visible image children of
+  every folder, newest first, so a folder's image count is an index-only scan of its range
+  and its three covers are the first readable rows of that range. It is derived from
+  `assets` alone: the `.v14.bak` migration backs the database up, builds the index and sets
+  `user_version` last, and there is nothing else to backfill. On the 100k perf fixture it
+  adds 34.6 MiB (743.8 to 778.4 MiB in use, +4.7%). Folder aggregates for owned folders
+  (`browse_store._browse_folder_counts_batch_conn`, used by browse folder cards, the browse
+  virtual root and search album suggestions) read it; every other case (offline-inclusive
+  aggregates, folders outside an import path, a database that has no index yet) keeps the
+  general scans, which return identical values.
 - Catalog schema version 14 adds the folded search text index (SE-03/SE-04 of the
   search-typing plan). `text_fold.fold_text` is the single
   normalization function for indexed text and queries: NFKC (full-width and
@@ -1330,6 +1366,46 @@ Header search or AdvancedSearchDrawer
   positive-prompt phrase tiers, negative prompts, and structured-filter-only rows. It
   deduplicates by stable asset ID and orders by relevance tier, a
   bounded/rounded FTS rank, source `mtime_ns`, then `asset_id`.
+- Search planning (BL-13: every query, including dense one-character queries such as `a`,
+  `m`, `c`, `prompt:c` and `name:a`, stays within the 300 ms p95 budget on the 100k fixture).
+  Unscoped free-text pages run as a tier-ordered plan in `ranked_search._run_page_plan`
+  instead of one statement over every source. Each candidate SELECT is a `_Source` that
+  knows its tier range; the planner reads sources from the highest tier down, merges their
+  rows exactly as the old statement did (best row per asset, cursor, relevance order) and
+  stops once a full page outranks every source left. A one-character query is therefore
+  served from the prompt-phrase tier without ranking every filename and model match, and a
+  source whose tiers all precede the cursor is never run. Each source still yields its
+  complete bounded candidate set (not just a page), so a row shadowed by a better row of the
+  same asset never costs the page a slot and the merged page equals the old statement's page.
+  A filename source whose FTS match set is large (more than `FILE_SOURCE_SMALL_LIMIT`, probed
+  with a rank-free early-exit count) is read through bounded `hi` (exact and prefix filename
+  matches, found by scanning the compact folded names with the FTS table as a membership
+  test) and `lo` (everything else, bm25-ranked) variants that keep the best
+  `fts_candidate_limit` rows after the cursor before the strict ownership joins run; a small
+  one is read whole so cross-source shadowing stays exact. The bounded preselects sort an
+  integer bm25 key in millionths (the page rank is that value / 1e6, equal to
+  `round(bm25, 6)`; sorting `round(rank, 6)` on every match cost about 50 ms per 100k
+  matches), and the cursor test reads each key once through a row-value comparison whose
+  asset-id tie-break only runs on an exact key tie, so paging advances through more tied rows
+  than the preselect holds. Structured-filter-only queries (`prompt:c`) probe
+  `image_metadata` newest first through `idx_image_metadata_inspector_date` and stop at the
+  candidate limit; a filter too sparse for the probe's row budget uses the sorting plan.
+  Scoped (`folder`, `library`) and filtered-with-text queries, legacy offset cursors and the
+  LIKE fallback keep the single-statement plan. `GET /api/search` and the v2 endpoints resolve
+  `scope=all` without listing libraries (the listing counts every asset and is not needed).
+  Known behaviour: a row that matches in two sources of different tiers can be returned once
+  per source across keyset pages (the per-source cursor pre-filter runs before the
+  cross-source dedup; this predates the plan). The bounded filename variants of a large match
+  set pre-filter by the cursor too, so on pages after the first an asset whose filename match
+  was already returned can come back through its prompt or model match. A small filename
+  match set keeps the exact old shadowing. Clients deduplicate by asset id.
+- `POST /api/search/count` counts distinct matching assets up to `COUNT_CAP` (4096) and
+  stops there: it streams rank-free candidates through `DISTINCT ... LIMIT`, so a dense query
+  costs about the cap in strict-ownership probes instead of one per match, and the total is
+  the `+` convention above the cap. Below the cap it equals the paged total of distinct
+  assets; a plain-text count includes video rows like the plain search. A field-only count
+  probes the first `COUNT_PROBE_ROWS` metadata rows row by row and only builds the match set
+  when the filter is too sparse for that.
 - Active pagination is keyset-only. The versioned base64url JSON cursor is bound
   to the canonical query/scope/root fingerprint and stores the complete final
   ordering tuple. Malformed, wrong-version, or wrong-request cursors return
@@ -1342,7 +1418,8 @@ Header search or AdvancedSearchDrawer
   existence checks.
 - Album suggestions are returned only on the first search page. Their direct
   image count, three newest direct covers, and child visibility reuse the same
-  bounded catalog aggregation as DB-first browse; search never enumerates the
+  bounded catalog aggregation as DB-first browse (schema v15's
+  `idx_assets_folder_images` for owned folders); search never enumerates the
   source directory.
 - Watcher, scan, offline-asset, and integrity workflows reconcile stale catalog
   state. Search reflects the current catalog snapshot and never schedules

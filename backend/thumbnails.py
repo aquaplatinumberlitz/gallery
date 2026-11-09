@@ -11,7 +11,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Literal
 
-from diskcache import Cache
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
@@ -21,12 +20,13 @@ from starlette.background import BackgroundTask
 from . import config as _config
 from .config import THUMBNAIL_CACHE_DIR
 from .derivative_fastpath import FastPathEntry, FastPathKey, derivative_fast_path, fast_path_key
+from .disk_cache import ThreadClosingCache
 from .errors import APIError, ErrorType
 from .files import check_image_limits, content_version, is_image, is_permanent_decode_error
 from .metadata_store import image_dimensions_unchanged, upsert_image_dimensions
 from .scan import require_media_path_allowed
 
-_thumbnail_disk_cache = Cache(str(THUMBNAIL_CACHE_DIR), size_limit=64 * 1024 * 1024)
+_thumbnail_disk_cache = ThreadClosingCache(str(THUMBNAIL_CACHE_DIR), size_limit=64 * 1024 * 1024)
 _thumbnail_file_dir = THUMBNAIL_CACHE_DIR / "files"
 DERIVATIVE_CACHE_VERSION = "v3"
 _CACHE_VERSION_KEY = "__gallery_derivative_cache_version__"

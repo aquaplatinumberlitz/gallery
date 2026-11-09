@@ -41,6 +41,7 @@ from typing import Any
 
 import pytest
 
+from backend.metadata_store._db import open_connection
 from tests.worker_contention_support import wait_until
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -99,7 +100,7 @@ class FakeClock:
 @pytest.fixture
 def db_file(tmp_path: Path) -> Path:
     path = tmp_path / "writer.db"
-    with sqlite3.connect(path) as conn:
+    with open_connection(path) as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT UNIQUE)")
     return path
@@ -143,7 +144,7 @@ def insert(value: str) -> Callable[[sqlite3.Connection], str]:
 
 
 def rows(db_file: Path) -> list[str]:
-    with sqlite3.connect(db_file) as conn:
+    with open_connection(db_file) as conn:
         return [row[0] for row in conn.execute("SELECT v FROM t ORDER BY id")]
 
 

@@ -87,6 +87,11 @@ lexical_p95_ms = 300
 # Calibration evidence: scripts/bench_related_assets.py --profile=ci on
 # 2026-07-21, p95 baseline 280-305ms, during-backfill 330-355ms.
 backfill_regression_pct = 20
+# The percentage gate only applies when the absolute slowdown is also at least this much.
+# After BL-13 (2026-11-09) the lexical baseline fell from about 280 ms to about 11 ms, so the
+# same few-millisecond writer contention reads as a large percentage (CI: 11.3 to 16.7 ms = 48%).
+# Below 15 ms the delta is scheduler noise, and lexical_p95_ms still caps the absolute latency.
+backfill_regression_floor_ms = 15
 visual_worker_rss_mib = 64
 storage_mib = 100
 description = "100k Related Assets latency, lexical isolation, worker RSS, and SQLite growth"

@@ -22,7 +22,6 @@ touch coalescing in `derivative_scheduler/lookup.py`.
 from __future__ import annotations
 
 import os
-import sqlite3
 import threading
 import time
 from io import BytesIO
@@ -38,6 +37,7 @@ from backend.catalog_maintenance_gate import maintenance_gate
 from backend.derivative_fastpath import DerivativeFastPath, fast_path_key
 from backend.derivative_scheduler import DerivativeScheduler, scheduler
 from backend.metadata_store import index_file
+from backend.metadata_store._db import open_connection
 from backend.metadata_store.db_writer import run_write
 from tests.conftest import create_test_png
 from tests.worker_contention_support import install_submit_spy, seed_library
@@ -139,7 +139,7 @@ def test_asset_id_requests_use_the_fast_path_too(
     lookups: dict[str, int],
 ) -> None:
     path = temp_gallery / "album_a" / "001.png"
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(path),)).fetchone()[0]
     first = isolated_app.get("/api/thumbnail", params={"asset_id": asset_id, "max_long_edge": 128})
     cold = dict(lookups)
@@ -219,7 +219,7 @@ def test_entries_expire_and_a_deactivated_asset_is_not_served_after_the_ttl(
     assert _thumb(isolated_app, path).status_code == 200
     assert lookups["authorize"] > cold["authorize"], "an expired entry is re-authorized through the catalog"
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("UPDATE assets SET offline = 1 WHERE path = ?", (str(path),))
     fast_path.clock.now += 6.0  # type: ignore[attr-defined]
     assert _thumb(isolated_app, path).status_code == 404, "catalog deactivation is honoured once the entry expired"
@@ -297,7 +297,7 @@ def ready_derivatives(
         cache_file = tmp_path / "touch_cache" / f"{index}.webp"
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         cache_file.write_bytes(b"x" * 100)
-        with sqlite3.connect(isolated_metadata_db) as conn:
+        with open_connection(isolated_metadata_db) as conn:
             conn.execute(
                 "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 100, "
                 "last_accessed_at = NULL WHERE id = ?",
@@ -309,7 +309,7 @@ def ready_derivatives(
 
 
 def _accessed(db_path: Path) -> dict[int, float | None]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         return {row[0]: row[1] for row in conn.execute("SELECT id, last_accessed_at FROM asset_derivatives")}
 
 
@@ -400,7 +400,7 @@ def test_eviction_honours_touches_that_were_not_flushed_yet(ready_derivatives, s
     """A just-served file whose touch is still pending must not be chosen as least recently used."""
     db_path, local, ready = ready_derivatives
     local.quota_bytes = 500
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         for offset, (derivative_id, _file) in enumerate(ready):
             conn.execute(
                 "UPDATE asset_derivatives SET last_accessed_at = ? WHERE id = ?",
@@ -412,7 +412,7 @@ def test_eviction_honours_touches_that_were_not_flushed_yet(ready_derivatives, s
     assert local._reserve_capacity(100) is True
 
     statuses = {}
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         for derivative_id, status in conn.execute("SELECT id, status FROM asset_derivatives"):
             statuses[derivative_id] = status
     assert statuses[oldest[0]] == "ready", "the file with a pending touch is the most recently used one"

@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-11-02
+Last reviewed: 2026-11-09
 
 This document describes how to measure and profile Gallery API performance.
 
@@ -464,8 +464,34 @@ GALLERY_PERF_SEARCH_PROFILE=scheduled ./test.sh perf
 `bench_search.py` runs after the managed backend health check and reports broad
 filename, prompt-heavy, album-heavy, combined fielded, model-only,
 sampler-only, mixed-short-token, CJK, and repeated opaque-keyset page classes.
-Every class requires non-empty fixture matches and retains the 300 ms lexical
-p95 budget. Its `search-benchmark-report.json` is written to the configured
+Since BL-13 it also reports the dense short-query classes of the 100k fixture,
+where every row matches the prefix or the substring:
+
+| Class group | Queries | Pages |
+|-------------|---------|-------|
+| 1-character free text | `a`, `m`, `c` | page 1, and a 3-page keyset chain |
+| 1-character fielded | `prompt:c`, `name:a` (dense), `name:i` (matches no file name, so the whole folded-name table is ruled out) | page 1; keyset chain for `prompt:c` and `name:a` |
+| 2- and 3-character free text | `as`, `ass`, `mod`, `prom` | page 1; keyset chain for `prom` |
+| `POST /api/search/count` | `a`, `m`, `c`, `prompt:c`, `name:i`, `name:a`, `prom` | one request each (bounded `+` total) |
+
+Every class requires non-empty fixture matches (`name:i` and its count require
+none) and retains the 300 ms lexical p95 budget, including the count classes.
+BL-13 measurements on the 100k fixture (`/api/search` p95, ms; the base is schema
+v14 at `67bc7d4`, the same host and 10 iterations per class):
+
+| Class | Base p95 | After p95 |
+|-------|----------|-----------|
+| `a` / `m` / `c` page 1 | 1,940 / 505 / 456 | 77 / 75 / 238 |
+| `a` / `m` / `c` keyset chain | 1,900 / 1,010 / 1,004 | 76 / 78 / 224 |
+| `prompt:c` page 1 / chain | 759 / 770 | 15 / 15 |
+| `name:a` page 1 / chain | 890 / 879 | 16 / 19 |
+| `as` / `ass` / `mod` / `prom` | 1,724 / 3,326 / 473 / 489 | 181 / 236 / 203 / 211 |
+| `/api/search/count` `a` / `m` / `c` | 2,689 / 2,252 / 2,216 | 49 / 94 / 80 |
+| `/api/search/count` `prompt:c` / `name:a` / `prom` | 819 / 906 / 4,209 | 98 / 84 / 100 |
+
+Existing classes also dropped (for example `album_heavy` 265 to 55 ms, `fielded` 270 to 218 ms, `broad_filename` 67 to 29 ms): the all-library scope no longer lists libraries (a count over every asset) on each request, and album aggregates use the v15 index. The remaining cost of a dense query is the bm25 ranking of every match of its
+primary source (about 65 ms per 100k matches) plus the sort-key join; see Search
+planning in [ARCHITECTURE.md](../ARCHITECTURE.md). Its `search-benchmark-report.json` is written to the configured
 artifact directory and understood by `scripts/summarize_perf_reports.py`.
 
 The same managed flow runs the API Inspector benchmark against a real fixture
@@ -493,7 +519,12 @@ Pillow fingerprint-worker RSS. Each lexical window takes at least 40 samples
 p95 of the pooled before and after samples, which the report publishes as
 `baseline_samples`. The lexical backfill regression is
 `(during p95 - baseline p95) / baseline p95`, and it must stay below the
-`backfill_regression_pct` budget (20%). The benchmark fails closed against the
+`backfill_regression_pct` budget (20%) unless the absolute slowdown
+(`regression_ms`) is under `backfill_regression_floor_ms` (15 ms). The floor exists
+because the percentage over-reports on a fast baseline. After BL-13 the lexical
+baseline fell from about 280 ms to about 11 ms, so the same few-millisecond writer
+contention read as 48% on CI (11.3 to 16.7 ms). `lexical_p95_ms` still caps the
+absolute latency. The benchmark fails closed against the
 150/75/200/300 ms, 20%, 100 MiB, and 64 MiB budgets and verifies that the controlled same-model
 unrelated asset is excluded. Fixture validation derives row count from SQLite,
 requires eight bands and two lifecycle extraction rows per asset, and rejects

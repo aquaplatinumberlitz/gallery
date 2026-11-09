@@ -33,7 +33,7 @@ import backend.search as search_module
 import backend.search_indexer as indexer_module
 import backend.workflow_raw_search as raw_module
 from backend.metadata_store import index_directory_tree, register_library
-from backend.metadata_store._db import _connect
+from backend.metadata_store._db import _connect, open_connection
 from backend.metadata_store.search_index_store import (
     create_search_index_job,
     get_search_index_job,
@@ -173,7 +173,7 @@ def test_v8_migration_failure_rolls_back_and_keeps_backup(
     monkeypatch.setattr(migrations_module, "_execute_v8_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
         migrations_module._migrate_v7_to_v8(conn)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
         assert (
             conn.execute(

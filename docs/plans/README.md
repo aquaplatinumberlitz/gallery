@@ -4,7 +4,11 @@ Status: Maintained index
 
 Last reviewed: 2026-11-09
 
-Active plans: none.
+Active plans:
+
+| Plan | Status | Created |
+|------|--------|---------|
+| [Backlog BL-13 / BL-14 Fix](BACKLOG_13_14_FIX_PLAN.md) | Active | 2026-11-09 |
 
 Deferred work no plan owns yet is tracked in [Backlog](BACKLOG.md).
 
