@@ -27,7 +27,7 @@ import backend.metadata_store._migrations as migrations_module
 import backend.related_assets as related_module
 import backend.visual_fingerprints as visual_module
 from backend.metadata_store import register_library
-from backend.metadata_store._db import _connect
+from backend.metadata_store._db import _connect, open_connection
 from backend.metadata_store.search_index_store import create_search_index_job, get_search_index_job
 from backend.search_indexer import run_search_index_once
 from backend.search_scope import SearchScopeContext
@@ -379,7 +379,7 @@ def test_v11_migration_failure_rolls_back_and_keeps_backup(
     monkeypatch.setattr(migrations_module, "_execute_v11_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
         migrations_module._migrate_v10_to_v11(conn)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 10
         assert (
             conn.execute(
@@ -500,7 +500,7 @@ def test_v12_migration_failure_rolls_back_and_keeps_backup(
     monkeypatch.setattr(migrations_module, "_execute_v12_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
         migrations_module._migrate_v11_to_v12(conn)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 11
         table_sql = conn.execute(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'asset_visual_hash_bands'"

@@ -24,7 +24,6 @@ from __future__ import annotations
 import errno
 import io
 import os
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -34,6 +33,7 @@ from PIL import Image
 from backend import indexer, metadata_extract, metadata_parse
 from backend.indexer import MetadataLifecycleWorker
 from backend.metadata_extract import UnreadableImageError, extract_metadata
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 from tests.worker_contention_support import (
     install_metadata_clock,
@@ -74,7 +74,7 @@ def _seed_unreadable_job(root: Path, kind: str, monkeypatch: pytest.MonkeyPatch)
 
 
 def _scalar(db_path: Path, sql: str, params: tuple = ()) -> object:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         row = conn.execute(sql, params).fetchone()
     return None if row is None else row[0]
 

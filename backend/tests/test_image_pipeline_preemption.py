@@ -33,6 +33,7 @@ import backend.derivative_scheduler.lifecycle as scheduler_lifecycle_module
 import backend.thumbnails as thumbnails
 from backend.derivative_scheduler import DerivativeScheduler
 from backend.metadata_store import index_file
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 from tests.worker_contention_support import seed_library
 
@@ -78,7 +79,7 @@ def _request(scheduler: DerivativeScheduler, asset_id: int, variant: str = "thum
 
 
 def _rows(db_path: Path, asset_id: int | None = None) -> dict[str, dict[str, Any]]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             """
@@ -258,7 +259,7 @@ def test_an_interactive_job_waits_about_one_variant_when_every_worker_is_inside_
     try:
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            with sqlite3.connect(db_path) as conn:
+            with open_connection(db_path) as conn:
                 running_assets = conn.execute(
                     "SELECT count(DISTINCT d.asset_id) FROM derivative_jobs j JOIN asset_derivatives d "
                     "ON d.id = j.derivative_id WHERE j.state = 'running'"

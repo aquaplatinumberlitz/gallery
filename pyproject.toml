@@ -30,3 +30,13 @@ omit = ["backend/tests/*", "tests/*", "backend/main.py", "main.py"]
 fail_under = 85
 show_missing = true
 skip_empty = true
+
+[tool.pytest.ini_options]
+# BL-14: a SQLite connection that is garbage collected while still open is a leak. Python reports it as a
+# ResourceWarning raised inside __del__, which pytest surfaces as PytestUnraisableExceptionWarning ("Exception
+# ignored in: <sqlite3.Connection ..."), so both are turned into errors. The filters match sqlite connections
+# only; every other ResourceWarning or unraisable exception keeps its default (reported, not failing) behaviour.
+filterwarnings = [
+  "error:unclosed database:ResourceWarning",
+  "error:Exception ignored in. <sqlite3.Connection:pytest.PytestUnraisableExceptionWarning",
+]

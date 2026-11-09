@@ -14,7 +14,6 @@ Changing library CRUD, asset catalog writes, migrations, or listing helpers.
 
 from __future__ import annotations
 
-import sqlite3
 import time
 from pathlib import Path
 
@@ -40,6 +39,7 @@ from backend.metadata_store import (
     update_library_state,
     upsert_image_dimensions,
 )
+from backend.metadata_store._db import open_connection
 from backend.metadata_store._schema import CATALOG_SCHEMA_VERSION
 from tests.conftest import create_test_png
 
@@ -60,7 +60,7 @@ def _register_library(root: Path) -> int:
 def test_no_implicit_library_on_fresh_startup(isolated_metadata_db: Path):
     initialize_database()
     assert list_libraries() == []
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION
         columns = {row[1] for row in conn.execute("PRAGMA table_info(libraries)")}
         assert "root_path" not in columns
@@ -130,7 +130,7 @@ def test_scan_and_metadata_dual_write_assets(
     assert listing["media"][0].metadata_state == "done"
     assert listing["media"][0].derivative_ready == {"thumbnail": False, "preview": False}
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             """
             INSERT INTO asset_derivatives (
@@ -302,7 +302,7 @@ def test_library_update_marks_removed_or_excluded_assets_offline_and_reactivates
     assert updated is not None
     finished = _run_scan(int(library["id"]))
     assert finished["counters"]["indexed"] >= 5
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE metadata_index_jobs SET state = 'cancelled' WHERE library_id = ? AND state IN ('queued', 'running')",
             (int(library["id"]),),
@@ -314,7 +314,7 @@ def test_library_update_marks_removed_or_excluded_assets_offline_and_reactivates
         exclusion_patterns=["**/cache/**"],
     )
     assert updated is not None
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("SELECT offline FROM assets WHERE path = ?", (str(visible.resolve()),)).fetchone()[0] == 1
         assert conn.execute("SELECT offline FROM assets WHERE path = ?", (str(excluded.resolve()),)).fetchone()[0] == 1
 
@@ -324,7 +324,7 @@ def test_library_update_marks_removed_or_excluded_assets_offline_and_reactivates
         exclusion_patterns=[],
     )
     assert updated is not None
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("SELECT offline FROM assets WHERE path = ?", (str(visible.resolve()),)).fetchone()[0] == 0
         assert conn.execute("SELECT offline FROM assets WHERE path = ?", (str(excluded.resolve()),)).fetchone()[0] == 0
 
@@ -349,7 +349,7 @@ def test_scan_applies_exclusion_patterns_across_import_paths(
     )
 
     _run_scan(int(library["id"]))
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(included.resolve()),)).fetchone()[0] == 1
         assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(excluded.resolve()),)).fetchone()[0] == 0
     stored = get_library(int(library["id"]))
@@ -395,7 +395,7 @@ def test_scan_reconciles_assets_without_deleting_derivatives(
     first = _run_scan(library_id)
     assert first["counters"]["indexed"] >= 2
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         asset_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(original.resolve()),)).fetchone()[0]
         conn.execute(
             """
@@ -413,7 +413,7 @@ def test_scan_reconciles_assets_without_deleting_derivatives(
     assert second["counters"]["indexed"] >= 1
     assert second["counters"]["reconciled"] >= 1
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("SELECT offline FROM assets WHERE id = ?", (asset_id,)).fetchone()[0] == 1
         assert conn.execute("SELECT count(*) FROM asset_derivatives WHERE asset_id = ?", (asset_id,)).fetchone()[0] >= 1
 
@@ -432,7 +432,7 @@ def test_offline_asset_api_finds_and_forgets_only_media_tombstones(
 
     missing.unlink()
     _run_scan(library_id)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("UPDATE assets SET offline = 1 WHERE path = ?", (str(restored_before_check.resolve()),))
         missing_id = conn.execute("SELECT id FROM assets WHERE path = ?", (str(missing.resolve()),)).fetchone()[0]
         derivative_id = conn.execute(
@@ -468,7 +468,7 @@ def test_offline_asset_api_finds_and_forgets_only_media_tombstones(
         assert client.get(f"/api/libraries/{library_id}/offline-assets").json() == {"items": [], "total": 0}
 
     assert restored_before_check.exists(), "Forgetting a catalog row must never delete a source file"
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("SELECT count(*) FROM assets WHERE path = ?", (str(active.resolve()),)).fetchone()[0] == 1
         assert conn.execute("SELECT count(*) FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0] == 0
         assert (
@@ -504,7 +504,7 @@ def test_rebuild_reconciles_deleted_assets(
     listing = get_asset_folder_listing(isolated_gallery_root)
     assert listing is not None
     assert listing["media"] == []
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         offline = conn.execute(
             "SELECT offline FROM assets WHERE library_id = ? AND path = ?",
             (library_id, str(image.resolve())),
@@ -602,7 +602,7 @@ def test_degraded_scan(isolated_metadata_db: Path, isolated_gallery_root: Path):
     stored = get_library(library_id)
     assert stored is not None
     assert stored["state"] == "degraded"
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert (
             conn.execute(
                 "SELECT count(*) FROM assets WHERE path = ?",
@@ -638,7 +638,7 @@ def test_degraded_rebuild(isolated_metadata_db: Path, isolated_gallery_root: Pat
     stored = get_library(library_id)
     assert stored is not None
     assert stored["state"] == "degraded"
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert (
             conn.execute(
                 "SELECT count(*) FROM assets WHERE path = ?",

@@ -25,7 +25,6 @@ Changing ``_schedule_derived_search_backfills``, ``schedule_auto_built_search_in
 from __future__ import annotations
 
 import asyncio
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -33,6 +32,7 @@ import pytest
 from backend import search_indexer
 from backend.indexer import MetadataLifecycleWorker
 from backend.metadata_store import create_library, index_directory_tree
+from backend.metadata_store._db import open_connection
 from backend.search_indexer import (
     SearchIndexDefinition,
     get_search_index_definition,
@@ -47,7 +47,7 @@ AUTO = {"prompt_values", "workflow_properties"}
 
 
 def _jobs(db_path: Path) -> list[tuple[int, str, str]]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         return [
             (int(row[0]), str(row[1]), str(row[2]))
             for row in conn.execute("SELECT library_id, index_name, state FROM search_index_jobs ORDER BY id")
@@ -153,7 +153,7 @@ def test_startup_schedules_both_indexes_for_a_library_that_predates_auto_buildin
     create_test_png(root / "b.png")
     library_id = int(create_library([root], name="Old")["id"])
     index_directory_tree(root, include_metadata=True)
-    with sqlite3.connect(isolated_metadata_db) as conn:  # what an upgraded database looks like
+    with open_connection(isolated_metadata_db) as conn:  # what an upgraded database looks like
         conn.execute("DELETE FROM search_index_jobs")
         conn.execute("DELETE FROM search_index_states")
     assert _jobs(isolated_metadata_db) == []
@@ -177,7 +177,7 @@ def test_startup_leaves_ready_indexes_alone_and_rebuilds_stale_or_failed_ones(
     assert schedule_startup_search_index_backfills() == [], "already ready: a restart adds no job"
     assert len(_jobs(isolated_metadata_db)) == job_count
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE search_index_states SET state = 'failed' WHERE index_name = 'prompt_values' AND library_id = ?",
             (library_id,),
@@ -212,7 +212,7 @@ def test_app_lifespan_schedules_the_startup_backfills(
     create_test_png(root / "a.png")
     library_id = int(create_library([root], name="Old")["id"])
     index_directory_tree(root, include_metadata=True)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("DELETE FROM search_index_jobs")
         conn.execute("DELETE FROM search_index_states")
     import backend.app as app_module

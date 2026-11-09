@@ -32,6 +32,7 @@ from pathlib import Path
 import pytest
 
 import backend.config as config
+from backend.metadata_store._db import open_connection
 from backend.metadata_store._schema import CATALOG_SCHEMA_VERSION
 from tests.worker_contention_support import capture_sql, seed_assets, seed_library
 
@@ -46,7 +47,7 @@ def _writer_module():
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path, timeout=30)
+    conn = open_connection(db_path, timeout=30)  # a ClosingConnection: ``with _connect(...)`` commits and closes
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
@@ -101,7 +102,7 @@ def mode(request: pytest.FixtureRequest) -> str:
 
 
 def test_a_fresh_database_has_the_runtime_counters_table_triggers_and_zero_values(isolated_metadata_db: Path) -> None:
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         table = conn.execute(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'runtime_counters'"
         ).fetchone()
@@ -124,7 +125,7 @@ def test_an_existing_database_gains_the_table_and_triggers_with_backfilled_value
 
     db_path, library_id, root = seeded
     assets = seed_assets(db_path, library_id, root, 6)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         for index, (_asset_id, path, mtime_ns, size) in enumerate(assets):
             conn.execute(
                 """
@@ -155,7 +156,7 @@ def test_an_existing_database_gains_the_table_and_triggers_with_backfilled_value
 
     ms.initialize_database()
 
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION, "no catalog version bump"
         assert (
             conn.execute(
@@ -167,7 +168,7 @@ def test_an_existing_database_gains_the_table_and_triggers_with_backfilled_value
     assert counters["metadata_jobs.queued"] == 2 and counters["metadata_jobs.running"] == 2
     assert counters["metadata_jobs.done"] == 2 and counters["derivative_ready_bytes"] == 4096
     assert_counters_exact(db_path, "after the backfill")
-    with sqlite3.connect(db_path) as conn:  # and the triggers keep it exact afterwards
+    with open_connection(db_path) as conn:  # and the triggers keep it exact afterwards
         conn.execute("UPDATE metadata_index_jobs SET state = 'failed' WHERE path = ?", (assets[0][1],))
         conn.execute("UPDATE asset_derivatives SET byte_size = 100 WHERE id = ?", (derivative_id,))
     assert_counters_exact(db_path, "after post-backfill transitions")
@@ -176,7 +177,7 @@ def test_an_existing_database_gains_the_table_and_triggers_with_backfilled_value
 def test_schema_check_reports_a_missing_counters_table_or_trigger(isolated_metadata_db: Path) -> None:
     from backend.metadata_store.schema_check import check_catalog_schema
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert check_catalog_schema(conn) == []
         trigger = conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_runtime_%' LIMIT 1"
@@ -319,7 +320,7 @@ def test_a_rolled_back_writer_op_leaves_the_counters_untouched(seeded) -> None:
 
     db_path, library_id, root = seeded
     assets = seed_assets(db_path, library_id, root, 3)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute(
             """
             INSERT INTO metadata_index_jobs (path, name, parent_path, folder_path, root_path, mtime, size, state, updated_at)
@@ -425,7 +426,7 @@ def test_counters_stay_exact_through_the_real_scan_metadata_derivative_and_integ
 
 def _seed_terminal_state(db_path: Path, library_id: int, root: Path) -> None:
     assets = seed_assets(db_path, library_id, root, 8)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         for index, (asset_id, path, mtime_ns, size) in enumerate(assets):
             conn.execute(
                 """
@@ -473,7 +474,7 @@ def test_destructive_maintenance_leaves_the_counters_exact(
 
 
 def _tamper(db_path: Path, **values: int) -> None:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         for name, value in values.items():
             conn.execute("UPDATE runtime_counters SET value = ? WHERE name = ?", (value, name.replace("__", ".")))
 
@@ -534,7 +535,7 @@ def test_status_is_identical_whether_it_is_read_from_the_counters_or_from_the_ag
     assert_counters_exact(isolated_metadata_db, "after seeding the golden state")
 
     from_counters = build_status_snapshot(library_id, root)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("DELETE FROM runtime_counters")  # a missing counter falls back to the aggregate query
     from_aggregates = build_status_snapshot(library_id, root)
 
@@ -549,7 +550,7 @@ def test_counters_and_rows_are_read_from_one_snapshot(seeded) -> None:
     assets = seed_assets(db_path, library_id, root, 2)
     with _read_snapshot() as snapshot:
         first = snapshot.execute("SELECT value FROM runtime_counters WHERE name = 'metadata_jobs.queued'").fetchone()[0]
-        with sqlite3.connect(db_path) as writer:  # a commit lands in the middle of the status build
+        with open_connection(db_path) as writer:  # a commit lands in the middle of the status build
             writer.execute(
                 """
                 INSERT INTO metadata_index_jobs (path, name, parent_path, folder_path, root_path, mtime, size, state, updated_at)
@@ -583,7 +584,7 @@ def test_the_integrity_pass_recomputes_the_counters_and_repairs_drift(
     assert clean["runtime_counters_repaired"] == 0
 
     _tamper(db_path, metadata_jobs__done=999, metadata_jobs__failed=-4, derivative_ready_bytes=1)
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         conn.execute("DELETE FROM runtime_counters WHERE name = 'metadata_jobs.stale'")
     assert stored_counters(db_path) != aggregate_counters(db_path)
 

@@ -25,6 +25,7 @@ import pytest
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler, derivative_variant
 from backend.metadata_store import get_asset_folder_listing, index_file, list_libraries, register_library
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 
 
@@ -71,7 +72,7 @@ def test_schedule_coalesces_jobs_and_reports_library_status(
         == derivative_id
     )
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0] == 1
         assert conn.execute("SELECT priority FROM derivative_jobs").fetchone()[0] == 0
 
@@ -124,7 +125,7 @@ def test_ready_derivative_lookup_warming_and_clear(
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
     variant = str(thumbnail["name"])
     derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", variant)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = ? WHERE id = ?",
             (str(cache_file), cache_file.stat().st_size, derivative_id),
@@ -171,7 +172,7 @@ def test_library_status_excludes_legacy_variants(
             derivative_id = scheduler.schedule_derivative(asset_id, kind, str(variant["name"]))
             current_rows.append((str(cache_file), cache_file.stat().st_size, derivative_id))
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.executemany(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = ? WHERE id = ?",
             current_rows,
@@ -228,7 +229,7 @@ def test_library_status_reports_library_and_global_quota_usage(
     second_cache = tmp_path / "second.webp"
     first_cache.write_bytes(b"a" * 100)
     second_cache.write_bytes(b"b" * 300)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 100 WHERE id = ?",
             (str(first_cache), first_id),
@@ -258,7 +259,7 @@ def test_library_status_excludes_offline_assets(
     library_id = list_libraries()[0]["id"]
     scheduler = DerivativeScheduler(quota_bytes=1024)
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (asset_id,))
 
     assert scheduler.warm_library(library_id)["assets"] == 0
@@ -299,7 +300,7 @@ def test_reconcile_current_variants_is_idempotent(
     assert second.created_derivative_rows == 0
     assert second.created_jobs == 0
     assert second.already_active == 4
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("SELECT count(*) FROM asset_derivatives").fetchone()[0] == 4
         assert conn.execute("SELECT count(*) FROM derivative_jobs").fetchone()[0] == 4
 
@@ -314,7 +315,7 @@ def test_reconcile_repairs_ready_file_and_job_row_gaps(
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
     derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
     missing_cache = tmp_path / "missing.webp"
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ? WHERE id = ?",
             (str(missing_cache), derivative_id),
@@ -325,7 +326,7 @@ def test_reconcile_repairs_ready_file_and_job_row_gaps(
 
     assert summary.requeued_without_job == 1
     assert summary.created_jobs == 3
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert (
             conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0]
             == "queued"
@@ -345,7 +346,7 @@ def test_reconcile_keeps_current_terminal_failure_without_explicit_retry(
     library_id = list_libraries()[0]["id"]
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
     derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("UPDATE asset_derivatives SET status = 'failed' WHERE id = ?", (derivative_id,))
         conn.execute("UPDATE derivative_jobs SET state = 'failed' WHERE derivative_id = ?", (derivative_id,))
 
@@ -353,7 +354,7 @@ def test_reconcile_keeps_current_terminal_failure_without_explicit_retry(
 
     assert summary.terminal_failed == 1
     assert summary.created_jobs == 3  # The other two thumbnails and the preview remain absent and are scheduled.
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert (
             conn.execute("SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)).fetchone()[0]
             == 1
@@ -367,7 +368,7 @@ def test_automatic_reconcile_respects_warm_enabled_but_manual_warm_overrides_it(
     _image, _asset_id = _catalog_image(isolated_gallery_root)
     scheduler = DerivativeScheduler()
     library_id = list_libraries()[0]["id"]
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("UPDATE libraries SET warm_enabled = 0 WHERE id = ?", (library_id,))
 
     automatic = scheduler.reconcile_desired_derivatives(library_id=library_id, reason="phase_2")
@@ -389,14 +390,14 @@ def test_library_status_makes_preview_only_warm_gap_actionable_and_on_demand_inf
     derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
     cache_path = tmp_path / "thumbnail.webp"
     cache_path.write_bytes(b"ready")
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 5 WHERE id = ?",
             (str(cache_path), derivative_id),
         )
 
     warm = scheduler.library_status(library_id)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("UPDATE libraries SET warm_enabled = 0 WHERE id = ?", (library_id,))
     on_demand = scheduler.library_status(library_id)
 
@@ -423,7 +424,7 @@ def test_missing_source_after_claim_is_skipped_without_escaping(
     image.unlink()
     scheduler._run_job(job)
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         derivative = conn.execute(
             "SELECT status, last_error FROM asset_derivatives WHERE id = ?",
             (derivative_id,),
@@ -512,11 +513,11 @@ def test_claim_skips_job_when_asset_becomes_offline(
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
     derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (asset_id,))
 
     assert scheduler._claim_job() is None
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         job = conn.execute(
             "SELECT state, result_code FROM derivative_jobs WHERE derivative_id = ?",
             (derivative_id,),
@@ -538,7 +539,7 @@ def test_startup_recovers_current_running_job(
     scheduler = DerivativeScheduler(worker_count=1)
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
     derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             """
             UPDATE derivative_jobs
@@ -554,7 +555,7 @@ def test_startup_recovers_current_running_job(
     scheduler.start()
     scheduler.stop()
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         job = conn.execute(
             "SELECT state, claimed_by, claim_token, lease_expires_at FROM derivative_jobs WHERE derivative_id = ?",
             (derivative_id,),
@@ -573,7 +574,7 @@ def test_obsolete_claim_token_cannot_overwrite_newer_claim(
     stale_job = scheduler._claim_job("old-worker")
     assert stale_job is not None
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             """
             UPDATE derivative_jobs
@@ -588,7 +589,7 @@ def test_obsolete_claim_token_cannot_overwrite_newer_claim(
 
     scheduler._handle_failure(stale_job, RuntimeError("late failure"))
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         job = conn.execute(
             "SELECT state, claimed_by, claim_token FROM derivative_jobs WHERE id = ?",
             (stale_job["job_id"],),
@@ -606,7 +607,7 @@ def test_expired_claim_with_exhausted_attempts_becomes_failed(
     scheduler = DerivativeScheduler()
     thumbnail = DERIVATIVE_VARIANTS["thumbnail"][0]
     derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             """
             UPDATE derivative_jobs
@@ -620,7 +621,7 @@ def test_expired_claim_with_exhausted_attempts_becomes_failed(
 
     assert scheduler._recover_running_jobs(expired_only=True) == 1
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         job = conn.execute(
             "SELECT state, result_code, claimed_by, claim_token FROM derivative_jobs WHERE derivative_id = ?",
             (derivative_id,),
@@ -664,7 +665,7 @@ def test_transient_failure_uses_exactly_three_attempts_with_backoff(
         assert job["job_attempts"] == expected_attempt
         scheduler._handle_failure(job, OSError("temporary I/O failure"))
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         job_row = conn.execute(
             "SELECT state, attempts, result_code FROM derivative_jobs WHERE derivative_id = ?",
             (derivative_id,),
@@ -686,7 +687,7 @@ def test_recovery_cannot_overwrite_a_claim_that_completed_after_selection(
     assert job is not None
 
     def complete_selected_claim(_row: sqlite3.Row) -> None:
-        with sqlite3.connect(isolated_metadata_db) as conn:
+        with open_connection(isolated_metadata_db) as conn:
             conn.execute(
                 """
                 UPDATE derivative_jobs
@@ -701,7 +702,7 @@ def test_recovery_cannot_overwrite_a_claim_that_completed_after_selection(
     monkeypatch.setattr(scheduler, "_inapplicable_result", complete_selected_claim)
 
     assert scheduler._recover_running_jobs(claimed_by="worker-that-will-finish") == 0
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         recovered_job = conn.execute(
             "SELECT state FROM derivative_jobs WHERE id = ?",
             (job["job_id"],),
@@ -741,7 +742,7 @@ def test_warm_library_continues_when_asset_becomes_inactive_during_scheduling(
         nonlocal first_call
         if first_call:
             first_call = False
-            with sqlite3.connect(isolated_metadata_db) as conn:
+            with open_connection(isolated_metadata_db) as conn:
                 conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (first_asset_id,))
             raise KeyError(first_asset_id)
         return original_schedule(*args, **kwargs)
@@ -768,7 +769,7 @@ def test_library_status_ignores_historical_failed_attempt_after_success(
     scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
     successful_job = scheduler._claim_job()
     assert successful_job is not None
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE derivative_jobs SET state = 'done' WHERE id = ?",
             (successful_job["job_id"],),
@@ -815,7 +816,7 @@ def test_rollback_after_eviction_does_not_cause_stale_unlink(
     cf2 = cache_root / "f2.webp"
     cf1.write_bytes(b"x" * 200)
     cf2.write_bytes(b"x" * 200)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
             (str(cf1), id1),
@@ -827,12 +828,12 @@ def test_rollback_after_eviction_does_not_cause_stale_unlink(
         conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id IN (?, ?)", (id1, id2))
 
     assert scheduler._reserve_capacity(200), "capacity should be reservable"
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("BEGIN IMMEDIATE")
         conn.execute("UPDATE assets SET offline = 1 WHERE id = ?", (asset_id,))
         conn.rollback()
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         ready = conn.execute("SELECT count(*) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0]
         stale_paths = conn.execute(
             "SELECT count(*) FROM asset_derivatives WHERE status = 'evicted' AND cache_path IS NOT NULL"
@@ -864,7 +865,7 @@ def test_insufficient_eligible_bytes_returns_not_reservable(
     did = scheduler.schedule_derivative(asset_id, "thumbnail", variant)
     cf = cache_root / "f.webp"
     cf.write_bytes(b"x" * 100)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 100 WHERE id = ?",
             (str(cf), did),
@@ -872,7 +873,7 @@ def test_insufficient_eligible_bytes_returns_not_reservable(
         conn.execute("UPDATE derivative_jobs SET state = 'done' WHERE derivative_id = ?", (did,))
 
     assert not scheduler._reserve_capacity(250), "need 250, only 100 eligible -> not reservable"
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         ready = conn.execute("SELECT count(*) FROM asset_derivatives WHERE status = 'ready'").fetchone()[0]
     assert ready == 1, "ready row should be preserved"
     assert cf.exists(), "cache file should still exist"
@@ -891,7 +892,7 @@ def test_unlink_failure_restores_ready_and_leaves_target_deferred(
     did = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
     cache_file = tmp_path / "ready.webp"
     cache_file.write_bytes(b"x" * 200)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
             (str(cache_file), did),
@@ -912,7 +913,7 @@ def test_unlink_failure_restores_ready_and_leaves_target_deferred(
     assert summary.created_jobs == 0
     assert summary.deferred_capacity == 1
     assert cache_file.exists()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         victim = conn.execute("SELECT status, cache_path FROM asset_derivatives WHERE id = ?", (did,)).fetchone()
         target = conn.execute(
             "SELECT status FROM asset_derivatives WHERE asset_id = ? AND kind = 'preview'", (asset_id,)
@@ -934,7 +935,7 @@ def test_served_ready_file_is_not_evicted(
     did = scheduler.schedule_derivative(asset_id, "thumbnail", variant)
     cache_file = tmp_path / "served.webp"
     cache_file.write_bytes(b"x" * 200)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
             (str(cache_file), did),
@@ -954,7 +955,7 @@ def test_served_ready_file_is_not_evicted(
     assert summary.created_jobs == 0
     assert summary.deferred_capacity == 1
     assert cache_file.exists()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         row = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (did,)).fetchone()
     assert row == ("ready",)
 
@@ -973,7 +974,7 @@ def test_repeated_ready_acquisition_does_not_retouch_recent_access(
     cache_file = tmp_path / "warm-ready.webp"
     cache_file.write_bytes(b"ready")
     stat = image.stat()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             """
             UPDATE asset_derivatives
@@ -993,7 +994,7 @@ def test_repeated_ready_acquisition_does_not_retouch_recent_access(
     )
     assert first is not None
     scheduler.release_serving(str(cache_file))
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         first_access = conn.execute(
             "SELECT last_accessed_at FROM asset_derivatives WHERE id = ?", (derivative_id,)
         ).fetchone()[0]
@@ -1007,7 +1008,7 @@ def test_repeated_ready_acquisition_does_not_retouch_recent_access(
     )
     assert second is not None
     scheduler.release_serving(str(cache_file))
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         second_access = conn.execute(
             "SELECT last_accessed_at FROM asset_derivatives WHERE id = ?", (derivative_id,)
         ).fetchone()[0]
@@ -1075,7 +1076,7 @@ def test_ready_acquisition_rechecks_file_after_concurrent_eviction(
     derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", variant)
     cache_file = tmp_path / "evicted-before-pin.webp"
     cache_file.write_bytes(b"x" * 200)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
             (str(cache_file), derivative_id),
@@ -1123,7 +1124,7 @@ def test_schedule_deferred_identity_stays_non_runnable_when_unlink_fails(
     preview_id = scheduler.schedule_derivative(asset_id, "preview", str(preview["name"]))
     cache_file = tmp_path / "interactive-victim.webp"
     cache_file.write_bytes(b"x" * 200)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
             (str(cache_file), thumbnail_id),
@@ -1143,7 +1144,7 @@ def test_schedule_deferred_identity_stays_non_runnable_when_unlink_fails(
 
     assert scheduled_id == preview_id
     assert cache_file.exists()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         victim = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (thumbnail_id,)).fetchone()
         target = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (preview_id,)).fetchone()
         active_jobs = conn.execute(
@@ -1169,7 +1170,7 @@ def test_successful_capacity_finalization_queues_exactly_once(
     preview_id = scheduler.schedule_derivative(asset_id, "preview", str(preview["name"]))
     cache_file = tmp_path / "successful-victim.webp"
     cache_file.write_bytes(b"x" * 200)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
             (str(cache_file), thumbnail_id),
@@ -1182,7 +1183,7 @@ def test_successful_capacity_finalization_queues_exactly_once(
     assert scheduler.schedule_derivative(asset_id, "preview", str(preview["name"])) == preview_id
 
     assert not cache_file.exists()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         victim = conn.execute(
             "SELECT status, cache_path, byte_size FROM asset_derivatives WHERE id = ?", (thumbnail_id,)
         ).fetchone()
@@ -1210,7 +1211,7 @@ def test_periodic_reconcile_does_not_rotate_capacity_deferred_variants(
     preview_id = scheduler.schedule_derivative(asset_id, "preview", str(preview["name"]))
     cache_file = tmp_path / "stable-ready.webp"
     cache_file.write_bytes(b"x" * 200)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 200 WHERE id = ?",
             (str(cache_file), thumbnail_id),
@@ -1228,7 +1229,7 @@ def test_periodic_reconcile_does_not_rotate_capacity_deferred_variants(
     assert periodic.created_jobs == 0
     assert periodic.deferred_capacity == 1
     assert cache_file.is_file()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (thumbnail_id,)).fetchone() == (
             "ready",
         )
@@ -1241,7 +1242,7 @@ def test_periodic_reconcile_does_not_rotate_capacity_deferred_variants(
 
     assert repaired.created_jobs == 1
     assert not cache_file.exists()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (thumbnail_id,)).fetchone() == (
             "evicted",
         )
@@ -1263,7 +1264,7 @@ def test_interrupted_eviction_with_original_file_restores_ready(
     derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", variant)
     cache_file = tmp_path / "interrupted-eviction.webp"
     cache_file.write_bytes(b"x" * 200)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             """
             UPDATE asset_derivatives
@@ -1277,7 +1278,7 @@ def test_interrupted_eviction_with_original_file_restores_ready(
 
     assert scheduler.schedule_derivative(asset_id, "thumbnail", variant) == derivative_id
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         row = conn.execute(
             "SELECT status, cache_path, byte_size, last_error FROM asset_derivatives WHERE id = ?",
             (derivative_id,),
@@ -1476,7 +1477,7 @@ def test_repair_consistency_skips_nonexistent_derivative(
     scheduler = DerivativeScheduler()
     did = scheduler.schedule_derivative(asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"]))
     # Delete the derivative row so it won't be found
-    with sqlite3.connect(str(isolated_metadata_db)) as conn:
+    with open_connection(str(isolated_metadata_db)) as conn:
         conn.execute("DELETE FROM asset_derivatives WHERE id = ?", (did,))
     assert scheduler.repair_derivative_consistency([did]).jobs_created == 0
 
@@ -1489,7 +1490,7 @@ def test_repair_consistency_skips_non_queued_derivative(
     scheduler = DerivativeScheduler()
     did = scheduler.schedule_derivative(asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"]))
     # Mark the derivative as ready
-    with sqlite3.connect(str(isolated_metadata_db)) as conn:
+    with open_connection(str(isolated_metadata_db)) as conn:
         conn.execute("UPDATE asset_derivatives SET status = 'ready' WHERE id = ?", (did,))
     assert scheduler.repair_derivative_consistency([did]).jobs_created == 0
 
@@ -1512,11 +1513,11 @@ def test_repair_consistency_terminalizes_inactive_asset(
     image, asset_id = _catalog_image(isolated_gallery_root)
     scheduler = DerivativeScheduler()
     did = scheduler.schedule_derivative(asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"]))
-    with sqlite3.connect(str(isolated_metadata_db)) as conn:
+    with open_connection(str(isolated_metadata_db)) as conn:
         conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (did,))
         conn.execute("UPDATE assets SET deleted_at = julianday('now') WHERE id = ?", (asset_id,))
     assert scheduler.repair_derivative_consistency([did]).jobs_created == 0
-    with sqlite3.connect(str(isolated_metadata_db)) as conn:
+    with open_connection(str(isolated_metadata_db)) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT status, last_error FROM asset_derivatives WHERE id = ?", (did,)).fetchone()
         assert row["status"] == "skipped"
@@ -1531,10 +1532,10 @@ def test_repair_consistency_terminalizes_missing_source(
     scheduler = DerivativeScheduler()
     did = scheduler.schedule_derivative(asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"]))
     image.unlink()  # Remove source file after derivative is scheduled
-    with sqlite3.connect(str(isolated_metadata_db)) as conn:
+    with open_connection(str(isolated_metadata_db)) as conn:
         conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (did,))
     assert scheduler.repair_derivative_consistency([did]).jobs_created == 0
-    with sqlite3.connect(str(isolated_metadata_db)) as conn:
+    with open_connection(str(isolated_metadata_db)) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT status, last_error FROM asset_derivatives WHERE id = ?", (did,)).fetchone()
         assert row["status"] == "skipped"
@@ -1548,11 +1549,11 @@ def test_repair_consistency_terminalizes_changed_source(
     image, asset_id = _catalog_image(isolated_gallery_root)
     scheduler = DerivativeScheduler()
     did = scheduler.schedule_derivative(asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"]))
-    with sqlite3.connect(str(isolated_metadata_db)) as conn:
+    with open_connection(str(isolated_metadata_db)) as conn:
         conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (did,))
         conn.execute("UPDATE asset_derivatives SET source_mtime_ns = 999999999999 WHERE id = ?", (did,))
     assert scheduler.repair_derivative_consistency([did]).jobs_created == 0
-    with sqlite3.connect(str(isolated_metadata_db)) as conn:
+    with open_connection(str(isolated_metadata_db)) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT status, last_error FROM asset_derivatives WHERE id = ?", (did,)).fetchone()
         assert row["status"] == "skipped"
@@ -1566,10 +1567,10 @@ def test_repair_consistency_creates_job(
     image, asset_id = _catalog_image(isolated_gallery_root)
     scheduler = DerivativeScheduler()
     did = scheduler.schedule_derivative(asset_id, "thumbnail", str(DERIVATIVE_VARIANTS["thumbnail"][0]["name"]))
-    with sqlite3.connect(str(isolated_metadata_db)) as conn:
+    with open_connection(str(isolated_metadata_db)) as conn:
         conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (did,))
     assert scheduler.repair_derivative_consistency([did]).jobs_created == 1
-    with sqlite3.connect(str(isolated_metadata_db)) as conn:
+    with open_connection(str(isolated_metadata_db)) as conn:
         conn.row_factory = sqlite3.Row
         job = conn.execute(
             "SELECT state FROM derivative_jobs WHERE derivative_id = ? ORDER BY id DESC LIMIT 1",

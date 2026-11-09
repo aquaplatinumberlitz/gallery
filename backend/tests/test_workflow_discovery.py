@@ -29,7 +29,7 @@ from PIL import Image
 import backend.metadata_store._migrations as migrations_module
 from backend.metadata_extract import parse_comfy
 from backend.metadata_store import index_directory_tree, register_library
-from backend.metadata_store._db import _connect
+from backend.metadata_store._db import _connect, open_connection
 from backend.metadata_store.search_index_store import (
     SearchIndexJobConflict,
     create_search_index_job,
@@ -176,7 +176,7 @@ def test_v7_migration_failure_rolls_back_and_keeps_backup(
     monkeypatch.setattr(migrations_module, "_execute_v7_migration_statement", fail_second)
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
         migrations_module._migrate_v6_to_v7(conn)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
         assert (
             conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='workflow_nodes'").fetchone()[

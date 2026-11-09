@@ -33,6 +33,7 @@ from backend import indexer
 from backend.indexer import MetadataLifecycleWorker
 from backend.metadata_extract import extract_metadata
 from backend.metadata_store import MAX_METADATA_JOB_ATTEMPTS, _connect
+from backend.metadata_store._db import open_connection
 from tests.worker_contention_support import (
     install_metadata_clock,
     metadata_job_row,
@@ -62,7 +63,7 @@ def _upsert_current_metadata(path: Path) -> None:
 
 
 def _asset_metadata_state(db_path: Path, path: Path) -> str:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         return str(conn.execute("SELECT metadata_state FROM assets WHERE path = ?", (str(path),)).fetchone()[0])
 
 
@@ -121,11 +122,11 @@ def test_claim_columns_and_lease_index_exist_on_fresh_and_existing_databases(
     index_name = "idx_metadata_index_jobs_state_lease"
 
     def table_columns() -> set[str]:
-        with sqlite3.connect(isolated_metadata_db) as conn:
+        with open_connection(isolated_metadata_db) as conn:
             return {row[1] for row in conn.execute("PRAGMA table_info(metadata_index_jobs)")}
 
     def has_index() -> bool:
-        with sqlite3.connect(isolated_metadata_db) as conn:
+        with open_connection(isolated_metadata_db) as conn:
             return (
                 conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?", (index_name,)).fetchone()
                 is not None
@@ -134,7 +135,7 @@ def test_claim_columns_and_lease_index_exist_on_fresh_and_existing_databases(
     assert set(columns) <= table_columns(), "fresh DDL/ensure must create the claim columns"
     assert has_index()
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(f"DROP INDEX IF EXISTS {index_name}")
         for column in columns:
             conn.execute(f"ALTER TABLE metadata_index_jobs DROP COLUMN {column}")
@@ -146,7 +147,7 @@ def test_claim_columns_and_lease_index_exist_on_fresh_and_existing_databases(
 
     assert set(columns) <= table_columns(), "the additive ensure path must add the columns to an existing database"
     assert has_index()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.row_factory = sqlite3.Row
         assert check_catalog_schema(conn) == []
 

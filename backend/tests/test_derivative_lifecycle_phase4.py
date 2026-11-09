@@ -34,6 +34,7 @@ from backend.metadata_store import (
     index_file,
     register_library,
 )
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 
 
@@ -49,7 +50,7 @@ def _catalog_image(root: Path) -> tuple[Path, int, int]:
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
+    conn = open_connection(db_path)  # a ClosingConnection: ``with _connect(...)`` commits and closes
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -106,7 +107,7 @@ def test_quota_increase_reconsiders_deferred_work(
     variant_count = sum(len(variants) for variants in DERIVATIVE_VARIANTS.values())
     assert summary.created_jobs == variant_count
     assert summary.deferred_capacity == 0
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         jobs = conn.execute(
             "SELECT count(*) FROM derivative_jobs j JOIN asset_derivatives d ON d.id = j.derivative_id WHERE d.asset_id = ?",
             (asset_id,),

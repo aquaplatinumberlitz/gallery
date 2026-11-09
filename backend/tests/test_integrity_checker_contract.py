@@ -25,12 +25,14 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 
 import pytest
 
 from backend.integrity_checker import integrity_checker
 from backend.metadata_store import _connect, create_library, initialize_database
+from backend.metadata_store._db import open_connection
 from backend.metadata_store.maintenance_store import get_latest_run
 from backend.metadata_store.schema_check import check_catalog_schema
 
@@ -492,7 +494,7 @@ class TestAbandonedDerivativeRecovery:
             )
 
         def complete_claim(_row: sqlite3.Row) -> None:
-            with sqlite3.connect(isolated_metadata_db) as conn:
+            with open_connection(isolated_metadata_db) as conn:
                 conn.execute(
                     """
                     UPDATE derivative_jobs
@@ -635,150 +637,150 @@ class TestSchemaCheckEdgeCases:
     """Additional edge cases beyond the four existing test_schema_check.py tests."""
 
     def test_multiple_missing_items_reported_together(self) -> None:
-        conn = sqlite3.connect(":memory:")
-        conn.execute("""
-            CREATE TABLE assets (
-                id INTEGER PRIMARY KEY,
-                library_id INTEGER NOT NULL,
-                path TEXT NOT NULL,
-                parent_path TEXT NOT NULL,
-                name TEXT NOT NULL,
-                type TEXT NOT NULL,
-                mtime_ns REAL,
-                size INTEGER,
-                metadata_state TEXT,
-                deleted_at REAL,
-                offline INTEGER NOT NULL DEFAULT 0,
-                indexed_at REAL
-            )
-        """)
-        issues = check_catalog_schema(conn)
-        missing_tables = [i for i in issues if i.startswith("Missing table")]
-        assert len(missing_tables) >= 7
-        assert "Missing table: image_metadata" in issues
-        assert "Missing table: metadata_index_jobs" in issues
-        assert "Missing index: idx_image_metadata_mtime_size" in issues
+        with closing(sqlite3.connect(":memory:")) as conn:
+            conn.execute("""
+                CREATE TABLE assets (
+                    id INTEGER PRIMARY KEY,
+                    library_id INTEGER NOT NULL,
+                    path TEXT NOT NULL,
+                    parent_path TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    mtime_ns REAL,
+                    size INTEGER,
+                    metadata_state TEXT,
+                    deleted_at REAL,
+                    offline INTEGER NOT NULL DEFAULT 0,
+                    indexed_at REAL
+                )
+            """)
+            issues = check_catalog_schema(conn)
+            missing_tables = [i for i in issues if i.startswith("Missing table")]
+            assert len(missing_tables) >= 7
+            assert "Missing table: image_metadata" in issues
+            assert "Missing table: metadata_index_jobs" in issues
+            assert "Missing index: idx_image_metadata_mtime_size" in issues
 
     def test_empty_database_reports_all_tables_missing(self) -> None:
-        conn = sqlite3.connect(":memory:")
-        issues = check_catalog_schema(conn)
-        missing_tables = [i for i in issues if i.startswith("Missing table")]
-        assert len(missing_tables) >= 9
+        with closing(sqlite3.connect(":memory:")) as conn:
+            issues = check_catalog_schema(conn)
+            missing_tables = [i for i in issues if i.startswith("Missing table")]
+            assert len(missing_tables) >= 9
 
     def test_extra_columns_do_not_cause_false_positives(self) -> None:
-        conn = sqlite3.connect(":memory:")
-        conn.executescript("""
-            CREATE TABLE assets (
-                id INTEGER PRIMARY KEY,
-                library_id INTEGER NOT NULL,
-                path TEXT NOT NULL,
-                parent_path TEXT NOT NULL,
-                name TEXT NOT NULL,
-                type TEXT NOT NULL,
-                mtime_ns REAL,
-                size INTEGER,
-                metadata_state TEXT,
-                deleted_at REAL,
-                offline INTEGER NOT NULL DEFAULT 0,
-                indexed_at REAL,
-                extra_column_1 TEXT,
-                extra_column_2 INTEGER
-            );
-            CREATE TABLE image_metadata (
-                path TEXT NOT NULL UNIQUE,
-                name TEXT NOT NULL,
-                mtime REAL,
-                mtime_ns INTEGER,
-                size INTEGER,
-                width INTEGER,
-                height INTEGER,
-                extra_col TEXT
-            );
-            CREATE TABLE metadata_index_jobs (
-                path TEXT NOT NULL,
-                name TEXT NOT NULL,
-                parent_path TEXT NOT NULL,
-                folder_path TEXT NOT NULL,
-                root_path TEXT NOT NULL,
-                mtime REAL,
-                mtime_ns INTEGER,
-                size INTEGER NOT NULL,
-                state TEXT NOT NULL,
-                attempts INTEGER NOT NULL DEFAULT 0,
-                error TEXT,
-                queued_at REAL,
-                started_at REAL,
-                finished_at REAL,
-                updated_at REAL NOT NULL
-            );
-            CREATE TABLE asset_derivatives (
-                id INTEGER PRIMARY KEY,
-                asset_id INTEGER NOT NULL,
-                kind TEXT NOT NULL,
-                variant TEXT NOT NULL,
-                source_mtime_ns REAL NOT NULL,
-                source_size INTEGER NOT NULL,
-                format TEXT NOT NULL DEFAULT 'webp',
-                quality INTEGER NOT NULL DEFAULT 85,
-                max_long_edge INTEGER NOT NULL,
-                status TEXT NOT NULL DEFAULT 'queued',
-                cache_path TEXT,
-                byte_size INTEGER,
-                last_accessed_at REAL,
-                attempts INTEGER NOT NULL DEFAULT 0,
-                last_error TEXT,
-                created_at REAL NOT NULL DEFAULT (julianday('now')),
-                updated_at REAL NOT NULL DEFAULT (julianday('now'))
-            );
-            CREATE TABLE derivative_jobs (
-                id INTEGER PRIMARY KEY,
-                derivative_id INTEGER NOT NULL,
-                priority INTEGER NOT NULL DEFAULT 3,
-                state TEXT NOT NULL DEFAULT 'queued',
-                attempts INTEGER NOT NULL DEFAULT 0,
-                error TEXT,
-                created_at REAL NOT NULL DEFAULT (julianday('now')),
-                updated_at REAL NOT NULL DEFAULT (julianday('now')),
-                started_at REAL,
-                completed_at REAL
-            );
-            CREATE TABLE libraries (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL
-            );
-            CREATE TABLE library_import_paths (
-                id INTEGER PRIMARY KEY,
-                library_id INTEGER NOT NULL,
-                path TEXT NOT NULL
-            );
-            CREATE TABLE catalog_rebuild_entries (
-                job_id INTEGER NOT NULL,
-                library_id INTEGER NOT NULL,
-                path TEXT NOT NULL,
-                parent_path TEXT NOT NULL,
-                name TEXT NOT NULL,
-                type TEXT NOT NULL,
-                mtime_ns INTEGER,
-                size INTEGER,
-                width INTEGER,
-                height INTEGER,
-                mime_type TEXT,
-                duration_ms INTEGER,
-                codec TEXT,
-                PRIMARY KEY(job_id, path)
-            );
-            CREATE TABLE integrity_check_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                trigger TEXT NOT NULL,
-                started_at REAL NOT NULL,
-                finished_at REAL,
-                status TEXT NOT NULL,
-                error TEXT,
-                issues_json TEXT NOT NULL,
-                repairs_json TEXT NOT NULL
-            );
-        """)
-        issues = check_catalog_schema(conn)
-        injected_columns = ("extra_column_1", "extra_column_2", "extra_col")
-        col_issues = [issue for issue in issues if any(column in issue for column in injected_columns)]
-        assert len(col_issues) == 0, "Extra columns should not cause false positives"
+        with closing(sqlite3.connect(":memory:")) as conn:
+            conn.executescript("""
+                CREATE TABLE assets (
+                    id INTEGER PRIMARY KEY,
+                    library_id INTEGER NOT NULL,
+                    path TEXT NOT NULL,
+                    parent_path TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    mtime_ns REAL,
+                    size INTEGER,
+                    metadata_state TEXT,
+                    deleted_at REAL,
+                    offline INTEGER NOT NULL DEFAULT 0,
+                    indexed_at REAL,
+                    extra_column_1 TEXT,
+                    extra_column_2 INTEGER
+                );
+                CREATE TABLE image_metadata (
+                    path TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    mtime REAL,
+                    mtime_ns INTEGER,
+                    size INTEGER,
+                    width INTEGER,
+                    height INTEGER,
+                    extra_col TEXT
+                );
+                CREATE TABLE metadata_index_jobs (
+                    path TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    parent_path TEXT NOT NULL,
+                    folder_path TEXT NOT NULL,
+                    root_path TEXT NOT NULL,
+                    mtime REAL,
+                    mtime_ns INTEGER,
+                    size INTEGER NOT NULL,
+                    state TEXT NOT NULL,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    error TEXT,
+                    queued_at REAL,
+                    started_at REAL,
+                    finished_at REAL,
+                    updated_at REAL NOT NULL
+                );
+                CREATE TABLE asset_derivatives (
+                    id INTEGER PRIMARY KEY,
+                    asset_id INTEGER NOT NULL,
+                    kind TEXT NOT NULL,
+                    variant TEXT NOT NULL,
+                    source_mtime_ns REAL NOT NULL,
+                    source_size INTEGER NOT NULL,
+                    format TEXT NOT NULL DEFAULT 'webp',
+                    quality INTEGER NOT NULL DEFAULT 85,
+                    max_long_edge INTEGER NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'queued',
+                    cache_path TEXT,
+                    byte_size INTEGER,
+                    last_accessed_at REAL,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    created_at REAL NOT NULL DEFAULT (julianday('now')),
+                    updated_at REAL NOT NULL DEFAULT (julianday('now'))
+                );
+                CREATE TABLE derivative_jobs (
+                    id INTEGER PRIMARY KEY,
+                    derivative_id INTEGER NOT NULL,
+                    priority INTEGER NOT NULL DEFAULT 3,
+                    state TEXT NOT NULL DEFAULT 'queued',
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    error TEXT,
+                    created_at REAL NOT NULL DEFAULT (julianday('now')),
+                    updated_at REAL NOT NULL DEFAULT (julianday('now')),
+                    started_at REAL,
+                    completed_at REAL
+                );
+                CREATE TABLE libraries (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL
+                );
+                CREATE TABLE library_import_paths (
+                    id INTEGER PRIMARY KEY,
+                    library_id INTEGER NOT NULL,
+                    path TEXT NOT NULL
+                );
+                CREATE TABLE catalog_rebuild_entries (
+                    job_id INTEGER NOT NULL,
+                    library_id INTEGER NOT NULL,
+                    path TEXT NOT NULL,
+                    parent_path TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    mtime_ns INTEGER,
+                    size INTEGER,
+                    width INTEGER,
+                    height INTEGER,
+                    mime_type TEXT,
+                    duration_ms INTEGER,
+                    codec TEXT,
+                    PRIMARY KEY(job_id, path)
+                );
+                CREATE TABLE integrity_check_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trigger TEXT NOT NULL,
+                    started_at REAL NOT NULL,
+                    finished_at REAL,
+                    status TEXT NOT NULL,
+                    error TEXT,
+                    issues_json TEXT NOT NULL,
+                    repairs_json TEXT NOT NULL
+                );
+            """)
+            issues = check_catalog_schema(conn)
+            injected_columns = ("extra_column_1", "extra_column_2", "extra_col")
+            col_issues = [issue for issue in issues if any(column in issue for column in injected_columns)]
+            assert len(col_issues) == 0, "Extra columns should not cause false positives"

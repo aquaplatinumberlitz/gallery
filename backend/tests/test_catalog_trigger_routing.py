@@ -29,6 +29,7 @@ from backend.metadata_store import (
     register_library,
     update_job_state,
 )
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 
 
@@ -262,15 +263,13 @@ def test_rebuild_writes_to_staging_then_activates(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
-    import sqlite3
-
     create_test_png(isolated_gallery_root / "image.png")
     library_id = int(register_library(isolated_gallery_root)["id"])
     rebuild, _ = catalog_service.queue_rebuild(library_id)
 
     assert catalog_service.run_once() is True
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         staging = conn.execute("SELECT count(*) FROM catalog_rebuild_entries").fetchone()[0]
         assert staging == 0
     finished = get_job(rebuild["id"])
@@ -281,8 +280,6 @@ def test_rebuild_marks_missing_assets_offline(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
-    import sqlite3
-
     image = isolated_gallery_root / "image.png"
     create_test_png(image)
     library_id = int(register_library(isolated_gallery_root)["id"])
@@ -296,7 +293,7 @@ def test_rebuild_marks_missing_assets_offline(
     finished = get_job(rebuild["id"])
     assert finished["state"] == "succeeded"
     assert finished["counters"]["offline"] >= 1
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         offline = conn.execute(
             "SELECT offline FROM assets WHERE library_id = ? AND path = ?",
             (library_id, str(image.resolve())),
@@ -308,8 +305,6 @@ def test_rebuild_preserves_canonical_on_failure(
     isolated_metadata_db: Path,
     isolated_gallery_root: Path,
 ):
-    import sqlite3
-
     create_test_png(isolated_gallery_root / "image.png")
     library_id = int(register_library(isolated_gallery_root)["id"])
     catalog_service.queue_scan(library_id, trigger="manual")
@@ -327,7 +322,7 @@ def test_rebuild_preserves_canonical_on_failure(
 
     finished = get_job(rebuild["id"])
     assert finished["state"] == "failed"
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         staging = conn.execute("SELECT count(*) FROM catalog_rebuild_entries").fetchone()[0]
         assert staging == 0
         assets = conn.execute(

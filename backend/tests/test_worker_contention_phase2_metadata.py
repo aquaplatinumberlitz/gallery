@@ -43,6 +43,7 @@ import pytest
 from backend import indexer
 from backend.indexer import MetadataLifecycleWorker
 from backend.metadata_extract import extract_metadata
+from backend.metadata_store._db import open_connection
 from tests.worker_contention_support import (
     capture_sql,
     install_metadata_clock,
@@ -141,17 +142,17 @@ def submit_log(monkeypatch: pytest.MonkeyPatch) -> list[SimpleNamespace]:
 
 
 def _asset_state(db_path: Path, path: Path | str) -> str:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         return str(conn.execute("SELECT metadata_state FROM assets WHERE path = ?", (str(path),)).fetchone()[0])
 
 
 def _has_metadata(db_path: Path, path: Path | str) -> bool:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         return conn.execute("SELECT 1 FROM image_metadata WHERE path = ?", (str(path),)).fetchone() is not None
 
 
 def _done_jobs_without_metadata(db_path: Path) -> list[str]:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         return [
             row[0]
             for row in conn.execute(

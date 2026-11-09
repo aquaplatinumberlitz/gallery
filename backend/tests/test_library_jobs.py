@@ -15,7 +15,6 @@ event payloads.
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -31,6 +30,7 @@ from backend.metadata_store import (
     update_job_state,
     update_library,
 )
+from backend.metadata_store._db import open_connection
 from backend.metadata_store.types import CatalogMaintenanceBusy
 from tests.conftest import create_test_png
 
@@ -156,7 +156,7 @@ def test_stats_and_job_history_endpoints(isolated_metadata_db: Path, isolated_ga
     scan = isolated_app.post(f"/api/libraries/{library_id}/scan")
     assert scan.status_code == 202
     catalog_service.run_once()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE assets SET offline = 1 WHERE path = ?",
             (str((isolated_gallery_root / "offline.png").resolve()),),

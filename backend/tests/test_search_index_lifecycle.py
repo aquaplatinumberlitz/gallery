@@ -26,7 +26,7 @@ from fastapi.testclient import TestClient
 import backend.metadata_store._migrations as migrations_module
 import backend.search_indexer as indexer_module
 from backend.metadata_store import register_library
-from backend.metadata_store._db import _connect
+from backend.metadata_store._db import _connect, open_connection
 from backend.metadata_store.search_index_store import (
     SearchIndexJobConflict,
     claim_next_search_index_job,
@@ -134,7 +134,7 @@ def test_v5_migration_failure_rolls_back_and_keeps_backup(
     with _connect() as conn, pytest.raises(RuntimeError, match="injected"):
         migrations_module._migrate_v4_to_v5(conn)
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
         assert (
             conn.execute(

@@ -20,7 +20,6 @@ Run when:
 
 from __future__ import annotations
 
-import sqlite3
 import time
 from pathlib import Path
 
@@ -30,6 +29,7 @@ from backend import scan_worker as catalog_service
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler
 from backend.metadata_store import get_asset_folder_listing, index_file, register_library
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 
 
@@ -55,7 +55,7 @@ def test_baseline_reports_preview_coverage_gap_with_no_current_preview_row(
     scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
 
     status = scheduler.library_status(library_id)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         preview_rows = conn.execute(
             "SELECT count(*) FROM asset_derivatives WHERE asset_id = ? AND kind = 'preview'",
             (asset_id,),
@@ -88,14 +88,14 @@ def test_baseline_source_change_leaves_historical_rows_without_current_work(
     time.sleep(0.01)
     create_test_png(image, size=(96, 72))
     changed = image.stat()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE assets SET mtime_ns = ?, size = ? WHERE id = ?",
             (changed.st_mtime_ns, changed.st_size, asset_id),
         )
     scheduler._reconcile_queued_jobs()
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         states = conn.execute(
             "SELECT DISTINCT status FROM asset_derivatives WHERE asset_id = ?",
             (asset_id,),
@@ -133,7 +133,7 @@ def test_target_successful_scan_queues_thumbnail_and_preview(
     library_id = int(register_library(isolated_gallery_root)["id"])
     catalog_service.queue_scan(library_id, trigger="manual")
     assert catalog_service.run_once() is True
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         rows = conn.execute("SELECT kind, count(*) FROM asset_derivatives GROUP BY kind ORDER BY kind").fetchall()
     expected = sorted((kind, len(variants)) for kind, variants in DERIVATIVE_VARIANTS.items())
     assert rows == expected
@@ -155,7 +155,7 @@ def test_phase_7_scan_converges_thumbnail_and_preview_files(
     catalog_service.queue_scan(library_id, trigger="manual")
     assert catalog_service.run_once() is True
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         rows = conn.execute("SELECT kind, status FROM asset_derivatives ORDER BY kind").fetchall()
     configured_kinds = sorted(kind for kind, variants in DERIVATIVE_VARIANTS.items() for _variant in variants)
     assert rows == [(kind, "queued") for kind in configured_kinds]
@@ -166,7 +166,7 @@ def test_phase_7_scan_converges_thumbnail_and_preview_files(
         deadline = time.monotonic() + 5
         ready_rows: list[tuple[str, str, str | None]] = []
         while time.monotonic() < deadline:
-            with sqlite3.connect(isolated_metadata_db) as conn:
+            with open_connection(isolated_metadata_db) as conn:
                 ready_rows = conn.execute(
                     "SELECT kind, status, cache_path FROM asset_derivatives ORDER BY kind"
                 ).fetchall()
@@ -198,7 +198,7 @@ def test_target_startup_catchup_repairs_absent_current_preview(
     scheduler.start()
     try:
         time.sleep(0.1)
-        with sqlite3.connect(isolated_metadata_db) as conn:
+        with open_connection(isolated_metadata_db) as conn:
             preview_rows = conn.execute(
                 "SELECT count(*) FROM asset_derivatives WHERE asset_id = ? AND kind = 'preview'",
                 (asset_id,),
@@ -220,14 +220,14 @@ def test_target_quota_eviction_never_leaves_queued_derivative_without_job(
     derivative_id = scheduler.schedule_derivative(asset_id, "thumbnail", str(thumbnail["name"]))
     cache_path = tmp_path / "ready.webp"
     cache_path.write_bytes(b"ready")
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = 5 WHERE id = ?",
             (str(cache_path), derivative_id),
         )
         conn.execute("DELETE FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,))
     scheduler._enforce_quota()
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         state = conn.execute("SELECT status FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()[0]
         jobs = conn.execute(
             "SELECT count(*) FROM derivative_jobs WHERE derivative_id = ?", (derivative_id,)
