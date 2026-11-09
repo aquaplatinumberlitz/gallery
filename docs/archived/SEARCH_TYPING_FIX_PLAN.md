@@ -1,6 +1,6 @@
 # Search-As-You-Type Fix Plan
 
-Status: Active
+Status: Completed (deployed 2026-11-09: `main` @ `da78bdb` on the VPS, schema v13 to v14 in about 3.4 s, `.v13.bak` kept; live checks: "masterpiece" prefix ladder 112/84/83/83/83, Hình/Hinh, Đáo/Dao and 美人 each match)
 
 Created: 2026-11-09
 
