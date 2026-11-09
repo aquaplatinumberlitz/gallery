@@ -21,7 +21,6 @@ derivative ``invalid_source`` outcome.
 from __future__ import annotations
 
 import os
-import sqlite3
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -33,6 +32,7 @@ from backend.metadata_store import (
     create_library,
     index_directory_tree,
 )
+from backend.metadata_store._db import open_connection
 from backend.metadata_store.browse_store import _browse_folder_counts_batch_conn
 from tests.conftest import create_test_png
 
@@ -80,7 +80,7 @@ def _names(folder: dict) -> list[str]:
 
 
 def _identity(db_path: Path, path: Path) -> str:
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         mtime_ns, size = conn.execute(
             "SELECT mtime_ns, size FROM assets WHERE path = ?", (str(path.resolve()),)
         ).fetchone()
@@ -89,7 +89,7 @@ def _identity(db_path: Path, path: Path) -> str:
 
 def _fail_thumbnails_invalid_source(db_path: Path, path: Path) -> None:
     """Seed the terminal derivative outcome the scheduler records for an undecodable source."""
-    with sqlite3.connect(db_path) as conn:
+    with open_connection(db_path) as conn:
         asset_id, mtime_ns, size = conn.execute(
             "SELECT id, mtime_ns, size FROM assets WHERE path = ?", (str(path.resolve()),)
         ).fetchone()
@@ -133,7 +133,7 @@ def test_metadata_state_failed_flag_excludes_cover(
     _png(album / "ok.png", 1)
     flagged = _png(album / "flagged.png", 2)
     library_id = _index(isolated_gallery_root)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("UPDATE assets SET metadata_state = 'failed' WHERE path = ?", (str(flagged.resolve()),))
 
     assert _names(_folders(isolated_app, library_id, isolated_gallery_root)["A"]) == ["ok.png"]
@@ -159,7 +159,7 @@ def test_transient_derivative_failure_does_not_hide_cover(
     flaky = _png(album / "flaky.png", 2)
     library_id = _index(isolated_gallery_root)
     _fail_thumbnails_invalid_source(isolated_metadata_db, flaky)
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.execute("UPDATE derivative_jobs SET result_code = 'attempts_exhausted'")
 
     assert _names(_folders(isolated_app, library_id, isolated_gallery_root)["A"]) == ["flaky.png"]

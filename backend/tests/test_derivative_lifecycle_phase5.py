@@ -37,6 +37,7 @@ import backend.thumbnails as thumbnails_module
 from backend.config import DERIVATIVE_VARIANTS
 from backend.derivative_scheduler import DerivativeScheduler, _LeaseHeartbeat
 from backend.metadata_store import get_asset_folder_listing, index_file, register_library
+from backend.metadata_store._db import open_connection
 from tests.conftest import create_test_png
 
 
@@ -52,7 +53,7 @@ def _catalog_image(root: Path) -> tuple[Path, int, int]:
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
+    conn = open_connection(db_path)  # a ClosingConnection: ``with _connect(...)`` commits and closes
     conn.row_factory = sqlite3.Row
     return conn
 

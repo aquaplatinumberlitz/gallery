@@ -37,6 +37,7 @@ from backend.derivative_scheduler.capacity import CapacityLedger
 from backend.derivative_scheduler.models import DerivativeReconcileSummary
 from backend.indexer import rebuild_index_scope
 from backend.metadata_store import _connect
+from backend.metadata_store._db import open_connection
 from tests.test_worker_contention_wk03 import (
     OldAlgorithmScheduler,
     _candidates,
@@ -84,7 +85,7 @@ class World:
         return images
 
     def asset(self, path: Path) -> sqlite3.Row:
-        with sqlite3.connect(self.db_path) as conn:
+        with open_connection(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute("SELECT id, mtime_ns, size FROM assets WHERE path = ?", (str(path),)).fetchone()
         assert row is not None
@@ -104,7 +105,7 @@ class World:
         mtime_ns = int(asset["mtime_ns"]) if mtime_ns is None else mtime_ns
         size = int(asset["size"]) if size is None else size
         seeded: list[tuple[int, Path]] = []
-        with sqlite3.connect(self.db_path) as conn:
+        with open_connection(self.db_path) as conn:
             for kind, variant, max_edge, quality in VARIANTS:
                 cache_path = self.cache_dir / f"{asset['id']}_{variant}_{mtime_ns}_{size}.webp"
                 if with_file:
@@ -136,7 +137,7 @@ class World:
         rebuild_index_scope(self.root)
 
     def derivative(self, derivative_id: int) -> dict[str, Any]:
-        with sqlite3.connect(self.db_path) as conn:
+        with open_connection(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute("SELECT * FROM asset_derivatives WHERE id = ?", (derivative_id,)).fetchone()
             jobs = conn.execute(
@@ -145,7 +146,7 @@ class World:
         return {**dict(row), "jobs": [tuple(job) for job in jobs]}
 
     def stale_ready_count(self) -> int:
-        with sqlite3.connect(self.db_path) as conn:
+        with open_connection(self.db_path) as conn:
             return int(
                 conn.execute(
                     """
@@ -157,7 +158,7 @@ class World:
             )
 
     def ready_bytes(self) -> int:
-        with sqlite3.connect(self.db_path) as conn:
+        with open_connection(self.db_path) as conn:
             return int(
                 conn.execute(
                     "SELECT COALESCE(sum(byte_size), 0) FROM asset_derivatives WHERE status = 'ready'"
@@ -202,7 +203,7 @@ def test_touch_and_rescan_retire_old_identity_rows_and_files(world: World) -> No
     for derivative_id, cache_path in bystander:
         assert world.derivative(derivative_id)["status"] == "ready" and cache_path.is_file()
     new_asset = world.asset(touched)
-    with sqlite3.connect(world.db_path) as conn:
+    with open_connection(world.db_path) as conn:
         current = conn.execute(
             "SELECT status FROM asset_derivatives WHERE asset_id = ? AND source_mtime_ns = ?",
             (new_asset["id"], new_asset["mtime_ns"]),
@@ -216,7 +217,7 @@ def test_scan_commit_hook_retires_even_when_warm_policy_is_off(world: World) -> 
 
     (image,) = world.add_images(1)
     old = world.seed_ready(image)
-    with sqlite3.connect(world.db_path) as conn:
+    with open_connection(world.db_path) as conn:
         conn.execute("UPDATE libraries SET warm_enabled = 0 WHERE id = ?", (world.library_id,))
     world.touch(image)
     world.rescan()
@@ -230,7 +231,7 @@ def test_retire_ignores_inactive_assets_and_assets_without_a_known_identity(worl
     offline, unknown = world.add_images(2)
     stale_offline = world.seed_ready(offline, mtime_ns=1_000_000_000, size=1)
     stale_unknown = world.seed_ready(unknown, mtime_ns=1_000_000_000, size=1)
-    with sqlite3.connect(world.db_path) as conn:
+    with open_connection(world.db_path) as conn:
         conn.execute("UPDATE assets SET offline = 1 WHERE path = ?", (str(offline),))
         conn.execute("UPDATE assets SET mtime_ns = NULL WHERE path = ?", (str(unknown),))
 
@@ -339,7 +340,7 @@ def test_batch_outcomes_equal_retire_first_then_the_old_algorithm_across_a_quota
     world: World, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     candidates, _old = _quota_world(world)
-    with sqlite3.connect(world.db_path) as conn:
+    with open_connection(world.db_path) as conn:
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     boundary = 0
     for quota in range(0, 12_000, 500):
@@ -475,7 +476,7 @@ def test_a_deferred_unlink_never_removes_a_file_a_row_references_again(world: Wo
     scheduler.acquire_serving(str(cache_path))
     scheduler.retire_superseded_derivatives()
     # The identity became current again and the same cache file was republished before the lease ended.
-    with sqlite3.connect(world.db_path) as conn:
+    with open_connection(world.db_path) as conn:
         conn.execute(
             "UPDATE asset_derivatives SET status = 'ready', cache_path = ?, byte_size = ? WHERE id = ?",
             (str(cache_path), BYTES, derivative_id),

@@ -24,6 +24,7 @@ import pytest
 
 from backend.metadata_store import _connect
 from backend.metadata_store import _migrations as migrations_module
+from backend.metadata_store._db import open_connection
 from backend.metadata_store.identity import active_catalog_file_sql
 
 
@@ -53,7 +54,7 @@ def _insert_file_index(conn: sqlite3.Connection, path: str, library_id: int | No
 
 
 def _database_dump(path: Path) -> str:
-    with sqlite3.connect(path) as conn:
+    with open_connection(path) as conn:
         return "\n".join(conn.iterdump())
 
 

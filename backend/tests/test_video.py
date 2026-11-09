@@ -30,6 +30,7 @@ from backend.metadata_store import (
     index_file,
     register_library,
 )
+from backend.metadata_store._db import open_connection
 from backend.metadata_store._schema import CATALOG_SCHEMA_VERSION
 
 _FFMPEG = shutil.which("ffmpeg")
@@ -92,7 +93,7 @@ def test_video_indexing_and_library_stats(
 
     assert index_directory_tree(isolated_gallery_root, include_metadata=False) == 3
 
-    with sqlite3.connect(isolated_metadata_db) as conn:
+    with open_connection(isolated_metadata_db) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM assets WHERE path = ?", (str(video_file.resolve()),)).fetchone()
         assert row is not None
