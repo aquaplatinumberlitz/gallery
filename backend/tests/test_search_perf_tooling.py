@@ -19,7 +19,13 @@ import json
 from pathlib import Path
 
 from scripts import bench_related_assets, bench_search
-from scripts.bench_search import SEARCH_COUNT_CLASSES, SEARCH_QUERY_CLASSES
+from scripts.bench_search import (
+    SCOPED_COUNT_CLASSES,
+    SCOPED_SEARCH_CLASSES,
+    SCOPED_SEARCH_SCOPES,
+    SEARCH_COUNT_CLASSES,
+    SEARCH_QUERY_CLASSES,
+)
 from scripts.perf_manifest import expected_reports, load_perf_manifest
 from scripts.summarize_perf_reports import summarize
 from scripts.validate_perf_reports import validate_reports
@@ -102,6 +108,135 @@ def test_search_benchmark_covers_the_count_endpoint_for_dense_queries() -> None:
         "count_dense_three_char",
     }
     assert {query for _name, query, _minimum in SEARCH_COUNT_CLASSES} >= {"a", "m", "c", "prompt:c", "name:a"}
+
+
+def test_search_benchmark_covers_the_scoped_workloads_of_the_ui_default() -> None:
+    """SC-01: library, folder-root, nested-folder and one-album scopes run the dense, fielded, keyset and count classes."""
+    assert SCOPED_SEARCH_SCOPES == ("library", "folder_root", "folder_nested", "folder_album")
+    cases = {name: (query, pages, minimum) for name, query, pages, minimum in SCOPED_SEARCH_CLASSES}
+    assert set(cases) == {
+        "short_free_a",
+        "short_free_m",
+        "short_free_c",
+        "dense_two_char_filename",
+        "dense_three_char_filename",
+        "fielded",
+        "short_free_a_keyset_pages",
+        "short_free_c_keyset_pages",
+        "dense_three_char_keyset_pages",
+    }
+    assert cases["short_free_a"] == ("a", 1, 50)
+    assert cases["dense_two_char_filename"][0] == "as"
+    assert cases["fielded"][0] == 'constellation model:perf-model-0 sampler:"Euler a"'
+    for name in ("short_free_a_keyset_pages", "short_free_c_keyset_pages", "dense_three_char_keyset_pages"):
+        assert cases[name][1:] == (3, 150), name
+    assert {name: (query, minimum) for name, query, minimum in SCOPED_COUNT_CLASSES} == {
+        "count_short_free_a": ("a", 50),
+        "count_short_free_c": ("c", 50),
+        "count_dense_three_char_filename": ("ass", 50),
+        "count_fielded": ('constellation model:perf-model-0 sampler:"Euler a"', 1),
+    }
+
+
+def _fake_scope_backend(monkeypatch, requests: list[tuple[str, dict]], total: int = 60) -> None:
+    libraries = [
+        {
+            "id": 7,
+            "import_paths": [{"id": 11, "path": "/fixture/root"}],
+        }
+    ]
+
+    def fake_get(_base_url: str, path: str, params: dict) -> tuple[float, object]:
+        if path == "/api/libraries":
+            return 1.0, libraries
+        assert path == "/api/search" and params["q"] == "search_album_000"
+        return 1.0, {
+            "albums": [
+                {"name": "search_album_000", "path": "/fixture/root/a1111/_synthetic_search/search_album_000"},
+            ]
+        }
+
+    def fake_post(_base_url: str, path: str, body: dict) -> tuple[float, dict]:
+        requests.append((path, body))
+        if path == "/api/search/count":
+            return 2.0, {"total": total, "has_more": True}
+        media = [{"model": "perf-model-3"}] * 50
+        return 2.0, {"returned": 50, "albums": [], "media": media, "next_cursor": "next"}
+
+    monkeypatch.setattr(bench_search, "_get_json", fake_get)
+    monkeypatch.setattr(bench_search, "_post_json", fake_post)
+
+
+def test_scoped_scopes_are_resolved_from_the_backend_as_canonical_id_scopes(monkeypatch) -> None:
+    _fake_scope_backend(monkeypatch, [])
+    monkeypatch.setenv("GALLERY_PERF_ALBUM_NAME", "a1111")
+
+    scopes = bench_search.resolve_perf_scopes("http://example.test")
+
+    assert scopes == {
+        "library": {"kind": "library", "library_id": 7},
+        "folder_root": {"kind": "folder", "library_id": 7, "import_path_id": 11, "relative_path": ""},
+        "folder_nested": {"kind": "folder", "library_id": 7, "import_path_id": 11, "relative_path": "a1111"},
+        "folder_album": {
+            "kind": "folder",
+            "library_id": 7,
+            "import_path_id": 11,
+            "relative_path": "a1111/_synthetic_search/search_album_000",
+        },
+    }
+
+
+def test_scoped_workloads_post_the_ui_request_per_scope_and_walk_keyset_pages(monkeypatch) -> None:
+    requests: list[tuple[str, dict]] = []
+    _fake_scope_backend(monkeypatch, requests)
+
+    results = bench_search.bench_scoped_search_classes("http://example.test", iterations=1)
+
+    names = [result["class"] for result in results]
+    assert (
+        len(names)
+        == len(set(names))
+        == len(SCOPED_SEARCH_SCOPES) * (len(SCOPED_SEARCH_CLASSES) + len(SCOPED_COUNT_CLASSES))
+    )
+    assert "scoped_folder_album_short_free_a_keyset_pages" in names
+    assert "scoped_library_count_dense_three_char_filename" in names
+    assert all(result["contract_ok"] for result in results)
+    assert {scope for _path, body in requests for scope in [body["scope"]["kind"]]} == {"library", "folder"}
+    search_bodies = [body for path, body in requests if path == "/api/search/query"]
+    assert search_bodies and all(body["schema_version"] == 1 and body["mode"] == "lexical" for body in search_bodies)
+    chained = [body for body in search_bodies if body.get("cursor")]
+    assert chained and {body["cursor"] for body in chained} == {"next"}
+    assert {result["scope"] for result in results} == set(SCOPED_SEARCH_SCOPES)
+
+
+def test_scoped_workloads_fail_closed_when_a_scope_cannot_be_resolved(monkeypatch) -> None:
+    monkeypatch.setattr(bench_search, "_get_json", lambda *_args, **_kwargs: (1.0, []))
+    monkeypatch.setattr(bench_search, "_post_json", lambda *_args, **_kwargs: _unresolved_scope_post())
+
+    results = bench_search.bench_scoped_search_classes("http://example.test", iterations=1)
+
+    assert results and not any(result["contract_ok"] for result in results)
+
+
+def _unresolved_scope_post() -> None:
+    raise AssertionError("an unresolved scope must not be measured")
+
+
+def test_scoped_count_uses_the_scope_it_is_given(monkeypatch) -> None:
+    posted: list[tuple[str, dict]] = []
+
+    def fake_post(_base_url: str, path: str, body: dict) -> tuple[float, dict]:
+        posted.append((path, body))
+        return 3.0, {"total": 4096, "has_more": True}
+
+    monkeypatch.setattr(bench_search, "_post_json", fake_post)
+    scope = {"kind": "library", "library_id": 3}
+
+    result = bench_search.bench_search_count_case("http://example.test", "count", "a", 2, 50, scope=scope)
+
+    assert result["contract_ok"] is True
+    assert result["scope"] == "library"
+    assert all(body["scope"] == scope for _path, body in posted)
 
 
 def test_ci_perf_manifest_declares_every_blocking_report() -> None:

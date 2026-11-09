@@ -351,19 +351,21 @@ def get_gallery_stats() -> dict[str, int]:
         }
 
 
-def list_libraries(*, conn: sqlite3.Connection | None = None) -> list[LibraryRecord]:
+def list_libraries(*, conn: sqlite3.Connection | None = None, include_asset_counts: bool = True) -> list[LibraryRecord]:
     """Return all registered libraries in stable ID order.
 
-    Pass ``conn`` (a status read snapshot).
+    Pass ``conn`` (a status read snapshot). ``include_asset_counts=False`` skips the per-library asset count (a
+    scan of every active asset, about 25 ms per 100k assets) and reports ``asset_count`` as 0: for callers that
+    only resolve ids and import paths, such as search scope resolution.
     """
     _initialize_database()
     if conn is not None:
-        return _list_libraries_conn(conn)
+        return _list_libraries_conn(conn, include_asset_counts=include_asset_counts)
     with _connect_read() as owned:
-        return _list_libraries_conn(owned)
+        return _list_libraries_conn(owned, include_asset_counts=include_asset_counts)
 
 
-def _list_libraries_conn(conn: sqlite3.Connection) -> list[LibraryRecord]:
+def _list_libraries_conn(conn: sqlite3.Connection, *, include_asset_counts: bool = True) -> list[LibraryRecord]:
     """Return all registered libraries using the caller's connection."""
     rows = conn.execute("SELECT * FROM libraries ORDER BY id").fetchall()
     import_paths_by_library: dict[int, list[LibraryImportPathRecord]] = {int(row["id"]): [] for row in rows}
@@ -386,17 +388,21 @@ def _list_libraries_conn(conn: sqlite3.Connection) -> list[LibraryRecord]:
     ):
         patterns_by_library[int(pattern["library_id"])].append(str(pattern["pattern"]))
 
-    asset_counts = {
-        int(asset_count["library_id"]): int(asset_count["asset_count"])
-        for asset_count in conn.execute(
-            f"""
-            SELECT library_id, count(*) AS asset_count
-            FROM assets
-            WHERE type IN ('image', 'video') AND {_active_asset_where()}
-            GROUP BY library_id
-            """
-        )
-    }
+    asset_counts = (
+        {
+            int(asset_count["library_id"]): int(asset_count["asset_count"])
+            for asset_count in conn.execute(
+                f"""
+                SELECT library_id, count(*) AS asset_count
+                FROM assets
+                WHERE type IN ('image', 'video') AND {_active_asset_where()}
+                GROUP BY library_id
+                """
+            )
+        }
+        if include_asset_counts
+        else {}
+    )
     return [
         _serialize_library_row(
             row,

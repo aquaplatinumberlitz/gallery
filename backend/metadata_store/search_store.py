@@ -226,6 +226,9 @@ def _search_file_index_fts(
         return rows, root
 
     pattern = _like_pattern(folded_query)
+    # A scope predicate (library id, path range) tempts the planner into scanning every file row of the scope and
+    # testing its folded name (120 ms per 100k files) instead of the few folder rows: read by type, as unscoped.
+    type_index = "INDEXED BY idx_file_index_type" if scope_sql else ""
     rows = list(
         conn.execute(
             f"""
@@ -233,7 +236,7 @@ def _search_file_index_fts(
                    catalog_library.name AS library_name,
                    {duration_sql} AS duration_ms,
                    {mime_type_sql} AS mime_type
-            FROM file_index fi
+            FROM file_index fi {type_index}
             {owner_join}
             WHERE EXISTS (SELECT 1 FROM file_index_fold AS name_fold
                           WHERE name_fold.file_rowid = fi.rowid AND name_fold.name LIKE ? ESCAPE '\\')
