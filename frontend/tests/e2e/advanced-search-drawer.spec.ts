@@ -355,6 +355,8 @@ test.describe("AdvancedSearchDrawer", () => {
     await expect(drawer).toContainText("Generation settings");
     await expect(drawer).toContainText("Dimensions");
     await expect(drawer).toContainText("Custom metadata");
+    // AV-03: Indexed facets is a collapsed section below the filters; open it to read its values.
+    await drawer.getByRole("button", { name: /Indexed facets/ }).click();
     await expect(drawer.getByLabel("Tools indexed values")).toContainText("Unknown");
     await expect(drawer.getByLabel("Tools indexed values")).toContainText("SwarmUI");
     await expect(drawer.getByLabel("Seed indexed values")).toContainText("missing");
@@ -873,6 +875,8 @@ for (const viewport of [
 
       await drawer.getByRole("button", { name: /Generation settings/ }).click();
       await expectNoHorizontalOverflow(page.getByTestId("advanced-search-scroll-body"));
+      // AV-03: Indexed facets is a collapsed section below the filters; open it to reach the chips.
+      await drawer.getByRole("button", { name: /Indexed facets/ }).click();
 
       // Clickable facet chips grow to the 44px touch height; their label must stay vertically centered.
       const facetChip = drawer.getByRole("button", { name: /^Filter by / }).first();

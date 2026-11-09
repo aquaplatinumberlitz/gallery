@@ -30,6 +30,7 @@ from backend.metadata_store import (
     register_library,
     unregister_library,
 )
+from backend.metadata_store.search_text_index import rebuild_search_text_index
 
 client = TestClient(app)
 
@@ -259,6 +260,9 @@ def _setup_test_data() -> None:
                 ),
             )
         _TEST_INSERTED_PATHS.append(resolved)
+    # Raw INSERTs bypass the writer path: reconcile the folded search index (schema v14).
+    with _connect() as conn:
+        rebuild_search_text_index(conn)
 
 
 def _teardown_test_data() -> None:
@@ -825,6 +829,8 @@ def _insert_cjk_fixture():
                 now,
             ),
         )
+    with _connect() as conn:
+        rebuild_search_text_index(conn)  # raw INSERT bypasses the writer path
     _TEST_INSERTED_PATHS.append(cjk_resolved)
     return cjk_resolved
 

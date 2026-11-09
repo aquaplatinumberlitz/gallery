@@ -10,6 +10,8 @@ bigram phrase.
 
 Guarantees:
 * ``cjk_runs``/``CJK_RUN_RE`` are the single definition of a CJK run for indexing and querying.
+* Documents are built from ``fold_text`` of the stored prompt (katakana become hiragana, half-width forms
+  are normalized); callers must pass ``fold_text(query)`` to ``plan_short_query``.
 * Rows exist only for prompts with CJK text, so Latin-only libraries pay no storage.
 * The FTS table follows ``image_metadata_cjk`` through triggers; ``image_metadata_cjk`` follows
   ``image_metadata`` deletes through a trigger and prompt writes through ``sync_cjk_row``.
@@ -24,6 +26,8 @@ from __future__ import annotations
 import re
 import sqlite3
 from dataclasses import dataclass
+
+from ..text_fold import fold_text
 
 # Han, kana, prolonged-sound mark, half-width katakana and ideographic iteration marks. Hangul is
 # space-delimited, so Unicode FTS token prefixes already cover it. Punctuation (、。・) ends a run
@@ -95,8 +99,8 @@ def plan_short_query(query: str) -> ShortQueryPlan | None:
 
 def sync_cjk_row(conn: sqlite3.Connection, metadata_id: int, prompt: str | None, negative_prompt: str | None) -> None:
     """Make ``image_metadata_cjk`` match one metadata row (insert, update or delete)."""
-    prompt_doc = cjk_bigram_document(prompt)
-    negative_doc = cjk_bigram_document(negative_prompt)
+    prompt_doc = cjk_bigram_document(fold_text(prompt))
+    negative_doc = cjk_bigram_document(fold_text(negative_prompt))
     if not prompt_doc and not negative_doc:
         conn.execute(f"DELETE FROM {CJK_ROW_TABLE} WHERE metadata_id = ?", (metadata_id,))
         return
@@ -137,8 +141,8 @@ def rebuild_cjk_index(conn: sqlite3.Connection, *, batch_size: int = 2000) -> in
 
     for row in conn.execute("SELECT id, prompt, negative_prompt FROM image_metadata"):
         metadata_id = int(row[0])
-        prompt_doc = cjk_bigram_document(row[1])
-        negative_doc = cjk_bigram_document(row[2])
+        prompt_doc = cjk_bigram_document(fold_text(row[1]))
+        negative_doc = cjk_bigram_document(fold_text(row[2]))
         if prompt_doc or negative_doc:
             seen.add(metadata_id)
         if (prompt_doc, negative_doc) != existing.get(metadata_id, ("", "")):

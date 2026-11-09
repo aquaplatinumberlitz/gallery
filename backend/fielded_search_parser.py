@@ -11,6 +11,8 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
 
+from .text_fold import fold_text
+
 FIELD_PATTERN = re.compile(
     r"""(?ix)
     \b(
@@ -288,20 +290,60 @@ def _unicode_match_query(query: str) -> str:
     return " AND ".join(_escape_fts_token(token) for token in tokens)
 
 
-def _trigram_field_rowids(builder: _ConditionBuilder, column: str, value: str) -> str | None:
-    """Return a selective trigram rowid query without changing LIKE semantics."""
-    if len(value.strip()) < 3 or "*" in value:
-        return None
-    match_query = f"{column} : ({_escape_fts_token(value.strip())})"
-    return (
-        "SELECT rowid FROM image_metadata_fts_trigram "
-        f"WHERE image_metadata_fts_trigram MATCH {builder.next_param(match_query)}"
+_FOLDED_METADATA_COLUMNS = frozenset({"prompt", "negative_prompt", "model", "sampler"})
+
+
+def _folded_contains(builder: _ConditionBuilder, column: str, value: str) -> str:
+    """Return SQL for "``column`` contains ``value``" over folded text (accent, width, kana insensitive).
+
+    ``prompt``, ``negative_prompt``, ``model`` and ``sampler`` read ``image_metadata_fold``; ``name`` reads
+    ``file_index_fold`` through the row's path. A value of three or more folded characters first narrows
+    candidates through the folded trigram index (exact substring semantics); the folded LIKE stays as the
+    authoritative check, so shorter values and ``*`` values keep plain contains semantics.
+    """
+    folded = fold_text(value)
+    like = builder.next_param(f"%{_escape_like_literal(folded)}%")
+    use_trigram = len(folded.strip()) >= 3 and "*" not in value
+    if column == "name":
+        exact = (
+            "EXISTS (SELECT 1 FROM file_index AS fold_fi "
+            "JOIN file_index_fold AS fold_ff ON fold_ff.file_rowid = fold_fi.rowid "
+            f"WHERE fold_fi.path = m.path AND fold_ff.name LIKE {like} ESCAPE '\\')"
+        )
+        if not use_trigram:
+            return (
+                "m.path IN (SELECT scan_fi.path FROM file_index_fold AS scan_ff "
+                "JOIN file_index AS scan_fi ON scan_fi.rowid = scan_ff.file_rowid "
+                f"WHERE scan_ff.name LIKE {like} ESCAPE '\\')"
+            )
+        match = builder.next_param(f"name : ({_escape_fts_token(folded.strip())})")
+        candidate = (
+            "m.path IN (SELECT trigram_fi.path FROM file_index_fold_fts_trigram "
+            "JOIN file_index AS trigram_fi ON trigram_fi.rowid = file_index_fold_fts_trigram.rowid "
+            f"WHERE file_index_fold_fts_trigram MATCH {match})"
+        )
+        return f"({candidate} AND {exact})"
+    exact = (
+        "EXISTS (SELECT 1 FROM image_metadata_fold AS fold_f WHERE fold_f.metadata_id = m.id "
+        f"AND fold_f.{column} LIKE {like} ESCAPE '\\')"
     )
+    if not use_trigram:
+        # Short or wildcard values: scan the compact folded table instead of the wide metadata rows.
+        return (
+            "m.id IN (SELECT scan_f.metadata_id FROM image_metadata_fold AS scan_f "
+            f"WHERE scan_f.{column} LIKE {like} ESCAPE '\\')"
+        )
+    rowids = _folded_candidate_rowids(builder, column, value)
+    return f"(m.id IN ({rowids}) AND {exact})"
 
 
-def _trigram_field_candidate(builder: _ConditionBuilder, column: str, value: str) -> str | None:
-    rowids = _trigram_field_rowids(builder, column, value)
-    return f"m.id IN ({rowids})" if rowids else None
+def _folded_candidate_rowids(builder: _ConditionBuilder, column: str, value: str) -> str | None:
+    """Return a selective folded-trigram rowid query for a metadata column (None for short values)."""
+    folded = fold_text(value).strip()
+    if len(folded) < 3 or "*" in value:
+        return None
+    match = builder.next_param(f"{column} : ({_escape_fts_token(folded)})")
+    return f"SELECT rowid FROM image_metadata_fold_fts_trigram WHERE image_metadata_fold_fts_trigram MATCH {match}"
 
 
 def _split_unquoted(value: str, delimiter: str) -> list[str]:
@@ -499,13 +541,10 @@ def _handle_standard_field(builder: _ConditionBuilder, ft: FieldToken) -> None:
         joiner = " AND " if ft.quote_char and "," in ft.value else " OR "
         likes: list[str] = []
         for value in values:
-            like = f"m.{col} LIKE {builder.next_param(f'%{_escape_like_literal(value)}%')} ESCAPE '\\'"
-            trigram_candidate = (
-                _trigram_field_candidate(builder, col, value)
-                if ft.field in {"prompt", "negative", "name", "sampler"}
-                else None
-            )
-            likes.append(f"({trigram_candidate} AND {like})" if trigram_candidate else like)
+            if col in _FOLDED_METADATA_COLUMNS or col == "name":
+                likes.append(_folded_contains(builder, col, value))
+                continue
+            likes.append(f"m.{col} LIKE {builder.next_param(f'%{_escape_like_literal(value)}%')} ESCAPE '\\'")
         builder.conditions.append("(" + joiner.join(likes) + ")")
         return
     if ft.field in NUMERIC_FIELDS:
@@ -531,7 +570,10 @@ def _handle_model(builder: _ConditionBuilder, ft: FieldToken) -> None:
     joiner = " AND " if ft.quote_char and "," in ft.value else " OR "
     candidates: list[str] = []
     for value in values:
-        direct = f"m.model LIKE {builder.next_param(f'%{_escape_like_literal(value)}%')} ESCAPE '\\'"
+        direct = (
+            "EXISTS (SELECT 1 FROM image_metadata_fold AS fold_f WHERE fold_f.metadata_id = m.id "
+            f"AND fold_f.model LIKE {builder.next_param(f'%{_escape_like_literal(fold_text(value))}%')} ESCAPE '\\')"
+        )
         if "*" in value:
             candidates.append(direct)
             continue
@@ -546,7 +588,7 @@ def _handle_model(builder: _ConditionBuilder, ft: FieldToken) -> None:
             "AND identity_asset.offline = 0 AND identity_asset.deleted_at IS NULL"
         )
         alias = "lower(coalesce(m.model_hash, '')) != '' AND lower(m.model_hash) IN (" + alias_hashes + ")"
-        trigram_rowids = _trigram_field_rowids(builder, "model", value)
+        trigram_rowids = _folded_candidate_rowids(builder, "model", value)
         if trigram_rowids:
             candidate_rowids = (
                 f"{trigram_rowids} UNION SELECT alias_metadata.id FROM image_metadata AS alias_metadata "

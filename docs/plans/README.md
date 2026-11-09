@@ -2,13 +2,13 @@
 
 Status: Maintained index
 
-Last reviewed: 2026-11-08
+Last reviewed: 2026-11-09
 
 Active plans:
 
 | Plan | Status | Created |
 |------|--------|---------|
-| [UX Review Fix](UX_REVIEW_FIX_PLAN.md) | Active | 2026-11-08 |
+| [Search-As-You-Type Fix](SEARCH_TYPING_FIX_PLAN.md) | Active | 2026-11-09 |
 
 Deferred work no plan owns yet is tracked in [Backlog](BACKLOG.md).
 
@@ -16,6 +16,7 @@ Completed plans:
 
 | Plan | Completed | Archived |
 |------|-----------|----------|
+| UX Review Fix | 2026-11-09 | [`../archived/UX_REVIEW_FIX_PLAN.md`](../archived/UX_REVIEW_FIX_PLAN.md) |
 | Pipeline Audit Fix | 2026-11-03 | [`../archived/PIPELINE_AUDIT_FIX_PLAN.md`](../archived/PIPELINE_AUDIT_FIX_PLAN.md) |
 | Perf Stretch | 2026-11-03 | [`../archived/PERF_STRETCH_PLAN.md`](../archived/PERF_STRETCH_PLAN.md) |
 | Image Pipeline | 2026-11-02 | [`../archived/IMAGE_PIPELINE_PLAN.md`](../archived/IMAGE_PIPELINE_PLAN.md) |

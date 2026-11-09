@@ -393,7 +393,7 @@ class TestBuildFieldedSearchSql:
         sql, params = build_fielded_search_sql(parsed, limit=10)
         assert "MATCH" in sql
         assert "m.seed" in sql
-        assert "m.model" in sql
+        assert "fold_f.model" in sql  # model contains-match reads the folded index (schema v14)
         assert "LIKE" in sql
 
     # --- model_or_hash SQL ---
@@ -408,7 +408,7 @@ class TestBuildFieldedSearchSql:
     def test_model_sql_keeps_direct_name_match_and_expands_observed_aliases(self):
         parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="model", value="foo")])
         sql, params = build_fielded_search_sql(parsed, limit=10)
-        assert "m.model LIKE" in sql or "m.model =" in sql
+        assert "fold_f.model LIKE" in sql  # contains-match over the folded model text (schema v14)
         assert "asset_model_identity_values" in sql
         assert "identity_asset.offline = 0" in sql
         assert "identity.normalized_hash != ''" in sql
@@ -559,7 +559,7 @@ class TestBuildFieldedSearchSql:
         parsed = ParsedQuery(residual_text="", fields=[FieldToken(field="sampler", value="Euler")])
         sql, params = build_fielded_search_sql(parsed, limit=10)
         assert "LIKE" in sql
-        assert "%Euler%" in str(params)
+        assert "%euler%" in str(params)  # values are folded (casefolded) like the indexed text
 
     def test_scheduler_field_sql_like(self):
         """scheduler:karras should use LIKE %%karras%%."""

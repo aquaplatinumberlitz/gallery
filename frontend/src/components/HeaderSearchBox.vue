@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { Loader2, Search, X } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
+import { isEnterCommit } from "@/lib/imeComposition";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = withDefaults(
@@ -27,6 +28,11 @@ const emit = defineEmits<{
 }>();
 
 const hasQuery = computed(() => props.modelValue.length > 0);
+
+// CJ-02: the Enter that confirms an IME candidate is not a submit.
+const onKeydown = (event: KeyboardEvent) => {
+  if (isEnterCommit(event)) emit("submit");
+};
 </script>
 
 <template>
@@ -37,7 +43,7 @@ const hasQuery = computed(() => props.modelValue.length > 0);
       :id="id"
       :model-value="modelValue"
       @update:model-value="emit('update:modelValue', $event)"
-      @keydown.enter="emit('submit')"
+      @keydown="onKeydown"
       type="search"
       variant="ghost"
       :placeholder="placeholder"

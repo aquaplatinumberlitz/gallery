@@ -129,7 +129,15 @@ describe("AdvancedSearchDrawer", () => {
     expect(footer.classes()).toContain("shrink-0");
   });
 
-  it("shows indexed facet values as readable wrapped items", () => {
+  // AV-03: Indexed facets is a collapsed section below the filters; open it to read its values.
+  const openIndexedFacets = async (wrapper: ReturnType<typeof createWrapper>) => {
+    const trigger = wrapper.findAll("button").find((button) => button.text().includes("Indexed facets"));
+    expect(trigger).toBeDefined();
+    await trigger!.trigger("click");
+    await flushPromises();
+  };
+
+  it("shows indexed facet values as readable wrapped items", async () => {
     facetState.data.value = {
       model: [],
       sampler: [],
@@ -152,6 +160,7 @@ describe("AdvancedSearchDrawer", () => {
       ],
     };
     const wrapper = createWrapper();
+    await openIndexedFacets(wrapper);
 
     expect(wrapper.get('[aria-label="Tools indexed values"]').text()).toContain("SwarmUI46");
     expect(wrapper.get('[aria-label="Seed indexed values"]').text()).toContain("missing102");
@@ -333,6 +342,7 @@ describe("AdvancedSearchDrawer", () => {
       scheduler: [],
     };
     const wrapper = createWrapper();
+    await openIndexedFacets(wrapper);
     const chip = wrapper.find('button[aria-label="Filter by Model: PonyXL (12 assets)"]');
     expect(chip.exists()).toBe(true);
     await chip.trigger("click");

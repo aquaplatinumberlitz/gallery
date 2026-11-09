@@ -15,10 +15,10 @@ from ..metadata_extract import ExtractedMetadata, metadata_sidecar_identity, par
 from ._asset_store import _normalize_asset_mtime_ns, _upsert_asset_conn
 from ._db import _connect_read
 from ._resources import _replace_image_resources_conn
-from .cjk_index import sync_cjk_path
 from .db_writer import LANE_NORMAL, LANE_PRIORITY, run_write, writer_connection
 from .identity import image_metadata_params_match_sql
 from .metadata_queue import _mark_current_metadata_done, _metadata_job_from_path
+from .search_text_index import sync_file_name_fold, sync_search_text_path
 from .types import CachedDimensions
 
 
@@ -189,7 +189,9 @@ def _upsert_extracted_metadata_conn(conn: sqlite3.Connection, metadata: Extracte
             metadata.source_size,
         ),
     )
-    sync_cjk_path(conn, metadata.path, metadata.prompt, metadata.negative_prompt)
+    sync_search_text_path(
+        conn, metadata.path, metadata.prompt, metadata.negative_prompt, metadata.model, metadata.sampler
+    )
     _upsert_asset_conn(
         conn,
         path=metadata.path,
@@ -704,7 +706,7 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
                 source_size,
             ),
         )
-        sync_cjk_path(conn, resolved_path, prompt, negative_prompt)
+        sync_search_text_path(conn, resolved_path, prompt, negative_prompt, model, sampler)
         conn.execute(
             """
             INSERT INTO file_index (
@@ -738,6 +740,7 @@ def upsert_metadata_result(path: str | Path, metadata: dict[str, Any]) -> bool:
             "INSERT INTO file_index_fts(name, path, type, parent_path) VALUES (?, ?, 'image', ?)",
             (image_path.name, resolved_path, str(image_path.parent.resolve())),
         )
+        sync_file_name_fold(conn, [(resolved_path, image_path.name)])
         asset_id = _upsert_asset_conn(
             conn,
             path=resolved_path,
