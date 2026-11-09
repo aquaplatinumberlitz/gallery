@@ -215,7 +215,11 @@ def _validate_query(query: str) -> str:
 
 def _readonly_connection() -> sqlite3.Connection:
     conn = _connect_readonly(timeout=0.25)
-    conn.execute("PRAGMA query_only=ON")
+    try:
+        conn.execute("PRAGMA query_only=ON")
+    except BaseException:
+        conn.close()
+        raise
     return conn
 
 
