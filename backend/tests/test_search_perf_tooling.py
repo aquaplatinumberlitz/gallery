@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts import bench_search
+from scripts import bench_related_assets, bench_search
 from scripts.bench_search import SEARCH_COUNT_CLASSES, SEARCH_QUERY_CLASSES
 from scripts.perf_manifest import expected_reports, load_perf_manifest
 from scripts.summarize_perf_reports import summarize
@@ -259,6 +259,68 @@ def test_perf_summary_checks_related_assets_budgets(tmp_path: Path) -> None:
     checks = summary["reports"][0]["checks"]
     assert next(check for check in checks if check["label"] == "visual candidate p95")["status"] == "fail"
     assert next(check for check in checks if check["label"] == "fixture rows")["status"] == "pass"
+
+
+def _related_report(lexical: dict) -> dict:
+    return {
+        "fixture_rows": 100_000,
+        "metadata": {"p95_ms": 40.0},
+        "visual": {"p95_ms": 8.0},
+        "combined": {"p95_ms": 120.0},
+        "lexical_backfill": lexical,
+        "visual_worker_rss_delta_mib": 1.0,
+        "storage_mib": 90.0,
+        "budgets": {
+            "rows": 100_000,
+            "metadata_p95_ms": 150.0,
+            "visual_p95_ms": 75.0,
+            "combined_p95_ms": 200.0,
+            "lexical_p95_ms": 300.0,
+            "backfill_regression_pct": 20.0,
+            "backfill_regression_floor_ms": 15.0,
+            "visual_worker_rss_mib": 64.0,
+            "storage_mib": 100.0,
+        },
+    }
+
+
+def _regression_status(tmp_path: Path, lexical: dict) -> str:
+    (tmp_path / "related-assets-benchmark-report.json").write_text(
+        json.dumps(_related_report(lexical)), encoding="utf-8"
+    )
+    checks = summarize(tmp_path)["reports"][0]["checks"]
+    return next(check for check in checks if check["label"] == "lexical backfill regression")["status"]
+
+
+def test_backfill_regression_needs_both_the_percentage_and_the_absolute_floor(tmp_path: Path) -> None:
+    # CI after BL-13: an 11.3 ms baseline and 16.7 ms during backfill is 48% but only +5.4 ms.
+    assert (
+        _regression_status(tmp_path, {"during_p95_ms": 16.73, "regression_pct": 48.32, "regression_ms": 5.4}) == "pass"
+    )
+    # A real regression on a fast baseline: large percentage and above the floor.
+    assert (
+        _regression_status(tmp_path, {"during_p95_ms": 60.0, "regression_pct": 400.0, "regression_ms": 48.0}) == "fail"
+    )
+    # Above the floor but under the percentage budget (slow baseline).
+    assert (
+        _regression_status(tmp_path, {"during_p95_ms": 330.0, "regression_pct": 10.0, "regression_ms": 30.0}) == "pass"
+    )
+    # Old reports without regression_ms keep the percentage-only gate.
+    assert _regression_status(tmp_path, {"during_p95_ms": 16.73, "regression_pct": 48.32}) == "fail"
+
+
+def test_bench_backfill_gate_matches_the_summary_gate() -> None:
+    budgets = {"backfill_regression_pct": 20, "backfill_regression_floor_ms": 15}
+    assert (
+        bench_related_assets.lexical_regression_failure({"regression_pct": 48.32, "regression_ms": 5.4}, budgets)
+        is None
+    )
+    assert bench_related_assets.lexical_regression_failure({"regression_pct": 400.0, "regression_ms": 48.0}, budgets)
+    assert (
+        bench_related_assets.lexical_regression_failure({"regression_pct": 10.0, "regression_ms": 30.0}, budgets)
+        is None
+    )
+    assert bench_related_assets.lexical_regression_failure({"regression_pct": 48.32}, budgets)
 
 
 def test_count_workload_posts_the_canonical_request_and_rejects_low_totals(monkeypatch) -> None:
