@@ -5,6 +5,8 @@ import Button from "@/components/ui/Button.vue";
 import { useRecentSearches } from "@/composables/useRecentSearches";
 import type { PersistableSearchRequestV1 } from "@/types";
 
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+
 const emit = defineEmits<{
   apply: [request: PersistableSearchRequestV1];
 }>();
@@ -59,10 +61,16 @@ function clearHistory() {
 </script>
 
 <template>
-  <section class="recent-searches" aria-labelledby="recent-searches-title">
+  <!-- embedded: the drawer's accordion trigger already names the section, so the title row is not repeated. -->
+  <section
+    class="recent-searches"
+    :aria-labelledby="props.embedded ? undefined : 'recent-searches-title'"
+  >
     <div class="recent-header">
       <div class="min-w-0">
-        <p id="recent-searches-title" class="recent-title"><History aria-hidden="true" /> Recent searches</p>
+        <p v-if="!props.embedded" id="recent-searches-title" class="recent-title">
+          <History aria-hidden="true" /> Recent searches
+        </p>
         <p class="recent-copy">Successful searches are kept only in this browser.</p>
       </div>
       <Button

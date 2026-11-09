@@ -14,10 +14,13 @@ interface IndexedFacetGroup {
 interface Props {
   groups: IndexedFacetGroup[];
   initialVisible?: number;
+  /** Rendered inside a section whose trigger already names it; the title is not repeated. */
+  embedded?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   initialVisible: 4,
+  embedded: false,
 });
 
 const emit = defineEmits<{
@@ -55,9 +58,18 @@ function toggleGroup(groupId: string) {
 </script>
 
 <template>
-  <section v-if="hasIndexedValues" class="mb-4" aria-labelledby="indexed-facets-title">
+  <section
+    v-if="hasIndexedValues"
+    :class="props.embedded ? '' : 'mb-4'"
+    :aria-labelledby="props.embedded ? undefined : 'indexed-facets-title'"
+  >
+    <!-- embedded: the drawer's accordion trigger already names the section, so the title is not repeated. -->
     <div class="mb-2">
-      <p id="indexed-facets-title" class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <p
+        v-if="!props.embedded"
+        id="indexed-facets-title"
+        class="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+      >
         Indexed facets
       </p>
       <p class="mt-0.5 text-xs text-muted-foreground">Values available in the current search scope.</p>

@@ -11,6 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useFacetsQuery } from "@/composables/useFacetsQuery";
 import { useActiveLibrarySelection } from "@/composables/useActiveLibrarySelection";
 import { useSearchMatchPreview } from "@/composables/useSearchMatchPreview";
+import { useRecentSearches } from "@/composables/useRecentSearches";
 import { useGalleryStore } from "@/stores/gallery";
 import { filterToDisplayString } from "@/utils/serializeAdvancedSearchToQuery";
 import { replaceManagedFilters } from "@/utils/searchQueryGrammar";
@@ -285,6 +286,11 @@ const indexedFacetGroups = computed(() => [
   ...additionalFacetGroups.value,
 ]);
 const facetsLoading = computed(() => facetsQuery.isLoading.value);
+// AV-03: reference sections below the filters. Recent searches opens when it has entries; facets starts collapsed.
+const recentSearches = useRecentSearches();
+const recentSearchCount = computed(() => recentSearches.recent.value.length);
+const indexedGroupCount = computed(() => indexedFacetGroups.value.filter((group) => group.entries.length > 0).length);
+const referenceSections = shallowRef<string[]>(recentSearchCount.value ? ["recent-searches"] : []);
 const facetsFailed = computed(() => facetsQuery.isError?.value ?? false);
 
 const previewRequest = computed<PersistableSearchRequestV1 | null>(() => {
@@ -460,10 +466,6 @@ watch(
               </li>
             </ul>
           </div>
-
-          <RecentSearchesPanel class="mb-4" @apply="applyCanonicalRequest" @keydown.stop />
-
-          <IndexedFacetSummary class="mb-4" :groups="indexedFacetGroups" @apply="handleFacetApply" />
 
           <Accordion
             type="multiple"
@@ -986,6 +988,53 @@ watch(
               </AccordionTrigger>
               <AccordionContent class="px-1 pt-2">
                 <SearchIndexStatusPanel :library-id="galleryStore.activeLibraryId" :open="props.isOpen" @keydown.stop />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
+          <!-- AV-03: reference sections sit below the filters. Recent searches opens when it has entries; the facets
+               table is long, so it starts collapsed with its group count in the trigger. -->
+          <Accordion
+            type="multiple"
+            :model-value="referenceSections"
+            @update:model-value="referenceSections = $event as string[]"
+            class="mt-4 min-w-0 max-w-full"
+            data-testid="advanced-search-reference-sections"
+          >
+            <AccordionItem value="recent-searches">
+              <AccordionTrigger class="advanced-search-section-trigger text-left no-underline hover:no-underline">
+                <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
+                  <span>Recent searches</span>
+                  <span
+                    v-if="recentSearchCount"
+                    class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums"
+                    data-testid="advanced-search-recent-count"
+                  >
+                    {{ recentSearchCount }}
+                  </span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-1">
+                <RecentSearchesPanel embedded @apply="applyCanonicalRequest" @keydown.stop />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="indexed-facets">
+              <AccordionTrigger class="advanced-search-section-trigger text-left no-underline hover:no-underline">
+                <span class="flex min-w-0 flex-1 items-center justify-between gap-3 pr-2">
+                  <span>
+                    Indexed facets
+                    <span
+                      v-if="indexedGroupCount"
+                      class="font-normal text-muted-foreground"
+                      data-testid="advanced-search-facets-count"
+                    >
+                      · {{ indexedGroupCount }} {{ indexedGroupCount === 1 ? "group" : "groups" }}
+                    </span>
+                  </span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent class="px-1 pt-1">
+                <IndexedFacetSummary embedded :groups="indexedFacetGroups" @apply="handleFacetApply" />
               </AccordionContent>
             </AccordionItem>
           </Accordion>
