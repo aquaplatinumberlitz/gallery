@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import atexit
+import os
 import sqlite3
 import threading
 import weakref
@@ -10,10 +11,17 @@ from contextlib import suppress
 from typing import Any
 
 from diskcache import Cache
+from diskcache.core import DBNAME
 
 
 class _ConnectionGuard:
-    """Owns a thread's connection and closes it when the thread's local storage is torn down."""
+    """Owns a thread's connection and closes it when the thread's local storage is torn down.
+
+    The storage is torn down by the thread itself when it ends, or by whichever thread drops the last reference to
+    the cache while the owning thread is still alive (a pooled request thread outliving a cache). The connection is
+    opened with ``check_same_thread=False`` (see ``ThreadClosingCache._con``) so the second case can close it too;
+    nothing else can use it by then, because the cache that handed it out is gone.
+    """
 
     __slots__ = ("conn",)
 
@@ -21,8 +29,7 @@ class _ConnectionGuard:
         self.conn = conn
 
     def __del__(self) -> None:
-        # Already closed, or torn down off its own thread (``check_same_thread``): nothing more to do.
-        with suppress(sqlite3.Error):
+        with suppress(sqlite3.Error):  # already closed
             self.conn.close()
 
 
@@ -63,3 +70,36 @@ class ThreadClosingCache(Cache):
                 setattr(guarded, name, getattr(self._local, name))
         self._local = guarded
         _LIVE_CACHES.add(self)
+
+    @property
+    def _con(self) -> sqlite3.Connection:
+        """This thread's connection, opened as ``diskcache.Cache._con`` opens it (diskcache 5.6) but closable from any thread.
+
+        diskcache opens it with the default ``check_same_thread=True``: when a cache is dropped while a pooled thread
+        that used it is still alive, the dropping thread cannot close that thread's connection, and it is freed with
+        ``ResourceWarning: unclosed database``. Only the owning thread ever uses the connection; another thread only
+        closes it once the cache is unreachable.
+        """
+        local = self._local
+        pid = os.getpid()
+        if getattr(local, "pid", None) != pid:  # a new thread, or a forked process: as diskcache does
+            self.close()
+            local.pid = pid
+        con = getattr(local, "con", None)
+        if con is None:
+            con = local.con = sqlite3.connect(
+                os.path.join(self._directory, DBNAME),
+                timeout=self._timeout,
+                isolation_level=None,
+                check_same_thread=False,
+            )
+            # Per-connection pragmas live in the Settings table (absent while the cache is being created).
+            try:
+                settings = con.execute("SELECT key, value FROM Settings").fetchall()
+            except sqlite3.OperationalError:
+                pass
+            else:
+                for key, value in settings:
+                    if key.startswith("sqlite_"):
+                        self.reset(key, value, update=False)
+        return con

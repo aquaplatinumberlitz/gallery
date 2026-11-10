@@ -21,7 +21,9 @@ module under ``backend/`` except tests and the allowlist below:
 3. **Transactions.** No ``.commit()`` / ``.rollback()`` calls outside the allowlist.
 
 Allowlist: the writer module (which owns the no-active-writer path), ``_db.py`` (connection factories),
-and the schema / migration modules that run before any writer exists.
+and the schema / migration modules that run before any writer exists. ``OTHER_DATABASE_MODULES`` may call
+``sqlite3.connect`` for a database that is not the catalog (the thumbnail diskcache); rules 2 and 3 still apply
+to them, and ``_connect`` stays forbidden.
 
 Usage: ``python scripts/check_db_write_ownership.py [--root DIR]`` (exit 1 on violations).
 """
@@ -45,6 +47,13 @@ ALLOWLIST = frozenset(
         "metadata_store/_schema_ddl.py",
         "metadata_store/_schema_ensure.py",
         "metadata_store/_migrations.py",
+    }
+)
+# Modules that open a *different* SQLite database (never the catalog): rule 1 does not apply to their
+# ``sqlite3.connect`` calls. Rules 2 and 3 still do.
+OTHER_DATABASE_MODULES = frozenset(
+    {
+        "disk_cache.py",  # the thumbnail diskcache's own cache.db (``ThreadClosingCache._con``)
     }
 )
 EXCLUDED_PARTS = frozenset({"tests", "__pycache__", "node_modules"})
@@ -137,7 +146,9 @@ def check_source(source: str, rel: str) -> list[str]:
             errors.append(f"{rel}:{node.lineno} imports sqlite3.connect (writable connections belong to the writer)")
         if isinstance(node, ast.Call):
             owner, name = _call_name(node)
-            if name in CONNECT_CALLS or (owner == "sqlite3" and name == "connect"):
+            if name in CONNECT_CALLS or (
+                owner == "sqlite3" and name == "connect" and rel not in OTHER_DATABASE_MODULES
+            ):
                 errors.append(f"{rel}:{node.lineno} opens a writable connection ({name}); read with _connect_read()")
             elif name in TRANSACTION_CALLS and isinstance(node.func, ast.Attribute):
                 errors.append(f"{rel}:{node.lineno} controls a transaction (.{name}()) outside the database writer")

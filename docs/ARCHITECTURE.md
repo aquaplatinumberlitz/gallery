@@ -368,7 +368,9 @@ outside `metadata_store/db_writer.py`, `_db.py` and the schema/migration modules
 connection (`_connect`, `sqlite3.connect`), calls `.commit()`/`.rollback()`/`executescript`,
 spells out `BEGIN IMMEDIATE` (or a bare `BEGIN`/`COMMIT`/`ROLLBACK`/`END`), or contains
 write SQL (`INSERT`/`REPLACE`/`UPDATE ... SET`/`DELETE FROM`/DDL, also in f-strings and
-`+` concatenations) outside a function that takes a connection parameter. Run against the
+`+` concatenations) outside a function that takes a connection parameter. `disk_cache.py`
+may call `sqlite3.connect` for the thumbnail diskcache's own database (never the catalog);
+the other rules still apply to it. Run against the
 Phase 2B tree it flagged 262 sites; it passes on the Phase 3 tree.
 
 The writer thread and the SQLite write lock still serialize writes; `busy_timeout`

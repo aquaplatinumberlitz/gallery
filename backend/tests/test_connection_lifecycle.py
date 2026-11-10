@@ -12,6 +12,8 @@ Guarantees:
   metadata-job paths leave zero open connections and a stable `/proc/self/fd` count, with the writer
   stopped and with it running.
 * Starting and stopping the shared database writer repeatedly does not accumulate descriptors.
+* The thumbnail diskcache closes each thread's connection when the thread ends, and when the cache is dropped
+  while a pooled thread that used it is still alive; its connections keep diskcache's pragmas.
 
 Run when:
 Adding or changing any code that opens a SQLite connection, the `_db.py` connection helpers, the database
@@ -266,6 +268,64 @@ def test_thumbnail_disk_cache_connections_are_closed_when_their_threads_end(tmp_
             assert _leaked(opened) == 0, "a connection must be closed by the thread that ends"
     finally:
         cache.close()
+
+
+def test_thumbnail_disk_cache_dropped_while_its_threads_live_closes_their_connections(tmp_path, monkeypatch):
+    """A cache dropped while a pooled thread that used it is still alive closes that thread's connection.
+
+    The thread-local storage is then torn down by the dropping thread, not the owner. With diskcache's default
+    ``check_same_thread=True`` the close failed and the connection was freed with ``ResourceWarning: unclosed
+    database`` (an error under the pytest filter), at whatever test the garbage collector happened to run in.
+    """
+    import threading
+
+    from backend.disk_cache import ThreadClosingCache
+
+    holder = [ThreadClosingCache(str(tmp_path / "cache"), size_limit=1024 * 1024)]
+    with _tracked_connections(monkeypatch) as opened:
+        used, release = threading.Event(), threading.Event()
+
+        def pooled_worker() -> None:
+            # The thread keeps running but holds no reference to the cache once it has used it.
+            holder[0].set("key", b"value")
+            used.set()
+            release.wait(10)
+
+        thread = threading.Thread(target=pooled_worker)
+        thread.start()
+        try:
+            assert used.wait(10)
+            assert len(opened) == 1
+            holder.clear()
+            gc.collect()
+            assert _leaked(opened) == 0, "dropping the cache must close a live thread's connection"
+        finally:
+            release.set()
+            thread.join()
+
+
+def test_thumbnail_disk_cache_connections_keep_diskcache_pragmas(tmp_path):
+    """The connection `ThreadClosingCache._con` opens is configured as diskcache configures its own."""
+    import threading
+
+    from backend.disk_cache import ThreadClosingCache
+
+    cache = ThreadClosingCache(str(tmp_path / "cache"), size_limit=1024 * 1024)
+    seen: dict[str, object] = {}
+
+    def worker() -> None:
+        cache.set("key", b"value")
+        seen["journal_mode"] = cache._con.execute("PRAGMA journal_mode").fetchone()[0]
+        seen["synchronous"] = cache._con.execute("PRAGMA synchronous").fetchone()[0]
+        seen["value"] = cache.get("key")
+
+    try:
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join()
+    finally:
+        cache.close()
+    assert seen == {"journal_mode": "wal", "synchronous": 1, "value": b"value"}
 
 
 def test_pytest_turns_unclosed_database_warnings_into_errors(request):
