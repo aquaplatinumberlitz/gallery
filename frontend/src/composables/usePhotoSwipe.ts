@@ -17,7 +17,7 @@ import {
   type LightboxDimensions,
   type PhotoSwipeImageItem,
 } from "../utils/lightbox";
-import { createLazyList } from "../utils/lightboxLazyList";
+import { createLazyList, growLazyList } from "../utils/lightboxLazyList";
 
 const shouldExposeLightboxTestHooks =
   import.meta.env.MODE === "test" || import.meta.env.VITE_EXPOSE_LIGHTBOX_TEST_HOOKS === "1";
@@ -354,6 +354,9 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       wheelToZoom: false,
       bgOpacity: 1,
       preload: [1, 1],
+      // Wrapping from the last loaded item to the first would hide the pages that are still to come. It returns
+      // (see syncPagingState) once the owner has nothing more to load.
+      loop: !lightboxStore.hasMoreItems,
       ...photoSwipeOptions,
       // Keep image clicks dedicated to zoom. Closing remains available through
       // the backdrop, explicit close controls, and Escape.
@@ -433,9 +436,50 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       storeCurrentIndex: lightboxStore.currentIndex,
     });
     onAfterInit?.(instance);
+    syncPagingState();
     resolveAndRefresh(currentIndex.value);
     if (shouldAlwaysLoadOriginal()) {
       maybeLoadOriginalForCurrent("preference");
+    }
+  }
+
+  /**
+   * Keeps PhotoSwipe's wrapping in step with the pager: no wrap while more pages exist, wrap once every page is loaded.
+   * PhotoSwipe reads `options.loop` on every move (`canLoop`, `getLoopedIndex`) but only refreshes the arrow buttons'
+   * disabled state on "change", so they are brought in line here when the page state changes without a slide change.
+   */
+  function syncPagingState() {
+    const instance = pswp.value;
+    if (!instance) return;
+    const loop = !lightboxStore.hasMoreItems;
+    instance.options.loop = loop;
+    const lastIndex = items.value.length - 1;
+    const setDisabled = (selector: string, disabled: boolean) => {
+      instance.element?.querySelectorAll<HTMLButtonElement>(selector).forEach((button) => {
+        button.disabled = disabled;
+      });
+    };
+    setDisabled(".pswp__button--arrow--prev", !loop && instance.currIndex <= 0);
+    setDisabled(".pswp__button--arrow--next", !loop && instance.currIndex >= lastIndex);
+  }
+
+  /**
+   * Grows the data source in place when the store appended a page. PhotoSwipe reads `dataSource.length` through
+   * `getNumItems()` on every use, so the new items become reachable without rebuilding the source or the slides.
+   */
+  function growDataSource() {
+    const instance = pswp.value;
+    const dataSource = instance?.options.dataSource;
+    if (!instance || !Array.isArray(dataSource)) return;
+
+    const previousCount = dataSource.length;
+    growLazyList(dataSource, items.value.length);
+    syncPagingState();
+
+    // The holder after the current slide is built when the current slide is shown. At the old end it was left empty
+    // ("no slide"), so build it now that an item exists there. The current slide is not touched.
+    if (dataSource.length > previousCount && previousCount === instance.currIndex + 1) {
+      instance.refreshSlideContent(previousCount);
     }
   }
 
@@ -493,6 +537,16 @@ export function usePhotoSwipe(options: UsePhotoSwipeOptions) {
       }
       resolveAndRefresh(index);
     },
+  );
+
+  watch(
+    () => items.value.length,
+    () => growDataSource(),
+  );
+
+  watch(
+    () => lightboxStore.hasMoreItems,
+    () => syncPagingState(),
   );
 
   onMounted(() => {

@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { toRaw } from "vue";
+import { nextTick, ref, toRaw } from "vue";
 import { useLightboxStore } from "../lightbox";
 import type { FileNode } from "@/types";
 
@@ -200,6 +200,201 @@ describe("useLightboxStore", () => {
       store.prev();
 
       expect(store.currentIndex).toBe(0);
+    });
+  });
+
+  describe("wrapping", () => {
+    const three = () => ["/a.png", "/b.png", "/c.png"].map((path) => makeImage({ path, name: path.slice(1) }));
+
+    it("wraps next and prev with more than two items and no pager", () => {
+      const store = useLightboxStore();
+      store.open({ path: "/c.png", name: "c.png" }, three());
+
+      store.next();
+      expect(store.itemPath).toBe("/a.png");
+      store.prev();
+      expect(store.itemPath).toBe("/c.png");
+      expect(store.currentIndex).toBe(2);
+    });
+
+    it("does not wrap while the pager has more pages", () => {
+      const store = useLightboxStore();
+      const loadMore = vi.fn(() => new Promise<void>(() => undefined));
+      store.open({ path: "/c.png", name: "c.png" }, three(), 2, { items: three, hasMore: () => true, loadMore });
+
+      store.next();
+      expect(store.currentIndex).toBe(2);
+      store.open({ path: "/a.png", name: "a.png" }, three(), 0, { items: three, hasMore: () => true, loadMore });
+      store.prev();
+      expect(store.currentIndex).toBe(0);
+    });
+  });
+
+  describe("pager", () => {
+    const img = (n: number) => makeImage({ path: `/p/${n}.png`, name: `${n}.png` });
+    const range = (from: number, to: number) => Array.from({ length: to - from }, (_, i) => img(from + i));
+
+    function makePager(initial: FileNode[], pages: FileNode[][]) {
+      const list = ref<FileNode[]>(initial);
+      const remaining = ref(pages.length);
+      const resolvers: Array<() => void> = [];
+      const loadMore = vi.fn(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            resolvers.push(() => {
+              const page = pages.shift();
+              if (!page) return reject(new Error("failed"));
+              list.value = [...list.value, ...page];
+              remaining.value = pages.length;
+              resolve();
+            });
+          }),
+      );
+      return {
+        list,
+        loadMore,
+        resolvers,
+        pager: { items: () => list.value, hasMore: () => remaining.value > 0, loadMore },
+      };
+    }
+
+    it("does not ask for a page while the current item is far from the end", async () => {
+      const store = useLightboxStore();
+      const { pager, loadMore } = makePager(range(0, 20), [range(20, 40)]);
+
+      store.open({ path: "/p/0.png", name: "0.png" }, range(0, 20), 0, pager);
+
+      expect(loadMore).not.toHaveBeenCalled();
+      expect(store.hasMoreItems).toBe(true);
+    });
+
+    it("asks once when the index comes within the threshold, not again while pending", async () => {
+      const store = useLightboxStore();
+      const { pager, loadMore } = makePager(range(0, 20), [range(20, 40)]);
+      store.open({ path: "/p/0.png", name: "0.png" }, range(0, 20), 0, pager);
+
+      store.currentIndex = 14;
+      await nextTick();
+      expect(loadMore).toHaveBeenCalledTimes(1);
+
+      store.currentIndex = 17;
+      store.next();
+      await nextTick();
+      expect(loadMore).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks at open when the opening item is already near the end", () => {
+      const store = useLightboxStore();
+      const { pager, loadMore } = makePager(range(0, 20), [range(20, 40)]);
+
+      store.open({ path: "/p/17.png", name: "17.png" }, range(0, 20), 17, pager);
+
+      expect(loadMore).toHaveBeenCalledTimes(1);
+    });
+
+    it("appends only new images, keeping the shown prefix, index and item", async () => {
+      const store = useLightboxStore();
+      const first = range(0, 8);
+      const { pager, resolvers, list } = makePager(first, [[img(7), makeFolder({ path: "/p/dir" }), ...range(8, 12)]]);
+      store.open({ path: "/p/7.png", name: "7.png" }, first, 7, pager);
+      const prefix = [...store.galleryItems];
+
+      resolvers[0]();
+      await vi.waitFor(() => expect(store.galleryItems).toHaveLength(12));
+
+      expect(store.galleryItems.slice(0, 8).map((i) => i.path)).toEqual(prefix.map((i) => i.path));
+      expect(store.galleryItems.map((i) => i.path)).toEqual(range(0, 12).map((i) => i.path));
+      expect(store.currentIndex).toBe(7);
+      expect(store.itemPath).toBe("/p/7.png");
+      expect(list.value.length).toBeGreaterThan(12);
+      expect(store.hasMoreItems).toBe(false);
+    });
+
+    it("does not reorder the shown items when the owner's list is reordered", async () => {
+      const store = useLightboxStore();
+      const { pager, list } = makePager(range(0, 8), [range(8, 10)]);
+      store.open({ path: "/p/7.png", name: "7.png" }, range(0, 8), 7, pager);
+
+      list.value = [...range(8, 10), ...range(0, 8).reverse()];
+      await vi.waitFor(() => expect(store.galleryItems).toHaveLength(10));
+
+      expect(store.galleryItems.slice(0, 8).map((i) => i.path)).toEqual(range(0, 8).map((i) => i.path));
+      expect(store.currentIndex).toBe(7);
+    });
+
+    it("keeps the lightbox usable when a page fails, and retries when the end is reached again", async () => {
+      const store = useLightboxStore();
+      const rejections: unknown[] = [];
+      const onRejection = (event: unknown) => rejections.push(event);
+      process.on("unhandledRejection", onRejection);
+      const { pager, resolvers, loadMore } = makePager(range(0, 8), []);
+      const hasMore = vi.fn(() => true);
+      store.open({ path: "/p/5.png", name: "5.png" }, range(0, 8), 5, { ...pager, hasMore });
+      expect(loadMore).toHaveBeenCalledTimes(1);
+
+      resolvers[0](); // no page left: rejects
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(store.isOpen).toBe(true);
+      expect(store.galleryItems).toHaveLength(8);
+      expect(store.currentIndex).toBe(5);
+
+      store.next();
+      store.next();
+      store.next();
+      store.next(); // at the end: retries
+      await nextTick();
+      expect(loadMore.mock.calls.length).toBeGreaterThanOrEqual(2);
+      process.off("unhandledRejection", onRejection);
+      expect(rejections).toEqual([]);
+    });
+
+    it("treats a loadMore that throws synchronously as a failed load", () => {
+      const store = useLightboxStore();
+      const loadMore = vi.fn(() => {
+        throw new Error("boom");
+      });
+
+      expect(() =>
+        store.open({ path: "/p/5.png", name: "5.png" }, range(0, 8), 5, {
+          items: () => range(0, 8),
+          hasMore: () => true,
+          loadMore,
+        }),
+      ).not.toThrow();
+      expect(store.isOpen).toBe(true);
+    });
+
+    it("clears the pager on close and on open without one", async () => {
+      const store = useLightboxStore();
+      const { pager, list, loadMore } = makePager(range(0, 8), [range(8, 12)]);
+      store.open({ path: "/p/0.png", name: "0.png" }, range(0, 8), 0, pager);
+      store.close();
+      expect(store.hasMoreItems).toBe(false);
+
+      store.open({ path: "/p/0.png", name: "0.png" }, range(0, 8), 0);
+      list.value = [...list.value, ...range(8, 12)];
+      await nextTick();
+      store.currentIndex = 7;
+      await nextTick();
+
+      expect(store.galleryItems).toHaveLength(8);
+      expect(store.hasMoreItems).toBe(false);
+      expect(loadMore).not.toHaveBeenCalled();
+    });
+
+    it("keeps a page pending across the recheck: asks again only when still near the end", async () => {
+      const store = useLightboxStore();
+      // The first page holds only a duplicate: the end is still close, so the store asks for the next page.
+      const { pager, resolvers, loadMore } = makePager(range(0, 8), [[img(7)], range(8, 30)]);
+      store.open({ path: "/p/7.png", name: "7.png" }, range(0, 8), 7, pager);
+      expect(loadMore).toHaveBeenCalledTimes(1);
+
+      resolvers[0]();
+      await vi.waitFor(() => expect(loadMore).toHaveBeenCalledTimes(2));
+      resolvers[1]();
+      await vi.waitFor(() => expect(store.galleryItems).toHaveLength(30));
+      expect(loadMore).toHaveBeenCalledTimes(2);
     });
   });
 

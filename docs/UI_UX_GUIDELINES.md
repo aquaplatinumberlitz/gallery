@@ -118,6 +118,22 @@ Image loading (all layouts):
   loaded or failed (`utils/lightboxPreviewOrder.ts`); arrow and swipe navigation stays instant once the
   neighbours are loaded.
 
+Navigation across pages (all layouts):
+
+- A folder loads 200 images per page and search 60, so the lightbox opens on the pages loaded so far. The opener
+  (`GalleryGrid.vue` for folders and search, `LibraryInspector.vue`) passes a `LightboxPager`
+  (`items`, `hasMore`, `loadMore`) to `lightboxStore.open`. The related-assets list is complete and passes none.
+- When the current item is within 5 of the loaded end and `hasMore()` is true, the store calls `loadMore()` once
+  (no duplicate call while one is pending). New image items are appended to `galleryItems` by path; the shown
+  prefix is never reordered or replaced, so the current slide and index do not move. `usePhotoSwipe` grows the
+  lazy data source in place (`growLazyList`), so open cost stays proportional to the opening neighbours.
+- No wrapping while more pages exist: `usePhotoSwipe` sets PhotoSwipe's `loop` from `lightboxStore.hasMoreItems`,
+  and the store's `next()`/`prev()` (the keyboard path) wrap by the same rule as PhotoSwipe's `canLoop()` (more
+  than two items, no page to come). At the last loaded item next does nothing until the page lands; there is no
+  auto-advance.
+- A failed page load leaves the lightbox on the loaded items without an unhandled rejection; reaching the end
+  again retries. Mobile and tablet share `usePhotoSwipe`, so swipe behaves the same.
+
 Desktop/wide:
 
 - Use `PhotoSwipeViewer.vue` and `LightboxDesktopPanel.vue`.

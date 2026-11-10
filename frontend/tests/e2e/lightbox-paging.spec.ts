@@ -242,13 +242,16 @@ for (const mode of ["browse", "search"] as const) {
       await startMode(page, mode);
       await openFirstCard(page);
 
-      for (let i = 0; i < TOTAL - 1; i += 1) {
-        await page.keyboard.press("ArrowRight");
-        // When navigation reaches the end of a loaded page, wait for the next page to land.
-        if ((i + 1) % PAGE_SIZE === 0) {
-          const loaded = Math.min(TOTAL, ((i + 1) / PAGE_SIZE + 1) * PAGE_SIZE);
-          await expect(counter(page)).toHaveText(`${i + 2} / ${loaded}`);
+      let index = 0;
+      let loaded = PAGE_SIZE;
+      while (index < TOTAL - 1) {
+        if (index === loaded - 1) {
+          // At the end of the loaded pages next waits for the next page: let it land, then continue into it.
+          loaded += PAGE_SIZE;
+          await expect(counter(page)).toHaveText(`${index + 1} / ${loaded}`);
         }
+        await page.keyboard.press("ArrowRight");
+        index += 1;
       }
       await expect(counter(page)).toHaveText(`${TOTAL} / ${TOTAL}`);
       await expect(currentName(page)).toHaveText(nameAt(TOTAL - 1));
@@ -260,7 +263,9 @@ for (const mode of ["browse", "search"] as const) {
       await expect(currentName(page)).toHaveText(nameAt(0));
     });
 
-    test("a failed page load leaves the lightbox usable on the loaded items", async ({ page }) => {
+    test("a failed page load leaves the lightbox usable on the loaded items", async ({ page, monitoredErrors }) => {
+      // The stubbed 500 is logged by the browser as a failed resource; unhandled rejections still fail the test.
+      monitoredErrors.allowConsoleError("Failed to load resource");
       const stub = await installPagedGallery(page);
       stub.gate.page = 2;
       stub.gate.fail = true;
