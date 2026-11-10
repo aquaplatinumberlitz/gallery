@@ -56,8 +56,8 @@ Out of scope, recorded only: BL-10, BL-11 and BL-17 stay in `BACKLOG.md`.
 
 | Finding | Status | Evidence |
 |---------|--------|----------|
-| PR-01 | Pending | |
-| PR-02 | Pending | |
-| PR-03 | Pending | |
-| PR-04 | Pending | |
-| PR-05 | Pending | |
+| PR-01 | Closed with notes (Fable review) | A waiting request awaits an `asyncio.Event` in `derivative_scheduler/waiters.py`. Workers notify after a fenced completion or failure; each catalog read is one short pool call; a 1 s fallback read covers recovery, eviction and supersede. Fable's independent test, 60 never-completing thumbnails with a search probe: the first probe took 10.06 s on `main` and 8-10 ms on the branch. With 60 cold 6 MP thumbnails (`scripts/perf/cold_thumbnail_burst.py`), the track measured probe p95 83-128 ms against 1574 ms before. Fable measured p95 148-711 ms on its host against about 1320 ms on `main`. Only the first one or two probes are slow, from admitting 60 requests while the CPU is busy rendering; later probes are 10-60 ms. That CPU floor is allowed by the acceptance, and capping admissions is BL-19. |
+| PR-02 | Closed with notes (Fable review) | The opener passes a pager. Within 5 items of the end the lightbox loads the next page and appends unseen images; the data source grows in place; `loop` is off while pages remain; the store wraps by the same rule. `lightbox-paging.spec.ts` fails 6/6 at `71d2d5b` and passes 6/6 on the branch. Fable checked by hand that PhotoSwipe's own next (buttons, swipe) does not wrap while a page is held. Browse order can differ from a client re-sorted grid (BL-20). Keyboard now also wraps in the related-assets lightbox, as buttons and swipe already did. |
+| PR-03 | Closed (Fable review) | Authorization and stat run in `run_in_threadpool`. The regression test fails on `main` (0.511 s) and passes on the branch. |
+| PR-04 | Closed with notes (Fable review) | `backend/animated.py` sniffs headers (5-9 µs per file) and stores `assets.animated` (schema v16, `.v15.bak`). The value is reset on any identity change and detected after each scan. One frontend definition is used. Fable checked: Pillow ground truth; 22,900 fuzzed or truncated inputs with no exception; a real v15 to v16 migration (trigger recreated, generation bumps); a real server rescan and the watcher. Notes: an APNG with more than 512 chunks before `acTL` reads as static (documented bound), and inspector lightbox items carry no `animated`. |
+| PR-05 | Closed (Fable review) | Inspector rows carry `content_version` from the catalog asset. The API test fails on `main` and passes on the branch, including the `immutable` header. Old and new code return identical row lists. |
