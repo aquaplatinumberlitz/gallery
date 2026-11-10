@@ -1,5 +1,6 @@
 import type { FileNode } from "../types";
 import { getPreviewUrl, getThumbnailUrl } from "../services/api";
+import { isAnimatedAsset } from "./animatedAsset";
 
 export const LIGHTBOX_THUMBNAIL_EDGE = 512;
 export const LIGHTBOX_PREVIEW_EDGE = 1440;
@@ -45,12 +46,6 @@ export function shouldAlwaysLoadOriginal(): boolean {
   }
 }
 
-export function isLikelyAnimatedAsset(pathOrName: string): boolean {
-  const ext = pathOrName.split("?")[0]?.split("#")[0]?.split(".").pop()?.toLowerCase();
-  // TODO: Detect animated WebP by container metadata instead of treating every .webp as animated.
-  return ext === "gif" || ext === "apng";
-}
-
 /**
  * Shared helper to build a PhotoSwipe item from a FileNode.
  *
@@ -70,7 +65,7 @@ export function buildPhotoSwipeItem(
 
   const width = resolvedDimensions?.width ?? 1200;
   const height = resolvedDimensions?.height ?? 1200;
-  const isAnimatedAsset = isLikelyAnimatedAsset(item.path || item.name || "");
+  const animated = isAnimatedAsset(item);
 
   return {
     src: previewSrc,
@@ -80,6 +75,6 @@ export function buildPhotoSwipeItem(
     height,
     alt: item.name || "",
     path: item.path,
-    isAnimatedAsset,
+    isAnimatedAsset: animated,
   };
 }

@@ -300,6 +300,12 @@ def _row_content_version(row: sqlite3.Row) -> str | None:
     return content_version(mtime_ns, _optional_row_value(row, "asset_size"))
 
 
+def _row_animated(row: sqlite3.Row) -> bool | None:
+    """Return the catalog ``animated`` flag of a media row (``None`` while undetected or for videos)."""
+    value = _optional_row_value(row, "asset_animated")
+    return None if value is None else bool(value)
+
+
 def _format_media_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for row in rows:
@@ -312,6 +318,7 @@ def _format_media_rows(rows: list[sqlite3.Row], root: Path) -> list[dict[str, An
                 "relative_path": _folder_relative_path(row["parent_path"], root),
                 "mtime": row["mtime"],
                 "content_version": _row_content_version(row),
+                "animated": _row_animated(row),
                 "width": row["width"],
                 "height": row["height"],
                 "duration_ms": _optional_row_value(row, "duration_ms"),
@@ -471,6 +478,7 @@ def _media_file_select(
           catalog_asset.mime_type AS mime_type,
           catalog_asset.mtime_ns AS asset_mtime_ns,
           catalog_asset.size AS asset_size,
+          catalog_asset.animated AS asset_animated,
           catalog_asset.id AS asset_id,
           catalog_asset.library_id AS library_id,
           catalog_library.name AS library_name,
@@ -553,6 +561,7 @@ def _media_prompt_select(
           NULL AS mime_type,
           catalog_asset.mtime_ns AS asset_mtime_ns,
           catalog_asset.size AS asset_size,
+          catalog_asset.animated AS asset_animated,
           catalog_asset.id AS asset_id,
           catalog_asset.library_id AS library_id,
           catalog_library.name AS library_name,

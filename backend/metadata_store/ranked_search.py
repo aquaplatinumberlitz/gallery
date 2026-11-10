@@ -446,7 +446,7 @@ def _filename_candidate_select(
         return f"SELECT catalog_asset.id AS asset_id {source}"
     return f"""
       SELECT fi.path, fi.name, fi.type, fi.parent_path, fi.mtime,
-             catalog_asset.mtime_ns, catalog_asset.size AS asset_size, fi.width, fi.height,
+             catalog_asset.mtime_ns, catalog_asset.size AS asset_size, catalog_asset.animated AS asset_animated, fi.width, fi.height,
              catalog_asset.duration_ms, catalog_asset.mime_type,
              catalog_asset.id AS asset_id,
              catalog_asset.library_id AS library_id,
@@ -709,7 +709,7 @@ def _metadata_candidate_parts(
         return f"SELECT catalog_asset.id AS asset_id {source}", None, None
     template = f"""
       SELECT m.path, m.name, fi.type, fi.parent_path, m.mtime,
-             catalog_asset.mtime_ns, catalog_asset.size AS asset_size, m.width, m.height,
+             catalog_asset.mtime_ns, catalog_asset.size AS asset_size, catalog_asset.animated AS asset_animated, m.width, m.height,
              NULL AS duration_ms, NULL AS mime_type,
              catalog_asset.id AS asset_id,
              catalog_asset.library_id AS library_id,
@@ -794,7 +794,7 @@ def _filename_dense_selects(
     def outer(tier_sql: str, rank_sql: str, match_sql: str) -> str:
         return f"""
       SELECT fi.path, fi.name, fi.type, fi.parent_path, fi.mtime,
-             catalog_asset.mtime_ns, catalog_asset.size AS asset_size, fi.width, fi.height,
+             catalog_asset.mtime_ns, catalog_asset.size AS asset_size, catalog_asset.animated AS asset_animated, fi.width, fi.height,
              catalog_asset.duration_ms, catalog_asset.mime_type,
              catalog_asset.id AS asset_id,
              catalog_asset.library_id AS library_id,

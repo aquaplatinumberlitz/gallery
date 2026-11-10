@@ -535,13 +535,13 @@ def _catalog_browse_path_conn(
         SELECT id, path, parent_path, name, type, mtime_ns, size,
                COALESCE(a_width, im_width) AS width,
                COALESCE(a_height, im_height) AS height,
-               metadata_state, duration_ms, mime_type
+               metadata_state, duration_ms, mime_type, animated
         FROM (
             SELECT a.id, a.path, a.parent_path, a.name, a.type,
                    a.mtime_ns, a.size,
                    a.width AS a_width, a.height AS a_height,
                    im.width AS im_width, im.height AS im_height,
-                   a.metadata_state, a.duration_ms, a.mime_type,
+                   a.metadata_state, a.duration_ms, a.mime_type, a.animated,
                    ROW_NUMBER() OVER (
                        PARTITION BY a.id
                        ORDER BY ABS(im.mtime_ns - a.mtime_ns) ASC, im.id ASC
@@ -633,6 +633,7 @@ def _catalog_browse_path_conn(
             height=row["height"],
             asset_id=row["id"],
             content_version=content_version(row["mtime_ns"], row["size"]),
+            animated=None if row["animated"] is None else bool(row["animated"]),
             metadata_state=row["metadata_state"],
             derivative_ready=derivative_ready_by_asset[int(row["id"])],
         )
@@ -720,13 +721,13 @@ def get_asset_folder_listing(
             SELECT id, path, parent_path, name, type, mtime_ns, size,
                    COALESCE(a_width, im_width) AS width,
                    COALESCE(a_height, im_height) AS height,
-                   metadata_state, duration_ms, mime_type
+                   metadata_state, duration_ms, mime_type, animated
             FROM (
                 SELECT a.id, a.path, a.parent_path, a.name, a.type,
                        a.mtime_ns, a.size,
                        a.width AS a_width, a.height AS a_height,
                        im.width AS im_width, im.height AS im_height,
-                       a.metadata_state, a.duration_ms, a.mime_type,
+                       a.metadata_state, a.duration_ms, a.mime_type, a.animated,
                        ROW_NUMBER() OVER (
                            PARTITION BY a.id
                            ORDER BY ABS(im.mtime_ns - a.mtime_ns) ASC, im.id ASC
@@ -836,6 +837,7 @@ def get_asset_folder_listing(
                 height=row["height"],
                 asset_id=row["id"],
                 content_version=content_version(row["mtime_ns"], row["size"]),
+                animated=None if row["animated"] is None else bool(row["animated"]),
                 metadata_state=row["metadata_state"],
                 derivative_ready=derivative_ready_by_asset[int(row["id"])],
             )

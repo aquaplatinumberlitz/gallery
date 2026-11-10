@@ -189,6 +189,9 @@ def upsert_catalog_records_conn(
                  codec=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
                    AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
                    THEN excluded.codec ELSE COALESCE(excluded.codec, assets.codec) END,
+                 animated=CASE WHEN excluded.mtime_ns IS NOT NULL AND excluded.size IS NOT NULL
+                   AND (assets.mtime_ns IS NOT excluded.mtime_ns OR assets.size IS NOT excluded.size)
+                   THEN NULL ELSE assets.animated END,
                  last_seen_scan_job_id=COALESCE(excluded.last_seen_scan_job_id, assets.last_seen_scan_job_id),
                  offline=0, deleted_at=NULL""",
             (

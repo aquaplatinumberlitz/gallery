@@ -200,6 +200,7 @@ const resultNodes = computed<FileNode[]>(() =>
     has_children: false,
     mtime: item.mtime,
     content_version: item.content_version,
+    animated: item.animated,
     width: item.width,
     height: item.height,
     // Spread to plain object — response.value?.scope is a reactive TanStack Query
@@ -379,6 +380,7 @@ watch(
                     :src="item.path"
                     :name="item.name"
                     :version="item.content_version"
+                    :animated="item.animated"
                     :image-width="item.width"
                     :image-height="item.height"
                     @click="openResult(item)"
