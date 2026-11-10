@@ -57,6 +57,80 @@ RUNTIME_COUNTERS_STATEMENTS: tuple[str, ...] = (
     *(f"CREATE TRIGGER IF NOT EXISTS {name} {body}" for name, body in _RUNTIME_COUNTER_TRIGGERS.items()),
 )
 
+# Search generation (BL-15): one row, bumped by triggers inside the transaction of every write that can change what
+# a text search returns, so the in-process ranked-window cache (``search_window_cache.py``) never serves a stale
+# window. Triggers cover every writer (database writer thread, direct write path, other processes, maintenance and
+# migrations); a rewrite with identical values is skipped where the writer itself skips it. ``epoch`` is random per
+# database file, so a re-created database at the same path can never match an older cache entry.
+_SEARCH_GENERATION_BUMP = "UPDATE search_generation SET value = value + 1 WHERE id = 1;"
+# (table, columns whose change can alter a search page); None means every column, every write.
+_SEARCH_GENERATION_TABLES: dict[str, tuple[str, ...] | None] = {
+    "image_metadata": None,
+    "image_metadata_fold": None,
+    "image_metadata_cjk": None,
+    "file_index_fold": None,
+    "library_import_paths": ("library_id", "path"),
+    "libraries": ("id", "name"),
+    "file_index": (
+        "path",
+        "name",
+        "parent_path",
+        "type",
+        "mtime",
+        "mtime_ns",
+        "size",
+        "width",
+        "height",
+        "library_id",
+    ),
+    "assets": (
+        "library_id",
+        "path",
+        "parent_path",
+        "name",
+        "type",
+        "mtime_ns",
+        "size",
+        "width",
+        "height",
+        "offline",
+        "deleted_at",
+        "mime_type",
+        "duration_ms",
+    ),
+}
+
+
+def _search_generation_triggers() -> dict[str, str]:
+    triggers: dict[str, str] = {}
+    for table, columns in _SEARCH_GENERATION_TABLES.items():
+        triggers[f"trg_search_generation_{table}_insert"] = (
+            f"AFTER INSERT ON {table} BEGIN {_SEARCH_GENERATION_BUMP} END"
+        )
+        triggers[f"trg_search_generation_{table}_delete"] = (
+            f"AFTER DELETE ON {table} BEGIN {_SEARCH_GENERATION_BUMP} END"
+        )
+        if columns is None:
+            triggers[f"trg_search_generation_{table}_update"] = (
+                f"AFTER UPDATE ON {table} BEGIN {_SEARCH_GENERATION_BUMP} END"
+            )
+        else:
+            changed = " OR ".join(f"OLD.{column} IS NOT NEW.{column}" for column in columns)
+            triggers[f"trg_search_generation_{table}_update"] = (
+                f"AFTER UPDATE OF {', '.join(columns)} ON {table} WHEN {changed} BEGIN {_SEARCH_GENERATION_BUMP} END"
+            )
+    return triggers
+
+
+SEARCH_GENERATION_TRIGGERS = _search_generation_triggers()
+SEARCH_GENERATION_TRIGGER_NAMES = tuple(SEARCH_GENERATION_TRIGGERS)
+SEARCH_GENERATION_STATEMENTS: tuple[str, ...] = (
+    "CREATE TABLE IF NOT EXISTS search_generation ("
+    "id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL, epoch TEXT NOT NULL)",
+    "INSERT OR IGNORE INTO search_generation(id, value, epoch) VALUES (1, 1, lower(hex(randomblob(8))))",
+    *(f"CREATE TRIGGER IF NOT EXISTS {name} {body}" for name, body in SEARCH_GENERATION_TRIGGERS.items()),
+)
+
 FRESH_DATABASE_DDL = """
             CREATE TABLE IF NOT EXISTS image_metadata (
               id INTEGER PRIMARY KEY,

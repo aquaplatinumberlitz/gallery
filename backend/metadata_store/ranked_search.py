@@ -21,6 +21,7 @@ from .cjk_index import CJK_FTS_TABLE, plan_short_query
 from .identity import asset_owns_file_index_sql, catalog_import_path_owns_sql, file_index_matches_image_metadata_sql
 from .path_utils import canonicalize_catalog_path
 from .search_text_index import META_FOLD_TABLE
+from .search_window_cache import SEARCH_WINDOW_CACHE, SearchWindowCache, WindowEntry, estimate_rows_size
 
 SEARCH_CURSOR_VERSION = 1
 SQLITE_INT_MIN = -(2**63)
@@ -1303,6 +1304,98 @@ def _is_after_cursor(row: sqlite3.Row, cursor: dict[str, int | float]) -> bool:
     )
 
 
+def _cursor_key(cursor: dict[str, int | float]) -> tuple[int, float, int, int]:
+    """The cursor in the ascending sort key of the page order (see ``_row_key``)."""
+    return (-int(cursor["tier"]), float(cursor["rank"]), -int(cursor["mtime_ns"]), int(cursor["asset_id"]))
+
+
+def _read_search_generation(conn: sqlite3.Connection) -> tuple[str, int] | None:
+    """The database's (epoch, search generation), or None when it has none (cache off)."""
+    try:
+        row = conn.execute("SELECT epoch, value FROM search_generation WHERE id = 1").fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return None if row is None else (str(row[0]), int(row[1]))
+
+
+class _WindowSession:
+    """One request's view of the ranked-window cache (BL-15).
+
+    A bounded source keeps the rows it read after a cursor (``bound``): every row of the source after the bound
+    that sorts strictly before the last of them is in the list. A later keyset page whose cursor lies at or after
+    the bound filters that list instead of ranking the FTS match set again. ``generation`` was read from the
+    database before any data of this request, so an entry stored under it can only be too old to serve, never
+    newer than the data it was read from.
+
+    Only keyset pages (a cursor) are served from the cache; the first page always reads its sources and
+    refreshes their entries. The caller reruns a plan that used the cache and gave up, with ``serve`` off.
+    """
+
+    def __init__(
+        self, cache: SearchWindowCache, epoch: str, generation: int, scope_key: tuple[Any, ...], *, serve: bool
+    ) -> None:
+        self.cache = cache
+        self.epoch = epoch
+        self.generation = generation
+        self.scope_key = scope_key
+        self.serve = serve
+        self.hits = 0
+
+    def _key(self, source_key: tuple[Any, ...]) -> tuple[Any, ...]:
+        return (self.epoch, self.scope_key, source_key)
+
+    def lookup(
+        self, source_key: tuple[Any, ...], cursor_position: dict[str, int | float] | None
+    ) -> tuple[list[sqlite3.Row], tuple[int, float, int] | None] | None:
+        """The cached rows of a source after the cursor and its cover, or None when the cache cannot answer."""
+        if not self.serve or cursor_position is None:
+            return None
+        entry = self.cache.get(self._key(source_key), self.generation)
+        if entry is None:
+            return None
+        cursor_key = _cursor_key(cursor_position)
+        if entry.bound is not None and cursor_key < entry.bound:
+            return None  # the list starts after this cursor
+        rows = [row for row in entry.rows if _row_key(row) > cursor_key]
+        if entry.cut_short and not rows:
+            return None  # the cursor is past the cached list: only a read can tell what follows
+        self.hits += 1
+        return rows, entry.cover  # type: ignore[return-value]
+
+    def store(
+        self,
+        source_key: tuple[Any, ...],
+        cursor_position: dict[str, int | float] | None,
+        rows: list[sqlite3.Row],
+        *,
+        cut_short: bool,
+    ) -> None:
+        """Keep the rows a source just read after ``cursor_position`` (its surviving rows, before the cursor test)."""
+        cover = max(_row_key(row) for row in rows)[:3] if rows and cut_short else None
+        self.cache.put(
+            self._key(source_key),
+            WindowEntry(
+                generation=self.generation,
+                bound=None if cursor_position is None else _cursor_key(cursor_position),
+                rows=tuple(rows),
+                cut_short=cut_short,
+                cover=cover,
+                size=estimate_rows_size(rows),
+            ),
+        )
+
+
+def _open_window(conn: sqlite3.Connection, scope_key: tuple[Any, ...], *, serve: bool) -> _WindowSession | None:
+    """The request's window session, or None when the cache is off or the database has no search generation."""
+    cache = SEARCH_WINDOW_CACHE
+    if not cache.enabled:
+        return None
+    generation = _read_search_generation(conn)
+    if generation is None:
+        return None
+    return _WindowSession(cache, generation[0], generation[1], scope_key, serve=serve)
+
+
 def _file_source_is_small(conn: sqlite3.Connection, source: _Source, params: dict[str, Any]) -> bool:
     """Whether a filename source matches few enough FTS rows to read whole (a rank-free, early-exit probe)."""
     assert source.probe is not None
@@ -1352,6 +1445,8 @@ def _read_preselected(
     params: dict[str, Any],
     cursor_position: dict[str, int | float] | None,
     covers: list[tuple[int, float, int]],
+    window: _WindowSession | None = None,
+    window_key: tuple[Any, ...] = (),
 ) -> list[sqlite3.Row] | None:
     """Rows of a bounded source after the cursor, or None when the bound may have dropped valid rows.
 
@@ -1366,8 +1461,17 @@ def _read_preselected(
     assert source.pre_sql is not None and source.rows_sql is not None
     if cursor_position is not None and source.min_tier > int(cursor_position["tier"]):
         return []  # every row ranks before the cursor
+    if window is not None:
+        cached = window.lookup(window_key, cursor_position)
+        if cached is not None:
+            rows, cover = cached
+            if cover is not None:
+                covers.append(cover)
+            return rows
     pre_rows = conn.execute(source.pre_sql, params).fetchall()
     if not pre_rows:
+        if window is not None:
+            window.store(window_key, cursor_position, [], cut_short=False)
         return []
     survivors = conn.execute(
         source.rows_sql, {**params, _PRESELECT_ROWS_PARAM: json.dumps([list(row) for row in pre_rows])}
@@ -1375,9 +1479,12 @@ def _read_preselected(
     rows = (
         survivors if cursor_position is None else [row for row in survivors if _is_after_cursor(row, cursor_position)]
     )
-    if len(pre_rows) >= int(params["fts_candidate_limit"]):
-        if len(survivors) < len(pre_rows) or not rows:
-            return None
+    cut_short = len(pre_rows) >= int(params["fts_candidate_limit"])
+    if cut_short and (len(survivors) < len(pre_rows) or not rows):
+        return None
+    if window is not None:
+        window.store(window_key, cursor_position, survivors, cut_short=cut_short)
+    if cut_short:
         covers.append(max(_row_key(row) for row in rows)[:3])
     return rows
 
@@ -1406,6 +1513,7 @@ def _run_page_plan(
     row_limit: int,
     cursor_position: dict[str, int | float] | None,
     shadow_selects: Callable[[], list[_Source]] | None = None,
+    window: _WindowSession | None = None,
 ) -> list[sqlite3.Row] | None:
     """Return one page by reading the candidate sources from the highest tier down.
 
@@ -1426,6 +1534,11 @@ def _run_page_plan(
     * a bounded source that was cut short is read through ``_read_preselected``, and the page must lie inside
       the range every cut-short source covers, else the plan gives up (None) and the caller runs the exact
       statement. A page never silently drops, or repeats, a match.
+
+    Both plans cover a cut-short bounded source the same way. ``window`` lets a keyset page take a bounded
+    source's rows from the ranked-window cache instead of ranking its match set again (see ``_WindowSession``);
+    a cached source's cover is the cache's, which never reaches further than a read's, so a page the cache cannot
+    guarantee gives up (None) and the caller runs the plan again without the cache.
     """
     exact = shadow_selects is not None
     placed = sorted(_plan_sources(conn, selects, params), key=lambda item: -item[1].max_tier)
@@ -1498,19 +1611,39 @@ def _run_page_plan(
                 rows = conn.execute(str(source), params).fetchall()
                 whole.add(position)
             elif exact and source.pre_sql is not None:
-                read = _read_preselected(conn, source, params, cursor_position, covers)
+                window_key = (position, source.min_tier, source.max_tier)
+                read = _read_preselected(conn, source, params, cursor_position, covers, window, window_key)
                 if read is None and source.retry is not None:
-                    read = _read_preselected(conn, source.retry, params, cursor_position, covers)
+                    read = _read_preselected(
+                        conn, source.retry, params, cursor_position, covers, window, (*window_key, "retry")
+                    )
                 if read is None:
                     return None
                 rows = read
             else:
                 if cursor_position is not None and source.min_tier > int(cursor_position["tier"]):
                     continue  # every row ranks before the cursor
-                rows = conn.execute(
-                    build_candidate_page_query([source], has_cursor=has_cursor, legacy_offset=False),
-                    {**params, "page_limit": row_limit},
-                ).fetchall()
+                window_key = (position, source.min_tier, source.max_tier)
+                cached = None if exact or window is None else window.lookup(window_key, cursor_position)
+                if cached is not None:
+                    rows, cover = cached
+                    if cover is not None:
+                        covers.append(cover)
+                else:
+                    rows = conn.execute(
+                        build_candidate_page_query([source], has_cursor=has_cursor, legacy_offset=False),
+                        {**params, "page_limit": row_limit},
+                    ).fetchall()
+                    # A bounded source that returned a full bound may have been cut short (BL-16): it is complete
+                    # only strictly before the (tier, rank, mtime) of its last row, as in `_read_preselected`.
+                    cut_short = len(rows) >= row_limit
+                    if cut_short and not exact:
+                        covers.append(max(_row_key(row) for row in rows)[:3])
+                        if window is not None:
+                            # Only a full bound is cached: a shorter list is either the whole (cheap) match set or a
+                            # cut-short preselect that lost rows to the strict joins, which this single statement
+                            # cannot tell apart, and a lossy list must never be served as complete.
+                            window.store(window_key, cursor_position, rows, cut_short=True)
             for row in rows:
                 asset_id = int(row["asset_id"])
                 origin.setdefault(asset_id, set()).add(position)
@@ -1523,7 +1656,7 @@ def _run_page_plan(
         if len(page) == page_limit and int(page[-1]["relevance_tier"]) > placed[index][1].max_tier:
             break
     # Every cut-short source holds all of its valid rows strictly before its cover: the page must end there.
-    if exact and covers and (len(page) < page_limit or any(_row_key(page[-1])[:3] >= cover for cover in covers)):
+    if covers and (len(page) < page_limit or any(_row_key(page[-1])[:3] >= cover for cover in covers)):
         return None
     return page
 
@@ -1778,27 +1911,43 @@ def search_ranked_media_page(
                     scope=scope_filter,
                     retry_preselect=exact_plan,
                 )
-                rows = _run_page_plan(
-                    conn,
-                    selects,  # type: ignore[arg-type]
-                    params,
-                    page_limit=limit + 1,
-                    row_limit=candidate_limit,
-                    cursor_position=cursor_position,
-                    shadow_selects=(
-                        lambda: _candidate_selects(  # type: ignore[return-value]
-                            residual,
-                            scope_sql,
-                            include_fts=True,
-                            field_where=field_where,
-                            include_videos=include_videos,
-                            has_cursor=cursor_position is not None,
-                            extra_where=SHADOW_PATHS_WHERE,
-                        )
+                window = None
+                if parsed is None or not (parsed.fields or prompt_groups or workflow_groups):
+                    window = _open_window(
+                        conn,
+                        (fingerprint, candidate_limit, include_videos, exact_plan),
+                        serve=cursor_position is not None,
                     )
-                    if exact_plan
-                    else None,
-                )
+
+                def plan(used_window: _WindowSession | None) -> list[sqlite3.Row] | None:
+                    return _run_page_plan(
+                        conn,
+                        selects,  # type: ignore[arg-type]
+                        params,
+                        page_limit=limit + 1,
+                        row_limit=candidate_limit,
+                        cursor_position=cursor_position,
+                        shadow_selects=(
+                            lambda: _candidate_selects(  # type: ignore[return-value]
+                                residual,
+                                scope_sql,
+                                include_fts=True,
+                                field_where=field_where,
+                                include_videos=include_videos,
+                                has_cursor=cursor_position is not None,
+                                extra_where=SHADOW_PATHS_WHERE,
+                            )
+                        )
+                        if exact_plan
+                        else None,
+                        window=used_window,
+                    )
+
+                rows = plan(window)
+                if rows is None and window is not None and window.hits:
+                    # The cached windows could not guarantee this page: rank the sources again, as without a cache.
+                    window.serve = False
+                    rows = plan(window)
             if rows is None:
                 # Legacy offsets, field-only queries, and any scoped or field-filtered page the bounded plan
                 # could not guarantee: the exact single statement over every source.
