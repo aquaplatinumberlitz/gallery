@@ -11,9 +11,13 @@ Run when:
 * touching image path validation or PIL derivative behavior
 """
 
+import asyncio
+import time
 from io import BytesIO
 from pathlib import Path
 
+import httpx
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image as PILImage
 
@@ -52,6 +56,43 @@ class TestApiImage:
     def test_image_404_for_missing(self, isolated_app: TestClient, temp_gallery: Path):
         resp = isolated_app.get("/api/image", params={"path": str(temp_gallery / "none.png")})
         assert resp.status_code == 404
+
+
+class TestApiImageEventLoop:
+    """PR-03: /api/image authorization and stat run off the event loop."""
+
+    def test_image_request_does_not_block_health_probe(
+        self, isolated_app: TestClient, temp_gallery: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        import backend.images as images_module
+
+        path = temp_gallery / "album_a" / "001.png"
+        original_authorize = images_module.require_media_path_allowed
+        original_bytes = path.read_bytes()
+
+        def slow_authorize(*args, **kwargs):
+            time.sleep(0.5)
+            return original_authorize(*args, **kwargs)
+
+        monkeypatch.setattr(images_module, "require_media_path_allowed", slow_authorize)
+
+        async def run():
+            transport = httpx.ASGITransport(app=isolated_app.app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+                started = time.perf_counter()
+                image_task = asyncio.create_task(client.get("/api/image", params={"path": str(path)}))
+                await asyncio.sleep(0.05)
+                health = await client.get("/api/health")
+                health_elapsed = time.perf_counter() - started
+                image = await image_task
+                return health, health_elapsed, image
+
+        health, health_elapsed, image = asyncio.run(run())
+
+        assert health.status_code == 200
+        assert health_elapsed < 0.3, f"/api/health waited {health_elapsed:.3f}s behind /api/image"
+        assert image.status_code == 200
+        assert image.content == original_bytes
 
 
 class TestThumbnail:
