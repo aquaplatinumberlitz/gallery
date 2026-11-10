@@ -507,6 +507,21 @@ catalog-side deactivation (library removed, asset marked offline/deleted) that l
 place: entries therefore expire after `GALLERY_DERIVATIVE_FASTPATH_TTL_SECONDS` (default 5), so such a
 change is honoured within that bound. Setting either variable to 0 disables the fast path.
 
+**Waiting for a cold derivative (PR-01, BL-9).** A request whose derivative is not ready schedules it and then
+waits on the event loop (`thumbnails._await_derivative`), never in a thread-pool thread: a thread parked for up
+to 10 s each made a burst of cold thumbnails starve every sync endpoint (search, browse) that shares the
+40-thread pool. Each catalog read (`_poll_derivative_once`) is one short `run_in_threadpool` call. Between reads
+the request sleeps on an `asyncio.Event` held in the registry `backend/derivative_scheduler/waiters.py`, keyed
+by derivative id. `_complete_claim` and `_handle_failure` call `derivative_waiters.notify(id)` after their fenced
+write succeeded, which sets the event through `loop.call_soon_threadsafe`. A signal only means "read again": the
+waiter decides from the catalog row. Terminal states that do not pass through a worker (recovery, eviction,
+supersede, another process) are caught by a fallback read every `DERIVATIVE_WAIT_FALLBACK_SECONDS` (1 s). With
+no live scheduler worker (tests, scripts) each turn runs one `scheduler.run_once()` inside the pool call and
+backs off 30 ms to 400 ms. The deadline (`DERIVATIVE_WAIT_SECONDS`, 10 s, then 503), the outcome mapping, the
+single `source_changed` reschedule and the serving protection are unchanged. The registry entry is removed on
+completion, timeout and client disconnect (`finally`). Manual load check: `scripts/perf/cold_thumbnail_burst.py`
+(see `docs/testing/PERFORMANCE_TESTING.md`).
+
 ### Catalog writes through the writer
 
 The catalog scan and rebuild pipeline (`backend/scan_worker.py` and the store modules

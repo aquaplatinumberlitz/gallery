@@ -1,5 +1,7 @@
 """Generate and serve cached WebP thumbnail and preview derivatives."""
 
+import asyncio
+import contextlib
 import hashlib
 import math
 import os
@@ -20,6 +22,7 @@ from starlette.background import BackgroundTask
 from . import config as _config
 from .config import THUMBNAIL_CACHE_DIR
 from .derivative_fastpath import FastPathEntry, FastPathKey, derivative_fast_path, fast_path_key
+from .derivative_scheduler.waiters import derivative_waiters
 from .disk_cache import ThreadClosingCache
 from .errors import APIError, ErrorType
 from .files import check_image_limits, content_version, is_image, is_permanent_decode_error
@@ -522,6 +525,108 @@ def _check_fast_path(key: FastPathKey) -> tuple[FastPathEntry, os.stat_result] |
     return entry, stat
 
 
+DERIVATIVE_WAIT_SECONDS = 10.0
+# Fallback poll while the scheduler's workers are running: the worker signals completion (see
+# ``derivative_scheduler.waiters``), so this only covers a terminal state reached by another path or process.
+DERIVATIVE_WAIT_FALLBACK_SECONDS = 1.0
+
+
+def _poll_derivative_once(scheduler, derivative_id: int, asset_id: int, kind: DerivativeKind, variant: str):
+    """One bounded catalog read for a waiting request; runs in the thread pool.
+
+    Returns ``("ready", row)``, ``("terminal", (outcome_kind, outcome))``, ``("source_changed", outcome)``,
+    ``("missing", None)`` or ``("pending", workers_running)``. Without live workers (tests, scripts) it first
+    runs one queued job itself, which is the only thing that can make progress then.
+    """
+    running = scheduler.is_running()
+    if not running:
+        scheduler.run_once()
+    outcome = scheduler.get_derivative_outcome(derivative_id)
+    if outcome is None:
+        return "missing", None
+    state = outcome["derivative_state"]
+    if state == "ready" and outcome.get("cache_path") and Path(outcome["cache_path"]).is_file():
+        return "ready", scheduler.acquire_ready_derivative(asset_id, kind, variant)
+    if state == "failed":
+        return "terminal", ("failed", outcome)
+    if state in {"deferred_capacity", "evicted"}:
+        return "terminal", ("deferred", outcome)
+    if state == "skipped":
+        if outcome.get("result_code") == "source_changed":
+            return "source_changed", outcome
+        return "terminal", ("skipped", outcome)
+    return "pending", running
+
+
+async def _await_derivative(
+    scheduler,
+    derivative_id: int,
+    asset_id: int,
+    kind: DerivativeKind,
+    variant: str,
+    *,
+    max_long_edge: int,
+    quality: int,
+    format: str,
+):
+    """Wait on the event loop for a scheduled derivative without holding a thread-pool thread.
+
+    Each catalog read is one short ``run_in_threadpool`` call. Between reads the request sleeps on an
+    ``asyncio.Event`` that the scheduler sets when the derivative reaches a terminal state, with a slow
+    fallback poll. Returns the ready row, ``(outcome_kind, outcome)`` for a terminal failure, or ``None`` on
+    timeout or a vanished row. The registry entry is always removed, including on client disconnect.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + DERIVATIVE_WAIT_SECONDS
+    current_id = derivative_id
+    rescheduled = False
+    event = derivative_waiters.register(current_id)
+    poll_seconds = 0.03
+    try:
+        while True:
+            # Clear before reading: a signal that lands after the read leaves the event set for the wait below.
+            event.clear()
+            status, payload = await run_in_threadpool(
+                _poll_derivative_once, scheduler, current_id, asset_id, kind, variant
+            )
+            if status == "ready" or status == "terminal":
+                return payload
+            if status == "missing":
+                return None
+            if status == "source_changed":
+                if rescheduled:
+                    return ("skipped", payload)
+                rescheduled = True
+                new_id = await run_in_threadpool(
+                    scheduler.schedule_derivative,
+                    asset_id,
+                    kind,
+                    variant,
+                    0,
+                    max_long_edge=max_long_edge,
+                    quality=quality,
+                    format=format,
+                )
+                if not new_id:
+                    return ("skipped", payload)
+                derivative_waiters.unregister(current_id, event)
+                current_id = new_id
+                event = derivative_waiters.register(current_id)
+                continue
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                return None
+            if payload:  # workers are alive: wait for their signal, with a slow fallback poll
+                interval = DERIVATIVE_WAIT_FALLBACK_SECONDS
+            else:  # request-driven mode: ``run_once`` advances the queue, so back off between turns
+                interval = poll_seconds
+                poll_seconds = min(poll_seconds * 1.4, 0.4)
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(event.wait(), timeout=min(interval, remaining))
+    finally:
+        derivative_waiters.unregister(current_id, event)
+
+
 async def _serve_derivative(
     *,
     request: Request,
@@ -587,50 +692,16 @@ async def _serve_derivative(
             except FileNotFoundError as exc:
                 raise APIError(404, ErrorType.NOT_FOUND, "Image file not found") from exc
 
-            def wait_for_derivative():
-                deadline = time.monotonic() + 10
-                poll_seconds = 0.03
-                current_derivative_id = derivative_id
-                rescheduled = False
-                while time.monotonic() < deadline:
-                    if not scheduler.is_running():
-                        scheduler.run_once()
-                    outcome = scheduler.get_derivative_outcome(current_derivative_id)
-                    if outcome is None:
-                        return None
-                    state = outcome["derivative_state"]
-                    if state == "ready" and outcome.get("cache_path") and Path(outcome["cache_path"]).is_file():
-                        return scheduler.acquire_ready_derivative(asset_id, kind, variant)
-                    if state == "failed":
-                        return ("failed", outcome)
-                    if state == "deferred_capacity":
-                        return ("deferred", outcome)
-                    if state == "evicted":
-                        return ("deferred", outcome)
-                    if state == "skipped":
-                        result_code = outcome.get("result_code")
-                        if result_code == "source_changed" and not rescheduled:
-                            rescheduled = True
-                            new_id = scheduler.schedule_derivative(
-                                asset_id,
-                                kind,
-                                variant,
-                                0,
-                                max_long_edge=max_long_edge,
-                                quality=quality,
-                                format=normalized_format,
-                            )
-                            if new_id:
-                                current_derivative_id = new_id
-                                continue
-                        return ("skipped", outcome)
-                    # Back off: dozens of requests waiting at once (a grid opening) would otherwise poll the
-                    # catalog 20x/s each and starve the render workers of the GIL.
-                    time.sleep(poll_seconds)
-                    poll_seconds = min(poll_seconds * 1.4, 0.4)
-                return None
-
-            wait_result = await run_in_threadpool(wait_for_derivative)
+            wait_result = await _await_derivative(
+                scheduler,
+                derivative_id,
+                asset_id,
+                kind,
+                variant,
+                max_long_edge=max_long_edge,
+                quality=quality,
+                format=normalized_format,
+            )
             if isinstance(wait_result, tuple):
                 outcome_kind, outcome = wait_result
                 if outcome_kind == "failed":

@@ -290,32 +290,28 @@ def test_an_interactive_job_waits_about_one_variant_when_every_worker_is_inside_
 def test_a_request_waiting_for_its_derivative_backs_off_its_catalog_polling(
     isolated_app, temp_gallery: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Dozens of waiting requests polling every 50 ms starved the render workers of the GIL; polls back off."""
-    from types import SimpleNamespace
+    """Dozens of waiting requests polling every 50 ms starved the render workers of the GIL.
 
+    The wait is now signal-driven (``derivative_scheduler/waiters.py``) with a slow fallback poll; the deadline
+    and constants are shortened here instead of faking the clock, because the wait runs on the event loop.
+    """
     from backend.derivative_scheduler import scheduler as shared_scheduler
 
-    clock = {"now": 1000.0}
     polls: list[float] = []
 
     def outcome(_derivative_id):  # noqa: ANN001
-        polls.append(clock["now"])
+        polls.append(time.monotonic())
         return {"derivative_state": "queued", "cache_path": None, "result_code": None}
 
-    def fake_sleep(seconds: float) -> None:
-        clock["now"] += seconds
-
-    fake_time = SimpleNamespace(
-        monotonic=lambda: clock["now"], sleep=fake_sleep, perf_counter=time.perf_counter, time=time.time
-    )
     monkeypatch.setattr(shared_scheduler, "get_derivative_outcome", outcome)
     monkeypatch.setattr(shared_scheduler, "is_running", lambda: True)
     monkeypatch.setattr(shared_scheduler, "schedule_derivative", lambda *args, **kwargs: 1)
-    monkeypatch.setattr(thumbnails, "time", fake_time)
+    monkeypatch.setattr(thumbnails, "DERIVATIVE_WAIT_SECONDS", 2.0)
+    monkeypatch.setattr(thumbnails, "DERIVATIVE_WAIT_FALLBACK_SECONDS", 0.5)
 
     response = isolated_app.get("/api/thumbnail", params={"path": str(temp_gallery / "album_a" / "001.png")})
 
-    assert response.status_code == 503, "the wait still gives up after its 10 s deadline"
-    assert 10 <= len(polls) <= 60, f"{len(polls)} polls in a 10 s wait (a fixed 50 ms interval is 200)"
+    assert response.status_code == 503, "the wait still gives up after its deadline"
+    assert 2 <= len(polls) <= 8, f"{len(polls)} reads in a 2 s wait (a fixed 50 ms interval is 40)"
     gaps = [later - earlier for earlier, later in zip(polls, polls[1:], strict=False)]
-    assert gaps[0] < gaps[-1], "the interval grows while the derivative is still pending"
+    assert min(gaps[:-1] or gaps) >= 0.4, "reads are spaced by the fallback interval, not hot-polled"
