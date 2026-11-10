@@ -173,6 +173,15 @@ def test_the_allowlisted_modules_may_own_transactions(ownership, rel: str) -> No
     assert ownership.check_source(source, "metadata_store/other.py")
 
 
+def test_other_database_modules_may_only_open_their_own_connection(ownership) -> None:
+    """`disk_cache.py` opens diskcache's own database: `sqlite3.connect` passes, catalog connections and transactions do not."""
+    assert frozenset({"disk_cache.py"}) == ownership.OTHER_DATABASE_MODULES
+    assert _flags(ownership, "def f():\n    return sqlite3.connect('cache.db')\n", rel="disk_cache.py") == []
+    assert _flags(ownership, "def f():\n    return _connect()\n", rel="disk_cache.py")
+    assert _flags(ownership, "def f(conn):\n    conn.commit()\n", rel="disk_cache.py")
+    assert _flags(ownership, "def f():\n    return sqlite3.connect('x')\n", rel="other.py")
+
+
 # ---------------------------------------------------------------------------
 # Command line
 # ---------------------------------------------------------------------------
