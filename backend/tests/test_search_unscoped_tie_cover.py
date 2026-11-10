@@ -34,7 +34,7 @@ BASE_MTIME_NS = 1_760_000_000_000_000_000
 NOW = 1_760_000_000.0
 
 
-def _tied_corpus(root: Path, *, count: int = 60, distinct_mtimes: bool = False) -> None:
+def _tied_corpus(root: Path, *, count: int = 60, distinct_mtimes: bool = False) -> tuple[int, Path, list[str]]:
     (root / "lib").mkdir()
     library_id = int(register_library(root / "lib", name="Ties")["id"])
     folder = root / "lib" / "batch"
@@ -70,6 +70,7 @@ def _tied_corpus(root: Path, *, count: int = 60, distinct_mtimes: bool = False) 
             )
         rebuild_search_text_index(conn)
         conn.commit()
+    return library_id, folder, paths
 
 
 @pytest.mark.parametrize("query", ("cat", "c", "ca"))

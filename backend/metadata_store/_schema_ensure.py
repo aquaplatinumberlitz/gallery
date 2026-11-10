@@ -6,7 +6,12 @@ import sqlite3
 from collections.abc import Callable
 
 from ._db import _ensure_column
-from ._schema_ddl import RUNTIME_COUNTER_NAMES, RUNTIME_COUNTER_TRIGGER_NAMES, RUNTIME_COUNTERS_STATEMENTS
+from ._schema_ddl import (
+    RUNTIME_COUNTER_NAMES,
+    RUNTIME_COUNTER_TRIGGER_NAMES,
+    RUNTIME_COUNTERS_STATEMENTS,
+    SEARCH_GENERATION_STATEMENTS,
+)
 
 
 def _ensure_generation_signature_schema(
@@ -857,3 +862,13 @@ def _ensure_runtime_counters(conn: sqlite3.Connection) -> None:
         conn.execute(statement)
     if needs_backfill:
         verify_runtime_counters(conn, repair=True)
+
+
+def _ensure_search_generation(conn: sqlite3.Connection) -> None:
+    """Create the search generation row and the triggers that bump it (additive, idempotent, no backfill).
+
+    Nothing derives from existing rows, so no schema version or backup is needed: a fresh row starts at 1 with a
+    new epoch, and the in-process cache keyed by (epoch, value) starts empty with the process.
+    """
+    for statement in SEARCH_GENERATION_STATEMENTS:
+        conn.execute(statement)

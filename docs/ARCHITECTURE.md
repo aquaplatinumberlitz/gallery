@@ -1420,6 +1420,39 @@ Header search or AdvancedSearchDrawer
   to the strict ownership joins (offline or deleted assets) returns fewer than the bound and is not seen as cut
   short; the unscoped plan has never retried those, and detecting them would need the preselect row count (a second
   statement per source), so it is documented rather than paid for.
+  Ranked-window cache (BL-15): a dense query ranks the whole FTS match set of each bounded source (about 100k
+  rows) to keep its best `fts_candidate_limit` rows after the cursor, and a keyset chain used to repeat that on
+  every page. `search_window_cache.SEARCH_WINDOW_CACHE` now keeps, per request (the cursor fingerprint, the
+  candidate limit, the video and exact-plan flags) and bounded source, the rows that source returned after the
+  cursor of the page that read it. Page 1 always reads its sources and refreshes the entries. A keyset page whose
+  cursor is at or after an entry's bound filters the cached rows after its own cursor instead of running the source;
+  the cached source's cover is the cache's (the last cached row's tier, rank and mtime), so a page that reaches it,
+  or a cursor past the cached list, makes the plan give up and `search_ranked_media_page` runs the plan again
+  with the cache off (and refreshes the entries from the new cursor). Pages are therefore the pages of the
+  uncached plan. Not cached: fielded and filtered queries (they read the metadata filter tables), whole-read
+  small filename sources, and, in the unscoped plan, a source that returned fewer than the bound (it is either a
+  tiny match set or a cut-short preselect that lost rows to the strict joins, and the single statement cannot
+  tell which, so a lossy list must not be served as complete). The scoped (exact) plan caches the strict
+  survivors of a preselect together with whether the preselect was cut short, and its shadow checks still run per
+  page. Measured: keyset pages 2-3 of the dense classes fall from about 210-230 ms to 8-25 ms p50 on the 100k
+  fixture, scoped or not; page 1 is unchanged.
+  Invalidation is a database row, not an in-process hook: `search_generation(id, value, epoch)` is bumped by
+  triggers (`_schema_ddl.SEARCH_GENERATION_TRIGGERS`, created by the additive `_ensure_search_generation`, no
+  catalog version bump) in the transaction of every insert, delete and relevant update of `image_metadata`,
+  `image_metadata_fold`, `image_metadata_cjk`, `file_index`, `file_index_fold`, `assets` (path, name, type, mtime,
+  size, dimensions, `offline`, `deleted_at`, library, mime type and duration; not `metadata_state`, `indexed_at`
+  or scan stamps), `libraries` (id, name) and `library_import_paths` (library, path). Triggers cover every
+  writer (the database writer thread, direct write paths, other processes, maintenance and migrations) and
+  commit atomically with the data they describe, which an in-process hook at the writer layer cannot promise
+  (a bump before commit lets a reader cache the old data under the new generation) and could miss any path
+  that does not go through it. Each request reads `(epoch, value)` before any data, so an entry written under
+  that value is at worst too old to serve, never newer than its data; an entry of another value is dropped on its
+  next lookup, and `epoch` (random per database file) keeps a database re-created at the same path from matching
+  older entries. The FTS virtual tables cannot carry triggers; their writers (`file_index.py`) always change
+  `file_index` or the fold tables in the same transaction. Bounded: `GALLERY_SEARCH_WINDOW_CACHE_ENTRIES`
+  (128) entries and `GALLERY_SEARCH_WINDOW_CACHE_MB` (32) MiB of estimated row memory, least recently used
+  first; 0 turns it off. One lock guards the table and the cached rows are read-only. Cost: one extra row update
+  per write of a watched row, skipped where the old and new values of the relevant columns are equal.
   Known behaviour of the unscoped, unfiltered plan only: a row that matches in two sources of different tiers can be returned once
   per source across keyset pages (the per-source cursor pre-filter runs before the
   cross-source dedup; this predates the plan). The bounded filename variants of a large match
