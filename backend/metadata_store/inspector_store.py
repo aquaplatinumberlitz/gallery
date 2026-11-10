@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..files import content_version
 from ._db import _connect_read
 from ._resources import _iter_metadata_loras, _lora_summary, _split_lora_text
 from ._schema import initialize_database
@@ -62,6 +63,10 @@ def _format_inspector_row(row: sqlite3.Row, root: Path) -> dict[str, Any]:
         "folder": parent_path,
         "relative_path": _folder_relative_path(parent_path, root),
         "mtime": row["mtime"],
+        "content_version": content_version(
+            row["asset_mtime_ns"] if "asset_mtime_ns" in row_keys else None,
+            row["asset_size"] if "asset_size" in row_keys else None,
+        ),
         "width": width,
         "height": height,
         "model": row["model"] or "",
@@ -293,6 +298,8 @@ def list_library_inspector_rows(
                   m.name,
                   COALESCE(m.mtime, fi.mtime) AS mtime,
                   {_INSPECTOR_MTIME_SQL} AS mtime_ns,
+                  catalog_asset.mtime_ns AS asset_mtime_ns,
+                  catalog_asset.size AS asset_size,
                   m.width,
                   m.height,
                   m.model,
@@ -312,6 +319,7 @@ def list_library_inspector_rows(
                 FROM bounded_rows bounded
                 CROSS JOIN image_metadata m ON m.id = bounded.metadata_id
                 CROSS JOIN file_index fi ON fi.path = m.path
+                {_PRESELECT_ACTIVE_ASSET_SQL}
                 LEFT JOIN (
                   SELECT path, count(*) AS lora_count, group_concat(name, ', ') AS lora_preview
                   FROM image_resources

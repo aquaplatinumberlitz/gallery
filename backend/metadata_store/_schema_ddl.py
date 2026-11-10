@@ -97,6 +97,7 @@ _SEARCH_GENERATION_TABLES: dict[str, tuple[str, ...] | None] = {
         "deleted_at",
         "mime_type",
         "duration_ms",
+        "animated",
     ),
 }
 
@@ -400,6 +401,7 @@ FRESH_DATABASE_DDL = """
               duration_ms INTEGER,
               codec TEXT,
               last_seen_scan_job_id INTEGER,
+              animated INTEGER,
               UNIQUE(library_id, path)
             );
             CREATE INDEX IF NOT EXISTS idx_assets_library_path ON assets(library_id, path);

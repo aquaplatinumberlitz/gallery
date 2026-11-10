@@ -82,7 +82,9 @@ vi.mock("@/services/api", () => ({
 vi.mock("@/utils/lightbox", () => ({
   buildPhotoSwipeItem: vi.fn((item: FileNode, resolvedDimensions?: LightboxDimensions | null) => {
     const previewSrc = `/api/preview?path=${encodeURIComponent(item.path)}`;
-    const isAnimatedAsset = /\.(gif|apng)$/i.test(item.path || item.name || "");
+    // Mirrors `isAnimatedAsset`: the backend value wins, an unknown value is animated only for .gif.
+    const isAnimatedAsset =
+      typeof item.animated === "boolean" ? item.animated : /\.gif$/i.test(item.path || item.name || "");
     return {
       src: previewSrc,
       previewSrc,
@@ -195,7 +197,7 @@ function setup(items: FileNode[], currentIndex = 0, isInitiallyOpen = false, opt
     }),
     { global: { plugins: [pinia, [VueQueryPlugin, { queryClient }]] } },
   );
-  return { result, wrapper, isOpenRef, currentIndexRef, onIndexChange, onClose };
+  return { result, wrapper, isOpenRef, currentIndexRef, itemsRef, onIndexChange, onClose };
 }
 
 let restoreImage: (() => void) | null = null;
@@ -882,6 +884,25 @@ describe("usePhotoSwipe", () => {
       expect(dataItem.originalLoadReason).toBe("animated");
     });
 
+    it("loads the original at open for an animated WebP and keeps a static WebP on the preview", async () => {
+      const animated = { ...makeItem("/moving.webp", "moving.webp"), animated: true };
+      const { result, isOpenRef } = setup([animated], 0, false);
+      isOpenRef.value = true;
+      await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
+      const openingItem = pswpInstances[0].options.dataSource[0] as PhotoSwipeImageItem;
+      expect(openingItem.src).toBe("/api/image?path=%2Fmoving.webp");
+      expect(openingItem.originalLoadReason).toBe("animated");
+
+      pswpInstances.length = 0;
+      const still = { ...makeItem("/still.webp", "still.webp"), animated: false };
+      const second = setup([still], 0, false);
+      second.isOpenRef.value = true;
+      await vi.waitFor(() => expect(second.result.pswp.value).not.toBeNull());
+      const stillItem = pswpInstances[0].options.dataSource[0] as PhotoSwipeImageItem;
+      expect(stillItem.src).toBe("/api/preview?path=%2Fstill.webp");
+      expect(stillItem.isOriginalLoaded).toBeUndefined();
+    });
+
     it("calls onRegisterUi and onAfterInit callbacks", async () => {
       const onRegisterUi = vi.fn();
       const onAfterInit = vi.fn();
@@ -1078,6 +1099,30 @@ describe("usePhotoSwipe", () => {
       expect(dataItem.originalLoadReason).toBe("animated");
     });
 
+    it("loads the original of an animated WebP navigated to", async () => {
+      const items = [makeItem("/img1.png", "img1.png"), { ...makeItem("/moving.webp", "moving.webp"), animated: true }];
+      const { result, isOpenRef } = setup(items, 0, false);
+      isOpenRef.value = true;
+      await vi.waitFor(() => expect(result.pswp.value).not.toBeNull());
+
+      const instance = pswpInstances[0];
+      const dataItem = instance.options.dataSource[1] as PhotoSwipeImageItem;
+      instance.currSlide = {
+        index: 1,
+        data: {} as Record<string, unknown>,
+        content: { data: {} as Record<string, unknown>, element: document.createElement("img") } as Record<
+          string,
+          unknown
+        >,
+        resize: vi.fn(),
+      } as any;
+      instance.currIndex = 1;
+      triggerPswpEvent(instance, "change");
+
+      await vi.waitFor(() => expect(dataItem.isOriginalLoaded).toBe(true));
+      expect(dataItem.originalLoadReason).toBe("animated");
+    });
+
     it("fires beforeZoomTo event and triggers maybeLoadOriginalForZoomLevel", async () => {
       const { result, isOpenRef } = setup([makeItem("/img1.png", "img1.png")], 0, false);
       isOpenRef.value = true;
@@ -1134,5 +1179,70 @@ describe("usePhotoSwipe data source for long lists", () => {
     far.width = 1920;
     far.height = 1080;
     expect([far.width, far.height]).toEqual([1920, 1080]);
+  });
+});
+
+describe("usePhotoSwipe paging", () => {
+  const manyItems = (count: number, from = 0) =>
+    Array.from({ length: count }, (_, i) => makeItem(`/img${from + i}.png`, `img${from + i}.png`));
+
+  it("loops only while the lightbox has no more pages to receive", async () => {
+    const { isOpenRef } = setup(manyItems(8), 0, false);
+    const store = useLightboxStore();
+    store.hasMoreItems = true;
+    isOpenRef.value = true;
+    await vi.waitFor(() => expect(pswpInstances.length).toBe(1));
+    expect(pswpInstances[0].options.loop).toBe(false);
+
+    store.hasMoreItems = false;
+    await vi.waitFor(() => expect(pswpInstances[0].options.loop).toBe(true));
+    store.hasMoreItems = true;
+    await vi.waitFor(() => expect(pswpInstances[0].options.loop).toBe(false));
+  });
+
+  it("loops by default, as before, when there is no pager", async () => {
+    const { isOpenRef } = setup(manyItems(8), 0, false);
+    isOpenRef.value = true;
+    await vi.waitFor(() => expect(pswpInstances.length).toBe(1));
+    expect(pswpInstances[0].options.loop).toBe(true);
+  });
+
+  it("grows the data source in place when items are appended, keeping built items", async () => {
+    const buildItem = buildPhotoSwipeItem as unknown as ReturnType<typeof vi.fn>;
+    const { isOpenRef, itemsRef } = setup(manyItems(8), 7, false);
+    isOpenRef.value = true;
+    await vi.waitFor(() => expect(pswpInstances.length).toBe(1));
+
+    const instance = pswpInstances[0];
+    const dataSource = instance.options.dataSource as PhotoSwipeImageItem[];
+    const lastBefore = dataSource[7];
+    buildItem.mockClear();
+
+    itemsRef.value = [...itemsRef.value, ...manyItems(8, 8)];
+    await vi.waitFor(() => expect(dataSource.length).toBe(16));
+
+    expect(instance.options.dataSource).toBe(dataSource);
+    expect(dataSource[7]).toBe(lastBefore);
+    expect(buildItem).not.toHaveBeenCalled();
+    expect(dataSource[8].path).toBe("/img8.png");
+    expect(instance.goTo).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the next slide when the old end had no neighbour, and only then", async () => {
+    const { isOpenRef, itemsRef } = setup(manyItems(8), 7, false);
+    isOpenRef.value = true;
+    await vi.waitFor(() => expect(pswpInstances.length).toBe(1));
+    const instance = pswpInstances[0];
+    instance.currIndex = 7;
+
+    itemsRef.value = [...itemsRef.value, ...manyItems(4, 8)];
+    await vi.waitFor(() => expect(instance.refreshSlideContent).toHaveBeenCalledWith(8));
+    expect(instance.refreshSlideContent).toHaveBeenCalledTimes(1);
+
+    // Another page while the current slide is far from the end: its neighbour already exists.
+    instance.currIndex = 2;
+    itemsRef.value = [...itemsRef.value, ...manyItems(4, 12)];
+    await vi.waitFor(() => expect((instance.options.dataSource as unknown[]).length).toBe(16));
+    expect(instance.refreshSlideContent).toHaveBeenCalledTimes(1);
   });
 });

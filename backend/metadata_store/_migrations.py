@@ -1,4 +1,4 @@
-"""Versioned catalog schema migrations (v1 through v15) and their pre-migration backups."""
+"""Versioned catalog schema migrations (v1 through v16) and their pre-migration backups."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from contextlib import closing
 from pathlib import Path
 
 from . import _db as _db
-from ._db import _gallery_metadata_db_path
+from ._db import _ensure_column, _gallery_metadata_db_path
 from ._schema_ensure import (
     _ensure_cjk_search_schema,
     _ensure_fold_search_schema,
@@ -16,6 +16,7 @@ from ._schema_ensure import (
     _ensure_post_v1_additive_columns,
     _ensure_prompt_discovery_schema,
     _ensure_raw_workflow_schema,
+    _ensure_search_generation,
     _ensure_search_index_schema,
     _ensure_visual_fingerprint_schema,
     _ensure_workflow_property_schema,
@@ -626,6 +627,40 @@ def _migrate_v14_to_v15(conn: sqlite3.Connection) -> None:
         if violations:
             raise RuntimeError(f"v15 migration foreign key check failed: {len(violations)} violation(s)")
         conn.execute("PRAGMA user_version = 15")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def _backup_v15_database(conn: sqlite3.Connection) -> Path:
+    """Create a SQLite-consistent backup before the v16 migration."""
+    source = _gallery_metadata_db()
+    backup = source.with_suffix(f"{source.suffix}.v15.bak")
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(backup)) as destination:
+        conn.backup(destination)
+    return backup
+
+
+def _migrate_v15_to_v16(conn: sqlite3.Connection) -> None:
+    """Add the nullable ``assets.animated`` column and replace the stale ``assets`` search-generation trigger.
+
+    No data is backfilled here: ``NULL`` means "not detected yet", and the catalog scan worker fills the column in
+    bounded chunks after each scan (see ``metadata_store.animated_store``). ``CREATE TRIGGER IF NOT EXISTS`` would
+    keep the v15 update trigger, which does not watch ``animated``, so it is dropped and recreated.
+    """
+    conn.commit()
+    _backup_v15_database(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _ensure_column(conn, "assets", "animated", "INTEGER")
+        conn.execute("DROP TRIGGER IF EXISTS trg_search_generation_assets_update")
+        _ensure_search_generation(conn)
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            raise RuntimeError(f"v16 migration foreign key check failed: {len(violations)} violation(s)")
+        conn.execute("PRAGMA user_version = 16")
         conn.commit()
     except Exception:
         conn.rollback()

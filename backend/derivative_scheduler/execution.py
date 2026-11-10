@@ -22,6 +22,7 @@ from ._common import (
     _lease_days,
     logger,
 )
+from .waiters import derivative_waiters
 
 if TYPE_CHECKING:
     from .core import DerivativeScheduler
@@ -237,7 +238,10 @@ class JobExecutionMixin:
             return True
 
         with self._eviction_lock:
-            return run_write(complete, lane=LANE_PRIORITY)
+            applied = run_write(complete, lane=LANE_PRIORITY)
+        if applied:
+            derivative_waiters.notify(int(job["id"]))
+        return applied
 
     def _after_derivatives_ready(self, asset_id: int) -> None:
         """Enforce the quota and queue the visual fingerprint refresh once derivatives became ready."""
@@ -575,6 +579,7 @@ class JobExecutionMixin:
         if not run_write(fail, lane=LANE_PRIORITY):
             logger.info("Ignored stale failure for derivative job %s", job["job_id"])
             return
+        derivative_waiters.notify(int(job["id"]))
         if retry:
             self._wake_event.set()
         elif state == "skipped":

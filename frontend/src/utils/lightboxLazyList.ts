@@ -48,3 +48,14 @@ export function createLazyList<T extends object>(count: number, build: (index: n
     },
   });
 }
+
+/**
+ * Grows a list made by `createLazyList` in place so that it has `count` items. Existing items, built or not, keep
+ * their index and identity; the new slots are built on first read like the original ones. A smaller `count` is
+ * ignored: the list only ever grows (a paged album appends pages; it never drops the ones already shown).
+ *
+ * PhotoSwipe reads `dataSource.length` on every use, so growing the list is how it learns about a new page.
+ */
+export function growLazyList<T extends object>(list: T[], count: number): void {
+  if (count > list.length) list.length = count;
+}

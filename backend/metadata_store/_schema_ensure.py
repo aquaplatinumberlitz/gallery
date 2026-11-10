@@ -648,6 +648,7 @@ def _ensure_catalog_schema(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "assets", "mime_type", "TEXT")
     _ensure_column(conn, "assets", "duration_ms", "INTEGER")
     _ensure_column(conn, "assets", "codec", "TEXT")
+    _ensure_column(conn, "assets", "animated", "INTEGER")
     _ensure_column(conn, "assets", "last_seen_scan_job_id", "INTEGER")
     _ensure_column(conn, "metadata_index_jobs", "mtime_ns", "INTEGER")
     _ensure_column(conn, "image_metadata", "mtime_ns", "INTEGER")

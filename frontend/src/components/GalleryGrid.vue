@@ -12,7 +12,7 @@ import {
 } from "vue";
 import type { SearchMediaTotal } from "@/utils/searchResultCount";
 import { useGalleryStore } from "../stores/gallery";
-import { useLightboxStore } from "../stores/lightbox";
+import { useLightboxStore, type LightboxPager } from "../stores/lightbox";
 import { useRelatedAssetsStore } from "../stores/relatedAssets";
 import type { BrowseResponse, FileNode, SortValue, UnifiedSearchResult } from "../types";
 import { normalizeAssetType } from "../utils/assetType";
@@ -304,6 +304,7 @@ const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   image_count: result.image_count || 0,
   mtime: result.mtime,
   content_version: result.content_version,
+  animated: result.animated,
   width: result.width ?? undefined,
   height: result.height ?? undefined,
   duration_ms: result.duration_ms,
@@ -493,9 +494,24 @@ const handleOpenFolder = (path: string) => {
   galleryStore.clearSearch();
 };
 
+// The lightbox opens on the images loaded so far and asks the owning infinite query for the next page as it nears the
+// end, so navigation covers the whole folder or result set. Search pages by cursor; a folder by media cursor.
+const buildLightboxPager = (): LightboxPager =>
+  hasSearchQuery.value
+    ? {
+        items: () => searchImageNodes.value,
+        hasMore: () => searchCountHasNextPage.value,
+        loadMore: () => unifiedSearchQuery.fetchNextPage({ throwOnError: true }),
+      }
+    : {
+        items: () => filenameImages.value,
+        hasMore: () => Boolean(infiniteBrowseQuery.hasNextPage.value),
+        loadMore: () => infiniteBrowseQuery.fetchNextPage({ throwOnError: true }),
+      };
+
 const handleOpenImage = (path: string, name: string) => {
-  // Pass the full list of images to the lightbox for navigation
-  lightboxStore.open({ path, name }, images.value, imageIndexByPath.value.get(path));
+  // Pass the images loaded so far to the lightbox, with the pager for the pages still to come
+  lightboxStore.open({ path, name }, images.value, imageIndexByPath.value.get(path), buildLightboxPager());
 };
 
 const selectedVideo = ref<FileNode | null>(null);
@@ -991,6 +1007,7 @@ useInfiniteLoadSentinel({
                   :src="item.path"
                   :name="item.name"
                   :version="item.content_version"
+                  :animated="item.animated"
                   :image-width="item.width"
                   :image-height="item.height"
                   :fetch-priority="virtualRow.index === 0 ? 'high' : 'auto'"
@@ -1047,6 +1064,7 @@ useInfiniteLoadSentinel({
                   :src="item.path"
                   :name="item.name"
                   :version="item.content_version"
+                  :animated="item.animated"
                   :image-width="item.width"
                   :image-height="item.height"
                   :fetch-priority="virtualRow.index === 0 ? 'high' : 'auto'"

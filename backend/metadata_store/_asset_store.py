@@ -89,6 +89,7 @@ def _upsert_asset_conn(
           mime_type=CASE WHEN ? THEN excluded.mime_type ELSE COALESCE(excluded.mime_type, assets.mime_type) END,
           duration_ms=CASE WHEN ? THEN excluded.duration_ms ELSE COALESCE(excluded.duration_ms, assets.duration_ms) END,
           codec=CASE WHEN ? THEN excluded.codec ELSE COALESCE(excluded.codec, assets.codec) END,
+          animated=CASE WHEN ? THEN NULL ELSE assets.animated END,
           offline=CASE WHEN ? THEN 0 ELSE assets.offline END,
           deleted_at=CASE WHEN ? THEN NULL ELSE assets.deleted_at END
         """,
@@ -116,6 +117,7 @@ def _upsert_asset_conn(
             int(preserve_existing_identity),
             int(identity_changed),
             metadata_state,
+            int(identity_changed),
             int(identity_changed),
             int(identity_changed),
             int(identity_changed),

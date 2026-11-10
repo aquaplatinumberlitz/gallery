@@ -589,6 +589,22 @@ latency. Browser specs gate user-perceived visual readiness and batch
 completion, so browser request queueing is not misclassified as backend cache
 service latency.
 
+### Cold Thumbnail Burst (manual load check)
+
+```bash
+backend/.venv_linux/bin/python scripts/perf/cold_thumbnail_burst.py 60 --port 4971 --size 2048x3072
+# not a CI gate: it starts a real uvicorn and the three render workers, and timings depend on the host
+```
+
+Builds a throwaway catalog of N large PNG sources, fires N cold `/api/thumbnail` requests at once and probes
+`/api/search?scope=all` every 250 ms while they are in flight, then prints the probe p50, p95 and max, the total
+time and the thumbnail status counts. It exits non-zero when any thumbnail or probe is not a 200. It guards
+PR-01 / BL-9: a waiting derivative request must hold no thread-pool thread, so the probe stays near its idle
+latency (8-16 ms) with the burst running. Reference on the 4-core review host, 60 sources of 2048x3072: probe
+p95 83-128 ms, max about 650 ms (the first probe, while the 60 requests are admitted); before the fix p95 was
+about 1.6 s with a 4.6 s maximum. The deterministic guard is
+`backend/tests/test_derivative_wait_async.py`.
+
 ### Worker Contention Bench
 
 ```bash

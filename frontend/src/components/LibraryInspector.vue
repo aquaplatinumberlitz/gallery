@@ -466,6 +466,7 @@ const visibleLightboxItems = computed<FileNode[]>(() =>
     type: "image",
     has_children: false,
     mtime: row.mtime ?? undefined,
+    content_version: row.content_version,
     width: row.width,
     height: row.height,
   })),
@@ -546,7 +547,12 @@ function openImage(row: LibraryInspectorRow) {
     currentPath: currentPath.value,
     items: summarizeLightboxItems(items, visibleIndex),
   });
-  lightboxStore.open({ path: row.path, name: row.name }, items, visibleIndex);
+  // The inspector pages its rows; the lightbox follows it into later pages as it nears the end of the loaded rows.
+  lightboxStore.open({ path: row.path, name: row.name }, items, visibleIndex, {
+    items: () => visibleLightboxItems.value,
+    hasMore: () => Boolean(inspectorQuery.hasNextPage.value),
+    loadMore: () => inspectorQuery.fetchNextPage({ throwOnError: true }),
+  });
 }
 
 function composeMetadata(detail: LibraryInspectorMetadataResponse) {
@@ -837,7 +843,13 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     @click.stop="openImage(visibleTableRows[virtualRow.index].original)"
                   >
                     <img
-                      :src="getThumbnailUrl(visibleTableRows[virtualRow.index].original.path, 128)"
+                      :src="
+                        getThumbnailUrl(
+                          visibleTableRows[virtualRow.index].original.path,
+                          128,
+                          visibleTableRows[virtualRow.index].original.content_version,
+                        )
+                      "
                       :alt="visibleTableRows[virtualRow.index].original.name"
                       loading="lazy"
                     />

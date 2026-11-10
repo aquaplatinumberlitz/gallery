@@ -467,7 +467,8 @@ holds the values (`image_dimensions_unchanged`).
 and 512. Reconcile, warm-up, integrity and status treat it like any other configured variant.
 
 **Versioned URLs (B3).** Browse (`FileNode`), search (`SearchMediaResult`, also the related
-results) expose `content_version` (`"<mtime_ns>-<size>"` of the asset, `null` for folders or
+results) and Library Inspector rows (`/api/library/inspector`, from the catalog asset joined as in
+the search rows) expose `content_version` (`"<mtime_ns>-<size>"` of the asset, `null` for folders or
 unknown identities) and folders (`FileNode`, `SearchAlbumResult`, the browse virtual root) expose
 `cover_versions`, aligned index-for-index with `cover_images` (`""` for a cover without a recorded
 identity). `/api/thumbnail` and `/api/preview` accept an optional `v`. When `v` equals the source's
@@ -506,6 +507,21 @@ catalog-side deactivation (library removed, asset marked offline/deleted) that l
 place: entries therefore expire after `GALLERY_DERIVATIVE_FASTPATH_TTL_SECONDS` (default 5), so such a
 change is honoured within that bound. Setting either variable to 0 disables the fast path.
 
+**Waiting for a cold derivative (PR-01, BL-9).** A request whose derivative is not ready schedules it and then
+waits on the event loop (`thumbnails._await_derivative`), never in a thread-pool thread: a thread parked for up
+to 10 s each made a burst of cold thumbnails starve every sync endpoint (search, browse) that shares the
+40-thread pool. Each catalog read (`_poll_derivative_once`) is one short `run_in_threadpool` call. Between reads
+the request sleeps on an `asyncio.Event` held in the registry `backend/derivative_scheduler/waiters.py`, keyed
+by derivative id. `_complete_claim` and `_handle_failure` call `derivative_waiters.notify(id)` after their fenced
+write succeeded, which sets the event through `loop.call_soon_threadsafe`. A signal only means "read again": the
+waiter decides from the catalog row. Terminal states that do not pass through a worker (recovery, eviction,
+supersede, another process) are caught by a fallback read every `DERIVATIVE_WAIT_FALLBACK_SECONDS` (1 s). With
+no live scheduler worker (tests, scripts) each turn runs one `scheduler.run_once()` inside the pool call and
+backs off 30 ms to 400 ms. The deadline (`DERIVATIVE_WAIT_SECONDS`, 10 s, then 503), the outcome mapping, the
+single `source_changed` reschedule and the serving protection are unchanged. The registry entry is removed on
+completion, timeout and client disconnect (`finally`). Manual load check: `scripts/perf/cold_thumbnail_burst.py`
+(see `docs/testing/PERFORMANCE_TESTING.md`).
+
 ### Catalog writes through the writer
 
 The catalog scan and rebuild pipeline (`backend/scan_worker.py` and the store modules
@@ -527,6 +543,43 @@ it calls) writes only through writer ops. Each store function is split into a bo
 | `recover_stale_jobs` (supervisor, startup)                                     | `normal`   | candidates read on a plain connection; fenced failure writes are one op |
 
 `assert_catalog_job_claim` and reads such as `get_library` are plain WAL reads.
+
+**Animated images (PR-04).** "Animated" is decided once, by the backend, from the container header, and the grid
+and the lightbox share that answer. `backend/animated.py` (`sniff_animated`, `detect_animated_file`) reads headers
+only and never decodes a frame: a GIF is animated at its second Image Descriptor, a WebP when its `VP8X` flags
+carry the animation bit (or an `ANIM`/`ANMF` chunk exists), a PNG when an `acTL` chunk precedes `IDAT` (APNG).
+Chunk walks are bounded (512 chunks, 64 MiB of GIF data), and anything else, an unreadable file or a truncated
+header is "not animated"; the function never raises (about 5-10 microseconds per file on a warm cache; Pillow's
+`open` plus `n_frames` costs about 66). The result lives in the nullable `assets.animated` column (`1`/`0`;
+`NULL` = not detected yet), exposed as the boolean-or-null `animated` field of browse (`FileNode`), search
+(`SearchMediaResult`) and related (`RelatedSearchResultV1`, metadata and visual) image rows. Videos and folders
+carry `null`; Library Inspector rows do not carry the field at all and behave as unknown.
+
+- Invalidation: both upserts that write `assets` (`upsert_catalog_records_conn` for scan and rebuild activation,
+  `_upsert_asset_conn` for single-file writes) set `animated` to `NULL` when `(mtime_ns, size)` changes, exactly
+  like `width`, `height` and `mime_type`, so a changed file is detected again.
+- Detection and backfill: `metadata_store/animated_store.detect_pending_animated` runs on the scan worker after
+  every successful scan or rebuild job (after derivative reconciliation, so it never delays derivative work). It
+  walks the library's active images with `animated IS NULL` in id order, 200 rows per chunk: non-container
+  extensions (anything but `.gif`, `.webp`, `.png`) get `0` without opening the file; the others are stat-ed (a
+  row whose file no longer matches its recorded identity stays `NULL` for the next scan) and sniffed outside the
+  writer; each chunk is one short normal-lane writer op guarded by `animated IS NULL AND mtime_ns IS ? AND size IS ?`.
+  The pass stops on shutdown and after a 30 s budget; the remainder continues on the next scan. This is also the
+  backfill: after the v16 migration every existing image is `NULL`, and the first scan completed after the deploy
+  (the startup scan) fills the library. Unreadable files stay `NULL` and are retried on later scans (a cheap
+  stat). Measured on 3000 files (1500 animated): the pass takes 0.16 s (53 microseconds per row including the
+  stat and the writer ops).
+- Schema v16 (`.v15.bak` backup) adds the column and replaces the `trg_search_generation_assets_update`
+  trigger, because `assets.animated` now appears on search rows and a ranked-window cache entry must not keep a
+  stale value (`animated` is in the `assets` column list of `_SEARCH_GENERATION_TABLES`; `CREATE TRIGGER IF NOT
+  EXISTS` would keep the v15 trigger, so the migration drops and recreates it). Nothing is backfilled inside the
+  migration (102 ms on the 3000-file fixture; the database size is unchanged by the empty column).
+- Frontend: `utils/animatedAsset.ts` `isAnimatedAsset(node)` is the only definition. `animated === true` is
+  animated, `false` is static; an unknown value is animated only for `.gif`; a `.webp`, `.png` or `.apng` is
+  never guessed animated. `PhotoCard` takes it as the `animated` prop (passed by `GalleryGrid`, the search
+  results panel and the related panel) for the hover preview and the "PLAYING" badge, and `buildPhotoSwipeItem`
+  uses it for `isAnimatedAsset`, so an animated WebP or APNG opens on the original and animates in the lightbox
+  (opening item and navigation) while a static WebP stays on its preview and never requests `/api/image` on hover.
 
 Scan and rebuild build and persist catalog records through one shared path in
 `metadata_store/file_index.py`, so a rebuilt catalog serves the same contracts as a scanned one:
@@ -915,6 +968,9 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
+- Catalog schema version 16 adds the nullable `assets.animated` column and recreates the `assets`
+  search-generation update trigger so it also watches that column (PR-04; see "Animated images"). The `.v15.bak`
+  migration backs the database up and sets `user_version` last; detection runs after scans, not in the migration.
 - Catalog schema version 15 adds one partial index, `idx_assets_folder_images` on
   `assets(library_id, parent_path, mtime_ns DESC, path) WHERE type IN ('image', 'photo')
   AND offline = 0 AND deleted_at IS NULL` (BL-13). It holds the visible image children of
@@ -1139,7 +1195,7 @@ Key paths:
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TanStack Query       | `/api/browse`, `/api/folders`, `/api/search/query`, `/api/search/related`, `/api/metadata`, `/api/facets`, library status/jobs/stats, generated-image status/actions, Library Inspector rows/details, landing page fetches |
 | Pinia gallery store  | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state                                 |
-| Pinia lightbox store | Open image, current index, visible item list, navigation                                                                                              |
+| Pinia lightbox store | Open image, current index, visible item list, navigation, and the opener's page loader (`LightboxPager`, kept outside Pinia state) that appends later pages |
 | Pinia related store  | Ephemeral open/reference/scope UI state; no match-type selection, related result payloads, or saved/recent-search persistence                      |
 | Pinia toast store    | Toast API adapter (Gallery API → Sonner): IDs, variants, durations, dismiss, clear, actions, visible-toast limit; Sonner owns render/dismiss mechanics |
 
@@ -1745,7 +1801,7 @@ downloads what the user rests on:
   (`seenThumbnailUrls` in `PhotoCard.vue`, so a virtual row scrolled back into
   range does not wait again). The shimmer/skeleton is unchanged: it shows until
   `load`.
-- **Versioned URLs.** Browse, search and related items carry `content_version` and folders carry
+- **Versioned URLs.** Browse, search, related and Library Inspector rows carry `content_version` and folders carry
   `cover_versions` (see "Versioned URLs (B3)"). `getThumbnailUrl(path, edge, version)` and
   `getPreviewUrl(path, edge, version)` in `services/api.ts` append `&v=<version>` after `max_long_edge`
   when a non-empty version is given, so the backend answers `immutable` and a revisit costs no request.
@@ -1753,9 +1809,9 @@ downloads what the user rests on:
   `SearchResultsPanel`, `RelatedAssetsPanel`), the album cards (`cover_versions[i]` of the cover they
   show; the search and gallery mappers copy `content_version` / `cover_versions` into `FileNode`), and
   the lightbox (`buildPhotoSwipeItem` for `src`, `previewSrc` and the `msrc` placeholder, and the
-  preview dimension probe in `usePhotoSwipe.ts`, all from `FileNode.content_version`). An item without a
-  version (inspector rows, prompt-usage samples, older responses, an empty `cover_versions` entry) keeps
-  today's unversioned URL.
+  preview dimension probe in `usePhotoSwipe.ts`, all from `FileNode.content_version`). The Library
+  Inspector table thumbnail and the lightbox items it opens pass the row's `content_version`. An item without a
+  version (prompt-usage samples, older responses, an empty `cover_versions` entry) keeps today's unversioned URL.
 - **`srcset` / `sizes` (`PhotoCard`).** The thumbnail offers
   `srcset="<256 url> 256w, <512 url> 512w"`; `src` stays the 512 px URL (browsers that ignore `srcset`
   and the unmeasured case behave as before). `sizes` is the card's rendered width, measured in

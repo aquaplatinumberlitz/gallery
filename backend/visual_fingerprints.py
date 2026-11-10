@@ -360,7 +360,7 @@ def _visual_candidate_rows(
         )
         SELECT asset.id AS asset_id, asset.library_id, library.name AS library_name,
                asset.path, asset.parent_path, asset.name, asset.mtime_ns,
-               asset.width, asset.height, fingerprint.dhash_horizontal,
+               asset.width, asset.height, asset.animated AS asset_animated, fingerprint.dhash_horizontal,
                fingerprint.dhash_vertical, fingerprint.color_grid
         FROM candidates
         JOIN assets AS asset ON asset.id = candidates.asset_id
@@ -438,6 +438,7 @@ def query_visual_variants(
             mtime=float(candidate["mtime_ns"] or 0) / 1_000_000_000,
             width=candidate.get("width"),
             height=candidate.get("height"),
+            animated=None if candidate.get("asset_animated") is None else bool(candidate["asset_animated"]),
             match_type="visual_variant",
             relation_tier=tier,
             relation_reasons=["visual_variant"],

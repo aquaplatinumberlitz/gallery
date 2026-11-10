@@ -689,3 +689,27 @@ def test_library_inspector_detail_rejects_unindexed_path(
     resp = isolated_app.get("/api/library/inspector/metadata", params={"path": str(path.resolve())})
 
     assert resp.status_code == 404
+
+
+def test_library_inspector_rows_carry_content_version_for_immutable_thumbnails(
+    isolated_app: TestClient,
+    temp_gallery_with_metadata: Path,
+):
+    """PR-05: inspector rows expose the catalog content version, and /api/thumbnail honours it as `v`."""
+    _index_gallery_images(temp_gallery_with_metadata)
+    path = temp_gallery_with_metadata / "mika_album" / "mika_portrait.png"
+    stat = path.stat()
+
+    list_resp = isolated_app.get("/api/library/inspector", params={"q": "seed:12345", "scope": "all"})
+    assert list_resp.status_code == 200
+    row = next(item for item in list_resp.json()["rows"] if item["name"] == path.name)
+
+    expected_version = f"{stat.st_mtime_ns}-{stat.st_size}"
+    assert row["content_version"] == expected_version
+
+    thumb_resp = isolated_app.get(
+        "/api/thumbnail",
+        params={"path": row["path"], "max_long_edge": 128, "v": row["content_version"]},
+    )
+    assert thumb_resp.status_code == 200
+    assert thumb_resp.headers["cache-control"] == "public, max-age=31536000, immutable"

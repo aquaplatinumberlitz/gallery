@@ -129,7 +129,8 @@ def _eligible_cte(context: SearchScopeContext) -> tuple[str, dict[str, Any]]:
         f"""
         WITH eligible AS (
           SELECT asset.id AS asset_id, asset.library_id, asset.path, asset.parent_path,
-                 asset.name, asset.mtime_ns, asset.size AS asset_size, library.name AS library_name,
+                 asset.name, asset.mtime_ns, asset.size AS asset_size, asset.animated AS asset_animated,
+                 library.name AS library_name,
                  metadata.id AS metadata_id, metadata.mtime, metadata.prompt,
                  metadata.negative_prompt, metadata.model, metadata.model_hash,
                  metadata.sampler, metadata.scheduler, metadata.seed,
@@ -665,6 +666,7 @@ def _result(candidate: RankedCandidate, context: SearchScopeContext) -> RelatedS
         relative_path=_relative_parent(str(row["parent_path"]), context),
         mtime=float(row["mtime"] or 0),
         content_version=content_version(row.get("mtime_ns"), row.get("asset_size")),
+        animated=None if row.get("asset_animated") is None else bool(row["asset_animated"]),
         width=row.get("width"),
         height=row.get("height"),
         match_type="related",
