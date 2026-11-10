@@ -440,6 +440,7 @@ export interface LibraryInspectorRow {
   folder: string;
   relative_path: string;
   mtime: number | null;
+  content_version?: string | null;
   width: number | null;
   height: number | null;
   model: string;

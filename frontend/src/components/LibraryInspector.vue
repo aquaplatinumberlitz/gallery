@@ -466,6 +466,7 @@ const visibleLightboxItems = computed<FileNode[]>(() =>
     type: "image",
     has_children: false,
     mtime: row.mtime ?? undefined,
+    content_version: row.content_version,
     width: row.width,
     height: row.height,
   })),
@@ -837,7 +838,13 @@ function onHeaderSort(columnId: string, event: MouseEvent) {
                     @click.stop="openImage(visibleTableRows[virtualRow.index].original)"
                   >
                     <img
-                      :src="getThumbnailUrl(visibleTableRows[virtualRow.index].original.path, 128)"
+                      :src="
+                        getThumbnailUrl(
+                          visibleTableRows[virtualRow.index].original.path,
+                          128,
+                          visibleTableRows[virtualRow.index].original.content_version,
+                        )
+                      "
                       :alt="visibleTableRows[virtualRow.index].original.name"
                       loading="lazy"
                     />

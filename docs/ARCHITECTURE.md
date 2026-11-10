@@ -467,7 +467,8 @@ holds the values (`image_dimensions_unchanged`).
 and 512. Reconcile, warm-up, integrity and status treat it like any other configured variant.
 
 **Versioned URLs (B3).** Browse (`FileNode`), search (`SearchMediaResult`, also the related
-results) expose `content_version` (`"<mtime_ns>-<size>"` of the asset, `null` for folders or
+results) and Library Inspector rows (`/api/library/inspector`, from the catalog asset joined as in
+the search rows) expose `content_version` (`"<mtime_ns>-<size>"` of the asset, `null` for folders or
 unknown identities) and folders (`FileNode`, `SearchAlbumResult`, the browse virtual root) expose
 `cover_versions`, aligned index-for-index with `cover_images` (`""` for a cover without a recorded
 identity). `/api/thumbnail` and `/api/preview` accept an optional `v`. When `v` equals the source's
@@ -1745,7 +1746,7 @@ downloads what the user rests on:
   (`seenThumbnailUrls` in `PhotoCard.vue`, so a virtual row scrolled back into
   range does not wait again). The shimmer/skeleton is unchanged: it shows until
   `load`.
-- **Versioned URLs.** Browse, search and related items carry `content_version` and folders carry
+- **Versioned URLs.** Browse, search, related and Library Inspector rows carry `content_version` and folders carry
   `cover_versions` (see "Versioned URLs (B3)"). `getThumbnailUrl(path, edge, version)` and
   `getPreviewUrl(path, edge, version)` in `services/api.ts` append `&v=<version>` after `max_long_edge`
   when a non-empty version is given, so the backend answers `immutable` and a revisit costs no request.
@@ -1753,9 +1754,9 @@ downloads what the user rests on:
   `SearchResultsPanel`, `RelatedAssetsPanel`), the album cards (`cover_versions[i]` of the cover they
   show; the search and gallery mappers copy `content_version` / `cover_versions` into `FileNode`), and
   the lightbox (`buildPhotoSwipeItem` for `src`, `previewSrc` and the `msrc` placeholder, and the
-  preview dimension probe in `usePhotoSwipe.ts`, all from `FileNode.content_version`). An item without a
-  version (inspector rows, prompt-usage samples, older responses, an empty `cover_versions` entry) keeps
-  today's unversioned URL.
+  preview dimension probe in `usePhotoSwipe.ts`, all from `FileNode.content_version`). The Library
+  Inspector table thumbnail and the lightbox items it opens pass the row's `content_version`. An item without a
+  version (prompt-usage samples, older responses, an empty `cover_versions` entry) keeps today's unversioned URL.
 - **`srcset` / `sizes` (`PhotoCard`).** The thumbnail offers
   `srcset="<256 url> 256w, <512 url> 512w"`; `src` stays the 512 px URL (browsers that ignore `srcset`
   and the unmeasured case behave as before). `sizes` is the card's rendered width, measured in

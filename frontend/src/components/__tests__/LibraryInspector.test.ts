@@ -4,6 +4,8 @@ import { mount, type VueWrapper } from "@vue/test-utils";
 import { createIsolatedQueryClient } from "@/test/queryClient";
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import LibraryInspector from "../LibraryInspector.vue";
+import { getThumbnailUrl } from "@/services/api";
+import { useLightboxStore } from "@/stores/lightbox";
 
 const clipboardMocks = vi.hoisted(() => ({
   copyText: vi.fn(),
@@ -408,5 +410,33 @@ describe("LibraryInspector", () => {
     );
     const options = clipboardMocks.copyText.mock.calls[0][2] as { fallbackRoot?: Element | null };
     expect(options.fallbackRoot).toBe(copySeedItem.element.closest('[data-slot="dropdown-menu-content"]'));
+  });
+
+  it("passes the row content_version as v to the inspector thumbnail and its lightbox items", async () => {
+    // PR-05: inspector thumbnails and lightbox items carry the content version so the URL can be immutable.
+    const actualApi = await vi.importActual<typeof import("@/services/api")>("@/services/api");
+    vi.mocked(getThumbnailUrl).mockImplementation(actualApi.getThumbnailUrl);
+    const version = "1700000000123000000-4096";
+    const rowWithVersion = { ...mockRowsData[0], content_version: version };
+    mockRowsRef.value = [rowWithVersion];
+    try {
+      const wrapper = mountSubject();
+
+      const thumbImg = wrapper.get('[data-testid="thumb-button"] img');
+      expect(thumbImg.attributes("src")).toContain(`v=${encodeURIComponent(version)}`);
+
+      const lightboxStore = useLightboxStore();
+      const openSpy = vi.spyOn(lightboxStore, "open").mockImplementation(() => undefined);
+      try {
+        await wrapper.get('[data-testid="thumb-button"]').trigger("click");
+        expect(openSpy).toHaveBeenCalledTimes(1);
+        const openedItems = openSpy.mock.calls[0][1] as Array<{ content_version?: string | null }>;
+        expect(openedItems[0]).toEqual(expect.objectContaining({ content_version: version }));
+      } finally {
+        openSpy.mockRestore();
+      }
+    } finally {
+      vi.mocked(getThumbnailUrl).mockImplementation((path) => `/thumb/${path}`);
+    }
   });
 });
