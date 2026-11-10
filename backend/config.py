@@ -157,6 +157,11 @@ DB_WRITER_SUBMIT_TIMEOUT_SECONDS = max(0.0, float(os.getenv("GALLERY_DB_WRITER_S
 DB_WRITER_RESULT_TIMEOUT_SECONDS = max(1.0, float(os.getenv("GALLERY_DB_WRITER_RESULT_TIMEOUT_SECONDS", "120")))
 DB_WRITER_SHUTDOWN_TIMEOUT_SECONDS = max(0.0, float(os.getenv("GALLERY_DB_WRITER_SHUTDOWN_TIMEOUT_SECONDS", "10")))
 
+# Ranked-window cache of keyset search pages (BL-15): entries kept and an upper bound of their memory, in MiB.
+# 0 in either setting turns the cache off (every page then runs its bounded preselects, as before).
+SEARCH_WINDOW_CACHE_ENTRIES = max(0, int(os.getenv("GALLERY_SEARCH_WINDOW_CACHE_ENTRIES", "128")))
+SEARCH_WINDOW_CACHE_MB = max(0, int(os.getenv("GALLERY_SEARCH_WINDOW_CACHE_MB", "32")))
+
 _metadata_db_env = os.getenv("GALLERY_METADATA_DB")
 if _metadata_db_env:
     GALLERY_METADATA_DB = Path(_metadata_db_env)
