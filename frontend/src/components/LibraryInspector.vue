@@ -547,7 +547,12 @@ function openImage(row: LibraryInspectorRow) {
     currentPath: currentPath.value,
     items: summarizeLightboxItems(items, visibleIndex),
   });
-  lightboxStore.open({ path: row.path, name: row.name }, items, visibleIndex);
+  // The inspector pages its rows; the lightbox follows it into later pages as it nears the end of the loaded rows.
+  lightboxStore.open({ path: row.path, name: row.name }, items, visibleIndex, {
+    items: () => visibleLightboxItems.value,
+    hasMore: () => Boolean(inspectorQuery.hasNextPage.value),
+    loadMore: () => inspectorQuery.fetchNextPage({ throwOnError: true }),
+  });
 }
 
 function composeMetadata(detail: LibraryInspectorMetadataResponse) {

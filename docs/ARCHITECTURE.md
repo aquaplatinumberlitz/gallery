@@ -1195,7 +1195,7 @@ Key paths:
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TanStack Query       | `/api/browse`, `/api/folders`, `/api/search/query`, `/api/search/related`, `/api/metadata`, `/api/facets`, library status/jobs/stats, generated-image status/actions, Library Inspector rows/details, landing page fetches |
 | Pinia gallery store  | Root/current path, selected path, history, expanded folders, search text/scope, sort, loaded flags, settings UI state                                 |
-| Pinia lightbox store | Open image, current index, visible item list, navigation                                                                                              |
+| Pinia lightbox store | Open image, current index, visible item list, navigation, and the opener's page loader (`LightboxPager`, kept outside Pinia state) that appends later pages |
 | Pinia related store  | Ephemeral open/reference/scope UI state; no match-type selection, related result payloads, or saved/recent-search persistence                      |
 | Pinia toast store    | Toast API adapter (Gallery API → Sonner): IDs, variants, durations, dismiss, clear, actions, visible-toast limit; Sonner owns render/dismiss mechanics |
 
