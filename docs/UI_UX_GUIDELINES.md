@@ -117,6 +117,10 @@ Image loading (all layouts):
 - Request the current slide's preview first. Neighbour previews (`preload: [1, 1]`) start only after it
   loaded or failed (`utils/lightboxPreviewOrder.ts`); arrow and swipe navigation stays instant once the
   neighbours are loaded.
+- Animated assets (the backend `animated` flag; an unknown flag counts only for `.gif`) open on the original,
+  both as the opening item and when navigated to, so a GIF, animated WebP or APNG animates; a static WebP stays
+  on its preview. The grid hover preview and the "PLAYING" badge use the same `isAnimatedAsset` answer
+  (`utils/animatedAsset.ts`): a static WebP never downloads its original on hover.
 
 Desktop/wide:
 

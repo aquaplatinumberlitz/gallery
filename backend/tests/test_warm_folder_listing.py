@@ -185,6 +185,7 @@ def test_response_shape_compatible(tmp_path: Path):
             "height",
             "asset_id",
             "content_version",
+            "animated",
             "metadata_state",
             "derivative_ready",
         }

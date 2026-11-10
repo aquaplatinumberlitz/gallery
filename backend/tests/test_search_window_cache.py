@@ -437,6 +437,7 @@ def test_generation_bumps_on_insert_update_and_delete_of_every_watched_table(tmp
             (("INSERT INTO file_index_fold(file_rowid, name) VALUES (?, 'img')", (file_rowid,)),),
         ),
         ("file_index update", (("UPDATE file_index SET size = size + 1 WHERE path = ?", (path,)),)),
+        ("assets animated update", (("UPDATE assets SET animated = 1 WHERE path = ?", (path,)),)),
         ("assets update", (("UPDATE assets SET size = size + 1 WHERE path = ?", (path,)),)),
         (
             "library_import_paths update",

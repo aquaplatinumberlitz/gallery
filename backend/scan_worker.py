@@ -43,6 +43,7 @@ from .metadata_store import (
     renew_catalog_job_lease,
     update_job_state,
 )
+from .metadata_store.animated_store import detect_pending_animated
 
 LOGGER = logging.getLogger(__name__)
 
@@ -351,6 +352,16 @@ def _reconcile_derivatives_after_catalog_commit(job: dict[str, Any], library_id:
         LOGGER.exception("Derivative reconciliation failed after catalog job %s", job["id"])
 
 
+def _detect_animated_after_catalog_commit(job: dict[str, Any], library_id: int) -> None:
+    """Fill ``assets.animated`` for new, changed and not-yet-detected images; bounded, never raises."""
+    try:
+        counters = detect_pending_animated(library_id, should_stop=_stop_event.is_set)
+        if counters["detected"] or counters["unknown"]:
+            LOGGER.info("Animated detection after catalog job %s: %s", job["id"], counters)
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Animated detection failed after catalog job %s", job["id"])
+
+
 def execute_scan_job(job: dict[str, Any]) -> bool:
     """Run one claimed scan job through the catalog-owned pipeline."""
     job_id = int(job["id"])
@@ -444,6 +455,7 @@ def execute_scan_job(job: dict[str, Any]) -> bool:
             library_scan_completed=scan_completed,
         )
         _reconcile_derivatives_after_catalog_commit(job, library_id)
+        _detect_animated_after_catalog_commit(job, library_id)
         return True
     except CatalogJobClaimLost:
         LOGGER.warning("Catalog scan job %s stopped after losing its claim", job_id)
@@ -594,6 +606,7 @@ def execute_rebuild_job(job: dict[str, Any]) -> bool:
             library_scan_completed=scan_completed,
         )
         _reconcile_derivatives_after_catalog_commit(job, library_id)
+        _detect_animated_after_catalog_commit(job, library_id)
         return True
     except CatalogJobClaimLost:
         LOGGER.warning("Catalog rebuild job %s stopped after losing its claim", job_id)

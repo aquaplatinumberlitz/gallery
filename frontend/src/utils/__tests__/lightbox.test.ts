@@ -6,7 +6,6 @@ import {
   LIGHTBOX_THUMBNAIL_EDGE,
   buildPhotoSwipeItem,
   hasValidDimensions,
-  isLikelyAnimatedAsset,
   shouldAlwaysLoadOriginal,
 } from "../lightbox";
 import type { FileNode } from "@/types";
@@ -99,47 +98,6 @@ describe("shouldAlwaysLoadOriginal", () => {
   });
 });
 
-describe("isLikelyAnimatedAsset", () => {
-  it("returns true for .gif extension", () => {
-    expect(isLikelyAnimatedAsset("photo.gif")).toBe(true);
-  });
-
-  it("returns true for .apng extension", () => {
-    expect(isLikelyAnimatedAsset("photo.apng")).toBe(true);
-  });
-
-  it("returns true for uppercase extensions", () => {
-    expect(isLikelyAnimatedAsset("photo.GIF")).toBe(true);
-    expect(isLikelyAnimatedAsset("photo.APNG")).toBe(true);
-  });
-
-  it("returns false for static formats like .png and .jpg", () => {
-    expect(isLikelyAnimatedAsset("photo.png")).toBe(false);
-    expect(isLikelyAnimatedAsset("photo.jpg")).toBe(false);
-    expect(isLikelyAnimatedAsset("photo.jpeg")).toBe(false);
-    expect(isLikelyAnimatedAsset("photo.webp")).toBe(false);
-  });
-
-  it("returns false for paths without an extension", () => {
-    expect(isLikelyAnimatedAsset("photo")).toBe(false);
-  });
-
-  it("strips query strings and hash fragments before checking the extension", () => {
-    expect(isLikelyAnimatedAsset("photo.gif?width=100")).toBe(true);
-    expect(isLikelyAnimatedAsset("photo.apng#fragment")).toBe(true);
-    expect(isLikelyAnimatedAsset("photo.png?v=2")).toBe(false);
-  });
-
-  it("uses the last segment's extension for paths with dots elsewhere", () => {
-    expect(isLikelyAnimatedAsset("/my.album/photo.gif")).toBe(true);
-    expect(isLikelyAnimatedAsset("/my.album/photo.png")).toBe(false);
-  });
-
-  it("returns false for an empty string", () => {
-    expect(isLikelyAnimatedAsset("")).toBe(false);
-  });
-});
-
 describe("buildPhotoSwipeItem", () => {
   it("uses the provided dimensions when supplied", () => {
     const item = buildPhotoSwipeItem(makeNode(), { width: 800, height: 600, source: "metadata" });
@@ -180,9 +138,19 @@ describe("buildPhotoSwipeItem", () => {
     expect(item.alt).toBe("");
   });
 
-  it("flags animated assets using isLikelyAnimatedAsset on the path", () => {
+  it("flags animated assets with isAnimatedAsset: a detected value wins, an unknown value is animated only for .gif", () => {
     expect(buildPhotoSwipeItem(makeNode({ path: "/x.gif" })).isAnimatedAsset).toBe(true);
     expect(buildPhotoSwipeItem(makeNode({ path: "/x.png" })).isAnimatedAsset).toBe(false);
+    expect(buildPhotoSwipeItem(makeNode({ path: "/x.webp" })).isAnimatedAsset).toBe(false);
+    expect(buildPhotoSwipeItem(makeNode({ path: "/x.webp", animated: null })).isAnimatedAsset).toBe(false);
+  });
+
+  it("treats an animated WebP, APNG or GIF as animated and a static WebP or GIF as static", () => {
+    expect(buildPhotoSwipeItem(makeNode({ path: "/x.webp", animated: true })).isAnimatedAsset).toBe(true);
+    expect(buildPhotoSwipeItem(makeNode({ path: "/x.png", animated: true })).isAnimatedAsset).toBe(true);
+    expect(buildPhotoSwipeItem(makeNode({ path: "/x.gif", animated: true })).isAnimatedAsset).toBe(true);
+    expect(buildPhotoSwipeItem(makeNode({ path: "/x.webp", animated: false })).isAnimatedAsset).toBe(false);
+    expect(buildPhotoSwipeItem(makeNode({ path: "/x.gif", animated: false })).isAnimatedAsset).toBe(false);
   });
 
   it("falls back to the name when path is empty for animated-asset detection", () => {

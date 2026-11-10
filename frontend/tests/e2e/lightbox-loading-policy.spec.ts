@@ -5,6 +5,8 @@
  * Guarantees:
  * * normal open uses thumbnail and preview endpoints without original image fetches
  * * zoom, fullscreen, preview failure, and neighbor preload use the expected endpoints
+ * * the backend `animated` value, not the extension, decides hover play and the lightbox original: a static WebP
+ *   never requests `/api/image` on hover or at open, an animated WebP does both
  *
  * Run when:
  * * changing PhotoSwipe integration, lightbox source selection, or image endpoint policy
@@ -68,6 +70,8 @@ async function installStubbedGallery(
     includeScanDimensions?: boolean;
     metadataDimensions?: { width: number; height: number } | null;
     previewNaturalSize?: { width: number; height: number };
+    /** Per-index overrides of the browse rows (file name and the backend `animated` value). */
+    mediaOverrides?: Array<{ name?: string; animated?: boolean | null }>;
   } = {},
 ) {
   const requests: ApiRequest[] = [];
@@ -111,11 +115,12 @@ async function installStubbedGallery(
             libraryId: 1,
             path: url.searchParams.get("path") ?? rootPath,
             media: imagePaths.map((path, index) => ({
-              name: `image-${index + 1}.png`,
+              name: options.mediaOverrides?.[index]?.name ?? `image-${index + 1}.png`,
               path,
               type: "image",
               mtime: 1000 + index,
               content_version: contentVersionFor(index),
+              animated: options.mediaOverrides?.[index]?.animated ?? null,
               width: includeScanDimensions ? 1600 : null,
               height: includeScanDimensions ? 1000 : null,
             })),
@@ -342,6 +347,43 @@ test("explicit fullscreen action requests original for the current image", async
 
   await expect.poll(() => requestedPath(requests, "/api/image", imagePaths[0])).toBe(true);
   expect(requestsFor(requests, "/api/image").every((request) => request.path === imagePaths[0])).toBe(true);
+});
+
+test("a static WebP never requests the original on hover or at lightbox open", async ({ page }) => {
+  const requests = await installStubbedGallery(page, { mediaOverrides: [{ name: "a-still.webp", animated: false }] });
+  await openStubbedGallery(page, requests);
+
+  requests.length = 0;
+  await page.getByTestId("photo-card-shell").first().hover();
+  await page.waitForTimeout(500); // negative assertion window: the hover delay is 150 ms
+  expect(requestsFor(requests, "/api/image")).toHaveLength(0);
+  await expect(page.getByText("PLAYING")).toHaveCount(0);
+
+  await openLightbox(page, requests);
+  await page.waitForTimeout(500);
+  expect(requestsFor(requests, "/api/image")).toHaveLength(0);
+});
+
+test("an animated WebP plays the original on hover and opens the lightbox on the original", async ({ page }) => {
+  const requests = await installStubbedGallery(page, {
+    mediaOverrides: [
+      { name: "a-moving.webp", animated: true },
+      { name: "b-moving.webp", animated: true },
+    ],
+  });
+  await openStubbedGallery(page, requests);
+
+  requests.length = 0;
+  await page.getByTestId("photo-card-shell").first().hover();
+  await expect.poll(() => requestedPath(requests, "/api/image", imagePaths[0])).toBe(true);
+  await expect(page.getByText("PLAYING")).toBeVisible();
+
+  // Open the second card: the first card's original is already in the browser's memory cache from the hover.
+  await page.mouse.move(0, 0);
+  requests.length = 0;
+  await page.getByTestId("photo-card").nth(1).click();
+  await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+  await expect.poll(() => requestedPath(requests, "/api/image", imagePaths[1])).toBe(true);
 });
 
 const expectedPreviewFailureTest = test.extend({

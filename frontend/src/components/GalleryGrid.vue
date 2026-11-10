@@ -304,6 +304,7 @@ const searchResultToFileNode = (result: UnifiedSearchResult): FileNode => ({
   image_count: result.image_count || 0,
   mtime: result.mtime,
   content_version: result.content_version,
+  animated: result.animated,
   width: result.width ?? undefined,
   height: result.height ?? undefined,
   duration_ms: result.duration_ms,
@@ -991,6 +992,7 @@ useInfiniteLoadSentinel({
                   :src="item.path"
                   :name="item.name"
                   :version="item.content_version"
+                  :animated="item.animated"
                   :image-width="item.width"
                   :image-height="item.height"
                   :fetch-priority="virtualRow.index === 0 ? 'high' : 'auto'"
@@ -1047,6 +1049,7 @@ useInfiniteLoadSentinel({
                   :src="item.path"
                   :name="item.name"
                   :version="item.content_version"
+                  :animated="item.animated"
                   :image-width="item.width"
                   :image-height="item.height"
                   :fetch-priority="virtualRow.index === 0 ? 'high' : 'auto'"

@@ -544,6 +544,43 @@ it calls) writes only through writer ops. Each store function is split into a bo
 
 `assert_catalog_job_claim` and reads such as `get_library` are plain WAL reads.
 
+**Animated images (PR-04).** "Animated" is decided once, by the backend, from the container header, and the grid
+and the lightbox share that answer. `backend/animated.py` (`sniff_animated`, `detect_animated_file`) reads headers
+only and never decodes a frame: a GIF is animated at its second Image Descriptor, a WebP when its `VP8X` flags
+carry the animation bit (or an `ANIM`/`ANMF` chunk exists), a PNG when an `acTL` chunk precedes `IDAT` (APNG).
+Chunk walks are bounded (512 chunks, 64 MiB of GIF data), and anything else, an unreadable file or a truncated
+header is "not animated"; the function never raises (about 5-10 microseconds per file on a warm cache; Pillow's
+`open` plus `n_frames` costs about 66). The result lives in the nullable `assets.animated` column (`1`/`0`;
+`NULL` = not detected yet), exposed as the boolean-or-null `animated` field of browse (`FileNode`), search
+(`SearchMediaResult`) and related (`RelatedSearchResultV1`, metadata and visual) image rows. Videos and folders
+carry `null`; Library Inspector rows do not carry the field at all and behave as unknown.
+
+- Invalidation: both upserts that write `assets` (`upsert_catalog_records_conn` for scan and rebuild activation,
+  `_upsert_asset_conn` for single-file writes) set `animated` to `NULL` when `(mtime_ns, size)` changes, exactly
+  like `width`, `height` and `mime_type`, so a changed file is detected again.
+- Detection and backfill: `metadata_store/animated_store.detect_pending_animated` runs on the scan worker after
+  every successful scan or rebuild job (after derivative reconciliation, so it never delays derivative work). It
+  walks the library's active images with `animated IS NULL` in id order, 200 rows per chunk: non-container
+  extensions (anything but `.gif`, `.webp`, `.png`) get `0` without opening the file; the others are stat-ed (a
+  row whose file no longer matches its recorded identity stays `NULL` for the next scan) and sniffed outside the
+  writer; each chunk is one short normal-lane writer op guarded by `animated IS NULL AND mtime_ns IS ? AND size IS ?`.
+  The pass stops on shutdown and after a 30 s budget; the remainder continues on the next scan. This is also the
+  backfill: after the v16 migration every existing image is `NULL`, and the first scan completed after the deploy
+  (the startup scan) fills the library. Unreadable files stay `NULL` and are retried on later scans (a cheap
+  stat). Measured on 3000 files (1500 animated): the pass takes 0.16 s (53 microseconds per row including the
+  stat and the writer ops).
+- Schema v16 (`.v15.bak` backup) adds the column and replaces the `trg_search_generation_assets_update`
+  trigger, because `assets.animated` now appears on search rows and a ranked-window cache entry must not keep a
+  stale value (`animated` is in the `assets` column list of `_SEARCH_GENERATION_TABLES`; `CREATE TRIGGER IF NOT
+  EXISTS` would keep the v15 trigger, so the migration drops and recreates it). Nothing is backfilled inside the
+  migration (102 ms on the 3000-file fixture; the database size is unchanged by the empty column).
+- Frontend: `utils/animatedAsset.ts` `isAnimatedAsset(node)` is the only definition. `animated === true` is
+  animated, `false` is static; an unknown value is animated only for `.gif`; a `.webp`, `.png` or `.apng` is
+  never guessed animated. `PhotoCard` takes it as the `animated` prop (passed by `GalleryGrid`, the search
+  results panel and the related panel) for the hover preview and the "PLAYING" badge, and `buildPhotoSwipeItem`
+  uses it for `isAnimatedAsset`, so an animated WebP or APNG opens on the original and animates in the lightbox
+  (opening item and navigation) while a static WebP stays on its preview and never requests `/api/image` on hover.
+
 Scan and rebuild build and persist catalog records through one shared path in
 `metadata_store/file_index.py`, so a rebuilt catalog serves the same contracts as a scanned one:
 
@@ -931,6 +968,9 @@ Backend modules are mostly flat, with selected domain packages.
 - Catalog-only search/facet predicates correlate assets by `(library_id, path)`,
   matching the catalog's composite index instead of performing a per-file asset
   table scan.
+- Catalog schema version 16 adds the nullable `assets.animated` column and recreates the `assets`
+  search-generation update trigger so it also watches that column (PR-04; see "Animated images"). The `.v15.bak`
+  migration backs the database up and sets `user_version` last; detection runs after scans, not in the migration.
 - Catalog schema version 15 adds one partial index, `idx_assets_folder_images` on
   `assets(library_id, parent_path, mtime_ns DESC, path) WHERE type IN ('image', 'photo')
   AND offline = 0 AND deleted_at IS NULL` (BL-13). It holds the visible image children of

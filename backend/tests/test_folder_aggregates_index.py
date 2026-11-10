@@ -183,7 +183,7 @@ def test_v14_database_migrates_to_v15_with_backup_and_index(
     after = _aggregates(library_id, list(folders.values()))
     assert after == before
     with closing(sqlite3.connect(isolated_metadata_db)) as raw:
-        assert raw.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION == 15
+        assert raw.execute("PRAGMA user_version").fetchone()[0] == CATALOG_SCHEMA_VERSION
         index_sql = raw.execute("SELECT sql FROM sqlite_master WHERE name = ?", (FOLDER_IMAGE_INDEX_NAME,)).fetchone()
     assert index_sql is not None
     assert "WHERE type IN ('image', 'photo') AND offline = 0 AND deleted_at IS NULL" in " ".join(index_sql[0].split())

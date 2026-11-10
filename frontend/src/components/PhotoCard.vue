@@ -13,6 +13,7 @@ import AssetActionMenu from "@/components/AssetActionMenu.vue";
 import { useVisibleLoadGate } from "../composables/useVisibleLoadGate";
 import { useRenderedWidth } from "../composables/useRenderedWidth";
 import { useImageRetry } from "../composables/useImageRetry";
+import { isAnimatedAsset } from "../utils/animatedAsset";
 import { coverAspectRatio, thumbnailSizes } from "../utils/thumbnailSizes";
 
 // ── Global image load cache ──
@@ -25,6 +26,8 @@ const props = withDefaults(
     name?: string;
     /** Backend `content_version`; appended as `v` so the thumbnail URLs are immutable-cacheable. */
     version?: string | null;
+    /** Backend `animated` (container-header detection); null/undefined while unknown, then only `.gif` plays. */
+    animated?: boolean | null;
     /** Asset dimensions (when known) so `sizes` accounts for the `object-fit: cover` crop. */
     imageWidth?: number | null;
     imageHeight?: number | null;
@@ -37,6 +40,7 @@ const props = withDefaults(
     src: undefined,
     name: undefined,
     version: undefined,
+    animated: undefined,
     imageWidth: undefined,
     imageHeight: undefined,
     thumbnailSize: 512,
@@ -98,12 +102,8 @@ watch(shouldLoad, (now) => {
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 let thumbnailTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Check if image is potentially animated based on extension
-const isAnimated = computed(() => {
-  if (!props.name) return false;
-  const ext = props.name.split(".").pop()?.toLowerCase();
-  return ext === "webp" || ext === "gif";
-});
+// One definition shared with the lightbox: the backend value, with a `.gif` fallback while it is unknown.
+const isAnimated = computed(() => isAnimatedAsset({ animated: props.animated, name: props.name }));
 
 const shouldPlay = ref(false);
 const previewSrc = ref("");

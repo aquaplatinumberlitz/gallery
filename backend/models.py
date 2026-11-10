@@ -30,6 +30,9 @@ class FileNode(BaseModel):
     asset_id: int | None = None
     # "<mtime_ns>-<size>" of the media file; pass it as `v` to /api/thumbnail and /api/preview.
     content_version: str | None = None
+    # True/False once the container header was inspected (GIF frames, WebP animation flag, APNG acTL);
+    # null while undetected, and for folders and videos.
+    animated: bool | None = None
     metadata_state: str | None = None
     derivative_ready: dict[str, bool] | None = None
 
@@ -54,6 +57,7 @@ class SearchMediaResult(BaseModel):
     relative_path: str
     mtime: float
     content_version: str | None = None  # "<mtime_ns>-<size>"; pass as `v` to /api/thumbnail and /api/preview
+    animated: bool | None = None  # null until the container header is inspected
     width: int | None = None
     height: int | None = None
     duration_ms: int | None = None

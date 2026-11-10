@@ -33,6 +33,8 @@ export interface FileNode {
   mtime?: number; // Modified time from backend
   /** `"<mtime_ns>-<size>"` of the media file; passed as `v` to /api/thumbnail and /api/preview. */
   content_version?: string | null;
+  /** Container-header detection of GIF, WebP and APNG animation; null/absent while not detected. */
+  animated?: boolean | null;
   image_count?: number; // Number of images in folder (from backend)
   width?: number | null; // Image width in pixels when available
   height?: number | null; // Image height in pixels when available
@@ -309,6 +311,7 @@ export interface UnifiedSearchResult {
   relative_path: string;
   mtime: number;
   content_version?: string | null;
+  animated?: boolean | null;
   width: number | null;
   height: number | null;
   cover_images?: string[];
