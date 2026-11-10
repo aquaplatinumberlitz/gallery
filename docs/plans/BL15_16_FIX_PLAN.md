@@ -51,6 +51,6 @@ Option C (newest-first ordering for 1-character queries) is not approved. It cha
 
 | Item | Status | Evidence |
 |------|--------|----------|
-| BL-16 | Pending | |
-| BL-15 A | Pending | |
-| BL-15 B | Pending | |
+| BL-16 | Merged after Opus review | The unscoped plan derives a cover from any bounded source that returned a full bound, using the rows it already read, so no extra query. It falls back to the exact statement when the page reaches that cover. Fail-before: `cat`, `c` and `ca` on page 1, planned asset 37 versus exact asset 1. A second test asserts no fallback when mtimes are distinct. The 99 bench classes are unchanged within noise. Documented limit: a cut-short preselect that loses rows to the strict joins is invisible to the single statement. |
+| BL-15 A | Merged after Opus review | A bounded, thread-safe LRU (128 entries, 32 MiB, configurable, `0` turns it off) keeps each bounded source's rows. Keyset pages are served from it up to the entry's cover, and the plan reruns uncached when it cannot guarantee a page. Invalidation uses `search_generation(value, epoch)`, bumped by 24 triggers inside the writing transaction on 8 tables. The generation is read before any data, and fielded or filtered queries are never cached. 44 tests cover each write kind, the caps, concurrency, and cache-on versus cache-off equivalence on the SC-01 corpus. On 100k, page 2-3 p50 went from 170-230 ms to 8-17 ms, with p95 at most 33 ms. Page 1 is unchanged. Bulk insert costs about 10-20% more with the triggers (30k rows: 3.2-3.5 s became 3.7-4.0 s). Opus checked every column the search SQL reads against the trigger column lists. |
+| BL-15 B | Closed, no-go | The prototype saved 19-31 ms at the median on unscoped dense page 1 only, gained nothing scoped, and its p95 moves were within jitter. That misses the 20 ms p95 bar, so no v16 migration was written. Opus agrees. The page-1 floor is now BL-17. |
