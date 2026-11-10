@@ -499,6 +499,32 @@ v14 at `67bc7d4`, the same host and 10 iterations per class):
 | `/api/search/count` `a` / `m` / `c` | 2,689 / 2,252 / 2,216 | 49 / 94 / 80 |
 | `/api/search/count` `prompt:c` / `name:a` / `prom` | 819 / 906 / 4,209 | 98 / 84 / 100 |
 
+BL-15 (after BL-16) caches the ranked candidate window of a keyset chain (Search planning in
+[ARCHITECTURE.md](../ARCHITECTURE.md)). `bench_search.py` reports one latency per request, so a 3-page
+chain class keeps page 1 (a cold bm25 ranking, about 200-240 ms) at its p95 and only its median falls. Per-page
+latency of the same chains on the 100k fixture (`/api/search` and `/api/search/query`, 12 chains per row,
+median / p95 in ms, before then after; page 1 is unchanged, pages 2 and 3 are served from the cache):
+
+| Chain | Page 2 | Page 3 |
+|-------|--------|--------|
+| `c`, all libraries | 218 / 235 then 8 / 10 | 224 / 281 then 8 / 8 |
+| `c`, library / folder root / nested folder | 208-217 / 233-302 then 11-14 / 12-33 | 204-223 / 218-288 then 10-13 / 11-18 |
+| `ass`, all libraries (scoped: 176-185 then 15-17) | 169 / 178 then 11 / 16 | 171 / 204 then 10 / 13 |
+| `prom`, all libraries (scoped: 220-232 then 12-14) | 214 / 293 then 10 / 12 | 224 / 310 then 9 / 11 |
+
+The `*_keyset_pages` classes of the bench therefore show p50 values near 10-20 ms and p95 values equal to their
+page 1; read page 2 and 3 latency from the per-request medians, not from the class p95. The cache stores nothing
+for fielded queries and is bypassed by page 1; `GALLERY_SEARCH_WINDOW_CACHE_ENTRIES=0` restores the previous
+behaviour for A/B runs.
+
+BL-15 B (drop the `image_metadata` / `file_index` join that only supplies the mtime sort key, by storing the key
+on the fold tables) was prototyped on the 100k fixture and closed without a migration. The preselect plan loses one
+`SEARCH pre_m USING INTEGER PRIMARY KEY` step and the unscoped dense page 1 medians fall by 27-31 ms for `c`,
+19 ms for `ass`, 31 ms for `prom` and 4-6 ms for the 1-character prompt-heavy `a`; scoped queries gain nothing (their
+path predicate needs the join), and the p95 of the same runs moves by -20 to +13 ms (`c`), -46 to 0 ms (`ass`)
+and -70 to -41 ms (`prom`), which is within host jitter. That is below the plan's 20 ms p95 bar for the dense
+classes as a whole, so the schema change was not written.
+
 Existing classes also dropped (for example `album_heavy` 265 to 55 ms, `fielded` 270 to 218 ms, `broad_filename` 67 to 29 ms): the all-library scope no longer lists libraries (a count over every asset) on each request, and album aggregates use the v15 index. The remaining cost of a dense query is the bm25 ranking of every match of its
 primary source (about 65 ms per 100k matches) plus the sort-key join; see Search
 planning in [ARCHITECTURE.md](../ARCHITECTURE.md). Its `search-benchmark-report.json` is written to the configured
