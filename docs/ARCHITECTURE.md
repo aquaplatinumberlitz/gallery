@@ -1069,8 +1069,10 @@ Backend modules are mostly flat, with selected domain packages.
   durable missing backfill; active assets are processed in the existing
   200-row single-writer batches and failures degrade only this optional index.
 - Related metadata requests collect at most 600 distinct candidates from
-  bounded signature, observed-model-identity, resource, optional
-  typed-workflow, and prompt-FTS branches. Each branch performs its own direct
+  bounded signature, prompt-FTS, observed-model-identity, resource, and
+  optional typed-workflow branches, in that order: model, resource, and
+  workflow matches cannot rank without prompt overlap, so they never spend the
+  budget ahead of the prompt lookup. Each branch performs its own direct
   indexed active/current-source/scope join and applies its cap before candidate
   IDs are united; the request does not materialize a catalog-wide eligibility
   CTE. Prompt FTS uses at most 16 versioned distinctive atoms and excludes

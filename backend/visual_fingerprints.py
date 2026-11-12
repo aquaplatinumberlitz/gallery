@@ -12,6 +12,7 @@ from typing import Any
 from PIL import Image, ImageOps
 
 from .config import GALLERY_RELATED_VISUAL_ENABLED
+from .files import content_version
 from .metadata_store._db import _connect_read
 from .metadata_store.db_writer import LANE_NORMAL, run_write
 from .metadata_store.path_utils import canonicalize_catalog_path, named_path_scope_sql
@@ -359,7 +360,7 @@ def _visual_candidate_rows(
           LIMIT {VISUAL_CANDIDATE_LIMIT}
         )
         SELECT asset.id AS asset_id, asset.library_id, library.name AS library_name,
-               asset.path, asset.parent_path, asset.name, asset.mtime_ns,
+               asset.path, asset.parent_path, asset.name, asset.mtime_ns, asset.size AS asset_size,
                asset.width, asset.height, asset.animated AS asset_animated, fingerprint.dhash_horizontal,
                fingerprint.dhash_vertical, fingerprint.color_grid
         FROM candidates
@@ -436,6 +437,7 @@ def query_visual_variants(
             parent_path=str(candidate["parent_path"]),
             relative_path=_relative_parent(str(candidate["parent_path"]), context),
             mtime=float(candidate["mtime_ns"] or 0) / 1_000_000_000,
+            content_version=content_version(candidate.get("mtime_ns"), candidate.get("asset_size")),
             width=candidate.get("width"),
             height=candidate.get("height"),
             animated=None if candidate.get("asset_animated") is None else bool(candidate["asset_animated"]),
