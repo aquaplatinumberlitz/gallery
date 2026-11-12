@@ -5,6 +5,7 @@
  * Guarantees:
  * * mobile cards, header controls, and navigation buttons remain present
  * * metadata sheet can open and close repeatedly without trapping the UI
+ * * the sheet scroll area is touch-action none while collapsed and pan-y once expanded
  *
  * Run when:
  * * changing mobile lightbox sheet, mobile header, bottom bar, or mobile search flows
@@ -390,6 +391,38 @@ test("metadata sheet can be opened via View info button on mobile", async ({ pag
 
   // Page should still be functional
   await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 3000 });
+});
+
+test("metadata sheet scroll area is touch-action none collapsed and pan-y expanded", async ({ page }) => {
+  await installStubbedGallery(page);
+  await openStubbedGallery(page);
+  await dismissMobileSidebar(page);
+
+  await page
+    .getByTestId("photo-card")
+    .first()
+    .evaluate((el: HTMLElement) => el.click());
+  await expect(page.getByTestId("lightbox")).toBeVisible({ timeout: 10_000 });
+  await page.getByLabel("View image info").evaluate((el: HTMLElement) => el.click());
+
+  const scrollArea = page.locator("[data-vsbs-scroll]");
+  await expect(scrollArea).toBeVisible({ timeout: 10_000 });
+
+  // Collapsed (44%): the sheet drag must own vertical touches, so Chrome Android cannot claim the pan.
+  await expect(page.locator("[data-vsbs-sheet]")).toHaveAttribute("data-sheet-expanded", "false");
+  await expect(scrollArea).toHaveCSS("touch-action", "none");
+  await expect(scrollArea).toHaveCSS("overscroll-behavior-y", "none");
+
+  // Expanded (80%): the content scrolls natively.
+  await page.getByLabel("Expand metadata sheet").evaluate((el: HTMLElement) => el.click());
+  await expect(page.locator("[data-vsbs-sheet]")).toHaveAttribute("data-sheet-expanded", "true", { timeout: 5000 });
+  await expect(scrollArea).toHaveCSS("touch-action", "pan-y");
+  await expect(scrollArea).toHaveCSS("overscroll-behavior-y", "none");
+
+  // Collapsing restores the drag-owned mode.
+  await page.getByLabel("Collapse metadata sheet").evaluate((el: HTMLElement) => el.click());
+  await expect(page.locator("[data-vsbs-sheet]")).toHaveAttribute("data-sheet-expanded", "false", { timeout: 5000 });
+  await expect(scrollArea).toHaveCSS("touch-action", "none");
 });
 
 test("tablet metadata sheet avoids toolbar overlap and accidental content-swipe dismissal", async ({ page }) => {
