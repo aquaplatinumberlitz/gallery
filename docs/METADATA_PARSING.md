@@ -196,9 +196,9 @@ at most 16 distinct atoms by parsed weight, phrase length, first occurrence,
 and the version-2 common-boilerplate policy. Fixed common atoms include
 `masterpiece`, quality/resolution boilerplate, `low quality`, `watermark`, and
 `blurry`; they sort behind distinctive phrases and are excluded from prompt
-FTS candidate lookup. A bounded union of signature, observed-model-identity,
-resource, optional typed-workflow, and FTS sources is capped at 600 assets
-before rows are loaded. Weighted prompt Jaccard
+FTS candidate lookup. A bounded union of signature, FTS, observed-model-identity,
+resource, and optional typed-workflow sources (collected in that order) is
+capped at 600 assets before rows are loaded. Weighted prompt Jaccard
 downweights boilerplate, then resource overlap, model/workflow compatibility,
 recorded-setting proximity, mtime, and asset ID produce deterministic ordering
 inside fixed relation tiers. Stable reason codes describe recorded evidence;

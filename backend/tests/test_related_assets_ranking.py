@@ -66,6 +66,123 @@ def _metadata(value: dict) -> dict:  # noqa: ANN001
     }
 
 
+def _insert_generated_asset(
+    conn,  # noqa: ANN001
+    library: dict,
+    path: Path,
+    ordinal: int,
+    metadata: dict,
+    *,
+    active: bool = True,
+) -> int:
+    """Insert one catalog asset with its metadata, resources and current generation signature."""
+    mtime_ns = 10_000 + ordinal
+    cursor = conn.execute(
+        """
+        INSERT INTO assets (
+          library_id, path, parent_path, name, type, mtime_ns, size,
+          indexed_at, metadata_state, offline, deleted_at
+        ) VALUES (?, ?, ?, ?, 'image', ?, 100, ?, 'done', ?, NULL)
+        """,
+        (
+            library["id"],
+            str(path),
+            str(path.parent),
+            path.name,
+            mtime_ns,
+            float(ordinal + 1),
+            int(not active),
+        ),
+    )
+    asset_id = int(cursor.lastrowid)
+    normalized = _metadata(metadata)
+    conn.execute(
+        """
+        INSERT INTO image_metadata (
+          path, name, mtime, mtime_ns, size, width, height, prompt,
+          negative_prompt, model, model_hash, sampler, scheduler, seed,
+          steps, cfg_scale, denoising_strength, metadata_json,
+          indexed_at, updated_at
+        ) VALUES (?, ?, ?, ?, 100, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)
+        """,
+        (
+            str(path),
+            path.name,
+            float(ordinal + 1),
+            mtime_ns,
+            normalized["width"],
+            normalized["height"],
+            normalized["prompt"],
+            normalized["negative_prompt"],
+            normalized["model"],
+            normalized["model_hash"],
+            normalized["sampler"],
+            normalized["scheduler"],
+            normalized["seed"],
+            normalized["steps"],
+            normalized["cfg_scale"],
+            normalized["denoising_strength"],
+            float(ordinal + 1),
+            float(ordinal + 1),
+        ),
+    )
+    resources = [_resource(value) for value in metadata.get("resources", [])]
+    for resource in resources:
+        conn.execute(
+            """
+            INSERT INTO image_resources (
+              path, kind, name, hash, resource_hash, weight, strength, raw_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, '', ?)
+            """,
+            (
+                str(path),
+                resource["kind"],
+                resource["name"],
+                resource["hash"],
+                resource["resource_hash"],
+                resource["weight"],
+                resource["strength"],
+                float(ordinal + 1),
+            ),
+        )
+    source = {"metadata": normalized, "resources": resources}
+    payload = build_generation_signature_payload(
+        {
+            "id": asset_id,
+            "library_id": library["id"],
+            "path": str(path),
+            "type": "image",
+            "mtime_ns": mtime_ns,
+            "size": 100,
+        },
+        source,
+    )
+    if payload["prompt_hash"] is not None:
+        conn.execute(
+            """
+            INSERT INTO asset_generation_signatures (
+              asset_id, library_id, prompt_hash, family_hash, recipe_hash,
+              exact_hash, normalizer_version, extractor_version,
+              source_mtime_ns, source_size, indexed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                asset_id,
+                library["id"],
+                payload["prompt_hash"],
+                payload["family_hash"],
+                payload["recipe_hash"],
+                payload["exact_hash"],
+                payload["normalizer_version"],
+                payload["extractor_version"],
+                payload["source_mtime_ns"],
+                payload["source_size"],
+                float(ordinal + 1),
+            ),
+        )
+    return asset_id
+
+
 def _seed_fixture(root: Path) -> tuple[dict, dict, dict[str, int]]:
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     primary_root, secondary_root = root / "primary", root / "secondary"
@@ -90,112 +207,14 @@ def _seed_fixture(root: Path) -> tuple[dict, dict, dict[str, int]]:
             resolved_metadata[item["key"]] = metadata
             library = libraries[item["library"]]
             library_root = primary_root if item["library"] == "primary" else secondary_root
-            path = library_root / f"{item['key']}.png"
-            mtime_ns = 10_000 + ordinal
-            cursor = conn.execute(
-                """
-                INSERT INTO assets (
-                  library_id, path, parent_path, name, type, mtime_ns, size,
-                  indexed_at, metadata_state, offline, deleted_at
-                ) VALUES (?, ?, ?, ?, 'image', ?, 100, ?, 'done', ?, NULL)
-                """,
-                (
-                    library["id"],
-                    str(path),
-                    str(path.parent),
-                    path.name,
-                    mtime_ns,
-                    float(ordinal + 1),
-                    int(not item.get("active", True)),
-                ),
+            ids[item["key"]] = _insert_generated_asset(
+                conn,
+                library,
+                library_root / f"{item['key']}.png",
+                ordinal,
+                metadata,
+                active=item.get("active", True),
             )
-            asset_id = int(cursor.lastrowid)
-            ids[item["key"]] = asset_id
-            normalized = _metadata(metadata)
-            conn.execute(
-                """
-                INSERT INTO image_metadata (
-                  path, name, mtime, mtime_ns, size, width, height, prompt,
-                  negative_prompt, model, model_hash, sampler, scheduler, seed,
-                  steps, cfg_scale, denoising_strength, metadata_json,
-                  indexed_at, updated_at
-                ) VALUES (?, ?, ?, ?, 100, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)
-                """,
-                (
-                    str(path),
-                    path.name,
-                    float(ordinal + 1),
-                    mtime_ns,
-                    normalized["width"],
-                    normalized["height"],
-                    normalized["prompt"],
-                    normalized["negative_prompt"],
-                    normalized["model"],
-                    normalized["model_hash"],
-                    normalized["sampler"],
-                    normalized["scheduler"],
-                    normalized["seed"],
-                    normalized["steps"],
-                    normalized["cfg_scale"],
-                    normalized["denoising_strength"],
-                    float(ordinal + 1),
-                    float(ordinal + 1),
-                ),
-            )
-            resources = [_resource(value) for value in metadata.get("resources", [])]
-            for resource in resources:
-                conn.execute(
-                    """
-                    INSERT INTO image_resources (
-                      path, kind, name, hash, resource_hash, weight, strength, raw_json, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, '', ?)
-                    """,
-                    (
-                        str(path),
-                        resource["kind"],
-                        resource["name"],
-                        resource["hash"],
-                        resource["resource_hash"],
-                        resource["weight"],
-                        resource["strength"],
-                        float(ordinal + 1),
-                    ),
-                )
-            source = {"metadata": normalized, "resources": resources}
-            payload = build_generation_signature_payload(
-                {
-                    "id": asset_id,
-                    "library_id": library["id"],
-                    "path": str(path),
-                    "type": "image",
-                    "mtime_ns": mtime_ns,
-                    "size": 100,
-                },
-                source,
-            )
-            if payload["prompt_hash"] is not None:
-                conn.execute(
-                    """
-                    INSERT INTO asset_generation_signatures (
-                      asset_id, library_id, prompt_hash, family_hash, recipe_hash,
-                      exact_hash, normalizer_version, extractor_version,
-                      source_mtime_ns, source_size, indexed_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        asset_id,
-                        library["id"],
-                        payload["prompt_hash"],
-                        payload["family_hash"],
-                        payload["recipe_hash"],
-                        payload["exact_hash"],
-                        payload["normalizer_version"],
-                        payload["extractor_version"],
-                        payload["source_mtime_ns"],
-                        payload["source_size"],
-                        float(ordinal + 1),
-                    ),
-                )
     assert fixture_by_key["reference"]["library"] == "primary"
     return libraries["primary"], libraries["secondary"], ids
 
@@ -288,6 +307,81 @@ def test_shared_typed_workflow_property_is_visible_evidence(
     results = rank_related_metadata(ids["reference"], context, profile="related", limit=60)
     rare = next(item for item in results if item.asset_id == ids["rare_prompt_with_common_boilerplate"])
     assert "shared_workflow_property" in {reason.value for reason in rare.relation_reasons}
+
+
+def test_prompt_related_asset_survives_when_signal_only_branches_fill_the_candidate_budget(
+    isolated_gallery_root: Path,
+    isolated_metadata_db: Path,
+) -> None:
+    """A large library must not lose prompt-related images behind same-model/LoRA/workflow-only candidates.
+
+    Model, resource and workflow matches cannot rank without prompt overlap, so they must not consume the
+    candidate budget before the prompt lookup runs.
+    """
+    primary, _secondary, ids = _seed_fixture(isolated_gallery_root)
+    root = isolated_gallery_root / "primary"
+    branch = ranking_module.CANDIDATE_BRANCH_LIMIT
+    with _connect() as conn:
+
+        def workflow_node(asset_id: int, key: str) -> None:
+            cursor = conn.execute(
+                """
+                INSERT INTO workflow_nodes (
+                  asset_id, node_key, node_type, extractor_version, source_fingerprint
+                ) VALUES (?, ?, 'KSampler', 1, 'fixture')
+                """,
+                (asset_id, key),
+            )
+            conn.execute(
+                """
+                INSERT INTO workflow_property_values (
+                  node_id, property_key, ordinal, value_type, value_text, value_text_folded
+                ) VALUES (?, 'scheduler', 0, 'text', 'karras', 'karras')
+                """,
+                (int(cursor.lastrowid),),
+            )
+
+        workflow_node(ids["reference"], "reference-sampler")
+        ordinal = 1_000
+        # Three disjoint decoy groups, each sharing exactly one non-prompt signal with the reference.
+        for index in range(branch):
+            for group, metadata in (
+                ("model", {"model": "forest-xl", "model_hash": "model-hash-a"}),
+                ("lora", {"model": "studio-xl", "resources": ["lora:fox-detail:resource-hash-a"]}),
+                ("workflow", {"model": "studio-xl"}),
+            ):
+                ordinal += 1
+                decoy_id = _insert_generated_asset(
+                    conn,
+                    primary,
+                    root / f"decoy-{group}-{index}.png",
+                    ordinal,
+                    {"prompt": f"technical blueprint {group} {index}, concrete train station", **metadata},
+                )
+                if group == "workflow":
+                    workflow_node(decoy_id, f"decoy-{index}")
+        # Newest asset: the same rare prompt subject and model as the reference.
+        target_id = _insert_generated_asset(
+            conn,
+            primary,
+            root / "late-prompt-match.png",
+            ordinal + 1,
+            {
+                "prompt": "masterpiece, best quality, cinematic red fox, frozen waterfall",
+                "model": "forest-xl",
+                "model_hash": "model-hash-a",
+            },
+        )
+    context = SearchScopeContext(kind="library", library_id=primary["id"], library_name=primary["name"])
+    results = rank_related_metadata(ids["reference"], context, profile="related", limit=60)
+    by_id = {item.asset_id: item for item in results}
+    assert target_id in by_id
+    assert by_id[target_id].relation_tier == 60
+    assert [reason.value for reason in by_id[target_id].relation_reasons][:2] == [
+        "strong_prompt_overlap",
+        "same_model_hash",
+    ]
+    assert not any("decoy-" in item.name for item in results)
 
 
 def test_related_api_returns_ranked_items_and_excludes_stale_or_seed_only_candidates(

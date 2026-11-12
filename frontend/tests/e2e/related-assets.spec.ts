@@ -327,6 +327,17 @@ test("card action opens one unified result list and result selection reuses ligh
     "aria-label",
     /does not prove a shared prompt or lineage/,
   );
+  // Reason chips are real, reachable evidence: exposed to assistive tech and explained on hover.
+  await expect(panel.locator('.chip-overlay[aria-hidden="true"]')).toHaveCount(0);
+  // Leave the header help trigger first, then move onto the chip the way a real pointer does.
+  await page.mouse.move(0, 0);
+  const visualChip = panel.locator(".reason-chip", { hasText: "Visually similar" }).first();
+  await visualChip.hover();
+  const chipBox = await visualChip.boundingBox();
+  await page.mouse.move(chipBox!.x + chipBox!.width / 2 + 2, chipBox!.y + chipBox!.height / 2, { steps: 3 });
+  await expect(
+    page.locator("[data-side][data-state]").filter({ hasText: "does not prove a shared prompt or lineage" }),
+  ).toBeVisible();
   await expect(panel.getByText("unrelated-same-model.png")).toHaveCount(0);
   await expect(panel.getByText("inactive-match.png")).toHaveCount(0);
   await expect(panel.getByText("cross-library-match.png")).toHaveCount(0);
@@ -395,6 +406,21 @@ test("lightbox and mobile overflow actions open the current reference", async ({
   const panel = page.getByTestId("related-assets-panel");
   await expect(panel.getByRole("tablist")).toHaveCount(0);
   expect(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+
+  // Without hover, tapping the tier badge pins that card's reason chips open; tapping again hides them.
+  const firstCard = panel.locator(".related-card").first();
+  const tierBadge = firstCard.locator(".tier-label");
+  const overlay = firstCard.locator(".chip-overlay");
+  await page.mouse.move(0, 0);
+  await expect(overlay).toHaveCSS("opacity", "0");
+  await tierBadge.click();
+  await page.mouse.move(0, 0);
+  await expect(tierBadge).toHaveAttribute("aria-expanded", "true");
+  await expect(overlay).toHaveCSS("opacity", "1");
+  await expect(page.getByTestId("lightbox")).not.toBeVisible();
+  await tierBadge.click();
+  await page.mouse.move(0, 0);
+  await expect(tierBadge).toHaveAttribute("aria-expanded", "false");
 });
 
 test("missing visual coverage keeps metadata relations available", async ({ page }) => {

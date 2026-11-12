@@ -396,23 +396,27 @@ Rules:
   for metadata/recipe/visual match types. Mobile uses the full viewport width;
   tablet/desktop use the same right-side sheet and content order.
 - Results reuse the normal photo card and existing lightbox. Show a fixed tier
-  label plus one or more reason chips from typed backend codes. Deduplicate by
+  label on every card; the reason chips from typed backend codes sit in an
+  overlay revealed on pointer hover or keyboard focus and stay exposed to
+  assistive technology (never `aria-hidden`). The tier label is a button:
+  tapping it pins that card's chips open, which is how touch layouts reach
+  them. Deduplicate by
   asset ID, union typed reasons, and preserve backend ordering. Do not show a
   probability, confidence percentage, generated explanation, or inferred lineage.
 - Result cards do not show the gallery `…` overflow menu. In this modal it only
   repeats `Find related` without a clear next step; clicking the image or title
   opens the existing lightbox instead.
-- Result filenames may wrap to two lines with `overflow-wrap: anywhere`; a
-  hover/focus tooltip exposes the complete filename. Do not force UUID-like
-  names into a clipped single line or allow unbounded wrapping to distort the
-  grid.
-- Opening a result launches the existing lightbox without closing the Related
-  assets sheet. Closing the lightbox returns to the same result list and scroll
+- Result filenames stay on one clamped line with `overflow-wrap: anywhere` so
+  the image-first grid keeps a constant row height; a hover/focus tooltip
+  exposes the complete filename.
+- Opening a result hides the Related assets sheet while the existing lightbox
+  is open. Closing the lightbox restores the same result list and scroll
   position; only the sheet's own Close action ends the Related assets session.
 - Provide a compact `How matches are found` tooltip in the sheet header that
   explains backend metadata signatures, visual fingerprints, merge/dedupe, and
-  ranking. Each reason badge exposes a hover/focus tooltip tied to its exact API
-  reason code; visual explanations explicitly avoid prompt or lineage claims.
+  ranking. Each reason badge takes pointer events and exposes a hover/focus
+  tooltip tied to its exact API reason code; visual explanations explicitly
+  avoid prompt or lineage claims.
 - Do not render a recorded-generation comparison summary in the modal. Ranking,
   tier selection, and evidence calculation remain backend-owned; the frontend
   shows result images and concise typed reason badges only.

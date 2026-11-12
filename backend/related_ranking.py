@@ -300,6 +300,37 @@ def _candidate_ids(
     if profile == "recipe":
         return candidate_ids
 
+    # Prompt lookup runs before the model/resource/workflow branches: every tier below the generation family
+    # needs meaningful prompt overlap, so those signal-only branches must not spend the candidate budget first.
+    atoms = normalize_prompt_atoms(reference.get("prompt")) + normalize_prompt_atoms(reference.get("negative_prompt"))
+    selected = [atom for atom in select_prompt_atoms_for_fts(atoms) if not is_common_prompt_atom(atom.identity)]
+    if selected:
+        fts_query = " OR ".join(f'"{atom.identity.replace(chr(34), chr(34) * 2)}"' for atom in selected)
+        rows = conn.execute(
+            f"""
+            SELECT asset.id AS asset_id
+            FROM image_metadata_fts AS fts
+            JOIN image_metadata AS metadata ON metadata.id = fts.rowid
+            JOIN assets AS asset
+              ON asset.path = metadata.path
+             AND asset.mtime_ns = metadata.mtime_ns
+             AND asset.size = metadata.size
+            JOIN asset_generation_signatures AS signature ON signature.asset_id = asset.id
+            WHERE image_metadata_fts MATCH :prompt_fts_query
+              AND asset.id != :reference_asset_id
+              AND asset.type = 'image' AND asset.offline = 0 AND asset.deleted_at IS NULL
+              AND signature.source_mtime_ns = asset.mtime_ns
+              AND signature.source_size = asset.size
+              AND signature.normalizer_version = :normalizer_version
+              AND signature.extractor_version = :signature_extractor_version
+              {scope_sql}
+            ORDER BY bm25(image_metadata_fts), asset.id
+            LIMIT {CANDIDATE_BRANCH_LIMIT}
+            """,
+            {**params, "prompt_fts_query": fts_query},
+        ).fetchall()
+        extend(rows)
+
     model_hash = _clean_identity(reference.get("model_hash"))
     model_name = _clean_identity(reference.get("model"))
     if model_hash:
@@ -463,34 +494,6 @@ def _candidate_ids(
         ).fetchall()
         extend(rows)
 
-    atoms = normalize_prompt_atoms(reference.get("prompt")) + normalize_prompt_atoms(reference.get("negative_prompt"))
-    selected = [atom for atom in select_prompt_atoms_for_fts(atoms) if not is_common_prompt_atom(atom.identity)]
-    if selected and len(candidate_ids) < MAX_METADATA_CANDIDATES:
-        fts_query = " OR ".join(f'"{atom.identity.replace(chr(34), chr(34) * 2)}"' for atom in selected)
-        rows = conn.execute(
-            f"""
-            SELECT asset.id AS asset_id
-            FROM image_metadata_fts AS fts
-            JOIN image_metadata AS metadata ON metadata.id = fts.rowid
-            JOIN assets AS asset
-              ON asset.path = metadata.path
-             AND asset.mtime_ns = metadata.mtime_ns
-             AND asset.size = metadata.size
-            JOIN asset_generation_signatures AS signature ON signature.asset_id = asset.id
-            WHERE image_metadata_fts MATCH :prompt_fts_query
-              AND asset.id != :reference_asset_id
-              AND asset.type = 'image' AND asset.offline = 0 AND asset.deleted_at IS NULL
-              AND signature.source_mtime_ns = asset.mtime_ns
-              AND signature.source_size = asset.size
-              AND signature.normalizer_version = :normalizer_version
-              AND signature.extractor_version = :signature_extractor_version
-              {scope_sql}
-            ORDER BY bm25(image_metadata_fts), asset.id
-            LIMIT {CANDIDATE_BRANCH_LIMIT}
-            """,
-            {**params, "prompt_fts_query": fts_query},
-        ).fetchall()
-        extend(rows)
     return candidate_ids
 
 

@@ -156,6 +156,10 @@ def test_indexed_visual_lookup_matches_variants_and_keeps_honest_limits(
     assert ids["mirror"] not in by_id
     assert ids["rotation"] not in by_id
     assert ids["unrelated"] not in by_id
+    # Visual-only rows carry the same versioned-URL identity as browse/search/metadata-related rows.
+    resize_stat = paths["resize"].stat()
+    assert by_id[ids["resize"]].content_version == f"{resize_stat.st_mtime_ns}-{resize_stat.st_size}"
+    assert all(item.content_version for item in results)
     with _connect() as conn:
         assert conn.execute("SELECT count(*) FROM asset_visual_hash_bands").fetchone()[0] == len(ids) * 8
 

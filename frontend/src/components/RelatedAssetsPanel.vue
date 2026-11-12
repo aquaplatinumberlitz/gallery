@@ -161,6 +161,12 @@ const readinessNotices = computed<ReadinessNotice[]>(() => {
   return notices;
 });
 
+// Touch has no hover: tapping a card's tier badge pins its reason chips open (one card at a time).
+const pinnedReasonsId = shallowRef<number | null>(null);
+const toggleReasons = (item: RelatedSearchResultV1) => {
+  pinnedReasonsId.value = pinnedReasonsId.value === item.asset_id ? null : item.asset_id;
+};
+
 const tierLabel = (item: RelatedSearchResultV1) => {
   if (item.relation_reasons.includes("same_exact_signature")) return "Exact settings";
   if (item.relation_reasons.includes("same_recipe")) return "Same recipe";
@@ -375,7 +381,7 @@ watch(
           <template v-if="response">
             <div v-if="results.length" class="related-grid" data-testid="related-results">
               <article v-for="item in results" :key="item.asset_id" class="related-card">
-                <div class="related-card-media">
+                <div class="related-card-media" :class="{ 'reasons-pinned': pinnedReasonsId === item.asset_id }">
                   <PhotoCard
                     :src="item.path"
                     :name="item.name"
@@ -387,13 +393,20 @@ watch(
                   />
 
                   <!-- Tier badge: bottom-left, semantic dot -->
-                  <span class="tier-label" :data-tier="tierColorTier(item)">
+                  <button
+                    type="button"
+                    class="tier-label"
+                    :data-tier="tierColorTier(item)"
+                    :aria-expanded="pinnedReasonsId === item.asset_id"
+                    :aria-label="`${tierLabel(item)}: show why ${item.name} is related`"
+                    @click="toggleReasons(item)"
+                  >
                     <span class="tier-dot" aria-hidden="true" />
                     {{ tierLabel(item) }}
-                  </span>
+                  </button>
 
-                  <!-- Detail chips: hover-reveal overlay at top of image -->
-                  <div class="chip-overlay" aria-hidden="true">
+                  <!-- Detail chips: hover/focus-reveal overlay at top of image -->
+                  <div class="chip-overlay">
                     <RelationReasonList :reasons="item.relation_reasons" />
                   </div>
                 </div>
@@ -575,7 +588,19 @@ watch(
   line-height: 1.2;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  pointer-events: none;
+  cursor: pointer;
+}
+
+/* Enlarge the tap target without growing the badge. */
+.tier-label::after {
+  position: absolute;
+  inset: -10px;
+  content: "";
+}
+
+.tier-label:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-shadow);
 }
 
 /* Semantic dot per tier */
@@ -621,14 +646,22 @@ watch(
 }
 
 .related-card-media:hover .chip-overlay,
-.related-card-media:focus-within .chip-overlay {
+.related-card-media:focus-within .chip-overlay,
+.related-card-media.reasons-pinned .chip-overlay {
   opacity: 1;
   transform: translateY(0);
 }
 
-/* Touch (mobile/tablet): chip overlay stays hidden — tier badge is sufficient.
-   Detailed reasons are accessible via the lightbox/detail view.
-   Follows image-first grid principle (Google Photos, Apple Photos). */
+/* Pointer devices: chips take the pointer so each one can show its explanation tooltip.
+   The rest of the overlay stays click-through so the image underneath still opens. */
+@media (hover: hover) {
+  .chip-overlay :deep(.reason-chip) {
+    pointer-events: auto;
+  }
+}
+
+/* Touch (mobile/tablet): the overlay is hidden and click-through until the tier badge is tapped.
+   The chips remain in the accessibility tree and appear on keyboard focus. */
 
 /* ── Compact filename: 1 line, no wasted height ── */
 .result-title {
