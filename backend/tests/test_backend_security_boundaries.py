@@ -9,6 +9,7 @@ Guarantees:
 * registered folder scopes reject unregistered and excluded paths
 * nested file symlinks are not cataloged
 * malformed NUL paths and bounded library settings fail deterministically
+* GALLERY_MODE=local is exclusive with PRODUCTION=1 and needs no proxy secret
 
 Run when:
 * changing proxy authentication, path authorization, library validation, or discovery
@@ -115,3 +116,24 @@ def test_production_configuration_requires_long_secret(monkeypatch: pytest.Monke
     monkeypatch.setattr(config, "GALLERY_TRUSTED_PROXY_SECRET", "short")
     with pytest.raises(RuntimeError, match="at least 32"):
         validate_trusted_proxy_configuration()
+
+
+def test_local_mode_and_production_are_mutually_exclusive(monkeypatch: pytest.MonkeyPatch):
+    import backend.config as config
+    from backend.security import validate_trusted_proxy_configuration
+
+    monkeypatch.setattr(config, "PRODUCTION", True)
+    monkeypatch.setattr(config, "LOCAL_MODE", True)
+    monkeypatch.setattr(config, "GALLERY_TRUSTED_PROXY_SECRET", "x" * 40)
+    with pytest.raises(RuntimeError, match="mutually exclusive"):
+        validate_trusted_proxy_configuration()
+
+
+def test_local_mode_needs_no_proxy_secret(monkeypatch: pytest.MonkeyPatch):
+    import backend.config as config
+    from backend.security import validate_trusted_proxy_configuration
+
+    monkeypatch.setattr(config, "PRODUCTION", False)
+    monkeypatch.setattr(config, "LOCAL_MODE", True)
+    monkeypatch.setattr(config, "GALLERY_TRUSTED_PROXY_SECRET", "")
+    validate_trusted_proxy_configuration()

@@ -7,7 +7,7 @@ if __name__ == "__main__":
 
     import uvicorn
 
-    from .config import PRODUCTION
+    from .config import LOCAL_MODE, PRODUCTION
 
     port_env = _os.getenv("PORT")
     try:
@@ -15,6 +15,7 @@ if __name__ == "__main__":
     except ValueError:
         port_val = 4701
 
-    host = "0.0.0.0"
-    reload_flag = not PRODUCTION
+    # Local mode is single-user: never listen beyond loopback and never auto-reload.
+    host = "127.0.0.1" if LOCAL_MODE else "0.0.0.0"
+    reload_flag = not (PRODUCTION or LOCAL_MODE)
     uvicorn.run("backend.main:app", host=host, port=port_val, reload=reload_flag)
