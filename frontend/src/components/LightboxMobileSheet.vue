@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, shallowRef, useTemplateRef } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, shallowRef, useTemplateRef, watch } from "vue";
 import BottomSheet from "@douxcode/vue-spring-bottom-sheet";
 import "@douxcode/vue-spring-bottom-sheet/dist/style.css";
 import ExpandableText from "./ExpandableText.vue";
@@ -80,7 +80,20 @@ function syncSheetSemantics() {
   sheet.setAttribute("role", "dialog");
   sheet.setAttribute("aria-labelledby", "mobile-metadata-title");
   sheet.removeAttribute("aria-modal");
+  syncSheetTouchMode();
 }
+
+/**
+ * Mirror the snap state onto the teleported sheet root so the global CSS can pick the touch-action of the scroll
+ * area. Collapsed (44%): `touch-action: none`, so Chrome Android never claims the vertical pan and the sheet
+ * drag keeps the pointer. Expanded (80%): `pan-y`, so the content scrolls natively.
+ */
+function syncSheetTouchMode() {
+  const sheet = bottomSheetRef.value?.$refs.sheet as HTMLElement | undefined;
+  sheet?.setAttribute("data-sheet-expanded", String(sheetExpanded.value));
+}
+
+watch(sheetExpanded, syncSheetTouchMode);
 
 function onSheetClosed() {
   sheetOpen.value = false;
@@ -607,9 +620,17 @@ const {
   background: transparent;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
+}
+
+/* The library already sets overscroll-behavior: none on the scroll area. touch-action follows the snap state
+   (data-sheet-expanded, see syncSheetTouchMode): none while collapsed, pan-y once expanded. */
+[data-vsbs-sheet]:not([data-sheet-expanded="true"]) [data-vsbs-scroll] {
+  touch-action: none;
+}
+
+[data-vsbs-sheet][data-sheet-expanded="true"] [data-vsbs-scroll] {
+  touch-action: pan-y;
 }
 
 [data-vsbs-content] {

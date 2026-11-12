@@ -199,7 +199,7 @@ See [Third-Party Libraries](THIRD_PARTY_LIBRARIES.md) for VSBS and PhotoSwipe in
 - The chevron-up action expands the sheet and auto-shows more Prompt/Negative Prompt text. The chevron-down action compacts the sheet and auto-shows less Prompt/Negative Prompt text.
 - Show more expands text and expands the sheet if needed. Show less collapses text without closing the sheet.
 - Prompt, Params, and Model tabs remain available in the sheet. Copy buttons stay active for prompt, negative prompt, seed, and other copyable metadata.
-- Body content scrolls normally inside the VSBS scroll area.
+- Body content scrolls normally inside the VSBS scroll area once the sheet is expanded (80%). While it is collapsed (44%) the scroll area is `touch-action: none` so Chrome Android cannot claim the vertical pan and the sheet drag keeps the pointer; the touch-action follows `data-sheet-expanded` on the sheet root (set by `LightboxMobileSheet.vue`). Do not set a fixed `touch-action` on `[data-vsbs-scroll]` again.
 - Outside tap closes the metadata sheet only. It must not close PhotoSwipe or block image swipe left/right.
 - `blocking=false` is required to avoid focus-trap recursion with PhotoSwipe.
 - Because this is non-blocking, the teleported VSBS root must use `role="dialog"`, a stable accessible label, and no `aria-modal="true"`.
