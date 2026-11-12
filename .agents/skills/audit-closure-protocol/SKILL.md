@@ -8,16 +8,19 @@ description: Run bounded, evidence-based audits with a frozen finding ledger, ro
 Use explicit contracts and reproducible evidence to prevent scope drift, duplicate
 findings, false-positive closure, and unbounded audit/fix loops.
 
-## Determine the authorized mode
+## Determine the mode
 
 Honor the user's requested scope before doing work:
 
-- Treat `audit`, `review`, `inspect`, and similar requests as read-only discovery
-  unless the user also asks to fix, implement, close, or modify.
-- For read-only work, complete discovery and publish the frozen finding ledger.
-  Do not edit implementation files.
-- For `audit and fix`, `fix audit findings`, or equivalent requests, run the full
-  discovery, fix, and closure workflow below.
+- Treat `audit`, `review`, `inspect`, `audit and fix`, `fix audit findings`, and
+  similar requests as discovery plus fixes: run the full discovery, fix, and
+  closure workflow below and fix confirmed in-scope findings directly when a fix
+  is needed. No separate authorization to edit is required.
+- Fix only findings that meet the evidence threshold. Report hypotheses that
+  still need evidence (for example device-only behavior) as open items instead
+  of guessing a fix.
+- Stay report-only (discovery and the frozen finding ledger, no implementation
+  edits) only when the user explicitly asks for a read-only or report-only pass.
 - For verification of previously defined findings, use the supplied finding IDs
   and acceptance criteria. Do not restart unrestricted discovery.
 - Ask before continuing only when an ambiguity would materially change scope or
@@ -130,7 +133,7 @@ it in the frozen count or fix it without explicit authorization.
 If classification is genuinely ambiguous or would materially alter the agreed
 scope, stop and ask the user before continuing.
 
-## Fix each authorized finding
+## Fix each frozen finding
 
 For each frozen finding, in order:
 
@@ -219,10 +222,11 @@ diff or formatting checks. Documentation alone is not verification evidence.
 
 ## Publish one final report and stop
 
-For a read-only audit, report the frozen scope, exact finding count, full ledger,
-verification evidence gathered, and separately identified out-of-scope notes.
+For a report-only audit (explicitly requested), report the frozen scope, exact
+finding count, full ledger, verification evidence gathered, and separately
+identified out-of-scope notes.
 
-For an audit with authorized fixes, publish exactly one row per frozen finding:
+For an audit with fixes (the default), publish exactly one row per frozen finding:
 
 | ID | Root-cause fix | Regression evidence | Status |
 | --- | --- | --- | --- |
