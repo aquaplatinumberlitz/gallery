@@ -2,7 +2,7 @@
 
 Status: Maintained
 
-Last reviewed: 2026-11-02
+Last reviewed: 2026-11-12
 
 This file is the repo working contract for AI agents and new automation-driven
 contributors. Read it before planning or editing.
@@ -35,9 +35,10 @@ contributors. Read it before planning or editing.
 
 - Never revert user changes or unrelated local work. If a file is already dirty,
   inspect it and preserve changes outside your task.
-- For every audit, re-audit, audit-and-fix, or audit-closure request, load and
-  follow `.agents/skills/audit-closure-protocol/SKILL.md`. Treat audit-only
-  requests as read-only unless the user explicitly authorizes fixes.
+- For every audit, re-audit, review, audit-and-fix, or audit-closure request,
+  load and follow `.agents/skills/audit-closure-protocol/SKILL.md`. Audits and
+  reviews are not read-only: fix confirmed in-scope findings directly when a fix
+  is needed. Stay report-only only when the user explicitly asks for that.
 - Keep edits scoped to the requested behavior. Do not refactor unrelated modules
   or churn generated reports unless the task requires it.
 - Use `rg`/`rg --files` for search. Read the relevant code before changing it.
