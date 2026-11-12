@@ -15,6 +15,8 @@ MIN_PROXY_SECRET_LENGTH = 32
 
 def validate_trusted_proxy_configuration() -> None:
     """Fail startup closed when production proxy authentication is incomplete."""
+    if config.LOCAL_MODE and config.PRODUCTION:
+        raise RuntimeError("GALLERY_MODE=local and PRODUCTION=1 are mutually exclusive")
     secret = config.GALLERY_TRUSTED_PROXY_SECRET
     if config.PRODUCTION and len(secret) < MIN_PROXY_SECRET_LENGTH:
         raise RuntimeError(

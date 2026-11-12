@@ -149,12 +149,35 @@ curl http://150.230.56.153/api/health
 curl -I http://150.230.56.153/
 ```
 
+## Local offline mode (Linux)
+
+`python3 run_local.py` runs the gallery on one machine with no nginx, no proxy secret and no network access. It sets
+`GALLERY_MODE=local` for the backend, which then:
+
+- serves the built SPA from `frontend/dist/` (index, assets, client-side routing fallback; `api/*`, `openapi*` and
+  `docs*` stay 404), exactly like production mode;
+- needs no `GALLERY_TRUSTED_PROXY_SECRET`; if one is set it is still enforced;
+- listens on `127.0.0.1` only (`python3 -m backend.main` also binds loopback and disables reload in this mode);
+- refuses to start together with `PRODUCTION=1` (`GALLERY_MODE=local and PRODUCTION=1 are mutually exclusive`).
+
+The server has no authentication, so keep it on loopback. Only Linux is supported.
+
+Data locations default to the repository: the catalog database is `backend/.cache/gallery_metadata.db` and the
+thumbnail cache is `backend/.cache/thumbnails/`. Point `GALLERY_METADATA_DB` and `GALLERY_THUMBNAIL_CACHE_DIR` at
+another directory to keep a local run separate from a deployed instance on the same checkout, so two backends never
+share one database. The launcher passes the environment through unchanged.
+
+Launcher options: `--port N` (default `4701`, or `PORT`), `--rebuild` (force a frontend build) and `--no-browser`.
+The frontend is rebuilt automatically when `frontend/dist/index.html` is missing or older than `frontend/src`,
+`frontend/public`, `index.html`, `package.json`, `pnpm-lock.yaml`, `vite.config.ts` or `tsconfig.json`.
+
 ## Backend environment variables
 
 | Variable                                               | Type                    | Default                                               | Behavior                                                                                                 |
 | ------------------------------------------------------ | ----------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `PRODUCTION`                                           | boolean (`"1"`)         | `0`                                                   | Enables production mode; also changes the default for metrics.                                           |
 | `GALLERY_TRUSTED_PROXY_SECRET`                         | secret string            | unset                                                 | Required at 32+ characters when `PRODUCTION=1`. Protected `/api` routes require the matching `X-Gallery-Proxy-Secret` header; configuring a secret in development also enables the check. |
+| `GALLERY_MODE`                                         | string (`"local"`)       | unset                                                 | `local` serves the built SPA from the backend on loopback with no proxy secret (see Local offline mode); exclusive with `PRODUCTION=1`.|
 | `PORT`                                                 | integer                 | `4701` in `backend/main.py` fallback                  | Uvicorn port when running `python3 -m backend.main` directly.                                            |
 | `FRONTEND_ORIGIN`                                      | URL/string              | unset                                                 | Extra CORS origin; trailing slash is stripped.                                                           |
 | `FRONTEND_PORT`                                        | integer/string          | unset                                                 | Adds localhost and 127.0.0.1 CORS origins for the active frontend port.                                  |

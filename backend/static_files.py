@@ -6,16 +6,21 @@ import os
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
-from .config import FRONTEND_DIST, PRODUCTION
+from .config import FRONTEND_DIST, LOCAL_MODE, PRODUCTION
 from .security import require_trusted_proxy
 
 router = APIRouter()
 
 
+def _serves_spa() -> bool:
+    """Return True when this process serves the built SPA itself (production or local mode)."""
+    return PRODUCTION or LOCAL_MODE
+
+
 @router.get("/")
 async def read_root():
     """Return the frontend shell in production or a development API marker."""
-    if PRODUCTION:
+    if _serves_spa():
         return FileResponse(str(FRONTEND_DIST / "index.html"), media_type="text/html")
     return {"message": "Museum Art Gallery API"}
 
@@ -43,8 +48,8 @@ def get_landing_pages():
 @router.api_route("/{path:path}", methods=["GET"], include_in_schema=False)
 async def catch_all(path: str):
     """Serve production frontend assets or fall back to the SPA entrypoint."""
-    if not PRODUCTION:
-        raise HTTPException(status_code=404, detail="Only available in production mode")
+    if not _serves_spa():
+        raise HTTPException(status_code=404, detail="Only available in production or local mode")
     if path.startswith("api/") or path.startswith("openapi") or path.startswith("docs"):
         raise HTTPException(status_code=404, detail="Not Found")
     frontend_root = FRONTEND_DIST.resolve()

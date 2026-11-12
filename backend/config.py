@@ -142,6 +142,9 @@ MAX_IMAGE_PIXELS = 100 * 1024 * 1024  # 100 megapixels
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 PRODUCTION = os.getenv("PRODUCTION", "0") == "1"
+# Local single-user mode (Linux): the backend serves the built SPA itself on loopback, with no reverse proxy and no
+# proxy secret. It is mutually exclusive with PRODUCTION (validated at startup in security.py).
+LOCAL_MODE = os.getenv("GALLERY_MODE", "").strip().lower() == "local"
 GALLERY_TRUSTED_PROXY_SECRET = os.getenv("GALLERY_TRUSTED_PROXY_SECRET", "")
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 

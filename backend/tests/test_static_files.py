@@ -4,8 +4,8 @@ Verify static frontend serving behaviour in development and production modes,
 including the root endpoint, landing-page listing, and catch-all asset serving.
 
 Guarantees:
-* read_root returns the development API marker JSON when PRODUCTION=False and
-  FileResponse for index.html when PRODUCTION=True.
+* read_root returns the development API marker JSON when neither PRODUCTION nor LOCAL_MODE is set, and
+  FileResponse for index.html when PRODUCTION=True or GALLERY_MODE=local (LOCAL_MODE).
 * the real frontend/public/landpage folder (copied verbatim into dist) ships only real themes: no
   developer sample page and no archive or other non-page file, and the API lists exactly its
   `<theme>/index.html` pages.
@@ -15,6 +15,7 @@ Guarantees:
 * catch_all in production rejects api/*, openapi*, and docs* prefixes.
 * catch_all in production serves existing static assets with a guessed media
   type and falls back to index.html for missing paths.
+* local mode serves the built SPA like production: index at /, assets, SPA fallback, and 404 for api/*.
 
 Run when:
 * modifying static_files.py, catch_all routing, or frontend asset layout
@@ -222,3 +223,42 @@ class TestCatchAll:
         resp = static_client.get("/")
         assert resp.status_code == 200
         assert "Root fallback" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# Local mode (GALLERY_MODE=local): the backend serves the built SPA itself
+# ---------------------------------------------------------------------------
+
+
+class TestLocalMode:
+    @pytest.fixture
+    def local_dist(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        (tmp_path / "assets").mkdir()
+        (tmp_path / "index.html").write_text("<html><body>Local SPA</body></html>")
+        (tmp_path / "assets" / "app.js").write_text("console.log('x')")
+        monkeypatch.setattr("backend.static_files.LOCAL_MODE", True)
+        monkeypatch.setattr("backend.static_files.FRONTEND_DIST", tmp_path)
+        return tmp_path
+
+    def test_root_serves_index_html(self, static_client: TestClient, local_dist: Path):
+        resp = static_client.get("/")
+        assert resp.status_code == 200
+        assert "Local SPA" in resp.text
+
+    def test_serves_assets_and_spa_fallback(self, static_client: TestClient, local_dist: Path):
+        asset = static_client.get("/assets/app.js")
+        assert asset.status_code == 200
+        assert "console.log" in asset.text
+        fallback = static_client.get("/admin/libraries")
+        assert fallback.status_code == 200
+        assert "Local SPA" in fallback.text
+
+    def test_api_prefixes_are_not_served_as_spa(self, static_client: TestClient, local_dist: Path):
+        assert static_client.get("/api/unknown").status_code == 404
+        assert static_client.get("/openapi.json").status_code == 404
+
+    def test_without_local_mode_catch_all_stays_disabled(
+        self, static_client: TestClient, local_dist: Path, monkeypatch
+    ):
+        monkeypatch.setattr("backend.static_files.LOCAL_MODE", False)
+        assert static_client.get("/admin/libraries").status_code == 404

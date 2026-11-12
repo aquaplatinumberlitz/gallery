@@ -92,6 +92,17 @@ PRODUCTION=1 python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 4701
 
 In production mode the backend serves `frontend/dist/` as a static SPA with client-side routing fallback.
 
+Local offline run (Linux, single user, no nginx, no network):
+
+```bash
+python3 run_local.py
+```
+
+The launcher creates the backend venv and installs dependencies on first run, builds the frontend when
+`frontend/dist` is missing or older than its sources, then starts only the backend with `GALLERY_MODE=local` on
+`http://127.0.0.1:4701` and opens the browser. Options: `--port N`, `--rebuild`, `--no-browser`. The server listens
+on loopback only and has no authentication. See `docs/CONFIGURATION.md` for the mode and its data locations.
+
 Quality checks:
 
 ```bash
